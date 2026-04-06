@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1077479720410",
+    "project_id": "thepillr2",
+    "storage_bucket": "thepillr2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077479720410:android:bee47285633ea5150a6ce3",
+        "android_client_info": {
+          "package_name": "com.pillr.the_pillr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDBV8YapZWAx2uzJrQacW1_fu4NqJAqRE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

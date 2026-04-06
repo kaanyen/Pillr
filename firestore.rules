@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/user_church_index/$(request.auth.uid)).data;
+    }
+
+    function getUserChurchId() {
+      return getUserData().churchId;
+    }
+
+    function getUserRole() {
+      return getUserData().role;
+    }
+
+    function isRole(role) {
+      return isAuthenticated() && getUserRole() == role;
+    }
+
+    function isAdmin() { return isRole('admin'); }
+    function isPastor() { return isRole('pastor'); }
+    function isStaff() { return isRole('staff'); }
+    function isPastorOrAdmin() { return isAdmin() || isPastor(); }
+    function isPastorOrStaff() { return isPastor() || isStaff(); }
+
+    function belongsToChurch(churchId) {
+      return isAuthenticated() && getUserChurchId() == churchId;
+    }
+
+    function isOwnEntry(entry) {
+      return entry.createdBy == request.auth.uid;
+    }
+
+    match /user_church_index/{uid} {
+      allow read: if request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /churches/{churchId} {
+      allow read: if belongsToChurch(churchId);
+      allow write: if belongsToChurch(churchId) && isAdmin();
+
+      match /users/{uidField} {
+        allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow read: if request.auth.uid == uidField;
+        allow create: if false;
+        allow update: if belongsToChurch(churchId) && (isAdmin() || request.auth.uid == uidField);
+        allow delete: if belongsToChurch(churchId) && isAdmin();
+      }
+
+      match /partners/{partnerId} {
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff());
+        allow create: if belongsToChurch(churchId) && (isPastor() || isStaff());
+        allow update: if belongsToChurch(churchId) && isPastor();
+        allow delete: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /entries/{entryId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow read: if belongsToChurch(churchId) && isStaff() && isOwnEntry(resource.data);
+
+        allow create: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && request.resource.data.status == 'pending';
+
+        allow update: if belongsToChurch(churchId) && isPastor();
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && isOwnEntry(resource.data)
+                      && resource.data.status == 'pending'
+                      && request.resource.data.status == 'pending';
+
+        allow delete: if belongsToChurch(churchId) && isPastor();
+        allow delete: if belongsToChurch(churchId) && isStaff()
+                      && isOwnEntry(resource.data)
+                      && resource.data.status == 'pending';
+      }
+
+      match /partnership_arms/{armId} {
+        allow read: if belongsToChurch(churchId);
+        allow write: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /partnership_periods/{periodId} {
+        allow read: if belongsToChurch(churchId);
+        allow write: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /goals/{goalId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /invite_codes/{codeId} {
+        allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow create: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow update: if false;
+        allow delete: if belongsToChurch(churchId) && isPastorOrAdmin();
+      }
+
+      match /activity_logs/{logId} {
+        allow read: if belongsToChurch(churchId) && isAdmin();
+        allow read: if belongsToChurch(churchId) && isPastor()
+                    && resource.data.entityType in ['entry', 'partner', 'user', 'invite'];
+        allow create: if belongsToChurch(churchId);
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+  }
+}
