@@ -16,6 +16,7 @@ import 'responsive_layout.dart';
 
 String _titleForPath(String path) {
   if (path.startsWith('/dashboard')) return 'Dashboard';
+  if (path.startsWith('/approvals')) return 'Approvals';
   if (path.startsWith('/entries')) return 'Entries';
   if (path.startsWith('/partners')) return 'Partners';
   if (path.startsWith('/leaderboard')) return 'Leaderboard';
@@ -140,6 +141,12 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
         path: '/dashboard',
       ),
       const BottomNavItem(
+        icon: Icons.pending_actions_outlined,
+        selectedIcon: Icons.pending_actions,
+        label: 'Approve',
+        path: '/approvals',
+      ),
+      const BottomNavItem(
         icon: Icons.receipt_long_outlined,
         selectedIcon: Icons.receipt_long,
         label: 'Entries',
@@ -171,6 +178,12 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
       selectedIcon: Icons.receipt_long,
       label: 'Entries',
       path: '/entries',
+    ),
+    const BottomNavItem(
+      icon: Icons.people_outline,
+      selectedIcon: Icons.people,
+      label: 'Partners',
+      path: '/partners',
     ),
     const BottomNavItem(
       icon: Icons.settings_outlined,

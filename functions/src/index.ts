@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import * as functionsV1 from "firebase-functions/v1";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {Resend} from "resend";
@@ -223,3 +224,143 @@ export const expireInviteCodes = onSchedule({schedule: "every 30 minutes", regio
   }
   await writer.close();
 });
+
+/** Pastor-only: sets exactly one active period for the church. */
+export const activatePeriod = onCall({region: REGION}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const churchId = String(request.data?.churchId ?? "").trim();
+  const periodId = String(request.data?.periodId ?? "").trim();
+  if (!churchId || !periodId) {
+    throw new HttpsError("invalid-argument", "churchId and periodId are required.");
+  }
+  const indexSnap = await db.doc(`user_church_index/${uid}`).get();
+  if (!indexSnap.exists) {
+    throw new HttpsError("permission-denied", "No church membership.");
+  }
+  const idx = indexSnap.data()!;
+  if (idx.churchId !== churchId || idx.role !== "pastor") {
+    throw new HttpsError("permission-denied", "Only pastors can activate periods.");
+  }
+  const col = db.collection(`churches/${churchId}/partnership_periods`);
+  const snap = await col.get();
+  if (snap.empty) {
+    throw new HttpsError("failed-precondition", "No periods defined.");
+  }
+  const batch = db.batch();
+  const ts = admin.firestore.FieldValue.serverTimestamp();
+  for (const doc of snap.docs) {
+    batch.update(doc.ref, {
+      isActive: doc.id === periodId,
+      updatedAt: ts,
+    });
+  }
+  await batch.commit();
+  return {success: true};
+});
+
+async function applyApprovalDeltas(churchId: string, entry: admin.firestore.DocumentData) {
+  const amount = Number(entry.amountCedis ?? 0);
+  if (!amount || amount <= 0) return;
+  const partnerRef = db.doc(`churches/${churchId}/partners/${entry.partnerId}`);
+  const periodRef = db.doc(`churches/${churchId}/partnership_periods/${entry.partnershipPeriodId}`);
+  const batch = db.batch();
+  batch.update(partnerRef, {
+    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
+    entryCount: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  batch.update(periodRef, {
+    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
+    entryCount: admin.firestore.FieldValue.increment(1),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  const goals = await db
+    .collection(`churches/${churchId}/goals`)
+    .where("partnershipPeriodId", "==", entry.partnershipPeriodId)
+    .where("partnershipArmId", "==", entry.partnershipArmId)
+    .limit(1)
+    .get();
+  if (!goals.empty) {
+    batch.update(goals.docs[0].ref, {
+      currentAmountCedis: admin.firestore.FieldValue.increment(amount),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+}
+
+async function notifyPastorsNewEntry(churchId: string, entry: admin.firestore.DocumentData) {
+  const users = await db.collection(`churches/${churchId}/users`).where("role", "==", "pastor").get();
+  const tokens: string[] = [];
+  for (const d of users.docs) {
+    const t = d.data().fcmToken as string | undefined;
+    if (t) tokens.push(t);
+  }
+  if (tokens.length === 0) return;
+  const amt = Number(entry.amountCedis ?? 0).toFixed(2);
+  try {
+    await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: "New partnership entry",
+        body: `₵${amt} pending your review`,
+      },
+    });
+  } catch (e) {
+    console.warn("FCM notifyPastorsNewEntry:", e);
+  }
+}
+
+async function notifyStaffEntryReviewed(churchId: string, after: admin.firestore.DocumentData) {
+  const createdBy = after.createdBy as string | undefined;
+  if (!createdBy) return;
+  const userSnap = await db.doc(`churches/${churchId}/users/${createdBy}`).get();
+  const token = userSnap.data()?.fcmToken as string | undefined;
+  if (!token) return;
+  const approved = after.status === "approved";
+  try {
+    await admin.messaging().send({
+      token,
+      notification: {
+        title: approved ? "Entry approved" : "Entry declined",
+        body: approved
+          ? "Your partnership entry was approved."
+          : (after.declineReason as string) || "Your entry was declined.",
+      },
+    });
+  } catch (e) {
+    console.warn("FCM notifyStaffEntryReviewed:", e);
+  }
+}
+
+// Gen-1 Firestore triggers: Gen-2 uses Eventarc; deploy can fail with "Eventarc Service Agent"
+// permission errors on first use. Gen-1 uses the legacy path and avoids that trigger-creation step.
+
+export const onEntryCreated = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/entries/{entryId}")
+  .onCreate(async (snap, context) => {
+    const data = snap.data();
+    if (!data || data.status !== "pending") return;
+    const churchId = context.params.churchId as string;
+    await notifyPastorsNewEntry(churchId, data);
+  });
+
+export const onEntryUpdated = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/entries/{entryId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!before || !after) return;
+    const churchId = context.params.churchId as string;
+    if (before.status === "pending" && after.status === "approved") {
+      await applyApprovalDeltas(churchId, after);
+    }
+    if (before.status === "pending" && (after.status === "approved" || after.status === "declined")) {
+      await notifyStaffEntryReviewed(churchId, after);
+    }
+  });

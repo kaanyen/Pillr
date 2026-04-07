@@ -14,6 +14,7 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../activity/activity_log_helper.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../domain/partnership_arm.dart';
 import '../providers/arms_providers.dart';
@@ -225,6 +226,14 @@ class ArmsScreen extends ConsumerWidget {
             armId: arm.id,
             isActive: value,
           );
+      await logPillrActivity(
+        ref,
+        churchId: churchId,
+        action: value ? 'arm.activate' : 'arm.deactivate',
+        entityType: 'arm',
+        entityId: arm.id,
+        entitySnapshot: {'name': arm.name},
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -249,6 +258,13 @@ class ArmsScreen extends ConsumerWidget {
     if (ok != true || !context.mounted) return;
     try {
       await ref.read(armsRepositoryProvider).deleteArm(churchId: churchId, armId: arm.id);
+      await logPillrActivity(
+        ref,
+        churchId: churchId,
+        action: 'arm.delete',
+        entityType: 'arm',
+        entityId: arm.id,
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Arm deleted.')),
@@ -345,6 +361,12 @@ class _ArmEditorDialogState extends ConsumerState<_ArmEditorDialog> {
           description: _description.text,
           colorHex: _color.text.trim().isEmpty ? null : _color.text,
         );
+        await logPillrActivity(
+          ref,
+          churchId: widget.churchId,
+          action: 'arm.create',
+          entityType: 'arm',
+        );
       } else {
         await repo.updateArm(
           churchId: widget.churchId,
@@ -353,6 +375,13 @@ class _ArmEditorDialogState extends ConsumerState<_ArmEditorDialog> {
           description: _description.text,
           isActive: widget.existing!.isActive,
           colorHex: _color.text.trim().isEmpty ? null : _color.text,
+        );
+        await logPillrActivity(
+          ref,
+          churchId: widget.churchId,
+          action: 'arm.update',
+          entityType: 'arm',
+          entityId: widget.existing!.id,
         );
       }
       if (mounted) Navigator.of(context).pop();

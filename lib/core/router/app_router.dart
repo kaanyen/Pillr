@@ -8,12 +8,13 @@ import '../../features/auth/presentation/join_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/dashboard/presentation/role_dashboard_screen.dart';
 import '../../features/entries/presentation/entries_list_screen.dart';
-import '../../features/entries/presentation/entry_detail_placeholder_screen.dart';
-import '../../features/entries/presentation/entry_form_placeholder_screen.dart';
+import '../../features/entries/presentation/entry_detail_screen.dart';
+import '../../features/entries/presentation/entry_form_screen.dart';
+import '../../features/entries/presentation/pending_approvals_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/leaderboard/presentation/leaderboard_screen.dart';
 import '../../features/logs/presentation/activity_logs_screen.dart';
-import '../../features/partners/presentation/partner_profile_placeholder_screen.dart';
+import '../../features/partners/presentation/partner_profile_screen.dart';
 import '../../features/partners/presentation/partners_list_screen.dart';
 import '../../features/periods/presentation/periods_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
@@ -55,27 +56,39 @@ GoRouter createRouter() {
                 const NoTransitionPage(child: RoleDashboardScreen()),
           ),
           GoRoute(
+            path: '/approvals',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PendingApprovalsScreen()),
+          ),
+          GoRoute(
+            path: '/entries/new',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: EntryFormScreen()),
+          ),
+          GoRoute(
+            path: '/entries/:id/edit',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return NoTransitionPage(child: EntryFormScreen(entryId: id));
+            },
+          ),
+          GoRoute(
             path: '/entries',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: EntriesListScreen()),
           ),
           GoRoute(
-            path: '/entries/new',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: EntryFormPlaceholderScreen()),
-          ),
-          GoRoute(
             path: '/entries/:id',
             pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return NoTransitionPage(child: EntryDetailPlaceholderScreen(entryId: id));
+              return NoTransitionPage(child: EntryDetailScreen(entryId: id));
             },
           ),
           GoRoute(
             path: '/partners/:id',
             pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return NoTransitionPage(child: PartnerProfilePlaceholderScreen(partnerId: id));
+              return NoTransitionPage(child: PartnerProfileScreen(partnerId: id));
             },
           ),
           GoRoute(

@@ -24,6 +24,9 @@ class PillrDataTable extends StatelessWidget {
   final void Function(bool? selected)? onSelectAll;
   final double minWidth;
 
+  static const double _headingRowHeight = 48;
+  static const double _dataRowHeight = 56;
+
   @override
   Widget build(BuildContext context) {
     final styledColumns = columns
@@ -42,6 +45,11 @@ class PillrDataTable extends StatelessWidget {
         )
         .toList();
 
+    // data_table_2 uses a Column with Flexible children; that requires a bounded
+    // max height. Placing DataTable2 inside SingleChildScrollView gives unbounded
+    // height and throws on web ("RenderFlex children have non-zero flex...").
+    final boundedHeight = _headingRowHeight + _dataRowHeight * rows.length + 2;
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -56,24 +64,27 @@ class PillrDataTable extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: DataTable2(
-        columnSpacing: AppSpacing.md,
-        horizontalMargin: AppSpacing.md,
-        minWidth: minWidth,
-        headingRowHeight: 48,
-        dataRowHeight: 56,
-        headingRowDecoration: const BoxDecoration(
-          color: AppColors.gray50,
-          border: Border(
-            bottom: BorderSide(color: AppColors.gray200),
+      child: SizedBox(
+        height: boundedHeight,
+        child: DataTable2(
+          columnSpacing: AppSpacing.md,
+          horizontalMargin: AppSpacing.md,
+          minWidth: minWidth,
+          headingRowHeight: _headingRowHeight,
+          dataRowHeight: _dataRowHeight,
+          headingRowDecoration: const BoxDecoration(
+            color: AppColors.gray50,
+            border: Border(
+              bottom: BorderSide(color: AppColors.gray200),
+            ),
           ),
+          decoration: const BoxDecoration(),
+          sortColumnIndex: sortColumnIndex,
+          sortAscending: sortAscending,
+          onSelectAll: onSelectAll,
+          columns: styledColumns,
+          rows: rows,
         ),
-        decoration: const BoxDecoration(),
-        sortColumnIndex: sortColumnIndex,
-        sortAscending: sortAscending,
-        onSelectAll: onSelectAll,
-        columns: styledColumns,
-        rows: rows,
       ),
     );
   }

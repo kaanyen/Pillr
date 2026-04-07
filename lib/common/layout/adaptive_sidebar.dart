@@ -9,13 +9,15 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
+import '../../features/entries/providers/entries_providers.dart';
 
 class NavItemData {
-  const NavItemData(this.path, this.label, this.icon);
+  const NavItemData(this.path, this.label, this.icon, {this.badge});
 
   final String path;
   final String label;
   final IconData icon;
+  final int? badge;
 }
 
 class NavSectionData {
@@ -25,7 +27,7 @@ class NavSectionData {
   final List<NavItemData> items;
 }
 
-List<NavSectionData> navSectionsForRole(UserChurchIndex? idx) {
+List<NavSectionData> navSectionsForRole(UserChurchIndex? idx, {int pendingApprovalCount = 0}) {
   if (idx == null) return [];
   if (idx.isAdmin) {
     return [
@@ -44,9 +46,15 @@ List<NavSectionData> navSectionsForRole(UserChurchIndex? idx) {
   }
   if (idx.isPastor) {
     return [
-      const NavSectionData('MAIN', [
-        NavItemData('/dashboard', 'Dashboard', Icons.home_outlined),
-        NavItemData('/entries', 'Entries', Icons.receipt_long_outlined),
+      NavSectionData('MAIN', [
+        const NavItemData('/dashboard', 'Dashboard', Icons.home_outlined),
+        const NavItemData('/entries', 'Entries', Icons.receipt_long_outlined),
+        NavItemData(
+          '/approvals',
+          'Approvals',
+          Icons.pending_actions_outlined,
+          badge: pendingApprovalCount > 0 ? pendingApprovalCount : null,
+        ),
       ]),
       const NavSectionData('PARTNERSHIP', [
         NavItemData('/partners', 'Partners', Icons.people_outline),
@@ -70,6 +78,7 @@ List<NavSectionData> navSectionsForRole(UserChurchIndex? idx) {
     const NavSectionData('MAIN', [
       NavItemData('/dashboard', 'Dashboard', Icons.home_outlined),
       NavItemData('/entries', 'Entries', Icons.receipt_long_outlined),
+      NavItemData('/partners', 'Partners', Icons.people_outline),
     ]),
     NavSectionData(null, [
       const NavItemData('/settings', 'Settings', Icons.settings_outlined),
@@ -99,7 +108,8 @@ class AdaptiveSidebar extends ConsumerWidget {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final churchName = ref.watch(churchNameProvider).valueOrNull ?? 'Your church';
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
-    final sections = navSectionsForRole(idx);
+    final pendingCount = ref.watch(pendingApprovalCountProvider);
+    final sections = navSectionsForRole(idx, pendingApprovalCount: pendingCount);
 
     final width = collapsed
         ? AppConstants.sidebarWidthCollapsed
@@ -201,6 +211,7 @@ class AdaptiveSidebar extends ConsumerWidget {
                         icon: item.icon,
                         label: item.label,
                         path: item.path,
+                        badge: item.badge,
                         collapsed: collapsed,
                         active: _isActive(item.path),
                         onTap: () => context.go(item.path),
@@ -260,6 +271,7 @@ class _SidebarTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.path,
+    this.badge,
     required this.collapsed,
     required this.active,
     required this.onTap,
@@ -268,6 +280,7 @@ class _SidebarTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String path;
+  final int? badge;
   final bool collapsed;
   final bool active;
   final VoidCallback onTap;
@@ -305,6 +318,21 @@ class _SidebarTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (badge != null && badge! > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.dangerColor,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$badge',
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                 ],
               ],
             ),

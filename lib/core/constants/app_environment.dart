@@ -8,9 +8,13 @@ enum AppEnvironment {
 class AppEnvironmentConfig {
   AppEnvironmentConfig._();
 
-  static final AppEnvironment current = _parse(
-    String.fromEnvironment('APP_ENV', defaultValue: 'development'),
+  /// Must be `const` — on web, non-const [String.fromEnvironment] throws at runtime.
+  static const String _rawAppEnv = String.fromEnvironment(
+    'APP_ENV',
+    defaultValue: 'development',
   );
+
+  static final AppEnvironment current = _parse(_rawAppEnv);
 
   static AppEnvironment _parse(String raw) {
     switch (raw.trim().toLowerCase()) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/widgets/pillr_card.dart';
 import '../../../common/widgets/pillr_stat_card.dart';
@@ -6,13 +7,22 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../providers/dashboard_stats_providers.dart';
 
-/// Reference 2 stat row + Reference 3 segmented progress header.
-class PastorDashboardScreen extends StatelessWidget {
+/// Reference 2 stat row — live entry aggregates from Firestore streams.
+class PastorDashboardScreen extends ConsumerWidget {
   const PastorDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(pastorEntryStatsProvider);
+    final partnerCount = ref.watch(activePartnerCountProvider);
+
+    final total = stats.pendingCount + stats.approvedCount + stats.declinedCount;
+    final pFlex = total == 0 ? 1 : stats.pendingCount;
+    final aFlex = total == 0 ? 1 : stats.approvedCount;
+    final dFlex = total == 0 ? 1 : stats.declinedCount;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -21,7 +31,7 @@ class PastorDashboardScreen extends StatelessWidget {
           Text('Overview', style: AppTypography.heading2),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Partnership health for the active period — live data arrives in Phase 3.',
+            'Live counts from partnership entries in your church.',
             style: AppTypography.body,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -37,29 +47,24 @@ class PastorDashboardScreen extends StatelessWidget {
                 childAspectRatio: 1.4,
                 children: [
                   PillrStatCard(
-                    label: 'Total collected',
-                    valueText: formatCedis(148250),
-                    deltaPercent: 12.4,
-                    deltaPositive: true,
+                    label: 'Total collected (approved)',
+                    valueText: formatCedis(stats.totalApprovedCedis),
+                    periodLabel: 'All approved entries',
                   ),
                   PillrStatCard(
                     label: 'Pending approvals',
-                    valueText: '8',
-                    deltaPercent: 3.1,
-                    deltaPositive: false,
+                    valueText: '${stats.pendingCount}',
+                    periodLabel: 'Awaiting review',
                   ),
                   PillrStatCard(
                     label: 'Active partners',
-                    valueText: '128',
-                    deltaPercent: 4.2,
-                    deltaPositive: true,
+                    valueText: '$partnerCount',
+                    periodLabel: 'Non-inactive partners',
                   ),
                   PillrStatCard(
                     label: 'Goal progress',
-                    valueText: '64%',
-                    deltaPercent: 8.0,
-                    deltaPositive: true,
-                    periodLabel: 'vs last period',
+                    valueText: '—',
+                    periodLabel: 'Targets & leaderboard in Phase 3',
                   ),
                 ],
               );
@@ -75,17 +80,17 @@ class PastorDashboardScreen extends StatelessWidget {
                     Text('Partnership mix', style: AppTypography.heading3),
                     const Spacer(),
                     Text(
-                      '34 entries · ${formatCedis(48200)}',
+                      '${stats.totalEntries} entries · ${formatCedis(stats.totalApprovedCedis)} approved',
                       style: AppTypography.caption,
                     ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _SegmentBar(
-                  segments: const [
-                    _Seg(0.45, AppColors.progressTeal),
-                    _Seg(0.28, AppColors.progressOrange),
-                    _Seg(0.27, AppColors.progressRed),
+                  segments: [
+                    _Seg(pFlex.toDouble(), AppColors.progressOrange),
+                    _Seg(aFlex.toDouble(), AppColors.progressTeal),
+                    _Seg(dFlex.toDouble(), AppColors.progressRed),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -93,8 +98,8 @@ class PastorDashboardScreen extends StatelessWidget {
                   spacing: AppSpacing.lg,
                   runSpacing: AppSpacing.sm,
                   children: [
-                    _LegendDot(color: AppColors.progressTeal, label: 'Approved'),
                     _LegendDot(color: AppColors.progressOrange, label: 'Pending'),
+                    _LegendDot(color: AppColors.progressTeal, label: 'Approved'),
                     _LegendDot(color: AppColors.progressRed, label: 'Declined'),
                   ],
                 ),

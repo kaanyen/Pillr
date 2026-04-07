@@ -67,11 +67,15 @@ service cloud.firestore {
         allow create: if belongsToChurch(churchId) && isPastorOrStaff()
                       && request.resource.data.status == 'pending';
 
+        // Pastor: approve, decline, edit any entry.
         allow update: if belongsToChurch(churchId) && isPastor();
+
+        // Staff: edit own pending or declined entries; must reset to pending (re-submit).
         allow update: if belongsToChurch(churchId) && isStaff()
                       && isOwnEntry(resource.data)
-                      && resource.data.status == 'pending'
-                      && request.resource.data.status == 'pending';
+                      && (resource.data.status == 'pending' || resource.data.status == 'declined')
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.createdBy == resource.data.createdBy;
 
         allow delete: if belongsToChurch(churchId) && isPastor();
         allow delete: if belongsToChurch(churchId) && isStaff()

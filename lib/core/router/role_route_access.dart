@@ -6,6 +6,7 @@ bool isPathForbiddenForRole(String location, String role) {
 
   // Admin: no financial / entry areas
   if (role == 'admin') {
+    if (starts('/approvals')) return true;
     if (starts('/entries')) return true;
     if (starts('/partners')) return true;
     if (starts('/leaderboard')) return true;
@@ -15,9 +16,9 @@ bool isPathForbiddenForRole(String location, String role) {
     return false;
   }
 
-  // Staff: entries + dashboard + settings only (partners list deferred to Phase 2)
+  // Staff: entries, partners (search/create), dashboard, settings
   if (role == 'staff') {
-    if (starts('/partners')) return true;
+    if (starts('/approvals')) return true;
     if (starts('/leaderboard')) return true;
     if (starts('/goals')) return true;
     if (starts('/arms')) return true;

@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/widgets/pillr_stat_card.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../providers/dashboard_stats_providers.dart';
 
-class StaffDashboardScreen extends StatelessWidget {
+class StaffDashboardScreen extends ConsumerWidget {
   const StaffDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(staffMyEntryStatsProvider);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -18,7 +22,7 @@ class StaffDashboardScreen extends StatelessWidget {
           Text('My dashboard', style: AppTypography.heading2),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Track your submitted entries. Approval workflow arrives in Phase 2.',
+            'Live totals from your submitted entries.',
             style: AppTypography.body,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -35,15 +39,13 @@ class StaffDashboardScreen extends StatelessWidget {
                 children: [
                   PillrStatCard(
                     label: 'My entries',
-                    valueText: '12',
-                    deltaPercent: 5.0,
-                    deltaPositive: true,
+                    valueText: '${s.totalCount}',
+                    periodLabel: 'All statuses',
                   ),
                   PillrStatCard(
                     label: 'My approved total',
-                    valueText: formatCedis(4200),
-                    deltaPercent: 2.1,
-                    deltaPositive: true,
+                    valueText: formatCedis(s.approvedTotalCedis),
+                    periodLabel: '${s.approvedCount} approved',
                   ),
                 ],
               );
