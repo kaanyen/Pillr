@@ -1,13 +1,26 @@
-/// Build-time environment: `--dart-define=APP_ENV=staging|production`
-enum AppEnvironment { development, staging, production }
-
-AppEnvironment parseAppEnvironment() {
-  const raw = String.fromEnvironment('APP_ENV', defaultValue: 'development');
-  return switch (raw) {
-    'production' => AppEnvironment.production,
-    'staging' => AppEnvironment.staging,
-    _ => AppEnvironment.development,
-  };
+/// Build-time environment from `--dart-define=APP_ENV=...` (see `.vscode/launch.json`).
+enum AppEnvironment {
+  development,
+  staging,
+  production,
 }
 
-bool get isProduction => parseAppEnvironment() == AppEnvironment.production;
+class AppEnvironmentConfig {
+  AppEnvironmentConfig._();
+
+  static final AppEnvironment current = _parse(
+    String.fromEnvironment('APP_ENV', defaultValue: 'development'),
+  );
+
+  static AppEnvironment _parse(String raw) {
+    switch (raw.trim().toLowerCase()) {
+      case 'staging':
+        return AppEnvironment.staging;
+      case 'production':
+      case 'prod':
+        return AppEnvironment.production;
+      default:
+        return AppEnvironment.development;
+    }
+  }
+}

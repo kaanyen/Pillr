@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_router_redirect.dart';
 import '../../features/arms/presentation/arms_screen.dart';
 import '../../features/auth/presentation/join_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
@@ -28,20 +29,9 @@ GoRouter createRouter() {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/dashboard',
+    initialLocation: '/',
     refreshListenable: refresh,
-    redirect: (context, state) {
-      final auth = FirebaseAuth.instance.currentUser;
-      final loc = state.matchedLocation;
-
-      if (auth == null) {
-        if (loc == '/login' || loc == '/join') return null;
-        return '/login';
-      }
-
-      if (loc == '/login') return '/dashboard';
-      return null;
-    },
+    redirect: appRouterRedirect,
     routes: [
       GoRoute(
         path: '/login',

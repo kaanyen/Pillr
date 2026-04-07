@@ -1,3 +1,7 @@
+# Firebase / GCP (never commit service account keys)
+*-firebase-adminsdk-*.json
+**/serviceAccount*.json
+
 # Miscellaneous
 *.class
 *.log

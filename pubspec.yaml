@@ -80,6 +80,8 @@ dev_dependencies:
   freezed: ^3.2.5
   json_serializable: ^6.13.0
   riverpod_generator: ^4.0.3
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -91,6 +93,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/branding/app_icon.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -122,3 +127,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  image_path: assets/branding/app_icon.png
+  min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#1A56DB"
+  image: assets/branding/app_icon.png
+  android_12:
+    color: "#1A56DB"
+    image: assets/branding/app_icon.png
+  web: true

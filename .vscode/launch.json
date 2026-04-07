@@ -1,0 +1,57 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Pillr (Chrome, development)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["-d", "chrome"],
+      "toolArgs": ["--dart-define=APP_ENV=development"]
+    },
+    {
+      "name": "Pillr (Chrome, staging)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["-d", "chrome"],
+      "toolArgs": ["--dart-define=APP_ENV=staging"]
+    },
+    {
+      "name": "Pillr (Chrome, production)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["-d", "chrome"],
+      "toolArgs": ["--dart-define=APP_ENV=production"]
+    },
+    {
+      "name": "Pillr (device, development)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--dart-define=APP_ENV=development"]
+    },
+    {
+      "name": "Pillr (Android, development)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "development", "--dart-define=APP_ENV=development"]
+    },
+    {
+      "name": "Pillr (Android, staging)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "staging", "--dart-define=APP_ENV=staging"]
+    },
+    {
+      "name": "Pillr (Android, production)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": ["--flavor", "production", "--dart-define=APP_ENV=production"]
+    }
+  ]
+}

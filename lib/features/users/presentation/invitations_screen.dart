@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,11 +8,11 @@ import 'package:intl/intl.dart';
 import '../../../common/layout/responsive_layout.dart';
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_button.dart';
-import '../../../core/extensions/async_value_ext.dart';
 import '../../../common/widgets/pillr_data_table.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
+import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -23,11 +25,19 @@ final _invitesStreamProvider = StreamProvider.autoDispose<List<InviteRecord>>((r
   return ref.watch(inviteRepositoryProvider).watchInvites(idx.churchId);
 });
 
-class InvitationsScreen extends ConsumerWidget {
+class InvitationsScreen extends ConsumerStatefulWidget {
   const InvitationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InvitationsScreen> createState() => _InvitationsScreenState();
+}
+
+class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
+  int _rowsPerPage = 10;
+  int _pageIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final invites = ref.watch(_invitesStreamProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final width = MediaQuery.sizeOf(context).width;
@@ -76,48 +86,92 @@ class InvitationsScreen extends ConsumerWidget {
                   onAction: idx == null ? null : () => _openSendDialog(context, ref, idx.churchId),
                 );
               }
+              final totalPages = max(1, (rows.length / _rowsPerPage).ceil());
+              var page = _pageIndex;
+              if (page >= totalPages) page = totalPages - 1;
+              if (page < 0) page = 0;
+              if (page != _pageIndex) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _pageIndex = page);
+                });
+              }
+              final start = page * _rowsPerPage;
+              final pageRows = rows.skip(start).take(_rowsPerPage).toList();
               final df = DateFormat.MMMd().add_jm();
-              return PillrDataTable(
-                minWidth: width > 800 ? width - AppSpacing.lg * 2 : 800,
-                sortColumnIndex: 3,
-                sortAscending: false,
-                columns: [
-                  DataColumn2(label: Text('EMAIL', style: AppTypography.tableHeader), size: ColumnSize.L),
-                  DataColumn2(label: Text('ROLE', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('EXPIRES', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('ACTIONS', style: AppTypography.tableHeader), fixedWidth: 120),
-                ],
-                rows: [
-                  for (final r in rows)
-                    DataRow(
-                      cells: [
-                        DataCell(
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(r.email, style: AppTypography.body.copyWith(
-                                    color: AppColors.gray900,
-                                    fontWeight: FontWeight.w600,
-                                  )),
-                              Text('Code ${r.code}', style: AppTypography.caption),
-                            ],
-                          ),
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PillrDataTable(
+                    minWidth: width > 800 ? width - AppSpacing.lg * 2 : 800,
+                    sortColumnIndex: 3,
+                    sortAscending: false,
+                    columns: [
+                      DataColumn2(
+                        label: Text('EMAIL', style: AppTypography.tableHeader),
+                        size: ColumnSize.L,
+                      ),
+                      DataColumn2(label: Text('ROLE', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('EXPIRES', style: AppTypography.tableHeader)),
+                      DataColumn2(
+                        label: Text('ACTIONS', style: AppTypography.tableHeader),
+                        fixedWidth: 120,
+                      ),
+                    ],
+                    rows: [
+                      for (final r in pageRows)
+                        DataRow(
+                          cells: [
+                            DataCell(
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    r.email,
+                                    style: AppTypography.body.copyWith(
+                                      color: AppColors.gray900,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text('Code ${r.code}', style: AppTypography.caption),
+                                ],
+                              ),
+                            ),
+                            DataCell(Text(r.role, style: AppTypography.body)),
+                            DataCell(_statusBadge(r.status)),
+                            DataCell(
+                              Text(
+                                df.format(r.expiresAt.toLocal()),
+                                style: AppTypography.body,
+                              ),
+                            ),
+                            DataCell(
+                              r.status == 'pending'
+                                  ? TextButton(
+                                      onPressed: () =>
+                                          _resend(context, ref, idx!.churchId, r),
+                                      child: const Text('Resend'),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
                         ),
-                        DataCell(Text(r.role, style: AppTypography.body)),
-                        DataCell(_statusBadge(r.status)),
-                        DataCell(Text(df.format(r.expiresAt.toLocal()), style: AppTypography.body)),
-                        DataCell(
-                          r.status == 'pending'
-                              ? TextButton(
-                                  onPressed: () => _resend(context, ref, idx!.churchId, r),
-                                  child: const Text('Resend'),
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                      ],
-                    ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _PaginationBar(
+                    rowsPerPage: _rowsPerPage,
+                    pageIndex: page,
+                    totalPages: totalPages,
+                    totalRows: rows.length,
+                    onRowsPerPage: (n) => setState(() {
+                      _rowsPerPage = n;
+                      _pageIndex = 0;
+                    }),
+                    onPage: (p) => setState(() => _pageIndex = p),
+                  ),
                 ],
               );
             },
@@ -130,12 +184,24 @@ class InvitationsScreen extends ConsumerWidget {
   static Widget _statusBadge(String status) {
     final s = status.toLowerCase();
     if (s == 'accepted') {
-      return const PillrBadge(label: 'Accepted', kind: PillrBadgeKind.approved, compact: true);
+      return const PillrBadge(
+        label: 'Accepted',
+        kind: PillrBadgeKind.approved,
+        compact: true,
+      );
     }
     if (s == 'expired') {
-      return const PillrBadge(label: 'Expired', kind: PillrBadgeKind.inactive, compact: true);
+      return const PillrBadge(
+        label: 'Expired',
+        kind: PillrBadgeKind.inactive,
+        compact: true,
+      );
     }
-    return const PillrBadge(label: 'Pending', kind: PillrBadgeKind.pending, compact: true);
+    return const PillrBadge(
+      label: 'Pending',
+      kind: PillrBadgeKind.pending,
+      compact: true,
+    );
   }
 
   Future<void> _openSendDialog(BuildContext context, WidgetRef ref, String churchId) async {
@@ -167,6 +233,93 @@ class InvitationsScreen extends ConsumerWidget {
         );
       }
     }
+  }
+}
+
+class _PaginationBar extends StatelessWidget {
+  const _PaginationBar({
+    required this.rowsPerPage,
+    required this.pageIndex,
+    required this.totalPages,
+    required this.totalRows,
+    required this.onRowsPerPage,
+    required this.onPage,
+  });
+
+  final int rowsPerPage;
+  final int pageIndex;
+  final int totalPages;
+  final int totalRows;
+  final ValueChanged<int> onRowsPerPage;
+  final ValueChanged<int> onPage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.sm,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Show', style: AppTypography.caption),
+            const SizedBox(width: AppSpacing.sm),
+            DropdownButton<int>(
+              value: rowsPerPage,
+              items: const [
+                DropdownMenuItem(value: 10, child: Text('10')),
+                DropdownMenuItem(value: 25, child: Text('25')),
+                DropdownMenuItem(value: 50, child: Text('50')),
+              ],
+              onChanged: (v) {
+                if (v != null) onRowsPerPage(v);
+              },
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text('invites per page', style: AppTypography.caption),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'First page',
+              onPressed: pageIndex > 0 ? () => onPage(0) : null,
+              icon: const Icon(Icons.first_page_outlined),
+            ),
+            IconButton(
+              tooltip: 'Previous page',
+              onPressed: pageIndex > 0 ? () => onPage(pageIndex - 1) : null,
+              icon: const Icon(Icons.chevron_left),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              child: Text(
+                '${pageIndex + 1} / $totalPages',
+                style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Next page',
+              onPressed: pageIndex < totalPages - 1 ? () => onPage(pageIndex + 1) : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+            IconButton(
+              tooltip: 'Last page',
+              onPressed: pageIndex < totalPages - 1 ? () => onPage(totalPages - 1) : null,
+              icon: const Icon(Icons.last_page_outlined),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Text(
+              '$totalRows total',
+              style: AppTypography.caption,
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -244,7 +397,10 @@ class _SendInviteDialogState extends ConsumerState<_SendInviteDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+              Text(
+                _error!,
+                style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+              ),
             ],
           ],
         ),

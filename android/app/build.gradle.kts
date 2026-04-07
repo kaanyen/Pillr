@@ -34,6 +34,22 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "environment"
+    productFlavors {
+        create("development") {
+            dimension = "environment"
+            resValue("string", "app_name", "Pillr (dev)")
+        }
+        create("staging") {
+            dimension = "environment"
+            resValue("string", "app_name", "Pillr (staging)")
+        }
+        create("production") {
+            dimension = "environment"
+            resValue("string", "app_name", "Pillr")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
