@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function userChurch() {
+      return firestore.get(/databases/(default)/documents/user_church_index/$(request.auth.uid)).data;
+    }
+
+    match /churches/{churchId}/branding/{fileName} {
+      allow read: if request.auth != null
+        && userChurch().churchId == churchId;
+      allow write: if request.auth != null
+        && userChurch().churchId == churchId
+        && userChurch().role == 'admin';
+    }
+
+    match /churches/{churchId}/period_reports/{fileName} {
+      allow read: if request.auth != null
+        && userChurch().churchId == churchId;
+      allow write: if false;
+    }
+  }
+}

@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../common/widgets/pillr_button.dart';
+import '../../../common/widgets/pillr_form_card.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
+import '../../../core/utils/entry_duplicate_utils.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../activity/activity_log_helper.dart';
@@ -22,6 +27,43 @@ import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
 import '../domain/partnership_entry.dart';
 import '../providers/entries_providers.dart';
+
+Map<String, dynamic> _entryValuesForActivityLog(PartnershipEntry e) => {
+      'partnerId': e.partnerId,
+      'partnerName': e.partnerSnapshot['fullName'],
+      'memberId': e.partnerSnapshot['memberId'],
+      'amountCedis': e.amountCedis,
+      'partnershipArmId': e.partnershipArmId,
+      'armName': e.armSnapshot['name'],
+      'partnershipPeriodId': e.partnershipPeriodId,
+      'periodName': e.periodSnapshot['name'],
+      'status': e.status,
+      'notes': e.notes,
+      'dateGiven': e.dateGiven.toIso8601String(),
+    };
+
+Map<String, dynamic> _afterEntryValues({
+  required Partner partner,
+  required PartnershipArm arm,
+  required PartnershipPeriod period,
+  required double amount,
+  required DateTime dateGiven,
+  required String? notes,
+  required String status,
+}) =>
+    {
+      'partnerId': partner.id,
+      'partnerName': partner.fullName,
+      'memberId': partner.memberId,
+      'amountCedis': amount,
+      'partnershipArmId': arm.id,
+      'armName': arm.name,
+      'partnershipPeriodId': period.id,
+      'periodName': period.name,
+      'status': status,
+      'notes': notes,
+      'dateGiven': dateGiven.toIso8601String(),
+    };
 
 /// Create a new partnership entry, or edit an existing one (`entryId` set).
 class EntryFormScreen extends ConsumerStatefulWidget {
@@ -202,207 +244,161 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(title, style: AppTypography.heading2),
-            const SizedBox(height: AppSpacing.md),
-            if (!_isEdit && periodForCreate == null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Text(
-                  'No active partnership period. A pastor must activate a period under Periods.',
-                  style: AppTypography.caption.copyWith(color: AppColors.warningColor),
-                ),
-              ),
-            if (_isEdit && entry != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Text(
-                  'Status: ${entry.status}',
-                  style: AppTypography.caption.copyWith(color: AppColors.gray600),
-                ),
-              ),
-            OutlinedButton.icon(
-              onPressed: () => _pickPartner(context, churchId, uid),
-              icon: const Icon(Icons.person_search_outlined),
-              label: Text(_partner?.displayLabel ?? 'Select partner'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              onPressed: () async {
-                await showDialog<void>(
-                  context: context,
-                  builder: (ctx) => PartnerFormDialog(
-                    churchId: churchId,
-                    uid: uid,
-                    existing: null,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: PillrLayout.formMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: AppTypography.heading2),
+              const SizedBox(height: AppSpacing.md),
+              if (!_isEdit && periodForCreate == null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Text(
+                    'No active partnership period. A pastor must activate a period under Periods.',
+                    style: AppTypography.caption.copyWith(color: AppColors.warningColor),
                   ),
-                );
-              },
-              child: const Text('Create new partner'),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Partnership arm', style: AppTypography.label),
-            const SizedBox(height: AppSpacing.sm),
-            DropdownMenu<String>(
-              key: ValueKey<String?>('arm-${_arm?.id}'),
-              initialSelection: _arm?.id,
-              label: const Text('Select arm'),
-              dropdownMenuEntries: [
-                for (final a in activeArms) DropdownMenuEntry<String>(value: a.id, label: a.name),
-              ],
-              onSelected: (id) {
-                if (id == null) return;
-                PartnershipArm? found;
-                for (final a in activeArms) {
-                  if (a.id == id) found = a;
-                }
-                setState(() => _arm = found);
-              },
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Period', style: AppTypography.label),
-            const SizedBox(height: AppSpacing.sm),
-            if (_isEdit)
-              DropdownMenu<String>(
-                key: ValueKey<String?>('period-${_period?.id}'),
-                initialSelection: _period?.id,
-                label: const Text('Partnership period'),
-                dropdownMenuEntries: [
-                  for (final p in periodList)
-                    DropdownMenuEntry<String>(value: p.id, label: p.name),
-                ],
-                onSelected: (id) {
-                  if (id == null) return;
-                  PartnershipPeriod? found;
-                  for (final p in periodList) {
-                    if (p.id == id) found = p;
-                  }
-                  setState(() => _period = found);
-                },
-              )
-            else
-              Text(
-                periodForCreate?.name ?? '—',
-                style: AppTypography.body,
+                ),
+              if (_isEdit && entry != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Text(
+                    'Status: ${entry.status}',
+                    style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                  ),
+                ),
+              PillrFormCard(
+                title: 'Partner',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _pickPartner(context, churchId, uid),
+                      icon: const Icon(Icons.person_search_outlined),
+                      label: Text(_partner?.displayLabel ?? 'Select partner'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextButton(
+                      onPressed: () async {
+                        await showDialog<void>(
+                          context: context,
+                          builder: (ctx) => PartnerFormDialog(
+                            churchId: churchId,
+                            uid: uid,
+                            existing: null,
+                          ),
+                        );
+                      },
+                      child: const Text('Create new partner'),
+                    ),
+                  ],
+                ),
               ),
-            const SizedBox(height: AppSpacing.lg),
-            PillrTextField(
-              controller: _amount,
-              label: 'Amount (₵)',
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton(
-              onPressed: () async {
-                final d = await showDatePicker(
-                  context: context,
-                  initialDate: _dateGiven,
-                  firstDate: DateTime(DateTime.now().year - 2),
-                  lastDate: DateTime(DateTime.now().year + 1),
-                );
-                if (d != null) setState(() => _dateGiven = d);
-              },
-              child: Text('Date given: ${_dateGiven.toIso8601String().split('T').first}'),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            PillrTextField(controller: _notes, label: 'Notes (optional)', maxLines: 2),
-            if (_error != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+              const SizedBox(height: AppSpacing.md),
+              PillrFormCard(
+                title: 'Entry details',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Partnership arm', style: AppTypography.label),
+                    const SizedBox(height: AppSpacing.sm),
+                    DropdownMenu<String>(
+                      key: ValueKey<String?>('arm-${_arm?.id}'),
+                      initialSelection: _arm?.id,
+                      label: const Text('Select arm'),
+                      dropdownMenuEntries: [
+                        for (final a in activeArms) DropdownMenuEntry<String>(value: a.id, label: a.name),
+                      ],
+                      onSelected: (id) {
+                        if (id == null) return;
+                        PartnershipArm? found;
+                        for (final a in activeArms) {
+                          if (a.id == id) found = a;
+                        }
+                        setState(() => _arm = found);
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('Period', style: AppTypography.label),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (_isEdit)
+                      DropdownMenu<String>(
+                        key: ValueKey<String?>('period-${_period?.id}'),
+                        initialSelection: _period?.id,
+                        label: const Text('Partnership period'),
+                        dropdownMenuEntries: [
+                          for (final p in periodList)
+                            DropdownMenuEntry<String>(value: p.id, label: p.name),
+                        ],
+                        onSelected: (id) {
+                          if (id == null) return;
+                          PartnershipPeriod? found;
+                          for (final p in periodList) {
+                            if (p.id == id) found = p;
+                          }
+                          setState(() => _period = found);
+                        },
+                      )
+                    else
+                      Text(
+                        periodForCreate?.name ?? '—',
+                        style: AppTypography.body,
+                      ),
+                    const SizedBox(height: AppSpacing.lg),
+                    PillrTextField(
+                      controller: _amount,
+                      label: 'Amount (₵)',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    OutlinedButton(
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _dateGiven,
+                          firstDate: DateTime(DateTime.now().year - 2),
+                          lastDate: DateTime(DateTime.now().year + 1),
+                        );
+                        if (d != null) setState(() => _dateGiven = d);
+                      },
+                      child: Text('Date given: ${_dateGiven.toIso8601String().split('T').first}'),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    PillrTextField(controller: _notes, label: 'Notes (optional)', maxLines: 2),
+                    if (_error != null) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                    ],
+                    const SizedBox(height: AppSpacing.xl),
+                    PillrButton(
+                      label: _isEdit ? 'Save changes' : 'Submit entry',
+                      loading: _loading,
+                      onPressed: _loading ? null : () => _submit(churchId, profile, entry),
+                      variant: PillrButtonVariant.primary,
+                      expanded: true,
+                    ),
+                  ],
+                ),
+              ),
             ],
-            const SizedBox(height: AppSpacing.xl),
-            PillrButton(
-              label: _isEdit ? 'Save changes' : 'Submit entry',
-              loading: _loading,
-              onPressed: _loading ? null : () => _submit(churchId, profile, entry),
-              variant: PillrButtonVariant.primary,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _pickPartner(BuildContext context, String churchId, String uid) async {
-    final stream = ref.read(partnersRepositoryProvider).watchPartners(churchId);
-    final partners = await stream.first;
     if (!context.mounted) return;
+    final parentContext = context;
     final chosen = await showModalBottomSheet<Partner>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) {
-        final c = TextEditingController();
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(ctx).bottom,
-            left: AppSpacing.lg,
-            right: AppSpacing.lg,
-            top: AppSpacing.lg,
-          ),
-          child: StatefulBuilder(
-            builder: (context, setSt) {
-              final q = c.text.trim().toLowerCase();
-              final filtered = q.isEmpty
-                  ? partners
-                  : partners.where((p) {
-                      return p.memberId.toLowerCase().contains(q) ||
-                          p.fullName.toLowerCase().contains(q) ||
-                          p.fellowship.toLowerCase().contains(q);
-                    }).toList();
-              return SizedBox(
-                height: 420,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Select partner', style: AppTypography.heading3),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: c,
-                      decoration: const InputDecoration(hintText: 'Search…', border: OutlineInputBorder()),
-                      onChanged: (_) => setSt(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: filtered.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == filtered.length) {
-                            return ListTile(
-                              leading: const Icon(Icons.add),
-                              title: const Text('Create new partner'),
-                              onTap: () async {
-                                Navigator.pop(ctx);
-                                await showDialog<void>(
-                                  context: context,
-                                  builder: (dctx) => PartnerFormDialog(
-                                    churchId: churchId,
-                                    uid: uid,
-                                    existing: null,
-                                  ),
-                                );
-                              },
-                            );
-                          }
-                          final p = filtered[i];
-                          return ListTile(
-                            title: Text(p.fullName),
-                            subtitle: Text(p.displayLabel),
-                            onTap: () => Navigator.pop(ctx, p),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
+      builder: (ctx) => _PartnerPickerSheet(
+        churchId: churchId,
+        uid: uid,
+        parentContext: parentContext,
+      ),
     );
     if (chosen != null) setState(() => _partner = chosen);
   }
@@ -490,16 +486,65 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           setState(() => _error = 'Only staff or pastor can save changes.');
           return;
         }
+        final statusAfter = idx.isStaff ? 'pending' : existing.status;
+        final after = _afterEntryValues(
+          partner: _partner!,
+          arm: _arm!,
+          period: period,
+          amount: amount,
+          dateGiven: _dateGiven,
+          notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+          status: statusAfter,
+        );
         await logPillrActivity(
           ref,
           churchId: churchId,
           action: 'entry.update',
           entityType: 'entry',
           entityId: existing.id,
+          entitySnapshot: after,
+          metadata: {'before': _entryValuesForActivityLog(existing)},
         );
         if (mounted) context.go('/entries/${widget.entryId}');
       } else {
-        await repo.createEntry(
+        final idx = ref.read(userChurchIndexProvider).valueOrNull;
+        if (idx != null && (idx.isPastor || idx.isStaff)) {
+          final candidates = await repo.fetchEntriesForDuplicateCheck(
+            churchId,
+            partnerId: _partner!.id,
+            allChurchEntries: idx.isPastor,
+            createdByUid: idx.isStaff ? idx.uid : null,
+          );
+          if (hasSimilarPartnershipEntry(
+            candidates,
+            partnerId: _partner!.id,
+            armId: _arm!.id,
+            periodId: period.id,
+            amount: amount,
+          )) {
+            if (!mounted) return;
+            final proceed = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Possible duplicate'),
+                content: const Text(
+                  'An entry already exists for this partner, arm, and period with a similar amount (within 10%). '
+                  'Do you want to record another entry anyway?',
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
+                ],
+              ),
+            );
+            if (proceed != true) {
+              if (mounted) setState(() => _loading = false);
+              return;
+            }
+          }
+        }
+        final entryId = await repo.createEntry(
           churchId: churchId,
           staff: staff,
           partnerId: _partner!.id,
@@ -517,13 +562,143 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           churchId: churchId,
           action: 'entry.create',
           entityType: 'entry',
+          entityId: entryId,
+          entitySnapshot: _afterEntryValues(
+            partner: _partner!,
+            arm: _arm!,
+            period: period,
+            amount: amount,
+            dateGiven: _dateGiven,
+            notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+            status: 'pending',
+          ),
         );
-        if (mounted) context.go('/entries');
+        ref.invalidate(entriesListProvider);
+        if (mounted) context.go('/entries/success/$entryId');
       }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+}
+
+class _PartnerPickerSheet extends ConsumerStatefulWidget {
+  const _PartnerPickerSheet({
+    required this.churchId,
+    required this.uid,
+    required this.parentContext,
+  });
+
+  final String churchId;
+  final String uid;
+  final BuildContext parentContext;
+
+  @override
+  ConsumerState<_PartnerPickerSheet> createState() => _PartnerPickerSheetState();
+}
+
+class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
+  late final TextEditingController _controller;
+  Timer? _debounce;
+  List<Partner> _results = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    _load('');
+  }
+
+  Future<void> _load(String q) async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    final repo = ref.read(partnersRepositoryProvider);
+    final list = await repo.searchPartners(widget.churchId, q);
+    if (!mounted) return;
+    setState(() {
+      _results = list;
+      _loading = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom,
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+      ),
+      child: SizedBox(
+        height: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Select partner', style: AppTypography.heading3),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                hintText: 'Search by name, member ID, fellowship…',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) {
+                _debounce?.cancel();
+                _debounce = Timer(const Duration(milliseconds: 280), () {
+                  if (mounted) _load(v.trim());
+                });
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      itemCount: _results.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == _results.length) {
+                          return ListTile(
+                            leading: const Icon(Icons.add),
+                            title: const Text('Create new partner'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!widget.parentContext.mounted) return;
+                                showDialog<void>(
+                                  context: widget.parentContext,
+                                  builder: (dctx) => PartnerFormDialog(
+                                    churchId: widget.churchId,
+                                    uid: widget.uid,
+                                    existing: null,
+                                  ),
+                                );
+                              });
+                            },
+                          );
+                        }
+                        final p = _results[i];
+                        return ListTile(
+                          title: Text(p.fullName),
+                          subtitle: Text(p.displayLabel),
+                          onTap: () => Navigator.pop(context, p),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

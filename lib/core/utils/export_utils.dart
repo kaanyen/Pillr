@@ -1,1 +1,3 @@
-// CSV / PDF helpers land in Phase 4. Placeholder for structure from build doc §17.
+// Phase 4 exports — see entry_export.dart and entry_duplicate_utils.dart.
+export 'entry_duplicate_utils.dart';
+export 'entry_export.dart';

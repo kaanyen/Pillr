@@ -57,4 +57,20 @@ Firebase **Crashlytics** is skipped on **web** in `main.dart` (the plugin has no
 - Indexes: `firestore.indexes.json`
 - Cloud Functions: `functions/` (`npm run build`, then `firebase deploy --only functions`)
 
-For invite emails, set `RESEND_API_KEY` in `functions/.env` (see earlier setup notes).
+For invite emails, set `RESEND_API_KEY` in `functions/.env` (see earlier setup notes). The **From** address must use a domain you have **verified in Resend** (Dashboard → Domains). Override with `RESEND_FROM` if needed, e.g. `RESEND_FROM="The Pillr <invites@thepillr.com>"`. The default matches `thepillr.com`, not `pillr.app`.
+
+## Phase 4 — Deploy checklist
+
+1. **Firestore** — `firebase deploy --only firestore:rules,firestore:indexes` (includes `partnerId` + `createdBy` on `entries` for duplicate checks).
+2. **Storage** — `firebase deploy --only storage` (new `storage.rules` for church branding + period PDFs).
+3. **Functions** — `npm run build --prefix functions && firebase deploy --only functions` (adds `updateChurchMember`, `onPartnershipPeriodUpdated`, `dailyPendingDigest`, period summary PDF).
+4. **App Check** — In debug builds, register Android/iOS debug tokens from Logcat / Xcode when prompted. For production, configure Play Integrity / DeviceCheck / App Attest in Firebase Console.
+5. **Secrets** — `RESEND_API_KEY` for email; Functions use default Storage bucket for PDF uploads.
+
+See `the_pillr_build_doc.md` §16 for the full Phase 4 feature matrix and `PHASE_PROGRESS.md` for status.
+
+## App Distribution and release
+
+- **Secrets:** `FIREBASE_TOKEN` (from `firebase login:ci`), `FIREBASE_ANDROID_APP_ID`, tester group name (default in CI: `testers` — must exist in Firebase App Distribution).
+- **Workflow:** `.github/workflows/app-distribution.yml` (tags `v*` or manual run).
+- **iOS:** CI IPA upload is optional when `FIREBASE_IOS_APP_ID` and signing secrets are available; otherwise use TestFlight manually. See [`docs/RELEASE.md`](docs/RELEASE.md).

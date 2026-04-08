@@ -10,6 +10,7 @@ class ChurchUser {
     this.phone,
     this.avatarUrl,
     required this.isActive,
+    this.lastLoginAt,
   });
 
   final String uid;
@@ -20,6 +21,7 @@ class ChurchUser {
   final String? phone;
   final String? avatarUrl;
   final bool isActive;
+  final DateTime? lastLoginAt;
 
   static ChurchUser? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -33,6 +35,9 @@ class ChurchUser {
       phone: data['phone'] as String?,
       avatarUrl: data['avatarUrl'] as String?,
       isActive: data['isActive'] as bool? ?? true,
+      lastLoginAt: data['lastLoginAt'] != null
+          ? (data['lastLoginAt'] as Timestamp).toDate()
+          : null,
     );
   }
 }

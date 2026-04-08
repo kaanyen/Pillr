@@ -16,6 +16,8 @@ class PartnershipPeriod {
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    this.summaryPdfUrl,
+    this.summaryPdfStoragePath,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class PartnershipPeriod {
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? summaryPdfUrl;
+  final String? summaryPdfStoragePath;
 
   factory PartnershipPeriod.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
     final m = d.data() ?? {};
@@ -46,6 +50,8 @@ class PartnershipPeriod {
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),
+      summaryPdfUrl: m['summaryPdfUrl'] as String?,
+      summaryPdfStoragePath: m['summaryPdfStoragePath'] as String?,
     );
   }
 }

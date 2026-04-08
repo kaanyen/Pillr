@@ -21,7 +21,7 @@ class PillrCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: noBorder ? null : Border.all(color: AppColors.gray200),
         boxShadow: AppTheme.cardShadow,
       ),

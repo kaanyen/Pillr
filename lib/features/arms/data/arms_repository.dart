@@ -17,6 +17,12 @@ class ArmsRepository {
         );
   }
 
+  /// One-shot read (e.g. bulk import) — avoids relying on [armsStreamProvider] timing.
+  Future<List<PartnershipArm>> fetchArms(String churchId) async {
+    final q = await _arms(churchId).orderBy('sortOrder').get();
+    return q.docs.map(PartnershipArm.fromDoc).toList();
+  }
+
   Future<int> _nextSortOrder(String churchId) async {
     final q = await _arms(churchId).orderBy('sortOrder', descending: true).limit(1).get();
     if (q.docs.isEmpty) return 0;

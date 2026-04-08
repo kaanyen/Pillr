@@ -20,20 +20,7 @@ class InviteRepository {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snap) {
-      return snap.docs.map((d) {
-        final m = d.data();
-        return InviteRecord(
-          id: d.id,
-          code: m['code'] as String? ?? '',
-          email: m['email'] as String? ?? '',
-          role: m['role'] as String? ?? 'staff',
-          createdBy: m['createdBy'] as String? ?? '',
-          createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
-          expiresAt: timestampToDateTime(m['expiresAt']) ?? DateTime.now(),
-          status: m['status'] as String? ?? 'pending',
-          createdByName: (m['createdBySnapshot'] as Map?)?.cast<String, dynamic>()['fullName'] as String?,
-        );
-      }).toList();
+      return snap.docs.map(_inviteFromDoc).toList();
     });
   }
 
@@ -61,5 +48,47 @@ class InviteRepository {
         .collection('invite_codes')
         .doc(inviteId)
         .delete();
+  }
+
+  /// Newest first (`createdAt` desc).
+  Future<({
+    List<InviteRecord> items,
+    DocumentSnapshot<Map<String, dynamic>>? lastDoc,
+    bool hasMore,
+  })> fetchInvitesPage(
+    String churchId, {
+    int pageSize = 20,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    Query<Map<String, dynamic>> q = _firestore
+        .collection('churches')
+        .doc(churchId)
+        .collection('invite_codes')
+        .orderBy('createdAt', descending: true)
+        .limit(pageSize + 1);
+    if (startAfter != null) {
+      q = q.startAfterDocument(startAfter);
+    }
+    final snap = await q.get();
+    final hasMore = snap.docs.length > pageSize;
+    final docs = hasMore ? snap.docs.take(pageSize).toList() : snap.docs.toList();
+    final items = docs.map(_inviteFromDoc).toList();
+    final lastDoc = docs.isEmpty ? null : docs.last;
+    return (items: items, lastDoc: lastDoc, hasMore: hasMore);
+  }
+
+  InviteRecord _inviteFromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
+    final m = d.data() ?? {};
+    return InviteRecord(
+      id: d.id,
+      code: m['code'] as String? ?? '',
+      email: m['email'] as String? ?? '',
+      role: m['role'] as String? ?? 'staff',
+      createdBy: m['createdBy'] as String? ?? '',
+      createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
+      expiresAt: timestampToDateTime(m['expiresAt']) ?? DateTime.now(),
+      status: m['status'] as String? ?? 'pending',
+      createdByName: (m['createdBySnapshot'] as Map?)?.cast<String, dynamic>()['fullName'] as String?,
+    );
   }
 }

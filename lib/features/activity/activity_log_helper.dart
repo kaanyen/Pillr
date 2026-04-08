@@ -11,6 +11,7 @@ Future<void> logPillrActivity(
   required String entityType,
   String? entityId,
   Map<String, dynamic>? entitySnapshot,
+  Map<String, dynamic>? metadata,
 }) async {
   final user = ref.read(authStateProvider).valueOrNull;
   final profile = ref.read(churchUserProfileProvider).valueOrNull;
@@ -27,5 +28,6 @@ Future<void> logPillrActivity(
         entityType: entityType,
         entityId: entityId,
         entitySnapshot: entitySnapshot,
+        metadata: metadata,
       );
 }

@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../common/widgets/fade_in_once.dart';
+import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_card.dart';
 import '../../../common/widgets/pillr_stat_card.dart';
+import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../activity/domain/activity_log_row.dart';
+import '../../arms/providers/arms_providers.dart';
+import '../../entries/providers/entries_providers.dart';
+import '../../goals/providers/goals_providers.dart';
+import '../../logs/providers/activity_logs_providers.dart';
+import '../../partners/providers/partners_providers.dart';
 import '../providers/dashboard_stats_providers.dart';
+import '../widgets/getting_started_banner.dart';
 
-/// Reference 2 stat row — live entry aggregates from Firestore streams.
+/// Reference 2 stat row — live entry aggregates + Phase 3 dashboard (§15.3.1).
 class PastorDashboardScreen extends ConsumerWidget {
   const PastorDashboardScreen({super.key});
 
@@ -17,22 +28,61 @@ class PastorDashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(pastorEntryStatsProvider);
     final partnerCount = ref.watch(activePartnerCountProvider);
+    final goalPct = ref.watch(pastorGoalProgressPercentProvider);
+    final preview = ref.watch(pastorLeaderboardPreviewProvider);
+    final activityAsync = ref.watch(activityLogsPreviewProvider);
+    final activeGoals = ref.watch(activePeriodGoalsProvider);
+    final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
+
+    String armName(String id) {
+      for (final a in arms) {
+        if (a.id == id) return a.name;
+      }
+      return id;
+    }
 
     final total = stats.pendingCount + stats.approvedCount + stats.declinedCount;
     final pFlex = total == 0 ? 1 : stats.pendingCount;
     final aFlex = total == 0 ? 1 : stats.approvedCount;
     final dFlex = total == 0 ? 1 : stats.declinedCount;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(entriesListProvider);
+        ref.invalidate(goalsListProvider);
+        ref.invalidate(partnersStreamProvider(false));
+        ref.invalidate(activityLogsPreviewProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const GettingStartedBanner(),
           Text('Overview', style: AppTypography.heading2),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Live counts from partnership entries in your church.',
             style: AppTypography.body,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            children: [
+              PillrButton(
+                label: 'Review pending',
+                variant: PillrButtonVariant.primary,
+                onPressed: () => context.go('/approvals'),
+              ),
+              PillrButton(
+                label: 'New entry',
+                variant: PillrButtonVariant.secondary,
+                onPressed: () => context.go('/entries/new'),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.lg),
           LayoutBuilder(
@@ -46,25 +96,40 @@ class PastorDashboardScreen extends ConsumerWidget {
                 crossAxisSpacing: AppSpacing.md,
                 childAspectRatio: 1.4,
                 children: [
-                  PillrStatCard(
-                    label: 'Total collected (approved)',
-                    valueText: formatCedis(stats.totalApprovedCedis),
-                    periodLabel: 'All approved entries',
+                  FadeInOnce(
+                    delay: Duration.zero,
+                    child: _AnimatedIntStatCard(
+                      label: 'Total collected (approved)',
+                      value: stats.totalApprovedCedis,
+                      format: (v) => formatCedis(v),
+                      periodLabel: 'All approved entries',
+                    ),
                   ),
-                  PillrStatCard(
-                    label: 'Pending approvals',
-                    valueText: '${stats.pendingCount}',
-                    periodLabel: 'Awaiting review',
+                  FadeInOnce(
+                    delay: const Duration(milliseconds: 50),
+                    child: _AnimatedIntStatCard(
+                      label: 'Pending approvals',
+                      value: stats.pendingCount.toDouble(),
+                      format: (v) => v.round().toString(),
+                      periodLabel: 'Awaiting review',
+                    ),
                   ),
-                  PillrStatCard(
-                    label: 'Active partners',
-                    valueText: '$partnerCount',
-                    periodLabel: 'Non-inactive partners',
+                  FadeInOnce(
+                    delay: const Duration(milliseconds: 100),
+                    child: _AnimatedIntStatCard(
+                      label: 'Active partners',
+                      value: partnerCount.toDouble(),
+                      format: (v) => v.round().toString(),
+                      periodLabel: 'Non-inactive partners',
+                    ),
                   ),
-                  PillrStatCard(
-                    label: 'Goal progress',
-                    valueText: '—',
-                    periodLabel: 'Targets & leaderboard in Phase 3',
+                  FadeInOnce(
+                    delay: const Duration(milliseconds: 150),
+                    child: PillrStatCard(
+                      label: 'Goal progress',
+                      valueText: goalPct == null ? '—' : '${goalPct.round()}%',
+                      periodLabel: goalPct == null ? 'Set goals for the active period' : 'Active period (all arms)',
+                    ),
                   ),
                 ],
               );
@@ -106,8 +171,151 @@ class PastorDashboardScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Text('Goal progress (active period)', style: AppTypography.heading3),
+              const Spacer(),
+              TextButton(onPressed: () => context.go('/goals'), child: const Text('Manage goals')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          activeGoals.isEmpty
+              ? Text('No goals for the active period yet.', style: AppTypography.caption)
+              : Column(
+                  children: [
+                    for (final g in activeGoals)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              armName(g.partnershipArmId),
+                              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(AppRadius.full),
+                              child: LinearProgressIndicator(
+                                value: g.progressFraction,
+                                minHeight: 8,
+                                backgroundColor: AppColors.gray100,
+                                color: AppColors.primaryColor,
+                              ),
+                            ),
+                            Text(
+                              '${formatCedis(g.currentAmountCedis)} / ${formatCedis(g.targetAmountCedis)}',
+                              style: AppTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Text('Leaderboard preview', style: AppTypography.heading3),
+              const Spacer(),
+              TextButton(onPressed: () => context.go('/leaderboard'), child: const Text('Full leaderboard')),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (preview.isEmpty)
+            Text('No approved entries in the active period yet.', style: AppTypography.caption)
+          else
+            ...preview.map(
+              (r) => ListTile(
+                dense: true,
+                leading: Text('${r.rank}', style: AppTypography.label),
+                title: Text(r.partnerName),
+                trailing: Text(formatCedis(r.totalCedis)),
+                onTap: () => context.go('/partners/${r.partnerId}'),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Recent activity', style: AppTypography.heading3),
+          const SizedBox(height: AppSpacing.sm),
+          activityAsync.when(
+            loading: () => const Text('Loading…'),
+            error: (e, _) => Text('$e', style: AppTypography.caption),
+            data: (logs) {
+              final slice = logs.take(10).toList();
+              if (slice.isEmpty) {
+                return Text('No activity yet.', style: AppTypography.caption);
+              }
+              return Column(
+                children: [
+                  for (final row in slice) _ActivityLine(row: row),
+                ],
+              );
+            },
+          ),
         ],
       ),
+      ),
+    );
+  }
+}
+
+class _ActivityLine extends StatelessWidget {
+  const _ActivityLine({required this.row});
+
+  final ActivityLogRow row;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = row.createdAt;
+    final when =
+        '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(when, style: AppTypography.caption),
+          ),
+          Expanded(
+            child: Text(
+              '${row.actorName} · ${row.action} · ${row.entityType}',
+              style: AppTypography.caption,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AnimatedIntStatCard extends StatelessWidget {
+  const _AnimatedIntStatCard({
+    required this.label,
+    required this.value,
+    required this.format,
+    required this.periodLabel,
+  });
+
+  final String label;
+  final double value;
+  final String Function(double) format;
+  final String periodLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: value),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, _) {
+        return PillrStatCard(
+          label: label,
+          valueText: format(v),
+          periodLabel: periodLabel,
+        );
+      },
     );
   }
 }

@@ -56,11 +56,3 @@ final churchUserProfileProvider = StreamProvider<ChurchUser?>((ref) {
       .snapshots()
       .map(ChurchUser.fromSnapshot);
 });
-
-final churchNameProvider = StreamProvider<String?>((ref) {
-  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-  if (idx == null) return Stream.value(null);
-  return ref.watch(firestoreProvider).doc('churches/${idx.churchId}').snapshots().map(
-        (s) => s.data()?['name'] as String?,
-      );
-});

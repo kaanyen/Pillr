@@ -1,33 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../core/extensions/async_value_ext.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/pillr_layout.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
+import '../../features/entries/providers/entries_providers.dart';
+import '../../features/goals/presentation/goal_milestone_listener.dart';
 import '../../services/connectivity_service.dart';
 import '../widgets/offline_banner.dart';
 import 'adaptive_bottom_nav.dart';
 import 'adaptive_sidebar.dart';
 import 'responsive_layout.dart';
 
-String _titleForPath(String path) {
-  if (path.startsWith('/dashboard')) return 'Dashboard';
-  if (path.startsWith('/approvals')) return 'Approvals';
-  if (path.startsWith('/entries')) return 'Entries';
-  if (path.startsWith('/partners')) return 'Partners';
-  if (path.startsWith('/leaderboard')) return 'Leaderboard';
-  if (path.startsWith('/goals')) return 'Goals';
-  if (path.startsWith('/arms')) return 'Partnership arms';
-  if (path.startsWith('/periods')) return 'Periods';
-  if (path.startsWith('/users')) return 'Users';
-  if (path.startsWith('/invitations')) return 'Invitations';
-  if (path.startsWith('/logs')) return 'Activity logs';
-  if (path.startsWith('/settings')) return 'Settings';
-  return 'Pillr';
+String _titleForPath(BuildContext context, String path) {
+  final l10n = AppLocalizations.of(context);
+  if (path.startsWith('/dashboard')) return l10n.titleDashboard;
+  if (path.startsWith('/approvals')) return l10n.titleApprovals;
+  if (path.startsWith('/entries/success')) return l10n.titleEntrySubmitted;
+  if (path.startsWith('/entries')) return l10n.titleEntries;
+  if (path.startsWith('/partners')) return l10n.titlePartners;
+  if (path.startsWith('/leaderboard')) return l10n.titleLeaderboard;
+  if (path.startsWith('/goals')) return l10n.titleGoals;
+  if (path.startsWith('/arms')) return l10n.titleArms;
+  if (path.startsWith('/periods')) return l10n.titlePeriods;
+  if (path.startsWith('/users')) return l10n.titleUsers;
+  if (path.startsWith('/invitations')) return l10n.titleInvitations;
+  if (path.startsWith('/logs')) return l10n.titleActivityLogs;
+  if (path.startsWith('/settings')) return l10n.titleSettings;
+  if (path.startsWith('/search')) return l10n.titleSearch;
+  if (path.startsWith('/notifications')) return l10n.titleNotifications;
+  if (path.startsWith('/help')) return l10n.titleHelp;
+  return l10n.appTitle;
 }
 
 class AppShell extends ConsumerWidget {
@@ -70,19 +79,30 @@ class AppShell extends ConsumerWidget {
                     if (showSidebar || sidebarCollapsed)
                       const VerticalDivider(width: 1, color: AppColors.gray200),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _TopBar(
-                            title: _titleForPath(loc),
-                            showSearch: c.maxWidth >= 900,
-                            onSignOut: () async {
-                              await ref.read(authRepositoryProvider).signOut();
-                              if (context.mounted) context.go('/login');
-                            },
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: PillrLayout.contentMaxWidth,
                           ),
-                          Expanded(child: child),
-                        ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _TopBar(
+                                title: _titleForPath(context, loc),
+                                showSearch: c.maxWidth >= 900,
+                                idx: idx,
+                                onSignOut: () async {
+                                  await ref.read(authRepositoryProvider).signOut();
+                                  if (context.mounted) context.go('/login');
+                                },
+                              ),
+                              Expanded(
+                                child: GoalMilestoneListener(child: child),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -194,19 +214,23 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
   ];
 }
 
-class _TopBar extends StatelessWidget {
+class _TopBar extends ConsumerWidget {
   const _TopBar({
     required this.title,
     required this.onSignOut,
     required this.showSearch,
+    required this.idx,
   });
 
   final String title;
   final VoidCallback onSignOut;
   final bool showSearch;
+  final UserChurchIndex? idx;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = ref.watch(pendingApprovalCountProvider);
+    final l10n = AppLocalizations.of(context);
     return Material(
       color: AppColors.white,
       elevation: 0,
@@ -222,30 +246,42 @@ class _TopBar extends StatelessWidget {
           children: [
             if (context.canPop())
               IconButton(
+                tooltip: MaterialLocalizations.of(context).backButtonTooltip,
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
                 onPressed: () => context.pop(),
               ),
             Expanded(
               flex: showSearch ? 1 : 2,
-              child: Text(title, style: AppTypography.heading2),
+              child: Text(
+                title,
+                style: AppTypography.heading2,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            if (showSearch) ...[
+            if (showSearch && idx?.isPastor == true) ...[
               Expanded(
                 flex: 2,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search for anything here…',
-                    prefixIcon: const Icon(Icons.search, color: AppColors.gray400),
-                    isDense: true,
-                    filled: true,
-                    fillColor: AppColors.gray50,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 10,
+                child: InkWell(
+                  onTap: () => context.push('/search'),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  child: IgnorePointer(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: l10n.searchHint,
+                        prefixIcon: const Icon(Icons.search, color: AppColors.gray400),
+                        isDense: true,
+                        filled: true,
+                        fillColor: AppColors.gray50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -253,34 +289,53 @@ class _TopBar extends StatelessWidget {
               const SizedBox(width: AppSpacing.md),
             ],
             IconButton(
-              onPressed: () {},
+              tooltip: l10n.toolbarHelp,
+              onPressed: () => context.push('/help'),
+              icon: const Icon(Icons.help_outline_rounded),
+            ),
+            IconButton(
+              tooltip: l10n.toolbarNotifications,
+              onPressed: () => context.push('/notifications'),
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   const Icon(Icons.notifications_outlined),
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppColors.dangerColor,
-                        shape: BoxShape.circle,
+                  if (idx?.isPastor == true && pending > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.dangerColor,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          '$pending',
+                          style: AppTypography.caption.copyWith(
+                            color: AppColors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (v) {
-                if (v == 'logout') onSignOut();
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'logout', child: Text('Sign out')),
-              ],
+            Tooltip(
+              message: l10n.toolbarMoreOptions,
+              child: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (v) {
+                  if (v == 'logout') onSignOut();
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(value: 'logout', child: Text(l10n.toolbarSignOut)),
+                ],
+              ),
             ),
           ],
         ),

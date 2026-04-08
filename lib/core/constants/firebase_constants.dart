@@ -6,4 +6,5 @@ class FirebaseConstants {
   static const completeRegistration = 'completeRegistration';
   static const generateInviteCode = 'generateInviteCode';
   static const activatePeriod = 'activatePeriod';
+  static const updateChurchMember = 'updateChurchMember';
 }

@@ -44,7 +44,7 @@ This file tracks what **`the_pillr_build_doc.md`** calls for versus what exists 
 |------|----------------|---------------|
 | **Root `/`** | Visit `/` authenticated | Lands on dashboard (or join if no index). |
 | **Role guards** | As staff/admin, open URLs for partners-only or pastor-only routes | Redirect to `/dashboard` where expected. |
-| **Invitations pagination** | Many invites | Change rows per page; page controls move through data. |
+| **Invitations pagination** | Many invites | **Load more** extends the loaded window (cursor-based); summary shows how many rows are loaded. |
 | **`APP_ENV`** | Debug run | Console shows `APP_ENV=...` in debug mode (`main.dart`). |
 
 ---
@@ -55,8 +55,8 @@ This file tracks what **`the_pillr_build_doc.md`** calls for versus what exists 
 |---|-------------------|----------------|
 | **2.1** | Arms table, CRUD, delete, toggle, Firestore, activity logging | ✅ `ArmsScreen` + `ArmsRepository` + `logPillrActivity` on create/update/toggle/delete. |
 | **2.2** | Periods list, date range create/edit, delete if no entries, single active via `activatePeriod` CF, activity logging | ✅ `PeriodsScreen`, `PeriodsRepository`, callable **`activatePeriod`** (`functions/src/index.ts`), client logging on create/update/delete/activate. |
-| **2.3** | Partners list (search/filter), create/edit, pastor deactivate, searchable partner UX, activity logging | ✅ `PartnersListScreen`, `PartnerFormDialog`, `PartnerProfileScreen` + history; search + inactive filter; logging on create/update. |
-| **2.4** | Entry form, partner picker + inline create, pending entries, push notify pastor, activity log | ✅ `EntryFormScreen` (`/entries/new`), partner sheet + create partner, **`onEntryCreated`**, **`My entries` / all entries** lists. |
+| **2.3** | Partners list (search/filter), create/edit, pastor deactivate, searchable partner UX, activity logging | ✅ Same + **auto member ID**; **staff** list/profile show **your approved total** (own entries); **pastor** sees church aggregate on `Partner`. Partner picker: **debounced Firestore prefix search** + fallback; **`onPartnerWritten`** syncs lowercase search fields. |
+| **2.4** | Entry form, partner picker + inline create, pending entries, push notify pastor, activity log | ✅ Same + **`entry.create` / `entry.update` logs** include entity id and field snapshots; approvals log **before/after** in metadata. |
 | **2.5** | Pending queue, review UI, approve/decline, **`onEntryStatusChange`** (counters + notify staff), activity logging | ✅ `PendingApprovalsScreen`, `/approvals`, badge; **`EntryDetailScreen`** approve/decline; **`onEntryUpdated`** totals + FCM to author. |
 | **2.6** | Staff edit pending/declined → pending; edit history; pastor edit | ✅ `/entries/:id/edit` + **`EntryFormScreen(entryId)`**; detail shows **Edit history**; **`partnerId`** updates on save. |
 | **2.7** | Streams, badge live, dashboard stats | ✅ **`pendingApprovalCountProvider`** sidebar badge; pastor + staff dashboards use **live Firestore streams** (counts, totals, mix bar). |
@@ -85,7 +85,12 @@ After **`firebase deploy --only firestore:indexes,firestore:rules,functions`**, 
 
 - Deploy **Firestore indexes**: `firebase deploy --only firestore:indexes` (updated for entries + goals queries).
 - Deploy **rules**: `firebase deploy --only firestore:rules`.
-- Deploy **functions**: `firebase deploy --only functions` (includes `activatePeriod`, `onEntryCreated`, `onEntryUpdated`).
+- Deploy **functions**: `firebase deploy --only functions` (includes `activatePeriod`, `onPartnerWritten`, `onEntryCreated`, `onEntryUpdated`).
+
+### Phase 2 doc alignment (closed)
+
+- **`the_pillr_build_doc.md` §14** checklist and wording (auto member ID, `onEntryUpdated` vs legacy `onEntryStatusChange` name, streams vs `.get()`, partner search) match the repo.
+- **Activity logs** store structured **`metadata.before` / `after`** (or **`entitySnapshot`**) for entry create/update, partner update, approve/decline.
 
 ---
 
@@ -93,15 +98,17 @@ After **`firebase deploy --only firestore:indexes,firestore:rules,functions`**, 
 
 | Area | Status |
 |------|--------|
-| Role dashboards, leaderboard, goals UX, admin **activity log UI**, full matrix | 🟡 Shell + Phase 2 data paths; dashboards/leaderboard/goals screens still light vs §15; **`ActivityLogsScreen`** still placeholder. |
+| **§15 — dashboards, leaderboard, goals, partner profile depth, admin activity UI** | ✅ Implemented (see `the_pillr_build_doc.md` §15). **`§3.8`** full permission matrix = manual QA (guards + rules + UI). |
 
-### How to confirm Phase 3 (when implemented)
+### How to confirm Phase 3
 
 | Step | What to test | Pass criteria |
 |------|----------------|---------------|
-| **Dashboards** | Pastor / staff / admin each open dashboard | Numbers match Firestore; pending count matches `/approvals`. |
-| **Leaderboard** | Pastor opens leaderboard | Ranked data; scoped to church. |
-| **Activity logs UI** | Admin opens `/logs` | Filterable list; reads from `activity_logs` only as rules allow. |
+| **Dashboards** | Pastor / staff / admin each open dashboard | Pastor: 4 tiles + goal %, quick actions, goal bars, leaderboard preview, recent activity. Staff: stats, declined banner, **New entry** CTA, recent entries. Admin: user count, pending invites, activity snapshot, quick links. |
+| **Leaderboard** | Pastor opens `/leaderboard` | Period + arm filters; medals top 3; row → partner profile. |
+| **Goals** | Pastor opens `/goals` | CRUD goals; progress bars; `goal.*` in activity log. |
+| **Partner profile** | Open a partner | Period/arm filters; table columns; **Recurring partner** badge when applicable. |
+| **Activity logs** | Admin opens `/logs` | Filters, load more, **Export CSV** (clipboard). Deploy **Firestore rules** so pastor dashboard can read `activity_logs`. |
 
 ---
 
@@ -109,15 +116,47 @@ After **`firebase deploy --only firestore:indexes,firestore:rules,functions`**, 
 
 | Area | Status |
 |------|--------|
-| Exports, duplicate detection, church branding settings, 2FA, advanced notifications, performance, a11y, onboarding | ⬜ |
+| **Exports** — entries / leaderboard / pending / activity PDF+CSV; period summary PDF via CF + Storage | ✅ |
+| **Branding** — admin Settings (name, `#` color, logo upload), dynamic theme, sidebar logo | ✅ |
+| **Duplicate entry advisory** | ✅ |
+| **Users** — directory, role change, active flag, last login (`updateChurchMember` CF) | ✅ |
+| **Search & filters** — `/search` (pastor), entries arm/period filters on loaded rows | ✅ |
+| **Notifications** — daily digest CF, `/notifications`, bell badge, Settings toggles | ✅ |
+| **Onboarding** — pastor dashboard Getting Started banner | ✅ |
+| **App Check** — activated in `main.dart` (non-web) | ✅ |
+| **CI + README** — GitHub Actions; README deploy checklist | ✅ |
+| **Follow-ups** — goal-milestone pushes, every-list pagination, `l10n` (ARB + gen-l10n), PDF logo on exports + period summary PDF, Firebase App Distribution workflow | ✅ (TOTP UI explicitly out of scope) |
 
-### How to confirm Phase 4 (when implemented)
+### How to confirm Phase 4
 
 | Step | What to test | Pass criteria |
 |------|----------------|---------------|
-| **Exports** | Generate PDF/CSV for each role | Files open; amounts in ₵; church branding if configured. |
-| **A11y** | Screen reader / font scaling | Usable; contrast acceptable. |
-| **Performance** | Large lists | Pagination/cursors; no jank on scroll. |
+| **Deploy** | Rules + indexes + Storage + Functions | No permission errors; period deactivate generates PDF link on period row. |
+| **Branding** | Admin: Settings → save color, upload logo | Sidebar + theme update; logo visible. |
+| **Exports** | Leaderboard / Approvals / Activity / Entries | PDF opens; CSV/clipboard where applicable. |
+| **Users** | Pastor: change staff role; deactivate | Firestore + `user_church_index` stay in sync. |
+| **Search** | Pastor: `/search` | Partner + entry hits. |
+| **App Check** | Debug build on device | Token registered (see Firebase Console). |
+
+---
+
+## Phase 4.5 — UI / UX alignment (`the_pillr_build_doc.md` §16, checklist **4.13**)
+
+| Area | Status |
+|------|--------|
+| **Layout** — `PillrLayout.contentMaxWidth` in [`AppShell`](lib/common/layout/app_shell.dart); list/card breakpoint; form widths | ✅ |
+| **Theme** — neutral canvas, `AppRadius.card`, `AppTheme.cardShadow`, filled `InputDecorationTheme` | ✅ |
+| **Widgets** — `PillrSurfaceCard`, `PillrEntityCard`, `PillrFormCard`; `PillrDataTable` horizontal scroll | ✅ |
+| **Screens** — entries, partners, arms, periods, users, invitations, partner profile history, settings, entry form, auth, bulk import | ✅ |
+
+### How to confirm Phase 4.5 (manual)
+
+| Step | What to test | Pass criteria |
+|------|----------------|---------------|
+| **Web (wide)** | Entries, Partners, Dashboard with window > 1280px | Main column centered (~1200px); no full-bleed stretched tables. |
+| **Web (narrow)** | Resize &lt; 900px or device toolbar | Card-style rows for list screens; filters and **Load more** still work. |
+| **Forms** | New entry, Settings, Login/Join | Readable width; sections visible; no layout overflow. |
+| **Bulk import** | `/entries/bulk-import` | Preview uses elevated row cards; import/commit unchanged. |
 
 ---
 
@@ -125,8 +164,10 @@ After **`firebase deploy --only firestore:indexes,firestore:rules,functions`**, 
 
 - **`/approvals`** — Pastor pending queue (staff/admin redirected).
 - **`/entries/new`** — New entry form.
+- **`/entries/success/:entryId`** — Post-create confirmation (replaces dialog-only flow).
 - **`/entries/:id`** — Entry detail (approve/decline/delete as rules allow).
 - **`/entries/:id/edit`** — Edit entry (staff: pending/declined → resubmit; pastor: any).
+- **`/help`** — Short “how partnership recording works” reference.
 
 ### Android builds after flavors
 
@@ -134,4 +175,6 @@ Use `flutter run --flavor development` (etc.) for Android; see `.vscode/launch.j
 
 ---
 
-*Last updated: Added per-phase testing / verification steps.*
+*Last updated: UI refresh (§16.4.13) — constrained shell content, responsive card/table lists, `PillrFormCard` settings + entry form, shared surface + stat card tokens, bulk import row styling.*
+
+**Analyzer:** `flutter analyze` should report **no errors** (info-level lints may remain).

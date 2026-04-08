@@ -4,7 +4,10 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../entries/domain/partnership_entry.dart';
 import '../../entries/providers/entries_providers.dart';
+import '../../goals/providers/goals_providers.dart';
+import '../../leaderboard/leaderboard_models.dart';
 import '../../partners/providers/partners_providers.dart';
+import '../../periods/providers/periods_providers.dart';
 
 /// Live aggregates for pastor dashboard (all church entries).
 class PastorEntryStats {
@@ -108,4 +111,32 @@ final staffMyEntryStatsProvider = Provider<StaffEntryStats>((ref) {
   }
   final entries = ref.watch(entriesListProvider).valueOrNull ?? [];
   return StaffEntryStats.fromEntries(entries);
+});
+
+/// Weighted goal progress for the **active** period (all arms), or null if no targets.
+final pastorGoalProgressPercentProvider = Provider<double?>((ref) {
+  final goals = ref.watch(activePeriodGoalsProvider);
+  if (goals.isEmpty) return null;
+  var target = 0.0;
+  var current = 0.0;
+  for (final g in goals) {
+    target += g.targetAmountCedis;
+    current += g.currentAmountCedis;
+  }
+  if (target <= 0) return null;
+  return (current / target * 100).clamp(0, 100);
+});
+
+/// Top 5 partners by approved amount in the **active** period (all arms).
+final pastorLeaderboardPreviewProvider = Provider<List<LeaderboardRow>>((ref) {
+  final entries = ref.watch(entriesListProvider).valueOrNull ?? [];
+  final active = ref.watch(activePeriodProvider);
+  if (active == null) return [];
+  final rows = LeaderboardRow.fromEntries(
+    entries,
+    periodId: active.id,
+    armId: null,
+  );
+  if (rows.length <= 5) return rows;
+  return rows.sublist(0, 5);
 });

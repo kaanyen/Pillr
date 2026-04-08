@@ -8,6 +8,7 @@ import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/validation_utils.dart';
@@ -155,7 +156,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+            constraints: const BoxConstraints(maxWidth: PillrLayout.formMaxWidth),
             child: PillrCard(
               child: _step == 1 ? _buildStep1() : _buildStep2(),
             ),

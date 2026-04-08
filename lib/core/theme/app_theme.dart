@@ -5,32 +5,33 @@ import 'app_spacing.dart';
 import 'app_typography.dart';
 
 abstract final class AppTheme {
+  /// When [seedColor] is set, derives Material 3 [ColorScheme] for church branding (§16.4.4).
+  static ThemeData light({Color? seedColor}) {
+    final primary = seedColor ?? AppColors.primaryColor;
+    final scheme = ColorScheme.fromSeed(seedColor: primary, brightness: Brightness.light);
+    return _build(scheme);
+  }
+
+  /// Soft elevation for cards (reference dashboard / CRM UIs).
   static List<BoxShadow> get cardShadow => const [
         BoxShadow(
-          color: Color(0x0A000000),
-          blurRadius: 8,
-          offset: Offset(0, 2),
+          color: Color(0x12000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
         ),
         BoxShadow(
-          color: Color(0x06000000),
+          color: Color(0x08000000),
           blurRadius: 4,
           offset: Offset(0, 1),
         ),
       ];
 
-  static ThemeData light() {
+  static ThemeData _build(ColorScheme scheme) {
     final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.surfaceColor,
-      colorScheme: ColorScheme.light(
-        primary: AppColors.primaryColor,
-        onPrimary: AppColors.white,
-        secondary: AppColors.primaryDark,
-        surface: AppColors.white,
-        error: AppColors.dangerColor,
-        onSurface: AppColors.gray900,
-      ),
+      colorScheme: scheme,
       dividerColor: AppColors.gray200,
       textTheme: AppTypography.textTheme(),
     );
@@ -47,15 +48,16 @@ abstract final class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.white,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+          borderRadius: BorderRadius.circular(AppRadius.card),
           side: const BorderSide(color: AppColors.gray200),
         ),
         shadowColor: Colors.transparent,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.white,
+        fillColor: AppColors.gray50,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.sm + 4,
@@ -70,8 +72,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide:
-              const BorderSide(color: AppColors.primaryColor, width: 1.5),
+          borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -90,7 +91,25 @@ abstract final class AppTheme {
             vertical: AppSpacing.md,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          textStyle: AppTypography.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.white,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          foregroundColor: AppColors.white,
+          backgroundColor: scheme.primary,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.md,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
@@ -107,7 +126,7 @@ abstract final class AppTheme {
           ),
           side: const BorderSide(color: AppColors.gray200),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.md),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
         ),
       ),
@@ -118,3 +137,4 @@ abstract final class AppTheme {
     );
   }
 }
+

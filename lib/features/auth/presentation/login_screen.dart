@@ -7,6 +7,7 @@ import '../../../common/widgets/pillr_card.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/validation_utils.dart';
@@ -84,7 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: size.width > 480 ? 420 : double.infinity),
+            constraints: BoxConstraints(maxWidth: size.width > 480 ? PillrLayout.formMaxWidth : double.infinity),
             child: PillrCard(
               child: AutofillGroup(
                 child: Column(

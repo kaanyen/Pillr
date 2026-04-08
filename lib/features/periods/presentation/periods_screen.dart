@@ -2,16 +2,19 @@ import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_confirmation_dialog.dart';
 import '../../../common/widgets/pillr_data_table.dart';
+import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../activity/activity_log_helper.dart';
@@ -26,7 +29,6 @@ class PeriodsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final periods = ref.watch(periodsStreamProvider);
-    final width = MediaQuery.sizeOf(context).width;
 
     if (idx != null && !idx.isPastor) {
       return Center(
@@ -90,39 +92,94 @@ class PeriodsScreen extends ConsumerWidget {
                 );
               }
               final df = DateFormat.yMMMd();
-              return PillrDataTable(
-                minWidth: width > 800 ? width - AppSpacing.lg * 2 : 800,
-                columns: [
-                  DataColumn2(
-                    label: Text('NAME', style: AppTypography.tableHeader),
-                    size: ColumnSize.L,
-                  ),
-                  DataColumn2(label: Text('RANGE', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('ACTIVE', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('TOTAL ₵', style: AppTypography.tableHeader)),
-                  DataColumn2(
-                    label: Text('ACTIONS', style: AppTypography.tableHeader),
-                    fixedWidth: 220,
-                  ),
-                ],
-                rows: [
-                  for (final r in rows)
-                    DataRow(
-                      cells: [
-                        DataCell(Text(r.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
-                        DataCell(Text(
-                          '${df.format(r.startDate)} – ${df.format(r.endDate)}',
-                          style: AppTypography.body,
-                        )),
-                        DataCell(
-                          r.isActive
-                              ? const Icon(Icons.check_circle, color: AppColors.successColor, size: 20)
-                              : const Icon(Icons.circle_outlined, color: AppColors.gray400, size: 20),
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final useCards = PillrLayout.useCardListLayout(constraints.maxWidth);
+                  final table = PillrDataTable(
+                    minWidth: 800,
+                    columns: [
+                      DataColumn2(
+                        label: Text('NAME', style: AppTypography.tableHeader),
+                        size: ColumnSize.L,
+                      ),
+                      DataColumn2(label: Text('RANGE', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('ACTIVE', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('TOTAL ₵', style: AppTypography.tableHeader)),
+                      DataColumn2(
+                        label: Text('ACTIONS', style: AppTypography.tableHeader),
+                        fixedWidth: 220,
+                      ),
+                    ],
+                    rows: [
+                      for (final r in rows)
+                        DataRow(
+                          cells: [
+                            DataCell(Text(r.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
+                            DataCell(Text(
+                              '${df.format(r.startDate)} – ${df.format(r.endDate)}',
+                              style: AppTypography.body,
+                            )),
+                            DataCell(
+                              r.isActive
+                                  ? const Icon(Icons.check_circle, color: AppColors.successColor, size: 20)
+                                  : const Icon(Icons.circle_outlined, color: AppColors.gray400, size: 20),
+                            ),
+                            DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!r.isActive)
+                                    TextButton(
+                                      onPressed: idx == null
+                                          ? null
+                                          : () => _confirmActivate(context, ref, idx.churchId, r),
+                                      child: const Text('Activate'),
+                                    ),
+                                  if (r.summaryPdfUrl != null && r.summaryPdfUrl!.isNotEmpty)
+                                    TextButton(
+                                      onPressed: () async {
+                                        final u = Uri.parse(r.summaryPdfUrl!);
+                                        if (await canLaunchUrl(u)) {
+                                          await launchUrl(u, mode: LaunchMode.externalApplication);
+                                        }
+                                      },
+                                      child: const Text('Report PDF'),
+                                    ),
+                                  TextButton(
+                                    onPressed: idx == null
+                                        ? null
+                                        : () => _openEditor(context, ref, churchId: idx.churchId, uid: idx.uid, existing: r),
+                                    child: const Text('Edit'),
+                                  ),
+                                  TextButton(
+                                    onPressed: idx == null
+                                        ? null
+                                        : () => _confirmDelete(context, ref, idx.churchId, r),
+                                    child: Text('Delete', style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
+                    ],
+                  );
+                  final cardList = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final r in rows)
+                        PillrEntityCard(
+                          title: r.name,
+                          subtitle:
+                              '${df.format(r.startDate)} – ${df.format(r.endDate)} · Total ${r.totalApprovedAmount.toStringAsFixed(2)}',
+                          trailing: r.isActive
+                              ? const Icon(Icons.check_circle, color: AppColors.successColor, size: 22)
+                              : const Icon(Icons.circle_outlined, color: AppColors.gray400, size: 22),
+                          footer: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: AppSpacing.xs,
+                            runSpacing: AppSpacing.xs,
                             children: [
                               if (!r.isActive)
                                 TextButton(
@@ -130,6 +187,16 @@ class PeriodsScreen extends ConsumerWidget {
                                       ? null
                                       : () => _confirmActivate(context, ref, idx.churchId, r),
                                   child: const Text('Activate'),
+                                ),
+                              if (r.summaryPdfUrl != null && r.summaryPdfUrl!.isNotEmpty)
+                                TextButton(
+                                  onPressed: () async {
+                                    final uri = Uri.parse(r.summaryPdfUrl!);
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                    }
+                                  },
+                                  child: const Text('Report PDF'),
                                 ),
                               TextButton(
                                 onPressed: idx == null
@@ -146,9 +213,10 @@ class PeriodsScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                ],
+                    ],
+                  );
+                  return useCards ? cardList : table;
+                },
               );
             },
           ),

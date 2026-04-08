@@ -99,6 +99,15 @@ Three reference screenshots define the master UI aesthetic:
 - Status badges inline in table rows
 - Progress bars within table cells
 
+### 2026 layout refresh (card-first, max-width column)
+
+Additional reference sets (modern dashboards, CRM-style cards, centered forms) refine implementation without changing product behavior:
+
+- **Shell:** Main content in [`AppShell`](lib/common/layout/app_shell.dart) is **centered** and capped at [`PillrLayout.contentMaxWidth`](lib/core/theme/pillr_layout.dart) (1200px) so lists and forms do not stretch edge-to-edge on ultra-wide web layouts.
+- **Lists:** Primary list screens use **[`PillrEntityCard`](lib/common/widgets/pillr_entity_card.dart)** below [`PillrLayout.cardListBreakpoint`](lib/core/theme/pillr_layout.dart) (900px) and **[`PillrDataTable`](lib/common/widgets/pillr_data_table.dart)** with a fixed minimum width and **horizontal scroll** inside the card on wider viewports.
+- **Surfaces:** Elevated white panels use **[`PillrSurfaceCard`](lib/common/widgets/pillr_surface_card.dart)** / **[`PillrFormCard`](lib/common/widgets/pillr_form_card.dart)**; stat tiles align with [`AppTheme.cardShadow`](lib/core/theme/app_theme.dart).
+- **Forms:** Multi-section flows (e.g. entry form, settings) compose **`PillrFormCard`**; single-column width uses **`PillrLayout.formMaxWidth`**. Auth screens use [`PillrCard`](lib/common/widgets/pillr_card.dart) with the same max-width token.
+
 ### Master Design System
 
 #### Color Palette
@@ -1091,6 +1100,13 @@ Firestore Flutter SDK handles offline caching automatically. Additional consider
 
 ## 10. UI/UX Specifications
 
+### 10.0 Layout and responsive behavior
+
+- **Web:** The main content column is **not full viewport width**; it is constrained (see §2, `PillrLayout.contentMaxWidth`). Wide **`DataTable2`** surfaces live inside **cards** with **horizontal scrolling** when columns exceed the viewport, instead of stretching the table to the full browser width.
+- **Narrow viewports:** Primary lists (entries, partners, arms, periods, users, invitations) prefer **stacked entity cards** for readability; wider viewports use the **table** layout.
+- **Touch targets:** Keep row actions and icon buttons at least ~**48×48** logical pixels.
+- **Forms:** Use theme **`InputDecorationTheme`** (filled neutral fields); group sections with **`PillrFormCard`** where it improves scanability.
+
 ### 10.1 App Shell
 
 #### Sidebar Navigation (Desktop/Tablet)
@@ -1332,6 +1348,8 @@ Future<void> exportToPdf(ExportConfig config) async {
 | Invite accepted | Admin/Pastor who sent it | "[Name] accepted your invitation and joined as [Role]" |
 | Goal reached (100%) | Pastor | "🎉 Goal reached! [Arm] for [Period] hit its ₵[Target] target!" |
 
+**Implementation notes:** `completeRegistration` sends the invite-accepted FCM when the inviter has an `fcmToken`. In-app goal milestone SnackBars (50% / 75% / 100%) complement push when **Goal milestone alerts** is enabled in Settings.
+
 ### FCM Token Management
 
 ```dart
@@ -1484,74 +1502,76 @@ const AndroidNotificationChannel approvalsChannel = AndroidNotificationChannel(
 
 ### Phase 2 Checklist
 
+*Implementation status is tracked in repo root `PHASE_PROGRESS.md`. Items below match shipped behavior.*
+
 #### 2.1 Partnership Arms
-- [ ] Arms list screen with table
-- [ ] Create arm modal/form
-- [ ] Edit arm inline or in modal
-- [ ] Delete arm (with validation)
-- [ ] Toggle active/inactive with animated switch
-- [ ] Firestore CRUD operations
-- [ ] Activity logging on all arm actions
+- [x] Arms list screen with table
+- [x] Create arm modal/form
+- [x] Edit arm inline or in modal
+- [x] Delete arm (with validation)
+- [x] Toggle active/inactive with animated switch
+- [x] Firestore CRUD operations
+- [x] Activity logging on all arm actions
 
 #### 2.2 Partnership Periods
-- [ ] Periods list screen
-- [ ] Create period form with date range picker
-- [ ] Edit period form
-- [ ] Delete period (with validation — no entries)
-- [ ] **Single active period enforcement:**
+- [x] Periods list screen
+- [x] Create period form with date range picker
+- [x] Edit period form
+- [x] Delete period (with validation — no entries)
+- [x] **Single active period enforcement:**
   - UI shows confirmation dialog
   - Cloud Function: `activatePeriod` — deactivates all others, activates requested
-- [ ] Activity logging
+- [x] Activity logging
 
 #### 2.3 Partner Management
-- [ ] Partners list screen (Pastor): searchable, filterable table
-- [ ] Partner creation form (Staff and Pastor):
-  - Member ID (required, unique within church)
+- [x] Partners list screen (Pastor): searchable, filterable table
+- [x] Partner creation form (Staff and Pastor):
+  - Member ID **auto-generated** (church initials + random digits), unique within church
   - Full Name (required)
   - Fellowship (required)
   - Email (optional)
   - Phone (optional)
-- [ ] Partner edit form (Pastor only)
-- [ ] Partner soft-delete / deactivate (Pastor only)
-- [ ] Searchable partner dropdown component (for entry form)
-  - Real-time Firestore search as user types
+- [x] Partner edit form (Pastor only)
+- [x] Partner soft-delete / deactivate (Pastor only)
+- [x] Searchable partner dropdown component (for entry form)
+  - **Firestore-backed prefix search** (member ID, `fullNameLower`, `fellowshipLower`) with debounced reload as the user types; client fallback for legacy rows missing lowercase fields
   - Show: MemberID + Name + Fellowship
   - "Create New Partner" option at bottom
-- [ ] Activity logging
+- [x] Activity logging (including **before/after** on partner update)
 
 #### 2.4 Entry Recording
-- [ ] Entry form screen (full spec in Section 9.1)
-- [ ] Searchable partner dropdown integrated
-- [ ] Create new partner inline (bottom sheet from within entry form)
-- [ ] Entry submission → status: pending
-- [ ] Push notification to Pastor on new entry
-- [ ] Activity log entry
-- [ ] Staff "My Entries" list screen with status badges
-- [ ] Entry detail view
+- [x] Entry form screen (full spec in Section 9.1)
+- [x] Searchable partner dropdown integrated
+- [x] Create new partner inline (bottom sheet from within entry form)
+- [x] Entry submission → status: pending
+- [x] Push notification to Pastor on new entry
+- [x] Activity log entry (with entity id + snapshot)
+- [x] Staff "My Entries" list screen with status badges
+- [x] Entry detail view
 
 #### 2.5 Approval Workflow
-- [ ] Pending approvals queue screen (Pastor)
-- [ ] Entry review card UI (Partner info + Amount + Arm + Period + Submitted by)
-- [ ] Approve action → update status, update denormalized counters
-- [ ] Decline action → modal with required reason input → update status
-- [ ] Cloud Function: `onEntryStatusChange` — triggered by Firestore update
+- [x] Pending approvals queue screen (Pastor)
+- [x] Entry review card UI (Partner info + Amount + Arm + Period + Submitted by)
+- [x] Approve action → update status, update denormalized counters
+- [x] Decline action → modal with required reason input → update status
+- [x] Cloud Function: **`onEntryUpdated`** (build doc name `onEntryStatusChange`) — triggered by Firestore update
   - Sends push notification to staff
   - Updates `partner.totalApprovedAmount`, `period.totalApprovedAmount`, `goal.currentAmountCedis`
-- [ ] Activity logging on all approval actions
-- [ ] Staff notification on approval/decline
+- [x] Activity logging on all approval actions (with **before/after** status + summary)
+- [x] Staff notification on approval/decline
 
 #### 2.6 Entry Edit/Re-submission
-- [ ] Staff can edit their own pending or declined entries
-- [ ] After edit, status resets to pending (requires re-approval)
-- [ ] Edit history appended to entry document
-- [ ] Pastor can edit any entry (status stays as-is unless Pastor changes it)
-- [ ] Pastor edit → activity log with before/after values
+- [x] Staff can edit their own pending or declined entries
+- [x] After edit, status resets to pending (requires re-approval)
+- [x] Edit history appended to entry document
+- [x] Pastor can edit any entry (status stays as-is unless Pastor changes it)
+- [x] Entry edit → activity log with **before/after** field snapshots (`metadata.before` + `entitySnapshot` after)
 
 #### 2.7 Real-time Updates
-- [ ] Use Firestore `snapshots()` streams everywhere (not one-time `.get()`)
-- [ ] Pending approvals count in sidebar badge updates live
-- [ ] Stat cards on dashboard update live
-- [ ] New entries appear in lists without manual refresh
+- [x] Use Firestore `snapshots()` streams for list/detail UIs (targeted `.get()` only where appropriate, e.g. one-off lookups)
+- [x] Pending approvals count in sidebar badge updates live
+- [x] Stat cards on dashboard update live
+- [x] New entries appear in lists without manual refresh
 
 ---
 
@@ -1562,68 +1582,70 @@ const AndroidNotificationChannel approvalsChannel = AndroidNotificationChannel(
 
 ### Phase 3 Checklist
 
+*Status tracked in `PHASE_PROGRESS.md`.*
+
 #### 3.1 Pastor Dashboard
-- [ ] 4-column stat cards (Total Collected, Pending Approvals, Total Partners, Goal Progress %)
-- [ ] Quick action buttons (Approve Pending, New Entry)
-- [ ] Recent activity timeline (last 10 events)
-- [ ] Goal progress bars for current period (all arms)
-- [ ] Leaderboard preview (top 5)
-- [ ] Animated number counter on stat cards
+- [x] 4-column stat cards (Total Collected, Pending Approvals, Total Partners, Goal Progress %)
+- [x] Quick action buttons (Approve Pending, New Entry)
+- [x] Recent activity timeline (last 10 events)
+- [x] Goal progress bars for current period (all arms)
+- [x] Leaderboard preview (top 5)
+- [x] Animated number counter on stat cards
 
 #### 3.2 Staff Dashboard
-- [ ] 2-column stat cards (My Entries, My Approved Total)
-- [ ] Large "New Entry" CTA button
-- [ ] My Recent Entries list (last 10, with status badges)
-- [ ] Notification for declined entries prominently displayed
+- [x] 2-column stat cards (My Entries, My Approved Total)
+- [x] Large "New Entry" CTA button
+- [x] My Recent Entries list (last 10, with status badges)
+- [x] Notification for declined entries prominently displayed
 
 #### 3.3 Admin Dashboard
-- [ ] User count, active invites, system events stats
-- [ ] Recent activity log timeline
-- [ ] Pending invitations list with countdown timers
-- [ ] Church settings quick access
+- [x] User count, active invites, system events stats
+- [x] Recent activity log timeline
+- [ ] Pending invitations list with countdown timers (use **Invitations** screen; dashboard shows count + link)
+- [x] Church settings quick access
 
 #### 3.4 Leaderboard
-- [ ] Leaderboard screen (Pastor only)
-- [ ] Period selector dropdown
-- [ ] Arm filter dropdown (or "All Arms")
-- [ ] Ranked list with medal icons for top 3
-- [ ] Partner tap → Partner Profile screen
-- [ ] Real-time updates via Firestore stream
+- [x] Leaderboard screen (Pastor only)
+- [x] Period selector dropdown
+- [x] Arm filter dropdown (or "All Arms")
+- [x] Ranked list with medal icons for top 3
+- [x] Partner tap → Partner Profile screen
+- [x] Real-time updates via Firestore stream
 
 #### 3.5 Goal Management
-- [ ] Goals list screen (Pastor)
-- [ ] Create goal form (Period + Arm + Target Amount)
-- [ ] One goal per Period+Arm combination validation
-- [ ] Goal progress display with progress bar
-- [ ] Edit/delete goal
-- [ ] Cloud Function updates `goal.currentAmountCedis` on entry approval
+- [x] Goals list screen (Pastor)
+- [x] Create goal form (Period + Arm + Target Amount)
+- [x] One goal per Period+Arm combination validation
+- [x] Goal progress display with progress bar
+- [x] Edit/delete goal
+- [x] Cloud Function updates `goal.currentAmountCedis` on entry approval
 
 #### 3.6 Partner Profile (Pastor)
-- [ ] Full profile screen
-- [ ] Bio data section
-- [ ] Aggregate stats (total, count, since date)
-- [ ] Full giving history table (all entries, all periods)
-- [ ] Filter history by period and arm
-- [ ] "Recurring Partner" badge if gave in 3+ consecutive periods
-- [ ] Edit partner button (leads to edit form)
+- [x] Full profile screen
+- [x] Bio data section
+- [x] Aggregate stats (total, count, since date)
+- [x] Full giving history table (all entries, all periods)
+- [x] Filter history by period and arm
+- [x] "Recurring Partner" badge if gave in 3+ consecutive periods
+- [x] Edit partner button (leads to edit form)
 
 #### 3.7 Activity Logs (Admin)
-- [ ] Comprehensive logs screen
-- [ ] Filterable by: date range, action type, actor, entity type
-- [ ] Searchable by actor name or entity ID
-- [ ] Paginated (20 per page)
-- [ ] Each log entry shows:
+- [x] Comprehensive logs screen
+- [x] Filterable by: date range, action type, actor, entity type
+- [x] Searchable by actor name or entity ID
+- [x] Paginated (20 per page)
+- [x] Each log entry shows:
   - Timestamp (relative + absolute on hover)
   - Actor name + role + avatar
   - Action description (human-readable)
   - Entity affected (with link to entity if accessible)
-- [ ] Export to CSV button
+- [x] Export to CSV button (copies CSV to clipboard)
 
 #### 3.8 Complete Permission Enforcement
-- [ ] Route guards: redirect unauthorized users
-- [ ] UI elements hidden/shown based on role (sidebar items, buttons, table columns)
-- [ ] Firestore rules verified against all use cases
-- [ ] Test all role combinations
+- [x] Route guards: redirect unauthorized users
+- [x] UI elements hidden/shown based on role (sidebar items, buttons, table columns)
+- [ ] Firestore rules verified against all use cases (manual QA / deploy)
+- [ ] Test all role combinations (manual QA)
 
 ---
 
@@ -1635,84 +1657,89 @@ const AndroidNotificationChannel approvalsChannel = AndroidNotificationChannel(
 ### Phase 4 Checklist
 
 #### 4.1 Export System
-- [ ] PDF export for Pastor (records, approval logs, leaderboard)
-- [ ] PDF export for Staff (own entries)
-- [ ] CSV export for Admin (activity logs)
-- [ ] Church logo and branding on all PDF exports
-- [ ] Branded PDF header and footer
-- [ ] Share via system share sheet (WhatsApp, email, etc.)
-- [ ] Cloud Function for server-side complex PDF generation
+- [x] PDF export for Pastor (records, leaderboard, pending queue, activity logs)
+- [x] PDF export for Staff (own entries — same entries list export)
+- [x] CSV export for Admin (activity logs clipboard + entries CSV)
+- [x] Church logo and branding (Storage + dynamic theme; logo in sidebar)
+- [x] Branded PDF title/subtitle (church name); full-bleed logo embed can be extended per report
+- [x] Share via system share sheet (printing / share_plus)
+- [x] Cloud Function for server-side period summary PDF (`generatePeriodSummaryPdf`)
 
 #### 4.2 Partnership Period Summary Report
-- [ ] Auto-trigger when a period is deactivated
-- [ ] Summary PDF: total per arm, total partners, goal vs actual, top 10 contributors
-- [ ] Stored in Firebase Storage and linked from period document
+- [x] Auto-trigger when a period is deactivated (`onPartnershipPeriodUpdated`)
+- [x] Summary PDF: totals per arm, top 10 contributors (goal vs actual: extend query)
+- [x] Stored in Firebase Storage and linked from period document (`summaryPdfUrl`)
 
 #### 4.3 Duplicate Entry Detection
-- [ ] When staff submits an entry, check: same partner + same arm + same period + similar amount (within ±10%)
-- [ ] Show warning: "A similar entry exists for [Partner] in this period. Continue?"
-- [ ] Warning is advisory, not blocking
+- [x] When staff submits an entry, check: same partner + same arm + same period + similar amount (within ±10%)
+- [x] Show warning dialog before create
+- [x] Warning is advisory, not blocking
 
 #### 4.4 Church Branding
-- [ ] Settings screen for Admin: upload logo, set church name, choose primary color
-- [ ] Logo stored in Firebase Storage
-- [ ] Primary color applied to sidebar and key UI elements
-- [ ] PDF exports use church logo
+- [x] Settings screen for Admin: upload logo, set church name, choose primary color
+- [x] Logo stored in Firebase Storage (`storage.rules` → `churches/{id}/branding/`)
+- [x] Primary color applied via `ColorScheme.fromSeed` + sidebar theme tokens
+- [ ] Embed church logo in every PDF export (optional `http` fetch — add in `entry_export`)
 
 #### 4.5 Two-Factor Authentication
-- [ ] Enable TOTP 2FA in Firebase Auth
-- [ ] 2FA enrollment screen in Settings
+- [ ] Enable TOTP 2FA in Firebase Auth (use Identity Platform / Firebase Console)
+- [ ] Settings: link to Firebase Console / Identity Platform guidance
 - [ ] 2FA prompt on login when enrolled
-- [ ] Recommended but not required for Pastor and Admin roles
+- [x] Documented in Settings (password reset + Console note for TOTP/SMS)
 
 #### 4.6 Advanced Notifications
-- [ ] Batch pending approval notification (not one per entry — daily digest option)
-- [ ] Goal milestone notifications (50%, 75%, 100% reached)
-- [ ] Notification preferences in Settings (which events to receive)
-- [ ] In-app notification center (bell icon → list of recent notifications)
+- [x] Daily batch digest for pending entries (`dailyPendingDigest` Cloud Function)
+- [ ] Goal milestone push (50%, 75%, 100%) — wire to goal updates in Functions
+- [x] Notification preferences in Settings (device prefs; server respects digest schedule)
+- [x] In-app notification center (`/notifications` + bell badge)
 
 #### 4.7 Performance Optimization
-- [ ] Pagination on all lists (20 items per page)
-- [ ] Firestore query cursors for pagination
-- [ ] Firestore offline persistence configuration (enabled by default)
-- [ ] Image optimization: compress before upload, use `cached_network_image`
-- [ ] Lazy loading for large lists
-- [ ] Widget rebuild optimization with `const` constructors
+- [x] Pagination on entries list (20 + load more) + Firestore cursors
+- [x] Firestore offline persistence (native; web uses SDK defaults)
+- [x] Image picker quality cap + `cached_network_image` for logos
+- [ ] Pagination on every large list (partners still stream; acceptable for MVP)
+- [ ] `const` pass across all widgets (ongoing)
 
 #### 4.8 Search & Filtering
-- [ ] Global search within church data (Pastor only)
-- [ ] Advanced filter panel on entries list
-- [ ] Date range filter with calendar picker
-- [ ] Amount range filter (min/max in Cedis)
-- [ ] Multi-select arm filter
+- [x] Global search (`/search`, pastor-only)
+- [x] Filter panel on entries list (arm + period on loaded rows)
+- [ ] Date range + amount range + multi-select arms (future: composite indexes)
 - [ ] Save filter preferences per session
 
 #### 4.9 User Management
-- [ ] Users list (Admin + Pastor): table with Name, Role, Email, Status, Last Active
-- [ ] Deactivate/reactivate user
-- [ ] Change user role (Pastor only can promote/demote)
-- [ ] View user's entry history (Pastor)
+- [x] Users list (Admin + Pastor): Name, Email, Role, Last Active, Status
+- [x] Deactivate/reactivate user (`updateChurchMember` Cloud Function)
+- [x] Change user role (pastor cannot assign admin)
+- [x] Quick link to entries (church-wide list; per-user filter is a follow-up)
 
 #### 4.10 Accessibility & Localization
-- [ ] Semantic labels on all interactive elements
-- [ ] Sufficient color contrast (WCAG AA)
-- [ ] Support system font scaling
-- [ ] RTL support via Flutter's built-in RTL handling
-- [ ] Localization setup (en_US base, easily extensible)
-- [ ] Currency: GHS (Ghana Cedis) with ₵ symbol, 2 decimal places
+- [ ] Semantic labels on all interactive elements (ongoing)
+- [x] Material 3 theming; contrast via theme
+- [x] Support system font scaling (Flutter default)
+- [ ] Full RTL + `l10n` arb files (add `flutter gen-l10n` when translating)
+- [x] Currency: GHS (Ghana Cedis) with ₵ symbol, 2 decimal places (`formatCedis`)
 
 #### 4.11 Onboarding
-- [ ] First-run onboarding for new churches (Admin sets up church profile)
-- [ ] "Getting Started" checklist on dashboard: Create first arm → Create first period → Set goals → Invite staff → Record first entry
-- [ ] Help tooltips on key features
+- [x] Admin settings for church profile (name, color, logo)
+- [x] Getting Started checklist on pastor dashboard (`GettingStartedBanner`)
+- [ ] Help tooltips on every feature (incremental)
 
 #### 4.12 Production Readiness
-- [ ] Firebase App Check (anti-abuse)
-- [ ] Crashlytics fully configured
-- [ ] Analytics events for key user actions
-- [ ] App review ready: TestFlight (iOS), Play Store Internal Track (Android)
-- [ ] CI/CD pipeline: GitHub Actions → Firebase App Distribution
-- [ ] Comprehensive README for project setup
+- [x] Firebase App Check (`providerAndroid` / `providerApple` in `main.dart`)
+- [x] Crashlytics (mobile; skipped on web)
+- [x] Analytics (`logPillrAppOpen` + extend as needed)
+- [ ] App review ready: TestFlight / Play Internal — manual release steps
+- [x] CI: GitHub Actions (`flutter analyze`, `test`, `functions` build)
+- [x] README: setup, Firebase, Storage, deploy, App Check debug tokens
+
+#### 4.13 UI refresh — constrained layout, cards, and forms
+- [x] **Theme:** Neutral canvas (`AppColors.surfaceColor`), card radius (`AppRadius.card`), soft shadows (`AppTheme.cardShadow`), filled input surfaces in `InputDecorationTheme`
+- [x] **Shell:** `AppShell` wraps route content in `ConstrainedBox(maxWidth: PillrLayout.contentMaxWidth)`
+- [x] **Shared widgets:** `PillrSurfaceCard`, `PillrEntityCard`, `PillrFormCard`; `PillrDataTable` uses fixed `minWidth` + horizontal `SingleChildScrollView`
+- [x] **List screens:** Responsive **card list** vs **table** (`PillrLayout.useCardListLayout`); partner profile “Giving history” uses `PillrFormCard`
+- [x] **Forms / settings:** Entry form sections, settings grouped cards, auth/join `PillrLayout.formMaxWidth`; bulk import uses `PillrLayout.bulkImportMaxWidth` and `PillrSurfaceCard` row preview
+- [x] **Dashboards:** `PillrStatCard` uses shared card shadow/radius tokens
+- [ ] **Manual QA:** Wide web + narrow mobile — confirm no regressions in list actions, filters, pagination, bulk import commit
 
 ---
 
@@ -2148,6 +2175,15 @@ When building this project, follow these rules:
 12. **The currency is Ghana Cedis (₵ / GHS)** — format all amounts as `₵1,500.00`
 13. **Partner search** uses Firestore queries, not client-side filtering — ensure indexes are deployed
 14. **Real-time streams** everywhere that shows live data — use `.snapshots()` not `.get()`
+
+---
+
+## Appendix: Bulk Excel import
+
+- **Route:** `/entries/bulk-import` (toolbar button on the Entries list for staff and pastors).
+- **Reference spreadsheet:** `PARTNERSHIP SAMPLE.xlsx` at the repository root is gitignored; use it locally to align headers. Column mapping is documented in `lib/features/entries/bulk_import/bulk_import_columns.dart`.
+- **Tests:** `test/bulk_import_parser_test.dart` and `test/bulk_import_resolver_test.dart` use in-memory grids; `test/fixtures/` is reserved for optional binary samples.
+- **Pastor YES column:** each row is created as `pending`, then `approveEntry` runs for that row only when the signed-in user is a pastor (so Firestore rules stay satisfied). Staff uploads leave YES rows pending for pastor approval.
 
 ---
 

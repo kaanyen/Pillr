@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_typography.dart';
 
 /// Zendenta / Notion-style data table — white surface, grey header, row hover.
@@ -14,7 +15,7 @@ class PillrDataTable extends StatelessWidget {
     this.sortColumnIndex,
     this.sortAscending = true,
     this.onSelectAll,
-    this.minWidth = 800,
+    this.minWidth = 720,
   });
 
   final List<DataColumn2> columns;
@@ -53,37 +54,38 @@ class PillrDataTable extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: AppColors.gray200),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppTheme.cardShadow,
       ),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         height: boundedHeight,
-        child: DataTable2(
-          columnSpacing: AppSpacing.md,
-          horizontalMargin: AppSpacing.md,
-          minWidth: minWidth,
-          headingRowHeight: _headingRowHeight,
-          dataRowHeight: _dataRowHeight,
-          headingRowDecoration: const BoxDecoration(
-            color: AppColors.gray50,
-            border: Border(
-              bottom: BorderSide(color: AppColors.gray200),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: minWidth,
+            height: boundedHeight,
+            child: DataTable2(
+              columnSpacing: AppSpacing.md,
+              horizontalMargin: AppSpacing.md,
+              minWidth: minWidth,
+              headingRowHeight: _headingRowHeight,
+              dataRowHeight: _dataRowHeight,
+              headingRowDecoration: const BoxDecoration(
+                color: AppColors.gray50,
+                border: Border(
+                  bottom: BorderSide(color: AppColors.gray200),
+                ),
+              ),
+              decoration: const BoxDecoration(),
+              sortColumnIndex: sortColumnIndex,
+              sortAscending: sortAscending,
+              onSelectAll: onSelectAll,
+              columns: styledColumns,
+              rows: rows,
             ),
           ),
-          decoration: const BoxDecoration(),
-          sortColumnIndex: sortColumnIndex,
-          sortAscending: sortAscending,
-          onSelectAll: onSelectAll,
-          columns: styledColumns,
-          rows: rows,
         ),
       ),
     );

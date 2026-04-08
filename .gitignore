@@ -2,6 +2,9 @@
 *-firebase-adminsdk-*.json
 **/serviceAccount*.json
 
+# Bulk import Excel sample (local reference; do not commit)
+PARTNERSHIP SAMPLE.xlsx
+
 # Miscellaneous
 *.class
 *.log

@@ -1,3 +1,4 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,12 @@ import 'services/firebase_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ensureFirebaseInitialized();
+  if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode ? const AndroidDebugProvider() : const AndroidPlayIntegrityProvider(),
+      providerApple: kDebugMode ? const AppleDebugProvider() : const AppleDeviceCheckProvider(),
+    );
+  }
   await logPillrAppOpen();
 
   if (kDebugMode) {

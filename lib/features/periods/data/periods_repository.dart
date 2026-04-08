@@ -21,6 +21,12 @@ class PeriodsRepository {
         );
   }
 
+  /// One-shot read (e.g. bulk import) — same ordering as [watchPeriods].
+  Future<List<PartnershipPeriod>> fetchPeriods(String churchId) async {
+    final q = await _periods(churchId).orderBy('startDate', descending: true).get();
+    return q.docs.map(PartnershipPeriod.fromDoc).toList();
+  }
+
   Future<void> createPeriod({
     required String churchId,
     required String uid,

@@ -124,6 +124,15 @@ class EntryDetailScreen extends ConsumerWidget {
                 action: 'entry.approve',
                 entityType: 'entry',
                 entityId: entry.id,
+                metadata: {
+                  'before': {'status': entry.status},
+                  'after': {'status': 'approved'},
+                  'entrySummary': {
+                    'amountCedis': entry.amountCedis,
+                    'partnerName': entry.partnerSnapshot['fullName'],
+                    'memberId': entry.partnerSnapshot['memberId'],
+                  },
+                },
               );
               if (context.mounted) context.go('/approvals');
             },
@@ -147,6 +156,15 @@ class EntryDetailScreen extends ConsumerWidget {
                 action: 'entry.decline',
                 entityType: 'entry',
                 entityId: entry.id,
+                metadata: {
+                  'before': {'status': entry.status},
+                  'after': {'status': 'declined', 'declineReason': reason},
+                  'entrySummary': {
+                    'amountCedis': entry.amountCedis,
+                    'partnerName': entry.partnerSnapshot['fullName'],
+                    'memberId': entry.partnerSnapshot['memberId'],
+                  },
+                },
               );
               if (context.mounted) context.go('/approvals');
             },

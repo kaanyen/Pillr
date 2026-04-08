@@ -22,6 +22,33 @@ class PartnersRepository {
     });
   }
 
+  /// Returns the partner with this [memberId], or null if none.
+  Future<Partner?> findPartnerByMemberId(String churchId, String memberId) async {
+    final normalized = memberId.trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    final q = await _partners(churchId).where('memberId', isEqualTo: normalized).limit(1).get();
+    if (q.docs.isEmpty) return null;
+    return Partner.fromDoc(q.docs.first);
+  }
+
+  /// All active partners (paginated internally). Used for bulk import matching.
+  Future<List<Partner>> fetchAllActivePartners(String churchId) async {
+    final out = <Partner>[];
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      final page = await fetchPartnersPage(
+        churchId,
+        includeInactive: false,
+        pageSize: 400,
+        startAfter: cursor,
+      );
+      out.addAll(page.items);
+      if (!page.hasMore || page.lastDoc == null) break;
+      cursor = page.lastDoc;
+    }
+    return out;
+  }
+
   Future<bool> memberIdExists(String churchId, String memberId, {String? excludePartnerId}) async {
     final normalized = memberId.trim().toUpperCase();
     final q = await _partners(churchId).where('memberId', isEqualTo: normalized).limit(5).get();
@@ -48,7 +75,8 @@ class PartnersRepository {
     throw StateError('Could not generate a unique member ID');
   }
 
-  Future<void> createPartner({
+  /// Returns new document id and assigned member id.
+  Future<({String id, String memberId})> createPartner({
     required String churchId,
     required String uid,
     required String fullName,
@@ -58,14 +86,19 @@ class PartnersRepository {
     required String churchDisplayName,
   }) async {
     final memberId = await generateUniqueMemberId(churchId, churchDisplayName);
-    final ref = _partners(churchId).doc();
+    final mid = memberId.trim().toUpperCase();
+    final fn = fullName.trim();
+    final fs = fellowship.trim();
+    final docRef = _partners(churchId).doc();
     final now = FieldValue.serverTimestamp();
-    await ref.set({
-      'id': ref.id,
+    await docRef.set({
+      'id': docRef.id,
       'churchId': churchId,
-      'memberId': memberId.trim().toUpperCase(),
-      'fullName': fullName.trim(),
-      'fellowship': fellowship.trim(),
+      'memberId': mid,
+      'fullName': fn,
+      'fellowship': fs,
+      'fullNameLower': fn.toLowerCase(),
+      'fellowshipLower': fs.toLowerCase(),
       'email': email?.trim().isEmpty ?? true ? null : email!.trim(),
       'phone': phone?.trim().isEmpty ?? true ? null : phone!.trim(),
       'isActive': true,
@@ -75,6 +108,7 @@ class PartnersRepository {
       'createdAt': now,
       'updatedAt': now,
     });
+    return (id: docRef.id, memberId: mid);
   }
 
   Future<void> updatePartner({
@@ -87,10 +121,14 @@ class PartnersRepository {
     String? phone,
     required bool isActive,
   }) async {
+    final fn = fullName.trim();
+    final fs = fellowship.trim();
     await _partners(churchId).doc(partner.id).update({
       'memberId': memberId.trim().toUpperCase(),
-      'fullName': fullName.trim(),
-      'fellowship': fellowship.trim(),
+      'fullName': fn,
+      'fellowship': fs,
+      'fullNameLower': fn.toLowerCase(),
+      'fellowshipLower': fs.toLowerCase(),
       'email': email?.trim().isEmpty ?? true ? null : email!.trim(),
       'phone': phone?.trim().isEmpty ?? true ? null : phone!.trim(),
       'isActive': isActive,
@@ -98,10 +136,105 @@ class PartnersRepository {
     });
   }
 
+  /// Prefix search via Firestore (`memberId`, `fullNameLower`, `fellowshipLower`) plus
+  /// client fallback for partners missing lowercase fields (legacy) or fuzzy match.
+  Future<List<Partner>> searchPartners(
+    String churchId,
+    String query, {
+    bool includeInactive = false,
+    int limit = 60,
+  }) async {
+    final col = _partners(churchId);
+    final q = query.trim();
+    if (q.isEmpty) {
+      final snap = await col.orderBy('memberId').limit(limit).get();
+      final list = snap.docs.map(Partner.fromDoc).toList();
+      if (includeInactive) return list;
+      return list.where((p) => p.isActive).toList();
+    }
+
+    final qUpper = q.toUpperCase();
+    final qLower = q.toLowerCase();
+    final Map<String, Partner> byId = {};
+
+    Future<void> merge(Query<Map<String, dynamic>> rq) async {
+      final snap = await rq.get();
+      for (final d in snap.docs) {
+        final p = Partner.fromDoc(d);
+        if (!includeInactive && !p.isActive) continue;
+        byId[p.id] = p;
+      }
+    }
+
+    await Future.wait([
+      merge(
+        col
+            .where('memberId', isGreaterThanOrEqualTo: qUpper)
+            .where('memberId', isLessThanOrEqualTo: '$qUpper\uf8ff')
+            .limit(25),
+      ),
+      merge(
+        col
+            .where('fullNameLower', isGreaterThanOrEqualTo: qLower)
+            .where('fullNameLower', isLessThanOrEqualTo: '$qLower\uf8ff')
+            .limit(25),
+      ),
+      merge(
+        col
+            .where('fellowshipLower', isGreaterThanOrEqualTo: qLower)
+            .where('fellowshipLower', isLessThanOrEqualTo: '$qLower\uf8ff')
+            .limit(25),
+      ),
+    ]);
+
+    if (byId.length < 12) {
+      final snap = await col.orderBy('memberId').limit(300).get();
+      for (final d in snap.docs) {
+        final p = Partner.fromDoc(d);
+        if (!includeInactive && !p.isActive) continue;
+        final hay = '${p.memberId} ${p.fullName} ${p.fellowship}'.toLowerCase();
+        if (hay.contains(qLower)) {
+          byId[p.id] = p;
+        }
+      }
+    }
+
+    final out = byId.values.toList()..sort((a, b) => a.memberId.compareTo(b.memberId));
+    if (out.length <= limit) return out;
+    return out.sublist(0, limit);
+  }
+
   Stream<Partner?> watchPartner(String churchId, String partnerId) {
     return _partners(churchId).doc(partnerId).snapshots().map((s) {
       if (!s.exists) return null;
       return Partner.fromDoc(s);
     });
+  }
+
+  /// Server-side pagination by `memberId` (active-only uses composite index).
+  Future<({
+    List<Partner> items,
+    DocumentSnapshot<Map<String, dynamic>>? lastDoc,
+    bool hasMore,
+  })> fetchPartnersPage(
+    String churchId, {
+    required bool includeInactive,
+    int pageSize = 20,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    Query<Map<String, dynamic>> q = _partners(churchId);
+    if (!includeInactive) {
+      q = q.where('isActive', isEqualTo: true);
+    }
+    q = q.orderBy('memberId');
+    if (startAfter != null) {
+      q = q.startAfterDocument(startAfter);
+    }
+    final snap = await q.limit(pageSize + 1).get();
+    final hasMore = snap.docs.length > pageSize;
+    final docs = hasMore ? snap.docs.take(pageSize).toList() : snap.docs.toList();
+    final items = docs.map(Partner.fromDoc).toList();
+    final lastDoc = docs.isEmpty ? null : docs.last;
+    return (items: items, lastDoc: lastDoc, hasMore: hasMore);
   }
 }

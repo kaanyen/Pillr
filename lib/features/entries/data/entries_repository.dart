@@ -49,7 +49,93 @@ class EntriesRepository {
     });
   }
 
-  Future<void> createEntry({
+  Future<PartnershipEntry?> getEntry(String churchId, String entryId) async {
+    final d = await _entries(churchId).doc(entryId).get();
+    if (!d.exists) return null;
+    return PartnershipEntry.fromDoc(d);
+  }
+
+  /// Paged fetch for lists (§16.4.7). [allChurchEntries] true = pastor view; else filter [createdByUid].
+  /// [statusFilter] when non-null restricts to `pending` | `approved` | `declined`.
+  /// [newestFirst] false = oldest first (`createdAt` ascending).
+  Future<({
+    List<PartnershipEntry> items,
+    DocumentSnapshot<Map<String, dynamic>>? lastDoc,
+    bool hasMore,
+  })> fetchEntriesPage(
+    String churchId, {
+    required bool allChurchEntries,
+    String? createdByUid,
+    String? statusFilter,
+    bool newestFirst = true,
+    int pageSize = 20,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    assert(allChurchEntries || (createdByUid != null && createdByUid.isNotEmpty));
+    Query<Map<String, dynamic>> q = _entries(churchId);
+    if (!allChurchEntries) {
+      q = q.where('createdBy', isEqualTo: createdByUid);
+    }
+    if (statusFilter != null && statusFilter.isNotEmpty) {
+      q = q.where('status', isEqualTo: statusFilter);
+    }
+    q = q.orderBy('createdAt', descending: newestFirst);
+    q = q.limit(pageSize + 1);
+    if (startAfter != null) {
+      q = q.startAfterDocument(startAfter);
+    }
+    final snap = await q.get();
+    final hasMore = snap.docs.length > pageSize;
+    final take = hasMore ? pageSize : snap.docs.length;
+    final docs = snap.docs.take(take).toList();
+    final items = docs.map(PartnershipEntry.fromDoc).toList();
+    final lastDoc = docs.isNotEmpty ? docs.last : null;
+    return (items: items, lastDoc: lastDoc, hasMore: hasMore);
+  }
+
+  /// Entries for a partner — used for duplicate detection (§16.4.3).
+  /// Pastor: all entries for that partner; staff: only entries they created.
+  Future<List<PartnershipEntry>> fetchEntriesForDuplicateCheck(
+    String churchId, {
+    required String partnerId,
+    required bool allChurchEntries,
+    String? createdByUid,
+  }) async {
+    assert(allChurchEntries || (createdByUid != null && createdByUid.isNotEmpty));
+    Query<Map<String, dynamic>> q = _entries(churchId).where('partnerId', isEqualTo: partnerId);
+    if (!allChurchEntries) {
+      q = q.where('createdBy', isEqualTo: createdByUid);
+    }
+    final snap = await q.get();
+    return snap.docs.map(PartnershipEntry.fromDoc).toList();
+  }
+
+  /// All entry rows for export (paginates internally).
+  Future<List<PartnershipEntry>> fetchAllEntriesForExport(
+    String churchId, {
+    required bool allChurchEntries,
+    String? createdByUid,
+    int chunk = 200,
+  }) async {
+    final out = <PartnershipEntry>[];
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      final page = await fetchEntriesPage(
+        churchId,
+        allChurchEntries: allChurchEntries,
+        createdByUid: createdByUid,
+        pageSize: chunk,
+        startAfter: cursor,
+      );
+      out.addAll(page.items);
+      if (!page.hasMore || page.lastDoc == null) break;
+      cursor = page.lastDoc;
+    }
+    return out;
+  }
+
+  /// Returns the new entry document id.
+  Future<String> createEntry({
     required String churchId,
     required ChurchUser staff,
     required String partnerId,
@@ -62,10 +148,10 @@ class EntriesRepository {
     required DateTime dateGiven,
     String? notes,
   }) async {
-    final ref = _entries(churchId).doc();
+    final docRef = _entries(churchId).doc();
     final now = FieldValue.serverTimestamp();
-    await ref.set({
-      'id': ref.id,
+    await docRef.set({
+      'id': docRef.id,
       'churchId': churchId,
       'partnerId': partnerId,
       'partnerSnapshot': partnerSnapshot,
@@ -90,6 +176,7 @@ class EntriesRepository {
       'declineReason': null,
       'editHistory': <Map<String, dynamic>>[],
     });
+    return docRef.id;
   }
 
   Future<void> staffUpdateEntry({

@@ -106,9 +106,8 @@ service cloud.firestore {
       }
 
       match /activity_logs/{logId} {
-        allow read: if belongsToChurch(churchId) && isAdmin();
-        allow read: if belongsToChurch(churchId) && isPastor()
-                    && resource.data.entityType in ['entry', 'partner', 'user', 'invite'];
+        // Admin: full audit UI. Pastor: dashboards + transparency (§15).
+        allow read: if belongsToChurch(churchId) && (isAdmin() || isPastor());
         allow create: if belongsToChurch(churchId);
         allow update: if false;
         allow delete: if false;

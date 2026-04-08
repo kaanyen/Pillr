@@ -7,16 +7,21 @@ import '../../features/arms/presentation/arms_screen.dart';
 import '../../features/auth/presentation/join_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/dashboard/presentation/role_dashboard_screen.dart';
+import '../../features/entries/bulk_import/bulk_import_screen.dart';
 import '../../features/entries/presentation/entries_list_screen.dart';
 import '../../features/entries/presentation/entry_detail_screen.dart';
+import '../../features/entries/presentation/entry_created_success_screen.dart';
 import '../../features/entries/presentation/entry_form_screen.dart';
 import '../../features/entries/presentation/pending_approvals_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
+import '../../features/help/presentation/help_screen.dart';
 import '../../features/leaderboard/presentation/leaderboard_screen.dart';
 import '../../features/logs/presentation/activity_logs_screen.dart';
 import '../../features/partners/presentation/partner_profile_screen.dart';
 import '../../features/partners/presentation/partners_list_screen.dart';
 import '../../features/periods/presentation/periods_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/users/presentation/invitations_screen.dart';
 import '../../features/users/presentation/users_list_screen.dart';
@@ -66,10 +71,22 @@ GoRouter createRouter() {
                 const NoTransitionPage(child: EntryFormScreen()),
           ),
           GoRoute(
+            path: '/entries/bulk-import',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: BulkImportScreen()),
+          ),
+          GoRoute(
             path: '/entries/:id/edit',
             pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
               return NoTransitionPage(child: EntryFormScreen(entryId: id));
+            },
+          ),
+          GoRoute(
+            path: '/entries/success/:entryId',
+            pageBuilder: (context, state) {
+              final entryId = state.pathParameters['entryId']!;
+              return NoTransitionPage(child: EntryCreatedSuccessScreen(entryId: entryId));
             },
           ),
           GoRoute(
@@ -133,6 +150,20 @@ GoRouter createRouter() {
             path: '/settings',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: SettingsScreen()),
+          ),
+          GoRoute(
+            path: '/search',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GlobalSearchScreen()),
+          ),
+          GoRoute(
+            path: '/notifications',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NotificationsScreen()),
+          ),
+          GoRoute(
+            path: '/help',
+            pageBuilder: (context, state) => const NoTransitionPage(child: HelpScreen()),
           ),
         ],
       ),

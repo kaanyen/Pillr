@@ -1,4 +1,6 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:the_pillr/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +11,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
+import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/entries/providers/entries_providers.dart';
 
 class NavItemData {
@@ -27,61 +30,68 @@ class NavSectionData {
   final List<NavItemData> items;
 }
 
-List<NavSectionData> navSectionsForRole(UserChurchIndex? idx, {int pendingApprovalCount = 0}) {
+List<NavSectionData> navSectionsForRole(
+  AppLocalizations l10n,
+  UserChurchIndex? idx, {
+  int pendingApprovalCount = 0,
+}) {
   if (idx == null) return [];
   if (idx.isAdmin) {
     return [
-      const NavSectionData('MAIN', [
-        NavItemData('/dashboard', 'Dashboard', Icons.dashboard_outlined),
+      NavSectionData(l10n.navSectionMain, [
+        NavItemData('/dashboard', l10n.navDashboard, Icons.dashboard_outlined),
       ]),
-      const NavSectionData('ADMIN', [
-        NavItemData('/users', 'Users', Icons.manage_accounts_outlined),
-        NavItemData('/invitations', 'Invitations', Icons.mail_outline),
-        NavItemData('/logs', 'Activity logs', Icons.history),
+      NavSectionData(l10n.navSectionAdmin, [
+        NavItemData('/users', l10n.navUsers, Icons.manage_accounts_outlined),
+        NavItemData('/invitations', l10n.navInvitations, Icons.mail_outline),
+        NavItemData('/logs', l10n.navActivityLogs, Icons.history),
       ]),
       NavSectionData(null, [
-        const NavItemData('/settings', 'Settings', Icons.settings_outlined),
+        NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
+        NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
       ]),
     ];
   }
   if (idx.isPastor) {
     return [
-      NavSectionData('MAIN', [
-        const NavItemData('/dashboard', 'Dashboard', Icons.home_outlined),
-        const NavItemData('/entries', 'Entries', Icons.receipt_long_outlined),
+      NavSectionData(l10n.navSectionMain, [
+        NavItemData('/dashboard', l10n.navDashboard, Icons.home_outlined),
+        NavItemData('/entries', l10n.navEntries, Icons.receipt_long_outlined),
         NavItemData(
           '/approvals',
-          'Approvals',
+          l10n.navApprovals,
           Icons.pending_actions_outlined,
           badge: pendingApprovalCount > 0 ? pendingApprovalCount : null,
         ),
       ]),
-      const NavSectionData('PARTNERSHIP', [
-        NavItemData('/partners', 'Partners', Icons.people_outline),
-        NavItemData('/leaderboard', 'Leaderboard', Icons.emoji_events_outlined),
-        NavItemData('/goals', 'Goals', Icons.flag_outlined),
+      NavSectionData(l10n.navSectionPartnership, [
+        NavItemData('/partners', l10n.navPartners, Icons.people_outline),
+        NavItemData('/leaderboard', l10n.navLeaderboard, Icons.emoji_events_outlined),
+        NavItemData('/goals', l10n.navGoals, Icons.flag_outlined),
       ]),
-      const NavSectionData('CONFIGURATION', [
-        NavItemData('/arms', 'Partnership arms', Icons.volunteer_activism_outlined),
-        NavItemData('/periods', 'Periods', Icons.calendar_month_outlined),
+      NavSectionData(l10n.navSectionConfiguration, [
+        NavItemData('/arms', l10n.navPartnershipArms, Icons.volunteer_activism_outlined),
+        NavItemData('/periods', l10n.navPeriods, Icons.calendar_month_outlined),
       ]),
-      const NavSectionData('ADMIN', [
-        NavItemData('/users', 'Users', Icons.manage_accounts_outlined),
-        NavItemData('/invitations', 'Invitations', Icons.mail_outline),
+      NavSectionData(l10n.navSectionAdmin, [
+        NavItemData('/users', l10n.navUsers, Icons.manage_accounts_outlined),
+        NavItemData('/invitations', l10n.navInvitations, Icons.mail_outline),
       ]),
       NavSectionData(null, [
-        const NavItemData('/settings', 'Settings', Icons.settings_outlined),
+        NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
+        NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
       ]),
     ];
   }
   return [
-    const NavSectionData('MAIN', [
-      NavItemData('/dashboard', 'Dashboard', Icons.home_outlined),
-      NavItemData('/entries', 'Entries', Icons.receipt_long_outlined),
-      NavItemData('/partners', 'Partners', Icons.people_outline),
+    NavSectionData(l10n.navSectionMain, [
+      NavItemData('/dashboard', l10n.navDashboard, Icons.home_outlined),
+      NavItemData('/entries', l10n.navEntries, Icons.receipt_long_outlined),
+      NavItemData('/partners', l10n.navPartners, Icons.people_outline),
     ]),
     NavSectionData(null, [
-      const NavItemData('/settings', 'Settings', Icons.settings_outlined),
+      NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
+      NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
     ]),
   ];
 }
@@ -105,11 +115,14 @@ class AdaptiveSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final churchName = ref.watch(churchNameProvider).valueOrNull ?? 'Your church';
+    final churchName = ref.watch(churchNameProvider) ?? 'Your church';
+    final branding = ref.watch(churchSettingsProvider).valueOrNull;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final pendingCount = ref.watch(pendingApprovalCountProvider);
-    final sections = navSectionsForRole(idx, pendingApprovalCount: pendingCount);
+    final l10n = AppLocalizations.of(context);
+    final sections = navSectionsForRole(l10n, idx, pendingApprovalCount: pendingCount);
 
     final width = collapsed
         ? AppConstants.sidebarWidthCollapsed
@@ -122,21 +135,33 @@ class AdaptiveSidebar extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
+            padding: EdgeInsets.fromLTRB(
+              collapsed ? AppSpacing.sm : AppSpacing.md,
               AppSpacing.lg,
-              AppSpacing.md,
+              collapsed ? AppSpacing.sm : AppSpacing.md,
               AppSpacing.sm,
             ),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: EdgeInsets.all(collapsed ? 8 : 10),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
+                    color: scheme.primaryContainer,
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                  child: const Icon(Icons.church_outlined, color: AppColors.primaryColor, size: 22),
+                  child: branding?.logoUrl != null && branding!.logoUrl!.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: CachedNetworkImage(
+                            imageUrl: branding.logoUrl!,
+                            width: 22,
+                            height: 22,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) =>
+                                Icon(Icons.church_outlined, color: scheme.primary, size: 22),
+                          ),
+                        )
+                      : Icon(Icons.church_outlined, color: scheme.primary, size: 22),
                 ),
                 if (!collapsed) ...[
                   const SizedBox(width: AppSpacing.sm),
@@ -208,6 +233,7 @@ class AdaptiveSidebar extends ConsumerWidget {
                       ),
                     for (final item in section.items)
                       _SidebarTile(
+                        scheme: scheme,
                         icon: item.icon,
                         label: item.label,
                         path: item.path,
@@ -228,12 +254,12 @@ class AdaptiveSidebar extends ConsumerWidget {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: AppColors.primaryLight,
+                    backgroundColor: scheme.primaryContainer,
                     child: Text(
                       profile.fullName.isNotEmpty
                           ? profile.fullName[0].toUpperCase()
                           : '?',
-                      style: AppTypography.label.copyWith(color: AppColors.primaryColor),
+                      style: AppTypography.label.copyWith(color: scheme.primary),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -268,6 +294,7 @@ class AdaptiveSidebar extends ConsumerWidget {
 
 class _SidebarTile extends StatelessWidget {
   const _SidebarTile({
+    required this.scheme,
     required this.icon,
     required this.label,
     required this.path,
@@ -277,6 +304,7 @@ class _SidebarTile extends StatelessWidget {
     required this.onTap,
   });
 
+  final ColorScheme scheme;
   final IconData icon;
   final String label;
   final String path;
@@ -287,15 +315,19 @@ class _SidebarTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = active ? AppColors.primaryLight : Colors.transparent;
-    final fg = active ? AppColors.primaryColor : AppColors.gray600;
+    final bg = active ? scheme.primaryContainer.withValues(alpha: 0.65) : Colors.transparent;
+    final fg = active ? scheme.primary : AppColors.gray600;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        child: InkWell(
+        child: Semantics(
+          button: true,
+          label: label,
+          selected: active,
+          child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadius.md),
           child: Padding(
@@ -337,6 +369,7 @@ class _SidebarTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

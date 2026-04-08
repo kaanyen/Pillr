@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
+import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../../core/utils/pdf_report_utils.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../domain/partnership_entry.dart';
 import '../providers/entries_providers.dart';
 
@@ -46,7 +52,46 @@ class PendingApprovalsScreen extends ConsumerWidget {
                 );
               }
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        final church = ref.read(churchNameProvider) ?? 'Church';
+                        final logoUrl = ref.read(churchSettingsProvider).valueOrNull?.logoUrl;
+                        final l10n = AppLocalizations.of(context);
+                        final profile = ref.read(churchUserProfileProvider).valueOrNull;
+                        final email = ref.read(firebaseAuthProvider).currentUser?.email;
+                        final exporter =
+                            (profile?.fullName.isNotEmpty == true) ? profile!.fullName : (email ?? '—');
+                        final when = DateFormat.yMMMd(Localizations.localeOf(context).toString())
+                            .add_Hm()
+                            .format(DateTime.now());
+                        await shareTablePdf(
+                          title: 'Pending approvals',
+                          subtitle: church,
+                          logoUrl: logoUrl,
+                          headers: const ['Partner', 'Amount', 'Submitted'],
+                          rows: [
+                            for (final e in rows)
+                              [
+                                e.partnerSnapshot['fullName']?.toString() ?? '—',
+                                formatCedis(e.amountCedis),
+                                e.createdAt.toIso8601String().split('T').first,
+                              ],
+                          ],
+                          filename: 'pillr-pending-approvals.pdf',
+                          generatedAtLine: l10n.pdfGeneratedAt(when),
+                          exporterLine: l10n.pdfExporter(exporter),
+                          footerBrand: l10n.pdfFooterBrand,
+                        );
+                      },
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Export PDF'),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   for (final e in rows) _EntryCard(entry: e),
                 ],
               );

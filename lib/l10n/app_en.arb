@@ -1,0 +1,271 @@
+{
+  "@@locale": "en",
+  "appTitle": "Pillr",
+  "navSectionMain": "MAIN",
+  "navSectionAdmin": "ADMIN",
+  "navSectionPartnership": "PARTNERSHIP",
+  "navSectionConfiguration": "CONFIGURATION",
+  "navDashboard": "Dashboard",
+  "navUsers": "Users",
+  "navInvitations": "Invitations",
+  "navActivityLogs": "Activity logs",
+  "navSettings": "Settings",
+  "navEntries": "Entries",
+  "navApprovals": "Approvals",
+  "navPartners": "Partners",
+  "navLeaderboard": "Leaderboard",
+  "navGoals": "Goals",
+  "navPartnershipArms": "Partnership arms",
+  "navPeriods": "Periods",
+  "navHelp": "Help",
+  "titleDashboard": "Dashboard",
+  "titleApprovals": "Approvals",
+  "titleEntries": "Entries",
+  "titleMyEntries": "My entries",
+  "titleEntrySubmitted": "Entry submitted",
+  "titlePartners": "Partners",
+  "titleLeaderboard": "Leaderboard",
+  "titleGoals": "Goals",
+  "titleArms": "Partnership arms",
+  "titlePeriods": "Periods",
+  "titleUsers": "Users",
+  "titleInvitations": "Invitations",
+  "titleActivityLogs": "Activity logs",
+  "titleSettings": "Settings",
+  "titleSearch": "Search",
+  "titleNotifications": "Notifications",
+  "titleHelp": "How partnership recording works",
+  "searchHint": "Search church data (partners, entries)…",
+  "toolbarNotifications": "Notifications",
+  "toolbarHelp": "Help",
+  "toolbarSignOut": "Sign out",
+  "toolbarMoreOptions": "More options",
+  "offlineBannerMessage": "You're offline — viewing cached data where available; actions that need network may fail.",
+  "entriesHeadingAll": "Entries",
+  "entriesHeadingMine": "My entries",
+  "entriesSubtitleAll": "All recorded giving for your church.",
+  "entriesSubtitleMine": "Entries you created (pending until the pastor approves).",
+  "entriesExportPdf": "PDF",
+  "entriesExportCsv": "CSV",
+  "entriesNewEntry": "New entry",
+  "entriesBulkImport": "Bulk import",
+  "bulkImportTitle": "Bulk import entries",
+  "bulkImportAccessDenied": "You do not have access to bulk import.",
+  "bulkImportChurchIndexMissing": "Could not load your church profile yet. Wait a moment and try again, or refresh the page.",
+  "bulkImportHint": "Choose an .xlsx file (no macros). The sheet must include headers such as Date, Name, Fellowship, Amount, Category (arm), and optionally Pastor confirmation (YES/NO). The active partnership period is applied to all rows.",
+  "bulkImportParsing": "Reading…",
+  "bulkImportPickFile": "Choose Excel file",
+  "bulkImportLoadingPartners": "Loading partners…",
+  "bulkImportSummary": "Summary",
+  "bulkImportStatRows": "{count} rows",
+  "@bulkImportStatRows": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStatNewPartners": "New partners (to create): {count}",
+  "@bulkImportStatNewPartners": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStatExistingPartners": "Existing partners matched: {count}",
+  "@bulkImportStatExistingPartners": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStatTotal": "Total amount: {amount}",
+  "@bulkImportStatTotal": {
+    "placeholders": {
+      "amount": {"type": "String"}
+    }
+  },
+  "bulkImportStatWarnings": "Warning flags: {count}",
+  "@bulkImportStatWarnings": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStatErrors": "Blocking errors: {count}",
+  "@bulkImportStatErrors": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStatPastorYes": "Rows marked YES (pastor-confirmed): {count}",
+  "@bulkImportStatPastorYes": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportStaffPastorNote": "Rows marked YES will stay pending until a pastor approves them.",
+  "bulkImportPreview": "Rows",
+  "bulkImportBlocking": "Fix blocking errors before importing (see row chips).",
+  "bulkImportNoActivePeriod": "No active partnership period. A pastor must activate a period first.",
+  "bulkImportRowNum": "Row {n}",
+  "@bulkImportRowNum": {
+    "placeholders": {
+      "n": {"type": "int"}
+    }
+  },
+  "bulkImportFieldPartner": "Partner",
+  "bulkImportFieldArm": "Arm",
+  "bulkImportFieldPeriod": "Period",
+  "bulkImportFieldNotes": "Notes",
+  "bulkImportFieldPastorYes": "Pastor confirmed",
+  "bulkImportYes": "Yes",
+  "bulkImportNo": "No",
+  "bulkImportEditRow": "Edit row",
+  "bulkImportEditRowTitle": "Edit row {row}",
+  "@bulkImportEditRowTitle": {
+    "placeholders": {
+      "row": {"type": "int"}
+    }
+  },
+  "bulkImportFieldDate": "Date",
+  "bulkImportFieldName": "Name",
+  "bulkImportFieldFellowship": "Fellowship",
+  "bulkImportFieldPhone": "Phone",
+  "bulkImportFieldEmail": "Email",
+  "bulkImportFieldAmount": "Amount (GHS)",
+  "bulkImportCancel": "Cancel",
+  "bulkImportSave": "Save",
+  "bulkImportRemoveRow": "Remove row",
+  "bulkImportRemoveRowTitle": "Remove this row?",
+  "bulkImportRemoveRowMessage": "This line will be excluded from the import. Choose the Excel file again if you need it back.",
+  "bulkImportRemoveRowConfirm": "Remove",
+  "bulkImportNoRowsInImport": "No rows left in this import. Choose another file to start over.",
+  "bulkImportResultTitle": "Import finished",
+  "bulkImportEntriesCreated": "Entries created: {count}",
+  "@bulkImportEntriesCreated": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportPartnersCreated": "Partners created: {count}",
+  "@bulkImportPartnersCreated": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportApproved": "Entries approved (YES rows): {count}",
+  "@bulkImportApproved": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportSkipped": "Rows skipped: {count}",
+  "@bulkImportSkipped": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "bulkImportErrorListHeader": "Messages:",
+  "bulkImportBack": "Back to entries",
+  "bulkImportNeedXlsx": "Please choose an Excel file with the .xlsx extension.",
+  "bulkImportNoMacros": ".xlsm (macros) is not supported. Save as .xlsx.",
+  "bulkImportNoBytes": "Could not read file data.",
+  "bulkImportNoRows": "No data rows found under the header.",
+  "bulkImportParseError": "Could not read the spreadsheet",
+  "bulkImportConfirm": "Import entries",
+  "bulkImportCommitting": "Importing…",
+  "bulkImportResolutionExisting": "Existing partner",
+  "bulkImportResolutionCreate": "Will create partner",
+  "bulkImportResolutionAmbiguous": "Ambiguous — fix phone or member ID",
+  "bulkImportResolutionUnresolved": "Unresolved",
+  "bulkImportIssueMissingName": "Missing name",
+  "bulkImportIssueMissingFellowship": "Missing fellowship",
+  "bulkImportIssueMissingAmount": "Missing amount",
+  "bulkImportIssueInvalidAmount": "Invalid amount",
+  "bulkImportIssueMissingDate": "Missing date",
+  "bulkImportIssueInvalidDate": "Invalid date",
+  "bulkImportIssueMissingArm": "Missing arm / category",
+  "bulkImportIssueArmNotFound": "Arm not found — check spelling",
+  "bulkImportIssuePeriodNotFound": "No active period",
+  "bulkImportIssueAmbiguousPhone": "Several partners share this phone — fix the row",
+  "bulkImportIssueMemberIdNotFound": "Member ID not found",
+  "bulkImportIssueMemberIdConflict": "Member ID does not match phone",
+  "bulkImportIssueFellowshipMismatch": "Fellowship differs from profile",
+  "bulkImportIssueNameMismatch": "Name differs from profile",
+  "bulkImportIssueDuplicateInFile": "Possible duplicate in this file",
+  "bulkImportIssueDuplicateInDatabase": "Similar entry may already exist",
+  "bulkImportIssueStaffPastorYes": "YES — needs pastor approval (staff import)",
+  "entriesStatusAll": "All",
+  "entriesStatusPending": "Pending",
+  "entriesStatusApproved": "Approved",
+  "entriesStatusDeclined": "Declined",
+  "entriesSortNewest": "Newest first",
+  "entriesSortOldest": "Oldest first",
+  "entriesArmLabel": "Arm",
+  "entriesPeriodLabel": "Period",
+  "entriesAllArms": "All arms",
+  "entriesAllPeriods": "All periods",
+  "entriesFilterHint": "Arm/period filters apply to loaded rows; use Load more for older entries.",
+  "entriesShowingLoaded": "Showing {count} entries loaded{more}",
+  "@entriesShowingLoaded": {
+    "placeholders": {
+      "count": {"type": "int"},
+      "more": {"type": "String"}
+    }
+  },
+  "entriesMoreAvailable": " — more available below",
+  "entriesLoadMore": "Load more",
+  "entriesLoadingMore": "Loading…",
+  "entriesNoEntriesTitle": "No entries yet",
+  "entriesNoEntriesMessage": "Record a new partnership entry.",
+  "entriesNoMatchesTitle": "No matches",
+  "entriesNoMatchesMessage": "Try clearing filters or load more rows.",
+  "entriesClearFilters": "Clear filters",
+  "entriesColPartner": "PARTNER",
+  "entriesColAmount": "AMOUNT",
+  "entriesColStatus": "STATUS",
+  "entriesColSubmitted": "SUBMITTED",
+  "entriesView": "View",
+  "entriesPdfTitle": "Partnership entries",
+  "entrySubmittedTitle": "Entry submitted",
+  "entryNotFound": "Entry not found",
+  "entrySuccessViewEntry": "View entry",
+  "entrySuccessAddAnother": "Add another",
+  "entryBackToEntries": "Back to entries",
+  "helpIntro": "Partnership entries link a partner, amount, period, and arm. Staff record gifts; the pastor approves so totals and goals stay accurate.",
+  "helpSectionPeriodTitle": "Period",
+  "helpSectionPeriodBody": "A partnership period is the time window for giving (for example a quarter or year). Only one period is active at a time. Entries are tied to the period that was active when they were recorded.",
+  "helpSectionArmTitle": "Arm",
+  "helpSectionArmBody": "Arms are categories of giving (for example venue, publications). Your church enables the arms it uses. Each entry picks one arm.",
+  "helpSectionPartnerTitle": "Partner",
+  "helpSectionPartnerBody": "A partner is a member profile. Recording an entry selects the partner who gave, so reports and the leaderboard stay tied to real people.",
+  "helpSectionApprovalTitle": "Staff vs pastor approval",
+  "helpSectionApprovalBody": "Staff and pastors can create entries. New entries are pending until a pastor approves or declines. Only approved entries count toward totals, goals, and leaderboard.",
+  "helpSectionGoalsTitle": "Goals",
+  "helpSectionGoalsBody": "Pastors set target amounts per arm for the active period. Progress updates when entries are approved.",
+  "helpSectionNotificationsTitle": "Notifications",
+  "helpSectionNotificationsBody": "You'll get push notifications for important events such as new entries to review and approval outcomes, based on your device settings.",
+  "goalMilestone50": "A partnership goal reached 50% progress.",
+  "goalMilestone75": "A partnership goal reached 75% progress.",
+  "goalMilestone100": "A partnership goal reached 100%!",
+  "settingsLanguage": "Language",
+  "settingsLanguageSystem": "System default",
+  "settingsLanguageEnglish": "English",
+  "settingsLanguageFrench": "French",
+  "pdfTableHeaderPartner": "Partner",
+  "pdfTableHeaderAmount": "Amount",
+  "pdfTableHeaderStatus": "Status",
+  "pdfTableHeaderPeriod": "Period",
+  "pdfTableHeaderArm": "Arm",
+  "pdfTableHeaderDateGiven": "Date given",
+  "pdfGeneratedAt": "Generated: {when}",
+  "@pdfGeneratedAt": {
+    "placeholders": {
+      "when": {"type": "String"}
+    }
+  },
+  "pdfExporter": "Exporter: {name}",
+  "@pdfExporter": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "pdfFooterBrand": "The Pillr",
+  "releaseDocTitle": "Release & App Distribution"
+}

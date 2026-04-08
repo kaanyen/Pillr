@@ -6,12 +6,14 @@ import 'package:intl/intl.dart';
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_confirmation_dialog.dart';
 import '../../../common/widgets/pillr_data_table.dart';
+import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../activity/activity_log_helper.dart';
@@ -26,7 +28,6 @@ class ArmsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final arms = ref.watch(armsStreamProvider);
-    final width = MediaQuery.sizeOf(context).width;
 
     if (idx != null && !idx.isPastor) {
       return Center(
@@ -102,49 +103,98 @@ class ArmsScreen extends ConsumerWidget {
                 );
               }
               final df = DateFormat.MMMd().add_jm();
-              return PillrDataTable(
-                minWidth: width > 800 ? width - AppSpacing.lg * 2 : 720,
-                sortColumnIndex: 0,
-                sortAscending: true,
-                columns: [
-                  DataColumn2(
-                    label: Text('NAME', style: AppTypography.tableHeader),
-                    size: ColumnSize.L,
-                  ),
-                  DataColumn2(label: Text('COLOR', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('UPDATED', style: AppTypography.tableHeader)),
-                  DataColumn2(
-                    label: Text('ACTIONS', style: AppTypography.tableHeader),
-                    fixedWidth: 140,
-                  ),
-                ],
-                rows: [
-                  for (final r in rows)
-                    DataRow(
-                      cells: [
-                        DataCell(
-                          Text(
-                            r.name,
-                            style: AppTypography.body.copyWith(
-                              color: AppColors.gray900,
-                              fontWeight: FontWeight.w600,
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final useCards = PillrLayout.useCardListLayout(constraints.maxWidth);
+                  final table = PillrDataTable(
+                    minWidth: 720,
+                    sortColumnIndex: 0,
+                    sortAscending: true,
+                    columns: [
+                      DataColumn2(
+                        label: Text('NAME', style: AppTypography.tableHeader),
+                        size: ColumnSize.L,
+                      ),
+                      DataColumn2(label: Text('COLOR', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('UPDATED', style: AppTypography.tableHeader)),
+                      DataColumn2(
+                        label: Text('ACTIONS', style: AppTypography.tableHeader),
+                        fixedWidth: 140,
+                      ),
+                    ],
+                    rows: [
+                      for (final r in rows)
+                        DataRow(
+                          cells: [
+                            DataCell(
+                              Text(
+                                r.name,
+                                style: AppTypography.body.copyWith(
+                                  color: AppColors.gray900,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
+                            DataCell(_colorSwatch(r.colorHex)),
+                            DataCell(
+                              Switch.adaptive(
+                                value: r.isActive,
+                                onChanged: idx == null
+                                    ? null
+                                    : (v) => _setActive(context, ref, idx.churchId, r, v),
+                              ),
+                            ),
+                            DataCell(Text(df.format(r.updatedAt.toLocal()), style: AppTypography.body)),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton(
+                                    onPressed: idx == null
+                                        ? null
+                                        : () => _openEditor(
+                                              context,
+                                              ref,
+                                              churchId: idx.churchId,
+                                              uid: idx.uid,
+                                              existing: r,
+                                            ),
+                                    child: const Text('Edit'),
+                                  ),
+                                  TextButton(
+                                    onPressed: idx == null
+                                        ? null
+                                        : () => _confirmDelete(context, ref, idx.churchId, r),
+                                    child: Text(
+                                      'Delete',
+                                      style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        DataCell(_colorSwatch(r.colorHex)),
-                        DataCell(
-                          Switch.adaptive(
+                    ],
+                  );
+                  final cardList = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final r in rows)
+                        PillrEntityCard(
+                          title: r.name,
+                          subtitle: 'Updated ${df.format(r.updatedAt.toLocal())}',
+                          leading: _colorSwatch(r.colorHex),
+                          trailing: Switch.adaptive(
                             value: r.isActive,
                             onChanged: idx == null
                                 ? null
                                 : (v) => _setActive(context, ref, idx.churchId, r, v),
                           ),
-                        ),
-                        DataCell(Text(df.format(r.updatedAt.toLocal()), style: AppTypography.body)),
-                        DataCell(
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
+                          footer: Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: AppSpacing.sm,
                             children: [
                               TextButton(
                                 onPressed: idx == null
@@ -170,9 +220,10 @@ class ArmsScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                ],
+                    ],
+                  );
+                  return useCards ? cardList : table;
+                },
               );
             },
           ),

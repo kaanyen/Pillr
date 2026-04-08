@@ -3,12 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_text_field.dart';
-import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../activity/activity_log_helper.dart';
-import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
 import '../providers/partners_providers.dart';
 
@@ -67,8 +66,8 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
     final repo = ref.read(partnersRepositoryProvider);
     try {
       if (widget.existing == null) {
-        final churchName = ref.read(churchNameProvider).valueOrNull ?? 'Church';
-        await repo.createPartner(
+        final churchName = ref.read(churchNameProvider) ?? 'Church';
+        final created = await repo.createPartner(
           churchId: widget.churchId,
           uid: widget.uid,
           fullName: _fullName.text,
@@ -82,24 +81,46 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
           churchId: widget.churchId,
           action: 'partner.create',
           entityType: 'partner',
+          entityId: created.id,
+          entitySnapshot: {
+            'memberId': created.memberId,
+            'fullName': _fullName.text.trim(),
+            'fellowship': _fellowship.text.trim(),
+          },
         );
       } else {
+        final ex = widget.existing!;
+        final before = {
+          'fullName': ex.fullName,
+          'fellowship': ex.fellowship,
+          'email': ex.email,
+          'phone': ex.phone,
+          'isActive': ex.isActive,
+        };
         await repo.updatePartner(
           churchId: widget.churchId,
-          partner: widget.existing!,
-          memberId: widget.existing!.memberId,
+          partner: ex,
+          memberId: ex.memberId,
           fullName: _fullName.text,
           fellowship: _fellowship.text,
           email: _email.text,
           phone: _phone.text,
           isActive: _active,
         );
+        final after = {
+          'fullName': _fullName.text.trim(),
+          'fellowship': _fellowship.text.trim(),
+          'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
+          'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          'isActive': _active,
+        };
         await logPillrActivity(
           ref,
           churchId: widget.churchId,
           action: 'partner.update',
           entityType: 'partner',
-          entityId: widget.existing!.id,
+          entityId: ex.id,
+          metadata: {'before': before, 'after': after},
         );
       }
       if (mounted) Navigator.pop(context);

@@ -21,7 +21,9 @@ abstract final class AppColors {
   static const Color gray900 = Color(0xFF111827);
 
   static const Color white = Color(0xFFFFFFFF);
-  static const Color surfaceColor = Color(0xFFF9FAFB);
+
+  /// Page / scaffold background (neutral canvas; cards sit on [white]).
+  static const Color surfaceColor = Color(0xFFF3F4F6);
 
   /// Reference 3-style progress segments (stats header)
   static const Color progressTeal = Color(0xFF0D9488);
