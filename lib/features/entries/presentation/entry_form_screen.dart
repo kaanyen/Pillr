@@ -3,10 +3,14 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../common/widgets/pillr_date_picker.dart';
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_form_card.dart';
+import '../../../common/widgets/pillr_form_dialog.dart';
+import '../../../common/widgets/pillr_icon.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
@@ -250,7 +254,18 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(title, style: AppTypography.heading2),
+              if (!_isEdit) ...[
+                Text(title, style: AppTypography.heading2),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Choose who gave, then add amount and date — two quick steps.',
+                  style: AppTypography.body.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ] else
+                Text(title, style: AppTypography.heading2),
               const SizedBox(height: AppSpacing.md),
               if (!_isEdit && periodForCreate == null)
                 Padding(
@@ -269,38 +284,41 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   ),
                 ),
               PillrFormCard(
-                title: 'Partner',
+                title: _isEdit ? 'Entry' : 'Partnership entry',
+                subtitle: _isEdit ? null : 'Partner first, then partnership details.',
+                leading: _isEdit ? null : PillrFormDialog.leadingIcon(LucideIcons.filePlus),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _pickPartner(context, churchId, uid),
-                      icon: const Icon(Icons.person_search_outlined),
-                      label: Text(_partner?.displayLabel ?? 'Select partner'),
+                    const _FormSectionTitle(label: 'Partner'),
+                    const SizedBox(height: AppSpacing.md),
+                    _PartnerPickerTile(
+                      partner: _partner,
+                      onTap: () => _pickPartner(context, churchId, uid),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    TextButton(
-                      onPressed: () async {
-                        await showDialog<void>(
-                          context: context,
-                          builder: (ctx) => PartnerFormDialog(
-                            churchId: churchId,
-                            uid: uid,
-                            existing: null,
-                          ),
-                        );
-                      },
-                      child: const Text('Create new partner'),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          await showDialog<void>(
+                            context: context,
+                            builder: (ctx) => PartnerFormDialog(
+                              churchId: churchId,
+                              uid: uid,
+                              existing: null,
+                            ),
+                          );
+                        },
+                        icon: const PillrIcon(LucideIcons.userPlus, size: 18),
+                        label: const Text('Create new partner'),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              PillrFormCard(
-                title: 'Entry details',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+                    const SizedBox(height: AppSpacing.lg),
+                    Divider(height: 1, thickness: 1, color: AppColors.gray200),
+                    const SizedBox(height: AppSpacing.lg),
+                    const _FormSectionTitle(label: 'Partnership details'),
+                    const SizedBox(height: AppSpacing.md),
                     Text('Partnership arm', style: AppTypography.label),
                     const SizedBox(height: AppSpacing.sm),
                     DropdownMenu<String>(
@@ -352,9 +370,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    OutlinedButton(
+                    OutlinedButton.icon(
                       onPressed: () async {
-                        final d = await showDatePicker(
+                        final d = await showPillrDatePicker(
                           context: context,
                           initialDate: _dateGiven,
                           firstDate: DateTime(DateTime.now().year - 2),
@@ -362,7 +380,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                         );
                         if (d != null) setState(() => _dateGiven = d);
                       },
-                      child: Text('Date given: ${_dateGiven.toIso8601String().split('T').first}'),
+                      icon: const PillrIcon(LucideIcons.calendar, size: 18),
+                      label: Text('Date given: ${_dateGiven.toIso8601String().split('T').first}'),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(controller: _notes, label: 'Notes (optional)', maxLines: 2),
@@ -394,6 +413,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final chosen = await showModalBottomSheet<Partner>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => _PartnerPickerSheet(
         churchId: churchId,
         uid: uid,
@@ -515,12 +538,13 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             allChurchEntries: idx.isPastor,
             createdByUid: idx.isStaff ? idx.uid : null,
           );
-          if (hasSimilarPartnershipEntry(
+          if (hasSimilarPartnershipEntryWithSameDate(
             candidates,
             partnerId: _partner!.id,
             armId: _arm!.id,
             periodId: period.id,
             amount: amount,
+            dateGiven: _dateGiven,
           )) {
             if (!mounted) return;
             final proceed = await showDialog<bool>(
@@ -557,6 +581,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           dateGiven: _dateGiven,
           notes: _notes.text,
         );
+        final idxCreate = ref.read(userChurchIndexProvider).valueOrNull;
         await logPillrActivity(
           ref,
           churchId: churchId,
@@ -570,7 +595,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             amount: amount,
             dateGiven: _dateGiven,
             notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-            status: 'pending',
+            status: idxCreate?.isPastor == true ? 'approved' : 'pending',
           ),
         );
         ref.invalidate(entriesListProvider);
@@ -581,6 +606,90 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+}
+
+class _FormSectionTitle extends StatelessWidget {
+  const _FormSectionTitle({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: AppTypography.body.copyWith(
+        fontWeight: FontWeight.w700,
+        color: AppColors.gray900,
+      ),
+    );
+  }
+}
+
+class _PartnerPickerTile extends StatelessWidget {
+  const _PartnerPickerTile({
+    required this.partner,
+    required this.onTap,
+  });
+
+  final Partner? partner;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final has = partner != null;
+    return Material(
+      color: AppColors.gray50,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.all(10),
+                child: const PillrIcon(
+                  LucideIcons.search,
+                  size: 22,
+                  color: AppColors.primaryColor,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      has ? 'Selected partner' : 'Select partner',
+                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      has ? partner!.fullName : 'Search by name, member ID, fellowship…',
+                      style: AppTypography.body.copyWith(
+                        fontWeight: has ? FontWeight.w600 : FontWeight.w400,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const PillrIcon(
+                LucideIcons.chevronRight,
+                color: AppColors.gray400,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -638,21 +747,51 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
         bottom: MediaQuery.viewInsetsOf(context).bottom,
         left: AppSpacing.lg,
         right: AppSpacing.lg,
-        top: AppSpacing.lg,
+        top: AppSpacing.sm,
       ),
-      child: SizedBox(
-        height: 420,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Select partner', style: AppTypography.heading3),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                hintText: 'Search by name, member ID, fellowship…',
-                border: OutlineInputBorder(),
+      child: SafeArea(
+        child: SizedBox(
+          height: 420,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.gray200,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
               ),
+              Text('Select partner', style: AppTypography.heading3),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _controller,
+                decoration: InputDecoration(
+                  hintText: 'Search by name, member ID, fellowship…',
+                  filled: true,
+                  fillColor: AppColors.gray50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide: const BorderSide(color: AppColors.gray200),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide: const BorderSide(color: AppColors.gray200),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    borderSide: const BorderSide(color: AppColors.primaryColor, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(LucideIcons.search, color: AppColors.gray400, size: 20),
+                  ),
+                ),
               onChanged: (v) {
                 _debounce?.cancel();
                 _debounce = Timer(const Duration(milliseconds: 280), () {
@@ -669,7 +808,7 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
                       itemBuilder: (context, i) {
                         if (i == _results.length) {
                           return ListTile(
-                            leading: const Icon(Icons.add),
+                            leading: const Icon(LucideIcons.plus),
                             title: const Text('Create new partner'),
                             onTap: () {
                               Navigator.pop(context);
@@ -697,6 +836,7 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
                     ),
             ),
           ],
+        ),
         ),
       ),
     );

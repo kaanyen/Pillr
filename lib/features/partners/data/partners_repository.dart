@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/member_id_generator.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../domain/partner.dart';
 
 class PartnersRepository {
@@ -87,8 +88,8 @@ class PartnersRepository {
   }) async {
     final memberId = await generateUniqueMemberId(churchId, churchDisplayName);
     final mid = memberId.trim().toUpperCase();
-    final fn = fullName.trim();
-    final fs = fellowship.trim();
+    final fn = TextCaseUtils.toTitleCase(fullName);
+    final fs = TextCaseUtils.toTitleCase(fellowship);
     final docRef = _partners(churchId).doc();
     final now = FieldValue.serverTimestamp();
     await docRef.set({
@@ -121,8 +122,8 @@ class PartnersRepository {
     String? phone,
     required bool isActive,
   }) async {
-    final fn = fullName.trim();
-    final fs = fellowship.trim();
+    final fn = TextCaseUtils.toTitleCase(fullName);
+    final fs = TextCaseUtils.toTitleCase(fellowship);
     await _partners(churchId).doc(partner.id).update({
       'memberId': memberId.trim().toUpperCase(),
       'fullName': fn,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 
@@ -51,43 +53,51 @@ class PillrDataTable extends StatelessWidget {
     // height and throws on web ("RenderFlex children have non-zero flex...").
     final boundedHeight = _headingRowHeight + _dataRowHeight * rows.length + 2;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.gray200),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: boundedHeight,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final effectiveWidth = maxW.isFinite
+            ? math.max(minWidth, maxW)
+            : minWidth;
+        return Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: AppColors.gray200),
+            boxShadow: AppTheme.cardShadow,
+          ),
+          clipBehavior: Clip.antiAlias,
           child: SizedBox(
-            width: minWidth,
             height: boundedHeight,
-            child: DataTable2(
-              columnSpacing: AppSpacing.md,
-              horizontalMargin: AppSpacing.md,
-              minWidth: minWidth,
-              headingRowHeight: _headingRowHeight,
-              dataRowHeight: _dataRowHeight,
-              headingRowDecoration: const BoxDecoration(
-                color: AppColors.gray50,
-                border: Border(
-                  bottom: BorderSide(color: AppColors.gray200),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: effectiveWidth,
+                height: boundedHeight,
+                child: DataTable2(
+                  columnSpacing: AppSpacing.md,
+                  horizontalMargin: AppSpacing.md,
+                  minWidth: effectiveWidth,
+                  headingRowHeight: _headingRowHeight,
+                  dataRowHeight: _dataRowHeight,
+                  headingRowDecoration: const BoxDecoration(
+                    color: AppColors.gray50,
+                    border: Border(
+                      bottom: BorderSide(color: AppColors.gray200),
+                    ),
+                  ),
+                  decoration: const BoxDecoration(),
+                  sortColumnIndex: sortColumnIndex,
+                  sortAscending: sortAscending,
+                  onSelectAll: onSelectAll,
+                  columns: styledColumns,
+                  rows: rows,
                 ),
               ),
-              decoration: const BoxDecoration(),
-              sortColumnIndex: sortColumnIndex,
-              sortAscending: sortAscending,
-              onSelectAll: onSelectAll,
-              columns: styledColumns,
-              rows: rows,
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

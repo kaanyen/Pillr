@@ -1,5 +1,6 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -209,7 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         children: [
                           PillrButton(
                             label: 'Upload logo',
-                            icon: Icons.image_outlined,
+                            icon: LucideIcons.image,
                             onPressed: _loading ? null : () => _uploadLogo(settings.churchId),
                             variant: PillrButtonVariant.secondary,
                           ),

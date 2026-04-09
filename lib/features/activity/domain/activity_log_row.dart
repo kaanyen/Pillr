@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 
 /// Row from `churches/{churchId}/activity_logs/{logId}`.
 class ActivityLogRow {
@@ -42,7 +43,9 @@ class ActivityLogRow {
       entityType: m['entityType'] as String? ?? '',
       entityId: m['entityId'] as String?,
       entitySnapshot: m['entitySnapshot'] != null
-          ? Map<String, dynamic>.from(m['entitySnapshot'] as Map)
+          ? TextCaseUtils.normalizeLooseEntitySnapshot(
+              Map<String, dynamic>.from(m['entitySnapshot'] as Map),
+            )
           : null,
       metadata: m['metadata'] != null ? Map<String, dynamic>.from(m['metadata'] as Map) : null,
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/text_case_utils.dart';
 import '../domain/activity_log_row.dart';
 
 /// Client-written audit rows under `churches/{churchId}/activity_logs` (build doc §7).
@@ -57,11 +58,13 @@ class ActivityLogRepository {
     await _logs(churchId).add({
       'churchId': churchId,
       'actorUid': actorUid,
-      'actorSnapshot': actorSnapshot,
+      'actorSnapshot': TextCaseUtils.normalizePersonSnapshot(actorSnapshot),
       'action': action,
       'entityType': entityType,
       'entityId': entityId,
-      'entitySnapshot': entitySnapshot,
+      'entitySnapshot': entitySnapshot == null
+          ? null
+          : TextCaseUtils.normalizeLooseEntitySnapshot(entitySnapshot),
       'metadata': metadata,
       'createdAt': FieldValue.serverTimestamp(),
     });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -100,7 +101,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                                     footerBrand: l10n.pdfFooterBrand,
                                   );
                                 },
-                          icon: const Icon(Icons.picture_as_pdf_outlined),
+                          icon: const Icon(LucideIcons.fileDown),
                           label: const Text('Export PDF'),
                         ),
                       ),
@@ -215,9 +216,9 @@ class _LeaderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final medal = switch (row.rank) {
-      1 => Icon(Icons.emoji_events, color: AppColors.warningColor, size: 28),
-      2 => Icon(Icons.emoji_events, color: AppColors.gray400, size: 26),
-      3 => Icon(Icons.emoji_events, color: AppColors.progressOrange, size: 24),
+      1 => Icon(LucideIcons.trophy, color: AppColors.warningColor, size: 28),
+      2 => Icon(LucideIcons.trophy, color: AppColors.gray400, size: 26),
+      3 => Icon(LucideIcons.trophy, color: AppColors.progressOrange, size: 24),
       _ => SizedBox(
           width: 28,
           child: Text('${row.rank}', style: AppTypography.heading3, textAlign: TextAlign.center),

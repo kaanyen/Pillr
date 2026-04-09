@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 
 class PartnershipEntry {
   const PartnershipEntry({
@@ -55,22 +56,32 @@ class PartnershipEntry {
       id: d.id,
       churchId: m['churchId'] as String? ?? '',
       partnerId: m['partnerId'] as String? ?? '',
-      partnerSnapshot: Map<String, dynamic>.from(m['partnerSnapshot'] as Map? ?? {}),
+      partnerSnapshot: TextCaseUtils.normalizePartnerSnapshot(
+        Map<String, dynamic>.from(m['partnerSnapshot'] as Map? ?? {}),
+      ),
       partnershipArmId: m['partnershipArmId'] as String? ?? '',
-      armSnapshot: Map<String, dynamic>.from(m['armSnapshot'] as Map? ?? {}),
+      armSnapshot: TextCaseUtils.normalizeNamedSnapshot(
+        Map<String, dynamic>.from(m['armSnapshot'] as Map? ?? {}),
+      ),
       partnershipPeriodId: m['partnershipPeriodId'] as String? ?? '',
-      periodSnapshot: Map<String, dynamic>.from(m['periodSnapshot'] as Map? ?? {}),
+      periodSnapshot: TextCaseUtils.normalizeNamedSnapshot(
+        Map<String, dynamic>.from(m['periodSnapshot'] as Map? ?? {}),
+      ),
       amountCedis: (m['amountCedis'] as num?)?.toDouble() ?? 0,
       dateGiven: timestampToDateTime(m['dateGiven']) ?? DateTime.now(),
       notes: m['notes'] as String?,
       status: m['status'] as String? ?? 'pending',
       createdBy: m['createdBy'] as String? ?? '',
-      createdBySnapshot: Map<String, dynamic>.from(m['createdBySnapshot'] as Map? ?? {}),
+      createdBySnapshot: TextCaseUtils.normalizePersonSnapshot(
+        Map<String, dynamic>.from(m['createdBySnapshot'] as Map? ?? {}),
+      ),
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),
       reviewedBy: m['reviewedBy'] as String?,
       reviewedBySnapshot: m['reviewedBySnapshot'] != null
-          ? Map<String, dynamic>.from(m['reviewedBySnapshot'] as Map)
+          ? TextCaseUtils.normalizePersonSnapshot(
+              Map<String, dynamic>.from(m['reviewedBySnapshot'] as Map),
+            )
           : null,
       reviewedAt: timestampToDateTime(m['reviewedAt']),
       declineReason: m['declineReason'] as String?,

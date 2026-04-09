@@ -35,9 +35,9 @@ class AdaptiveBottomNav extends StatelessWidget {
       selectedIndex: idx >= 0 ? idx : 0,
       height: 64,
       backgroundColor: AppColors.white,
-      indicatorColor: AppColors.primaryLight,
+      indicatorColor: AppColors.navActiveBackground,
       indicatorShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       onDestinationSelected: (i) => context.go(items[i].path),
@@ -45,7 +45,7 @@ class AdaptiveBottomNav extends StatelessWidget {
         for (final item in items)
           NavigationDestination(
             icon: Icon(item.icon),
-            selectedIcon: Icon(item.selectedIcon, color: AppColors.primaryColor),
+            selectedIcon: Icon(item.selectedIcon, color: AppColors.navActiveForeground),
             label: item.label,
           ),
       ],

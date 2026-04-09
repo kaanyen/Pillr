@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 
 class PartnershipPeriod {
   const PartnershipPeriod({
@@ -40,7 +41,7 @@ class PartnershipPeriod {
     return PartnershipPeriod(
       id: d.id,
       churchId: m['churchId'] as String? ?? '',
-      name: m['name'] as String? ?? '',
+      name: TextCaseUtils.toTitleCase(m['name'] as String? ?? ''),
       description: m['description'] as String?,
       startDate: timestampToDateTime(m['startDate']) ?? DateTime.now(),
       endDate: timestampToDateTime(m['endDate']) ?? DateTime.now(),

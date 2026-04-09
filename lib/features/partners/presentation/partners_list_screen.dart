@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,7 +16,6 @@ import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -247,7 +247,7 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
               ),
               PillrButton(
                 label: '+ Add partner',
-                icon: Icons.add,
+                icon: LucideIcons.plus,
                 onPressed: idx == null ? null : () => _openForm(idx.churchId, idx.uid, null),
                 variant: PillrButtonVariant.primary,
               ),
@@ -315,19 +315,15 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                       ),
                     ),
                     DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                    DataColumn2(label: Text('ACTIONS', style: AppTypography.tableHeader), fixedWidth: 160),
+                    DataColumn2(label: Text('', style: AppTypography.tableHeader), fixedWidth: 88),
                   ],
                   rows: [
                     for (final p in rows)
-                      DataRow(
+                      DataRow2(
+                        onTap: () => context.go('/partners/${p.id}'),
                         cells: [
                           DataCell(Text(p.memberId, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
-                          DataCell(
-                            InkWell(
-                              onTap: () => context.go('/partners/${p.id}'),
-                              child: Text(p.fullName, style: AppTypography.body.copyWith(color: AppColors.primaryColor)),
-                            ),
-                          ),
+                          DataCell(Text(p.fullName, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
                           DataCell(Text(p.fellowship, style: AppTypography.body)),
                           DataCell(
                             Text(
@@ -343,20 +339,12 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                                 : const PillrBadge(label: 'Inactive', kind: PillrBadgeKind.inactive, compact: true),
                           ),
                           DataCell(
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextButton(
-                                  onPressed: () => context.go('/partners/${p.id}'),
-                                  child: const Text('View'),
-                                ),
-                                if (idx.isPastor)
-                                  TextButton(
+                            idx.isPastor
+                                ? TextButton(
                                     onPressed: () => _openForm(idx.churchId, idx.uid, p),
                                     child: const Text('Edit'),
-                                  ),
-                              ],
-                            ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ],
                       ),
@@ -367,26 +355,21 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                   children: [
                     for (final p in rows)
                       PillrEntityCard(
+                        onTap: () => context.go('/partners/${p.id}'),
                         title: p.fullName,
                         subtitle: '${p.memberId} · ${p.fellowship} · ${formatCedis(idx.isStaff == true ? (staffTotals.valueOrNull?[p.id] ?? 0) : p.totalApprovedAmount)}',
                         trailing: p.isActive
                             ? const PillrBadge(label: 'Active', kind: PillrBadgeKind.approved, compact: true)
                             : const PillrBadge(label: 'Inactive', kind: PillrBadgeKind.inactive, compact: true),
-                        footer: Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: AppSpacing.sm,
-                          children: [
-                            TextButton(
-                              onPressed: () => context.go('/partners/${p.id}'),
-                              child: const Text('View'),
-                            ),
-                            if (idx.isPastor)
-                              TextButton(
-                                onPressed: () => _openForm(idx.churchId, idx.uid, p),
-                                child: const Text('Edit'),
-                              ),
-                          ],
-                        ),
+                        footer: idx.isPastor
+                            ? Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: () => _openForm(idx.churchId, idx.uid, p),
+                                  child: const Text('Edit'),
+                                ),
+                              )
+                            : null,
                       ),
                   ],
                 );

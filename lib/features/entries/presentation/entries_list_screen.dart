@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
@@ -9,11 +10,14 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_data_table.dart';
+import '../../../common/widgets/pillr_dropdown_field.dart';
+import '../../../common/widgets/pillr_segmented_control.dart';
 import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
 import '../../../core/extensions/async_value_ext.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -280,13 +284,13 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           if (idx != null) ...[
                             PillrButton(
                               label: l10n.entriesExportPdf,
-                              icon: Icons.picture_as_pdf_outlined,
+                              icon: LucideIcons.fileDown,
                               onPressed: _exporting ? null : _exportPdf,
                               variant: PillrButtonVariant.secondary,
                             ),
                             PillrButton(
                               label: l10n.entriesExportCsv,
-                              icon: Icons.table_chart_outlined,
+                              icon: LucideIcons.table2,
                               onPressed: _exporting ? null : _exportCsv,
                               variant: PillrButtonVariant.secondary,
                             ),
@@ -294,13 +298,13 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           if (idx != null && (idx.isPastor || idx.isStaff)) ...[
                             PillrButton(
                               label: l10n.entriesBulkImport,
-                              icon: Icons.table_rows_outlined,
+                              icon: LucideIcons.layoutList,
                               onPressed: () => context.go('/entries/bulk-import'),
                               variant: PillrButtonVariant.secondary,
                             ),
                             PillrButton(
                               label: l10n.entriesNewEntry,
-                              icon: Icons.add,
+                              icon: LucideIcons.plus,
                               onPressed: () => context.go('/entries/new'),
                               variant: PillrButtonVariant.primary,
                             ),
@@ -334,7 +338,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           padding: const EdgeInsets.only(right: AppSpacing.sm),
                           child: PillrButton(
                             label: l10n.entriesExportPdf,
-                            icon: Icons.picture_as_pdf_outlined,
+                            icon: LucideIcons.fileDown,
                             onPressed: _exporting ? null : _exportPdf,
                             variant: PillrButtonVariant.secondary,
                           ),
@@ -343,7 +347,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           padding: const EdgeInsets.only(right: AppSpacing.sm),
                           child: PillrButton(
                             label: l10n.entriesExportCsv,
-                            icon: Icons.table_chart_outlined,
+                            icon: LucideIcons.table2,
                             onPressed: _exporting ? null : _exportCsv,
                             variant: PillrButtonVariant.secondary,
                           ),
@@ -354,14 +358,14 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           padding: const EdgeInsets.only(right: AppSpacing.sm),
                           child: PillrButton(
                             label: l10n.entriesBulkImport,
-                            icon: Icons.table_rows_outlined,
+                            icon: LucideIcons.layoutList,
                             onPressed: () => context.go('/entries/bulk-import'),
                             variant: PillrButtonVariant.secondary,
                           ),
                         ),
                         PillrButton(
                           label: l10n.entriesNewEntry,
-                          icon: Icons.add,
+                          icon: LucideIcons.plus,
                           onPressed: () => context.go('/entries/new'),
                           variant: PillrButtonVariant.primary,
                         ),
@@ -376,27 +380,28 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
         if (idx != null && (idx.isPastor || idx.isStaff)) ...[
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: SegmentedButton<String>(
+            child: PillrSegmentedControl<String>(
               segments: [
-                ButtonSegment(value: 'all', label: Text(l10n.entriesStatusAll), icon: const Icon(Icons.list_alt, size: 18)),
-                ButtonSegment(value: 'pending', label: Text(l10n.entriesStatusPending), icon: const Icon(Icons.schedule, size: 18)),
-                ButtonSegment(value: 'approved', label: Text(l10n.entriesStatusApproved), icon: const Icon(Icons.check_circle_outline, size: 18)),
-                ButtonSegment(value: 'declined', label: Text(l10n.entriesStatusDeclined), icon: const Icon(Icons.cancel_outlined, size: 18)),
+                PillrSegment(value: 'all', label: l10n.entriesStatusAll, icon: LucideIcons.list),
+                PillrSegment(value: 'pending', label: l10n.entriesStatusPending, icon: LucideIcons.clock),
+                PillrSegment(value: 'approved', label: l10n.entriesStatusApproved, icon: LucideIcons.checkCircle),
+                PillrSegment(value: 'declined', label: l10n.entriesStatusDeclined, icon: LucideIcons.xCircle),
               ],
-              selected: {_statusSegment},
-              onSelectionChanged: (s) => _onStatusSegmentChanged(s.first),
+              selected: _statusSegment,
+              onChanged: _onStatusSegmentChanged,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Align(
             alignment: Alignment.centerLeft,
-            child: SegmentedButton<bool>(
+            child: PillrSegmentedControl<bool>(
               segments: [
-                ButtonSegment(value: true, label: Text(l10n.entriesSortNewest)),
-                ButtonSegment(value: false, label: Text(l10n.entriesSortOldest)),
+                PillrSegment(value: true, label: l10n.entriesSortNewest),
+                PillrSegment(value: false, label: l10n.entriesSortOldest),
               ],
-              selected: {_newestFirst},
-              onSelectionChanged: (s) => _onSortChanged(s.first),
+              selected: _newestFirst,
+              onChanged: _onSortChanged,
+              accentSelection: false,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -413,10 +418,9 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                   Text(l10n.entriesArmLabel, style: AppTypography.caption),
                   SizedBox(
                     width: 220,
-                    child: DropdownButton<String?>(
-                      isExpanded: true,
+                    child: PillrDropdownButton<String?>(
                       value: _filterArmId,
-                      hint: Text(l10n.entriesAllArms),
+                      hint: Text(l10n.entriesAllArms, style: AppTypography.body.copyWith(color: AppColors.gray400)),
                       items: [
                         DropdownMenuItem<String?>(value: null, child: Text(l10n.entriesAllArms)),
                         for (final a in arms)
@@ -433,10 +437,9 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                   Text(l10n.entriesPeriodLabel, style: AppTypography.caption),
                   SizedBox(
                     width: 220,
-                    child: DropdownButton<String?>(
-                      isExpanded: true,
+                    child: PillrDropdownButton<String?>(
                       value: _filterPeriodId,
-                      hint: Text(l10n.entriesAllPeriods),
+                      hint: Text(l10n.entriesAllPeriods, style: AppTypography.body.copyWith(color: AppColors.gray400)),
                       items: [
                         DropdownMenuItem<String?>(value: null, child: Text(l10n.entriesAllPeriods)),
                         for (final p in periods)
@@ -501,11 +504,11 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                   DataColumn2(label: Text(l10n.entriesColAmount, style: AppTypography.tableHeader)),
                   DataColumn2(label: Text(l10n.entriesColStatus, style: AppTypography.tableHeader)),
                   DataColumn2(label: Text(l10n.entriesColSubmitted, style: AppTypography.tableHeader)),
-                  DataColumn2(label: Text('', style: AppTypography.tableHeader), fixedWidth: 72),
                 ],
                 rows: [
                   for (final e in displayItems)
-                    DataRow(
+                    DataRow2(
+                      onTap: () => context.go('/entries/${e.id}'),
                       cells: [
                         DataCell(Text(
                           e.partnerSnapshot['fullName']?.toString() ?? '—',
@@ -517,13 +520,6 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           dateFmt(e),
                           style: AppTypography.caption,
                         )),
-                        DataCell(
-                          TextButton(
-                            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-                            onPressed: () => context.go('/entries/${e.id}'),
-                            child: Text(l10n.entriesView),
-                          ),
-                        ),
                       ],
                     ),
                 ],
@@ -533,18 +529,11 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                 children: [
                   for (final e in displayItems)
                     PillrEntityCard(
+                      onTap: () => context.go('/entries/${e.id}'),
                       title: e.partnerSnapshot['fullName']?.toString() ?? '—',
                       subtitle:
                           '${l10n.entriesColAmount}: ${formatCedis(e.amountCedis)} · ${l10n.entriesColSubmitted}: ${dateFmt(e)}',
                       trailing: _AnimatedStatusBadge(key: ValueKey('c-${e.id}-${e.status}'), status: e.status, l10n: l10n),
-                      footer: Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-                          onPressed: () => context.go('/entries/${e.id}'),
-                          child: Text(l10n.entriesView),
-                        ),
-                      ),
                     ),
                 ],
               );

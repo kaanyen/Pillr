@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../core/extensions/async_value_ext.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/pillr_layout.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/utils/text_case_utils.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/entries/providers/entries_providers.dart';
@@ -23,6 +26,7 @@ String _titleForPath(BuildContext context, String path) {
   if (path.startsWith('/dashboard')) return l10n.titleDashboard;
   if (path.startsWith('/approvals')) return l10n.titleApprovals;
   if (path.startsWith('/entries/success')) return l10n.titleEntrySubmitted;
+  if (path.startsWith('/entries/bulk-import')) return l10n.titleBulkImport;
   if (path.startsWith('/entries')) return l10n.titleEntries;
   if (path.startsWith('/partners')) return l10n.titlePartners;
   if (path.startsWith('/leaderboard')) return l10n.titleLeaderboard;
@@ -79,30 +83,31 @@ class AppShell extends ConsumerWidget {
                     if (showSidebar || sidebarCollapsed)
                       const VerticalDivider(width: 1, color: AppColors.gray200),
                     Expanded(
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: PillrLayout.contentMaxWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _TopBar(
+                            title: _titleForPath(context, loc),
+                            currentPath: loc,
+                            showSearch: c.maxWidth >= 900,
+                            idx: idx,
+                            onSignOut: () async {
+                              await ref.read(authRepositoryProvider).signOut();
+                              if (context.mounted) context.go('/login');
+                            },
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _TopBar(
-                                title: _titleForPath(context, loc),
-                                showSearch: c.maxWidth >= 900,
-                                idx: idx,
-                                onSignOut: () async {
-                                  await ref.read(authRepositoryProvider).signOut();
-                                  if (context.mounted) context.go('/login');
-                                },
-                              ),
-                              Expanded(
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: PillrLayout.contentMaxWidth,
+                                ),
                                 child: GoalMilestoneListener(child: child),
                               ),
-                            ],
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ],
@@ -127,26 +132,26 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
   if (idx.isAdmin) {
     return [
       const BottomNavItem(
-        icon: Icons.dashboard_outlined,
-        selectedIcon: Icons.dashboard,
+        icon: LucideIcons.layoutDashboard,
+        selectedIcon: LucideIcons.layoutDashboard,
         label: 'Home',
         path: '/dashboard',
       ),
       const BottomNavItem(
-        icon: Icons.manage_accounts_outlined,
-        selectedIcon: Icons.manage_accounts,
+        icon: LucideIcons.users,
+        selectedIcon: LucideIcons.users,
         label: 'Users',
         path: '/users',
       ),
       const BottomNavItem(
-        icon: Icons.mail_outline,
-        selectedIcon: Icons.mail,
+        icon: LucideIcons.mail,
+        selectedIcon: LucideIcons.mail,
         label: 'Invites',
         path: '/invitations',
       ),
       const BottomNavItem(
-        icon: Icons.settings_outlined,
-        selectedIcon: Icons.settings,
+        icon: LucideIcons.settings,
+        selectedIcon: LucideIcons.settings,
         label: 'Settings',
         path: '/settings',
       ),
@@ -155,32 +160,32 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
   if (idx.isPastor) {
     return [
       const BottomNavItem(
-        icon: Icons.home_outlined,
-        selectedIcon: Icons.home,
+        icon: LucideIcons.home,
+        selectedIcon: LucideIcons.home,
         label: 'Home',
         path: '/dashboard',
       ),
       const BottomNavItem(
-        icon: Icons.pending_actions_outlined,
-        selectedIcon: Icons.pending_actions,
+        icon: LucideIcons.clipboardCheck,
+        selectedIcon: LucideIcons.clipboardCheck,
         label: 'Approve',
         path: '/approvals',
       ),
       const BottomNavItem(
-        icon: Icons.receipt_long_outlined,
-        selectedIcon: Icons.receipt_long,
+        icon: LucideIcons.fileText,
+        selectedIcon: LucideIcons.fileText,
         label: 'Entries',
         path: '/entries',
       ),
       const BottomNavItem(
-        icon: Icons.people_outline,
-        selectedIcon: Icons.people,
+        icon: LucideIcons.users,
+        selectedIcon: LucideIcons.users,
         label: 'Partners',
         path: '/partners',
       ),
       const BottomNavItem(
-        icon: Icons.settings_outlined,
-        selectedIcon: Icons.settings,
+        icon: LucideIcons.settings,
+        selectedIcon: LucideIcons.settings,
         label: 'Settings',
         path: '/settings',
       ),
@@ -188,26 +193,26 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
   }
   return [
     const BottomNavItem(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home,
+      icon: LucideIcons.home,
+      selectedIcon: LucideIcons.home,
       label: 'Home',
       path: '/dashboard',
     ),
     const BottomNavItem(
-      icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long,
+      icon: LucideIcons.fileText,
+      selectedIcon: LucideIcons.fileText,
       label: 'Entries',
       path: '/entries',
     ),
     const BottomNavItem(
-      icon: Icons.people_outline,
-      selectedIcon: Icons.people,
+      icon: LucideIcons.users,
+      selectedIcon: LucideIcons.users,
       label: 'Partners',
       path: '/partners',
     ),
     const BottomNavItem(
-      icon: Icons.settings_outlined,
-      selectedIcon: Icons.settings,
+      icon: LucideIcons.settings,
+      selectedIcon: LucideIcons.settings,
       label: 'Settings',
       path: '/settings',
     ),
@@ -217,20 +222,37 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
 class _TopBar extends ConsumerWidget {
   const _TopBar({
     required this.title,
+    required this.currentPath,
     required this.onSignOut,
     required this.showSearch,
     required this.idx,
   });
 
   final String title;
+  final String currentPath;
   final VoidCallback onSignOut;
   final bool showSearch;
   final UserChurchIndex? idx;
 
+  void _handleBack(BuildContext context) {
+    if (currentPath == '/entries/bulk-import') {
+      context.go('/entries');
+      return;
+    }
+    if (context.canPop()) context.pop();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(pendingApprovalCountProvider);
+    final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final l10n = AppLocalizations.of(context);
+    final showBack = currentPath == '/entries/bulk-import' || context.canPop();
+    final fullName = profile?.fullName.trim() ?? '';
+    final firstName = fullName.isEmpty
+        ? ''
+        : TextCaseUtils.toTitleCase(fullName.split(RegExp(r'\s+')).first);
+
     return Material(
       color: AppColors.white,
       elevation: 0,
@@ -239,22 +261,27 @@ class _TopBar extends ConsumerWidget {
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.md,
         ),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.gray200)),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          border: const Border(bottom: BorderSide(color: AppColors.gray200)),
+          boxShadow: AppTheme.cardShadow,
         ),
         child: Row(
           children: [
-            if (context.canPop())
+            if (showBack)
               IconButton(
                 tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                onPressed: () => context.pop(),
+                icon: Icon(LucideIcons.arrowLeft, size: 22, color: AppColors.textSecondary),
+                onPressed: () => _handleBack(context),
               ),
             Expanded(
               flex: showSearch ? 1 : 2,
               child: Text(
                 title,
-                style: AppTypography.heading2,
+                style: AppTypography.heading2.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gray900,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -269,7 +296,7 @@ class _TopBar extends ConsumerWidget {
                     child: TextField(
                       decoration: InputDecoration(
                         hintText: l10n.searchHint,
-                        prefixIcon: const Icon(Icons.search, color: AppColors.gray400),
+                        suffixIcon: Icon(LucideIcons.search, color: AppColors.textSecondary, size: 20),
                         isDense: true,
                         filled: true,
                         fillColor: AppColors.gray50,
@@ -288,10 +315,54 @@ class _TopBar extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.md),
             ],
+            if (showSearch && firstName.isNotEmpty) ...[
+              Material(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+                child: InkWell(
+                  onTap: () => context.push('/settings'),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: AppColors.primaryColor.withValues(alpha: 0.15),
+                          child: Text(
+                            fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+                            style: AppTypography.label.copyWith(
+                              color: AppColors.primaryColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 120),
+                          child: Text(
+                            firstName,
+                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(LucideIcons.chevronDown, size: 16, color: AppColors.textSecondary),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+            ],
             IconButton(
               tooltip: l10n.toolbarHelp,
               onPressed: () => context.push('/help'),
-              icon: const Icon(Icons.help_outline_rounded),
+              icon: Icon(LucideIcons.helpCircle, color: AppColors.textSecondary),
             ),
             IconButton(
               tooltip: l10n.toolbarNotifications,
@@ -299,7 +370,7 @@ class _TopBar extends ConsumerWidget {
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const Icon(Icons.notifications_outlined),
+                  Icon(LucideIcons.bell, color: AppColors.textSecondary),
                   if (idx?.isPastor == true && pending > 0)
                     Positioned(
                       right: -2,
@@ -328,7 +399,7 @@ class _TopBar extends ConsumerWidget {
             Tooltip(
               message: l10n.toolbarMoreOptions,
               child: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
+                icon: Icon(LucideIcons.moreVertical, color: AppColors.textSecondary),
                 onSelected: (v) {
                   if (v == 'logout') onSignOut();
                 },

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_data_table.dart';
+import '../../../common/widgets/pillr_dropdown_field.dart';
 import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
@@ -208,29 +209,33 @@ class _RoleCellState extends ConsumerState<_RoleCell> {
       return Text(u.role, style: AppTypography.body);
     }
 
-    return DropdownButton<String>(
-      value: role,
-      isDense: true,
-      onChanged: _busy
-          ? null
-          : (v) async {
-              if (v == null) return;
-              setState(() => _busy = true);
-              try {
-                await ref.read(usersRepositoryProvider).updateMember(
-                      churchId: idx.churchId,
-                      targetUid: u.uid,
-                      role: v,
-                    );
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    return SizedBox(
+      width: 128,
+      child: PillrDropdownButton<String>(
+        value: role,
+        isDense: true,
+        isExpanded: true,
+        onChanged: _busy
+            ? null
+            : (v) async {
+                if (v == null) return;
+                setState(() => _busy = true);
+                try {
+                  await ref.read(usersRepositoryProvider).updateMember(
+                        churchId: idx.churchId,
+                        targetUid: u.uid,
+                        role: v,
+                      );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+                  }
+                } finally {
+                  if (mounted) setState(() => _busy = false);
                 }
-              } finally {
-                if (mounted) setState(() => _busy = false);
-              }
-            },
-      items: [for (final r in roles) DropdownMenuItem(value: r, child: Text(r))],
+              },
+        items: [for (final r in roles) DropdownMenuItem(value: r, child: Text(r))],
+      ),
     );
   }
 }

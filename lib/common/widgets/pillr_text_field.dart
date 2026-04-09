@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 
+/// Text field with **label above** the box (reference: modern SaaS forms — not floating labels).
 class PillrTextField extends StatelessWidget {
   const PillrTextField({
     super.key,
@@ -40,7 +43,7 @@ class PillrTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    final field = TextField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
@@ -53,12 +56,31 @@ class PillrTextField extends StatelessWidget {
       onTap: onTap,
       style: AppTypography.body.copyWith(color: Theme.of(context).colorScheme.onSurface),
       decoration: InputDecoration(
-        labelText: label,
         hintText: hint,
         errorText: errorText,
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
       ),
+    );
+
+    if (label == null || label!.isEmpty) {
+      return field;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label!,
+          style: AppTypography.label.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.gray900,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        field,
+      ],
     );
   }
 }

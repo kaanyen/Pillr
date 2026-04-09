@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 
 class Partner {
   const Partner({
@@ -41,8 +42,8 @@ class Partner {
       id: d.id,
       churchId: m['churchId'] as String? ?? '',
       memberId: m['memberId'] as String? ?? '',
-      fullName: m['fullName'] as String? ?? '',
-      fellowship: m['fellowship'] as String? ?? '',
+      fullName: TextCaseUtils.toTitleCase(m['fullName'] as String? ?? ''),
+      fellowship: TextCaseUtils.toTitleCase(m['fellowship'] as String? ?? ''),
       email: m['email'] as String?,
       phone: m['phone'] as String?,
       isActive: m['isActive'] as bool? ?? true,

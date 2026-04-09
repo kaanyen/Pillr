@@ -114,6 +114,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get titleHelp => 'Fonctionnement du suivi du partenariat';
 
   @override
+  String get titleBulkImport => 'Import groupé';
+
+  @override
   String get searchHint => 'Rechercher dans l\'église (partenaires, saisies)…';
 
   @override
@@ -172,6 +175,24 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get bulkImportHint =>
       'Choisissez un fichier .xlsx (sans macros). La feuille doit inclure des en-têtes tels que Date, Nom, Communauté, Montant, Catégorie (bras) et éventuellement Confirmation pasteur (OUI/NON). La période de partenariat active s\'applique à toutes les lignes.';
+
+  @override
+  String get bulkImportUploadTitle => 'Importer une feuille';
+
+  @override
+  String get bulkImportUploadSubtitle =>
+      'Glissez-déposez votre fichier Excel ici ou utilisez Parcourir.';
+
+  @override
+  String get bulkImportDropPrimary =>
+      'Choisissez un fichier ou glissez-le ici.';
+
+  @override
+  String get bulkImportDropFormats =>
+      '.xlsx uniquement (sans macros). En-têtes : Date, Nom, Communauté, Montant, Catégorie (bras), confirmation pasteur (OUI/NON) facultatif. La période active s\'applique à toutes les lignes.';
+
+  @override
+  String get bulkImportBrowseFiles => 'Parcourir les fichiers';
 
   @override
   String get bulkImportParsing => 'Lecture…';
@@ -360,7 +381,49 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bulkImportConfirm => 'Importer les saisies';
 
   @override
+  String get bulkImportCompleteImport => 'Finaliser l\'import';
+
+  @override
   String get bulkImportCommitting => 'Import…';
+
+  @override
+  String get bulkImportTableHeaderRow => 'Ligne';
+
+  @override
+  String get bulkImportTableHeaderPartner => 'Partenaire';
+
+  @override
+  String get bulkImportTableHeaderAmount => 'Montant';
+
+  @override
+  String get bulkImportTableHeaderDate => 'Date';
+
+  @override
+  String get bulkImportTableHeaderStatus => 'État';
+
+  @override
+  String get bulkImportTableReview => 'Examiner';
+
+  @override
+  String get bulkImportTableRemove => 'Retirer';
+
+  @override
+  String get bulkImportRowStatusBlocked => 'Bloqué';
+
+  @override
+  String get bulkImportRowStatusCheck => 'Vérifier';
+
+  @override
+  String get bulkImportRowStatusReady => 'Prêt';
+
+  @override
+  String get bulkImportRowStatusDuplicate => 'Doublon';
+
+  @override
+  String get bulkImportReplaceFile => 'Remplacer le classeur';
+
+  @override
+  String get bulkImportConfirmNotDuplicate => 'Confirmer une nouvelle saisie';
 
   @override
   String get bulkImportResolutionExisting => 'Partenaire existant';
@@ -533,7 +596,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get helpIntro =>
-      'Les saisies de partenariat lient un partenaire, un montant, une période et un bras. Le personnel enregistre les dons ; le pasteur approuve pour que les totaux et objectifs restent exacts.';
+      'Les saisies de partenariat lient un partenaire, un montant, une période et un bras. Le personnel enregistre les saisies de partenariat ; le pasteur approuve pour que les totaux et objectifs restent exacts.';
 
   @override
   String get helpSectionPeriodTitle => 'Période';

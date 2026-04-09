@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/text_case_utils.dart';
 import '../domain/partnership_arm.dart';
 
 class ArmsRepository {
@@ -45,7 +46,7 @@ class ArmsRepository {
     await ref.set({
       'id': ref.id,
       'churchId': churchId,
-      'name': name.trim(),
+      'name': TextCaseUtils.toTitleCase(name),
       'description': trimOrNull(description),
       'isActive': isActive,
       'colorHex': normalizeArmColorHex(colorHex),
@@ -65,7 +66,7 @@ class ArmsRepository {
     String? colorHex,
   }) async {
     await _arms(churchId).doc(arm.id).update({
-      'name': name.trim(),
+      'name': TextCaseUtils.toTitleCase(name),
       'description': trimOrNull(description),
       'isActive': isActive,
       'colorHex': normalizeArmColorHex(colorHex),

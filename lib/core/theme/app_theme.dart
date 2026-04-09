@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
+import 'pillr_date_picker_theme.dart';
 
 abstract final class AppTheme {
   /// When [seedColor] is set, derives Material 3 [ColorScheme] for church branding (§16.4.4).
@@ -12,17 +13,13 @@ abstract final class AppTheme {
     return _build(scheme);
   }
 
-  /// Soft elevation for cards (reference dashboard / CRM UIs).
+  /// Diffuse elevation: y 4, blur 20, black ~5% (no harsh shadows).
   static List<BoxShadow> get cardShadow => const [
         BoxShadow(
-          color: Color(0x12000000),
-          blurRadius: 12,
+          color: Color(0x0D000000),
+          blurRadius: 20,
+          spreadRadius: 0,
           offset: Offset(0, 4),
-        ),
-        BoxShadow(
-          color: Color(0x08000000),
-          blurRadius: 4,
-          offset: Offset(0, 1),
         ),
       ];
 
@@ -37,6 +34,10 @@ abstract final class AppTheme {
     );
 
     return base.copyWith(
+      iconTheme: const IconThemeData(
+        color: AppColors.textSecondary,
+        size: 22,
+      ),
       appBarTheme: AppBarTheme(
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -44,6 +45,14 @@ abstract final class AppTheme {
         backgroundColor: AppColors.white,
         foregroundColor: AppColors.gray900,
         titleTextStyle: AppTypography.heading3,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.gray200),
+        ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.white,
@@ -57,25 +66,26 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.gray50,
+        fillColor: AppColors.white,
+        floatingLabelBehavior: FloatingLabelBehavior.never,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
-          vertical: AppSpacing.sm + 4,
+          vertical: AppSpacing.md,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: const BorderSide(color: AppColors.gray200),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: const BorderSide(color: AppColors.gray200),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           borderSide: const BorderSide(color: AppColors.dangerColor),
         ),
         labelStyle: AppTypography.body,
@@ -91,7 +101,7 @@ abstract final class AppTheme {
             vertical: AppSpacing.md,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
@@ -109,7 +119,7 @@ abstract final class AppTheme {
             vertical: AppSpacing.md,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
           textStyle: AppTypography.body.copyWith(
             fontWeight: FontWeight.w600,
@@ -126,7 +136,17 @@ abstract final class AppTheme {
           ),
           side: const BorderSide(color: AppColors.gray200),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.button),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryColor,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+          textStyle: AppTypography.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.primaryColor,
           ),
         ),
       ),
@@ -134,6 +154,7 @@ abstract final class AppTheme {
         radius: const Radius.circular(AppRadius.sm),
         thickness: WidgetStateProperty.all(6),
       ),
+      datePickerTheme: buildPillrDatePickerTheme(),
     );
   }
 }

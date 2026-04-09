@@ -74,6 +74,8 @@ dependencies:
   # Bulk import reads .xlsx via archive + xml (the `excel` package conflicts with flutter_native_splash/image).
   archive: ^4.0.9
   xml: ^6.6.1
+  lucide_icons: ^0.257.0
+  animations: ^2.1.1
 
 dev_dependencies:
   flutter_test:
@@ -106,6 +108,12 @@ flutter:
 
   assets:
     - assets/branding/app_icon.png
+
+  # Lucide icon font (bundled locally — `packages/lucide_icons/...` path is unreliable in some builds).
+  fonts:
+    - family: Lucide
+      fonts:
+        - asset: assets/fonts/lucide.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

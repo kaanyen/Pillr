@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/text_case_utils.dart';
+
 /// `churches/{churchId}` document fields used for branding and display.
 class ChurchSettings {
   const ChurchSettings({
@@ -19,9 +21,10 @@ class ChurchSettings {
   static ChurchSettings? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) return null;
+    final rawName = data['name'] as String?;
     return ChurchSettings(
       churchId: doc.id,
-      name: data['name'] as String?,
+      name: rawName == null || rawName.trim().isEmpty ? null : TextCaseUtils.toTitleCase(rawName),
       primaryColorHex: data['primaryColorHex'] as String?,
       logoUrl: data['logoUrl'] as String?,
       logoStoragePath: data['logoStoragePath'] as String?,

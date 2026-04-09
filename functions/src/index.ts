@@ -11,6 +11,30 @@ const db = admin.firestore();
 
 const REGION = "us-central1";
 
+/** Matches Dart [TextCaseUtils.toTitleCase] for names and labels. */
+function toTitleCase(input: string): string {
+  const s = input.trim();
+  if (!s) return "";
+  return s.split(/\s+/).map(titleCaseWord).join(" ");
+}
+
+function titleCaseWord(word: string): string {
+  if (!word) return "";
+  if (word.includes("-")) return word.split("-").map(titleCaseSegment).join("-");
+  if (word.includes("'")) return word.split("'").map(titleCaseSegment).join("'");
+  if (/^[A-Za-z]+$/.test(word) && word.length >= 2 && word.length <= 4 && word === word.toUpperCase()) {
+    return word.toUpperCase();
+  }
+  return titleCaseSegment(word);
+}
+
+function titleCaseSegment(segment: string): string {
+  if (!segment) return "";
+  if (/^\d/.test(segment)) return segment;
+  if (segment.length === 1) return segment.toUpperCase();
+  return segment[0].toUpperCase() + segment.slice(1).toLowerCase();
+}
+
 /** Must match a domain verified in Resend (Dashboard → Domains). Default: thepillr.com. */
 const RESEND_FROM =
   process.env.RESEND_FROM ?? "The Pillr <invites@thepillr.com>";
@@ -107,7 +131,7 @@ export const completeRegistration = onCall({region: REGION}, async (request) => 
   if (!uid) {
     throw new HttpsError("unauthenticated", "You must be signed in.");
   }
-  const fullName = String(request.data?.fullName ?? "").trim();
+  const fullName = toTitleCase(String(request.data?.fullName ?? ""));
   const phone = String(request.data?.phone ?? "").trim();
   const codeId = String(request.data?.codeId ?? "").trim();
   const churchId = String(request.data?.churchId ?? "").trim();
@@ -370,9 +394,15 @@ export const onEntryCreated = functionsV1
   .firestore.document("churches/{churchId}/entries/{entryId}")
   .onCreate(async (snap, context) => {
     const data = snap.data();
-    if (!data || data.status !== "pending") return;
+    if (!data) return;
     const churchId = context.params.churchId as string;
-    await notifyPastorsNewEntry(churchId, data);
+    if (data.status === "approved") {
+      await applyApprovalDeltas(churchId, data);
+      return;
+    }
+    if (data.status === "pending") {
+      await notifyPastorsNewEntry(churchId, data);
+    }
   });
 
 export const onEntryUpdated = functionsV1
@@ -391,18 +421,22 @@ export const onEntryUpdated = functionsV1
     }
   });
 
-/** Keeps `fullNameLower` / `fellowshipLower` in sync for Firestore prefix search + backfills legacy docs. */
+/** Normalizes partner name casing, keeps `fullNameLower` / `fellowshipLower` in sync. */
 export const onPartnerWritten = functionsV1
   .region(REGION)
   .firestore.document("churches/{churchId}/partners/{partnerId}")
   .onWrite(async (change) => {
     const after = change.after.exists ? change.after.data() : null;
     if (!after) return;
-    const fullName = String(after.fullName ?? "");
-    const fellowship = String(after.fellowship ?? "");
-    const fullNameLower = fullName.toLowerCase();
-    const fellowshipLower = fellowship.toLowerCase();
+    const nFull = toTitleCase(String(after.fullName ?? ""));
+    const nFellow = toTitleCase(String(after.fellowship ?? ""));
+    const fullNameLower = nFull.toLowerCase();
+    const fellowshipLower = nFellow.toLowerCase();
     const patch: Record<string, unknown> = {};
+    if (nFull !== String(after.fullName ?? "") || nFellow !== String(after.fellowship ?? "")) {
+      patch.fullName = nFull;
+      patch.fellowship = nFellow;
+    }
     if (after.fullNameLower !== fullNameLower || after.fellowshipLower !== fellowshipLower) {
       patch.fullNameLower = fullNameLower;
       patch.fellowshipLower = fellowshipLower;

@@ -12,17 +12,19 @@ abstract final class AppTypography {
         color: AppColors.gray900,
       );
 
+  /// Main page title (DrewHub-style large bold headline).
   static TextStyle get heading1 => GoogleFonts.inter(
-        fontSize: 24,
+        fontSize: 28,
         fontWeight: FontWeight.w700,
-        height: 1.25,
+        height: 1.2,
         color: AppColors.gray900,
+        letterSpacing: -0.5,
       );
 
   static TextStyle get heading2 => GoogleFonts.inter(
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: FontWeight.w600,
-        height: 1.3,
+        height: 1.25,
         color: AppColors.gray900,
       );
 
@@ -37,14 +39,14 @@ abstract final class AppTypography {
         fontSize: 16,
         fontWeight: FontWeight.w400,
         height: 1.5,
-        color: AppColors.gray600,
+        color: AppColors.textSecondary,
       );
 
   static TextStyle get body => GoogleFonts.inter(
         fontSize: 14,
         fontWeight: FontWeight.w400,
         height: 1.5,
-        color: AppColors.gray600,
+        color: AppColors.textSecondary,
       );
 
   static TextStyle get caption => GoogleFonts.inter(
@@ -59,7 +61,16 @@ abstract final class AppTypography {
         fontWeight: FontWeight.w600,
         height: 1.3,
         letterSpacing: 0.5,
-        color: AppColors.gray600,
+        color: AppColors.textSecondary,
+      );
+
+  /// Section labels in sidebar (OPERATIONS, …).
+  static TextStyle get overline => GoogleFonts.inter(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.4,
+        height: 1.2,
+        color: AppColors.gray400,
       );
 
   /// Table header — uppercase, small.

@@ -12,9 +12,11 @@ abstract final class AppRadius {
   static const double xs = 4;
   static const double sm = 6;
   static const double md = 8;
+  /// Primary / secondary buttons (8–10px rounding).
+  static const double button = 10;
   static const double lg = 12;
   static const double xl = 16;
-  /// Cards, large panels (reference UIs use ~12–16px; use this for elevated surfaces).
-  static const double card = 16;
-  static const double full = 999;
+  /// Cards, large panels (12–16px; elevated surfaces).
+  static const double card = 14;
+  static const double full = 9999;
 }

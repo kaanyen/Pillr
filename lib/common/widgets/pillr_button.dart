@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
+import 'pillr_icon.dart';
 
 enum PillrButtonVariant { primary, secondary, danger, ghost }
 
@@ -26,6 +27,11 @@ class PillrButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryFg = AppColors.white;
+    final secondaryFg = AppColors.gray900;
+    final dangerFg = AppColors.white;
+    final ghostFg = AppColors.primaryColor;
+
     final child = loading
         ? SizedBox(
             height: 22,
@@ -43,13 +49,28 @@ class PillrButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 20),
+                PillrIcon(
+                  icon!,
+                  size: 20,
+                  color: switch (variant) {
+                    PillrButtonVariant.primary => primaryFg,
+                    PillrButtonVariant.secondary => secondaryFg,
+                    PillrButtonVariant.danger => dangerFg,
+                    PillrButtonVariant.ghost => ghostFg,
+                  },
+                ),
                 const SizedBox(width: AppSpacing.sm),
               ],
               Text(
                 label,
                 style: AppTypography.body.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: switch (variant) {
+                    PillrButtonVariant.primary => primaryFg,
+                    PillrButtonVariant.secondary => secondaryFg,
+                    PillrButtonVariant.danger => dangerFg,
+                    PillrButtonVariant.ghost => ghostFg,
+                  },
                 ),
               ),
             ],
@@ -59,7 +80,7 @@ class PillrButton extends StatelessWidget {
       PillrButtonVariant.primary => ElevatedButton(
           onPressed: loading ? null : onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryColor,
+            backgroundColor: AppColors.onAccent,
             foregroundColor: AppColors.white,
             disabledBackgroundColor: AppColors.gray200,
             elevation: 0,
@@ -68,7 +89,7 @@ class PillrButton extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderRadius: BorderRadius.circular(AppRadius.button),
             ),
           ),
           child: child,
@@ -78,12 +99,13 @@ class PillrButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.gray900,
             side: const BorderSide(color: AppColors.gray200),
+            backgroundColor: AppColors.white,
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.md,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderRadius: BorderRadius.circular(AppRadius.button),
             ),
           ),
           child: child,
@@ -99,7 +121,7 @@ class PillrButton extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+              borderRadius: BorderRadius.circular(AppRadius.button),
             ),
           ),
           child: child,

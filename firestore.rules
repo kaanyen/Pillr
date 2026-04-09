@@ -64,8 +64,20 @@ service cloud.firestore {
         allow read: if belongsToChurch(churchId) && isPastor();
         allow read: if belongsToChurch(churchId) && isStaff() && isOwnEntry(resource.data);
 
+        // Staff: new entries are always pending. Pastor: may self-approve on create.
         allow create: if belongsToChurch(churchId) && isPastorOrStaff()
-                      && request.resource.data.status == 'pending';
+                      && (
+                        (isStaff()
+                          && request.resource.data.status == 'pending'
+                          && request.resource.data.reviewedBy == null
+                          && request.resource.data.reviewedAt == null)
+                        ||
+                        (isPastor()
+                          && request.resource.data.status == 'approved'
+                          && request.resource.data.reviewedBy == request.auth.uid
+                          && request.resource.data.reviewedAt is timestamp
+                          && request.resource.data.reviewedBySnapshot.fullName is string)
+                      );
 
         // Pastor: approve, decline, edit any entry.
         allow update: if belongsToChurch(churchId) && isPastor();

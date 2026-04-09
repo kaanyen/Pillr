@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../../common/widgets/pillr_button.dart';
+import '../../../common/widgets/pillr_date_picker.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -226,7 +228,7 @@ class _ActivityLogsScreenState extends ConsumerState<ActivityLogsScreen> {
                 decoration: const InputDecoration(
                   hintText: 'Search actor name or entity ID…',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: Icon(LucideIcons.search),
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -273,7 +275,7 @@ class _ActivityLogsScreenState extends ConsumerState<ActivityLogsScreen> {
                   ),
                   TextButton.icon(
                     onPressed: () async {
-                      final d = await showDatePicker(
+                      final d = await showPillrDatePicker(
                         context: context,
                         initialDate: _from ?? DateTime.now(),
                         firstDate: DateTime(2020),
@@ -281,12 +283,12 @@ class _ActivityLogsScreenState extends ConsumerState<ActivityLogsScreen> {
                       );
                       if (d != null) setState(() => _from = d);
                     },
-                    icon: const Icon(Icons.date_range),
+                    icon: const Icon(LucideIcons.calendar),
                     label: Text(_from == null ? 'From date' : _fmt.format(_from!)),
                   ),
                   TextButton.icon(
                     onPressed: () async {
-                      final d = await showDatePicker(
+                      final d = await showPillrDatePicker(
                         context: context,
                         initialDate: _to ?? DateTime.now(),
                         firstDate: DateTime(2020),
@@ -294,7 +296,7 @@ class _ActivityLogsScreenState extends ConsumerState<ActivityLogsScreen> {
                       );
                       if (d != null) setState(() => _to = d);
                     },
-                    icon: const Icon(Icons.date_range),
+                    icon: const Icon(LucideIcons.calendar),
                     label: Text(_to == null ? 'To date' : _fmt.format(_to!)),
                   ),
                   TextButton(

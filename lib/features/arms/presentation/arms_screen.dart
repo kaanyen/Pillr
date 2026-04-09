@@ -1,5 +1,6 @@
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -64,7 +65,7 @@ class ArmsScreen extends ConsumerWidget {
               ),
               PillrButton(
                 label: '+ Add arm',
-                icon: Icons.add,
+                icon: LucideIcons.plus,
                 onPressed: idx == null
                     ? null
                     : () => _openEditor(

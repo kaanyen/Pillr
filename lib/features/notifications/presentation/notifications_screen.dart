@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -33,20 +34,20 @@ class NotificationsScreen extends ConsumerWidget {
           if (idx?.isPastor == true && pending > 0)
             Card(
               child: ListTile(
-                leading: const Icon(Icons.pending_actions_outlined),
+                leading: const Icon(LucideIcons.clipboardCheck),
                 title: Text('$pending pending entr${pending == 1 ? 'y' : 'ies'}'),
                 subtitle: const Text('Awaiting your approval'),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: const Icon(LucideIcons.chevronRight),
                 onTap: () => context.go('/approvals'),
               ),
             ),
           if (idx?.isStaff == true)
             Card(
               child: ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
+                leading: const Icon(LucideIcons.fileText),
                 title: const Text('Your entries'),
                 subtitle: const Text('Track pending and declined items'),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: const Icon(LucideIcons.chevronRight),
                 onTap: () => context.go('/entries'),
               ),
             ),

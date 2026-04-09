@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -23,7 +24,7 @@ class PillrErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline_rounded, size: 48, color: AppColors.dangerColor),
+            Icon(LucideIcons.alertCircle, size: 48, color: AppColors.dangerColor),
             const SizedBox(height: AppSpacing.md),
             Text(
               'Something went wrong',

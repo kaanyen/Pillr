@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_card.dart';
@@ -185,14 +186,14 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                                     ),
                                     IconButton(
                                       tooltip: 'Edit target',
-                                      icon: const Icon(Icons.edit_outlined),
+                                      icon: const Icon(LucideIcons.pencil),
                                       onPressed: idx == null || profile == null
                                           ? null
                                           : () => _editGoal(context, ref, idx.churchId, g),
                                     ),
                                     IconButton(
                                       tooltip: 'Delete',
-                                      icon: Icon(Icons.delete_outline, color: AppColors.dangerColor),
+                                      icon: Icon(LucideIcons.trash2, color: AppColors.dangerColor),
                                       onPressed: idx == null || profile == null
                                           ? null
                                           : () => _confirmDelete(context, ref, idx.churchId, g),
@@ -246,7 +247,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                         arms: arms,
                         existingGoalKeys: _items.map((g) => '${g.partnershipPeriodId}__${g.partnershipArmId}').toSet(),
                       ),
-                      icon: const Icon(Icons.add),
+                      icon: const Icon(LucideIcons.plus),
                       label: const Text('Add goal'),
                     ),
             );

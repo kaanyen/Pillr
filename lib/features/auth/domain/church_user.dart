@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/text_case_utils.dart';
+
 class ChurchUser {
   ChurchUser({
     required this.uid,
@@ -30,7 +32,7 @@ class ChurchUser {
       uid: data['uid'] as String? ?? doc.id,
       churchId: data['churchId'] as String? ?? '',
       role: data['role'] as String? ?? 'staff',
-      fullName: data['fullName'] as String? ?? '',
+      fullName: TextCaseUtils.toTitleCase(data['fullName'] as String? ?? ''),
       email: data['email'] as String? ?? '',
       phone: data['phone'] as String?,
       avatarUrl: data['avatarUrl'] as String?,

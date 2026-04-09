@@ -114,6 +114,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get titleHelp => 'How partnership recording works';
 
   @override
+  String get titleBulkImport => 'Bulk import';
+
+  @override
   String get searchHint => 'Search church data (partners, entries)…';
 
   @override
@@ -170,6 +173,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get bulkImportHint =>
       'Choose an .xlsx file (no macros). The sheet must include headers such as Date, Name, Fellowship, Amount, Category (arm), and optionally Pastor confirmation (YES/NO). The active partnership period is applied to all rows.';
+
+  @override
+  String get bulkImportUploadTitle => 'Upload spreadsheet';
+
+  @override
+  String get bulkImportUploadSubtitle =>
+      'Drag and drop your Excel file here, or use Browse.';
+
+  @override
+  String get bulkImportDropPrimary => 'Choose a file or drag & drop it here.';
+
+  @override
+  String get bulkImportDropFormats =>
+      '.xlsx only (no macros). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.';
+
+  @override
+  String get bulkImportBrowseFiles => 'Browse files';
 
   @override
   String get bulkImportParsing => 'Reading…';
@@ -358,7 +378,49 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bulkImportConfirm => 'Import entries';
 
   @override
+  String get bulkImportCompleteImport => 'Complete import';
+
+  @override
   String get bulkImportCommitting => 'Importing…';
+
+  @override
+  String get bulkImportTableHeaderRow => 'Row';
+
+  @override
+  String get bulkImportTableHeaderPartner => 'Partner';
+
+  @override
+  String get bulkImportTableHeaderAmount => 'Amount';
+
+  @override
+  String get bulkImportTableHeaderDate => 'Date';
+
+  @override
+  String get bulkImportTableHeaderStatus => 'Status';
+
+  @override
+  String get bulkImportTableReview => 'Review';
+
+  @override
+  String get bulkImportTableRemove => 'Remove';
+
+  @override
+  String get bulkImportRowStatusBlocked => 'Blocked';
+
+  @override
+  String get bulkImportRowStatusCheck => 'Check';
+
+  @override
+  String get bulkImportRowStatusReady => 'Ready';
+
+  @override
+  String get bulkImportRowStatusDuplicate => 'Duplicate';
+
+  @override
+  String get bulkImportReplaceFile => 'Replace spreadsheet';
+
+  @override
+  String get bulkImportConfirmNotDuplicate => 'Confirm new entry';
 
   @override
   String get bulkImportResolutionExisting => 'Existing partner';
@@ -529,7 +591,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpIntro =>
-      'Partnership entries link a partner, amount, period, and arm. Staff record gifts; the pastor approves so totals and goals stay accurate.';
+      'Partnership entries link a partner, amount, period, and arm. Staff record partnership entries; the pastor approves so totals and goals stay accurate.';
 
   @override
   String get helpSectionPeriodTitle => 'Period';

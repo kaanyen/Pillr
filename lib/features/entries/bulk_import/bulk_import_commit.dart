@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/entry_duplicate_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../auth/domain/church_user.dart';
@@ -52,6 +53,7 @@ Map<String, dynamic> _afterEntryValues({
   required double amount,
   required DateTime dateGiven,
   required String? notes,
+  required String status,
 }) =>
     {
       'partnerId': partner.id,
@@ -62,7 +64,7 @@ Map<String, dynamic> _afterEntryValues({
       'armName': arm.name,
       'partnershipPeriodId': period.id,
       'periodName': period.name,
-      'status': 'pending',
+      'status': status,
       'notes': notes,
       'dateGiven': dateGiven.toIso8601String(),
     };
@@ -80,12 +82,12 @@ Future<BulkImportCommitResult> commitBulkImport({
   required PartnershipPeriod period,
   required bool allChurchEntries,
   required bool viewerIsPastor,
+  required Set<int> duplicateAcknowledgedSheetRows,
 }) async {
   final partnersRepo = ref.read(partnersRepositoryProvider);
   final entriesRepo = ref.read(entriesRepositoryProvider);
 
   final createdPartners = <String, Partner>{};
-  final pendingApprovals = <({String entryId, PartnershipEntry entry})>[];
   final batchEntries = <PartnershipEntry>[];
   var partnersCreated = 0;
   var entriesCreated = 0;
@@ -98,8 +100,8 @@ Future<BulkImportCommitResult> commitBulkImport({
       id: partnerId,
       churchId: churchId,
       memberId: memberId,
-      fullName: r.fullName.trim(),
-      fellowship: r.fellowship.trim(),
+      fullName: TextCaseUtils.toTitleCase(r.fullName),
+      fellowship: TextCaseUtils.toTitleCase(r.fellowship),
       email: r.email.trim().isEmpty ? null : r.email.trim(),
       phone: r.phone.trim().isEmpty ? null : r.phone.trim(),
       isActive: true,
@@ -139,8 +141,8 @@ Future<BulkImportCommitResult> commitBulkImport({
       entityId: created.id,
       entitySnapshot: {
         'memberId': created.memberId,
-        'fullName': r.fullName.trim(),
-        'fellowship': r.fellowship.trim(),
+        'fullName': TextCaseUtils.toTitleCase(r.fullName),
+        'fellowship': TextCaseUtils.toTitleCase(r.fellowship),
       },
     );
     return p;
@@ -201,16 +203,18 @@ Future<BulkImportCommitResult> commitBulkImport({
       createdByUid: allChurchEntries ? null : staff.uid,
     );
     final combined = [...candidates, ...batchEntries];
-    if (hasSimilarPartnershipEntry(
+    final similar = hasSimilarPartnershipEntryWithSameDate(
       combined,
       partnerId: partner.id,
       armId: arm.id,
       periodId: period.id,
       amount: r.amountCedis,
-    )) {
+      dateGiven: r.dateGiven,
+    );
+    if (similar && !duplicateAcknowledgedSheetRows.contains(r.sheetRowNumber)) {
       skipped++;
       errors.add(
-        'Row ${r.sheetRowNumber}: similar entry already exists (±10%) for this partner, arm, and period.',
+        'Row ${r.sheetRowNumber}: similar entry already exists for this date, partner, arm, and period (±10% amount).',
       );
       continue;
     }
@@ -247,31 +251,17 @@ Future<BulkImportCommitResult> commitBulkImport({
             amount: r.amountCedis,
             dateGiven: r.dateGiven,
             notes: r.notes,
+            status: viewerIsPastor ? 'approved' : 'pending',
           ),
         );
 
-        if (r.pastorConfirmed && viewerIsPastor) {
-          pendingApprovals.add((entryId: entryId, entry: entry));
+        if (viewerIsPastor) {
+          entriesApproved++;
         }
       }
     } catch (e) {
       skipped++;
       errors.add('Row ${r.sheetRowNumber}: $e');
-    }
-  }
-
-  if (viewerIsPastor) {
-    for (final p in pendingApprovals) {
-      try {
-        await entriesRepo.approveEntry(
-          churchId: churchId,
-          entry: p.entry,
-          pastor: staff,
-        );
-        entriesApproved++;
-      } catch (e) {
-        errors.add('Approve ${p.entryId}: $e');
-      }
     }
   }
 

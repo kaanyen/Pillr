@@ -2,6 +2,7 @@ import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_button.dart';
@@ -10,10 +11,13 @@ import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_form_card.dart';
 import '../../../common/widgets/pillr_error_state.dart';
 import '../../../common/widgets/pillr_loading_shimmer.dart';
+import '../../../common/widgets/pillr_surface_card.dart';
 import '../../../core/extensions/async_value_ext.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
@@ -131,63 +135,200 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
+                          PillrSurfaceCard(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(partner.fullName, style: AppTypography.heading2),
-                                    const SizedBox(height: AppSpacing.sm),
-                                    Text(
-                                      '${partner.memberId} · ${partner.fellowship}',
-                                      style: AppTypography.body,
+                                    CircleAvatar(
+                                      radius: 40,
+                                      backgroundColor: AppColors.primaryLight,
+                                      child: Text(
+                                        partner.fullName.isNotEmpty
+                                            ? partner.fullName[0].toUpperCase()
+                                            : '?',
+                                        style: AppTypography.heading2.copyWith(
+                                          color: AppColors.primaryDark,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(partner.fullName, style: AppTypography.heading2),
+                                          const SizedBox(height: AppSpacing.sm),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                LucideIcons.calendar,
+                                                size: 16,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  'Record since ${formatFirestoreDate(partner.createdAt, pattern: 'MMM d, y')}',
+                                                  style: AppTypography.caption.copyWith(
+                                                    color: AppColors.textSecondary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: AppSpacing.sm),
+                                          Wrap(
+                                            spacing: AppSpacing.sm,
+                                            runSpacing: AppSpacing.xs,
+                                            children: [
+                                              partner.isActive
+                                                  ? const PillrBadge(
+                                                      label: 'Active',
+                                                      kind: PillrBadgeKind.approved,
+                                                      compact: true,
+                                                    )
+                                                  : const PillrBadge(
+                                                      label: 'Inactive',
+                                                      kind: PillrBadgeKind.inactive,
+                                                      compact: true,
+                                                    ),
+                                              if (recurring)
+                                                const PillrBadge(
+                                                  label: 'Recurring partner',
+                                                  kind: PillrBadgeKind.approved,
+                                                  compact: true,
+                                                ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gray50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: AppColors.gray200),
+                                      ),
+                                      child: const Icon(
+                                        LucideIcons.qrCode,
+                                        color: AppColors.gray400,
+                                        size: 36,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              if (idx != null && idx.isPastor)
-                                PillrButton(
-                                  label: 'Edit',
-                                  variant: PillrButtonVariant.secondary,
-                                  onPressed: () async {
-                                    await showDialog<void>(
-                                      context: context,
-                                      builder: (ctx) => PartnerFormDialog(
-                                        churchId: idx.churchId,
-                                        uid: idx.uid,
-                                        existing: partner,
-                                      ),
-                                    );
+                                const SizedBox(height: AppSpacing.lg),
+                                LayoutBuilder(
+                                  builder: (context, c) {
+                                    final narrow = c.maxWidth < 520;
+                                    final summary = idx?.isStaff == true
+                                        ? 'Your approved total: ${formatCedis(staffApprovedTotal)}'
+                                        : 'Lifetime approved: ${formatCedis(partner.totalApprovedAmount)}';
+                                    final grid = narrow
+                                        ? Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                                            children: [
+                                              _PartnerProfileField(
+                                                label: 'Member ID',
+                                                value: partner.memberId,
+                                              ),
+                                              _PartnerProfileField(
+                                                label: 'Fellowship',
+                                                value: partner.fellowship,
+                                              ),
+                                              _PartnerProfileField(
+                                                label: 'Email',
+                                                value: partner.email?.isNotEmpty == true
+                                                    ? partner.email!
+                                                    : '—',
+                                              ),
+                                              _PartnerProfileField(
+                                                label: 'Phone',
+                                                value: partner.phone?.isNotEmpty == true
+                                                    ? partner.phone!
+                                                    : '—',
+                                              ),
+                                              _PartnerProfileField(
+                                                label: 'Giving summary',
+                                                value: summary,
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    _PartnerProfileField(
+                                                      label: 'Member ID',
+                                                      value: partner.memberId,
+                                                    ),
+                                                    _PartnerProfileField(
+                                                      label: 'Email',
+                                                      value: partner.email?.isNotEmpty == true
+                                                          ? partner.email!
+                                                          : '—',
+                                                    ),
+                                                    _PartnerProfileField(
+                                                      label: 'Giving summary',
+                                                      value: summary,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: AppSpacing.xl),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    _PartnerProfileField(
+                                                      label: 'Fellowship',
+                                                      value: partner.fellowship,
+                                                    ),
+                                                    _PartnerProfileField(
+                                                      label: 'Phone',
+                                                      value: partner.phone?.isNotEmpty == true
+                                                          ? partner.phone!
+                                                          : '—',
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                    return grid;
                                   },
                                 ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          Wrap(
-                            spacing: AppSpacing.lg,
-                            runSpacing: AppSpacing.sm,
-                            children: [
-                              if (partner.email != null && partner.email!.isNotEmpty)
-                                Text('Email: ${partner.email}', style: AppTypography.caption),
-                              if (partner.phone != null && partner.phone!.isNotEmpty)
-                                Text('Phone: ${partner.phone}', style: AppTypography.caption),
-                              Text(
-                                idx?.isStaff == true
-                                    ? 'Your approved total: ${formatCedis(staffApprovedTotal)}'
-                                    : 'Lifetime approved: ${formatCedis(partner.totalApprovedAmount)}',
-                                style: AppTypography.caption,
-                              ),
-                              partner.isActive
-                                  ? const PillrBadge(label: 'Active', kind: PillrBadgeKind.approved, compact: true)
-                                  : const PillrBadge(label: 'Inactive', kind: PillrBadgeKind.inactive, compact: true),
-                              if (recurring)
-                                const PillrBadge(
-                                  label: 'Recurring partner',
-                                  kind: PillrBadgeKind.approved,
-                                  compact: true,
-                                ),
-                            ],
+                                if (idx != null && idx.isPastor) ...[
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: PillrButton(
+                                      label: 'Edit partner',
+                                      variant: PillrButtonVariant.secondary,
+                                      onPressed: () async {
+                                        await showDialog<void>(
+                                          context: context,
+                                          builder: (ctx) => PartnerFormDialog(
+                                            churchId: idx.churchId,
+                                            uid: idx.uid,
+                                            existing: partner,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
                           Wrap(
@@ -248,23 +389,17 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                           DataColumn2(label: Text('ARM', style: AppTypography.tableHeader)),
                                           DataColumn2(label: Text('AMOUNT', style: AppTypography.tableHeader)),
                                           DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                                          DataColumn2(label: Text('', style: AppTypography.tableHeader), fixedWidth: 80),
                                         ],
                                         rows: [
                                           for (final e in filtered)
-                                            DataRow(
+                                            DataRow2(
+                                              onTap: () => context.go('/entries/${e.id}'),
                                               cells: [
                                                 DataCell(Text(_fmt(e), style: AppTypography.body)),
                                                 DataCell(Text(_periodLabel(e.partnershipPeriodId, periods), style: AppTypography.body)),
                                                 DataCell(Text(_armLabel(e.partnershipArmId, arms), style: AppTypography.body)),
                                                 DataCell(Text(formatCedis(e.amountCedis), style: AppTypography.body)),
                                                 DataCell(_statusBadge(e.status)),
-                                                DataCell(
-                                                  TextButton(
-                                                    onPressed: () => context.go('/entries/${e.id}'),
-                                                    child: const Text('Open'),
-                                                  ),
-                                                ),
                                               ],
                                             ),
                                         ],
@@ -274,17 +409,11 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                         children: [
                                           for (final e in filtered)
                                             PillrEntityCard(
+                                              onTap: () => context.go('/entries/${e.id}'),
                                               title: formatCedis(e.amountCedis),
                                               subtitle:
                                                   '${_fmt(e)} · ${_periodLabel(e.partnershipPeriodId, periods)} · ${_armLabel(e.partnershipArmId, arms)}',
                                               trailing: _statusBadge(e.status),
-                                              footer: Align(
-                                                alignment: Alignment.centerRight,
-                                                child: TextButton(
-                                                  onPressed: () => context.go('/entries/${e.id}'),
-                                                  child: const Text('Open'),
-                                                ),
-                                              ),
                                             ),
                                         ],
                                       );
@@ -319,5 +448,36 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
       default:
         return const PillrBadge(label: 'Pending', kind: PillrBadgeKind.pending, compact: true);
     }
+  }
+}
+
+class _PartnerProfileField extends StatelessWidget {
+  const _PartnerProfileField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTypography.body.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.gray900,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

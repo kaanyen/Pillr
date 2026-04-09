@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../common/widgets/fade_in_once.dart';
 import '../../../common/widgets/pillr_button.dart';
@@ -11,16 +12,20 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/currency_utils.dart';
-import '../../activity/domain/activity_log_row.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../../arms/providers/arms_providers.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../../goals/providers/goals_providers.dart';
+import '../../leaderboard/leaderboard_models.dart';
 import '../../logs/providers/activity_logs_providers.dart';
 import '../../partners/providers/partners_providers.dart';
 import '../providers/dashboard_stats_providers.dart';
+import '../widgets/dashboard_shared.dart';
 import '../widgets/getting_started_banner.dart';
 
-/// Reference 2 stat row — live entry aggregates + Phase 3 dashboard (§15.3.1).
+/// Pastor home — modern minimalist SaaS dashboard layout.
 class PastorDashboardScreen extends ConsumerWidget {
   const PastorDashboardScreen({super.key});
 
@@ -33,6 +38,8 @@ class PastorDashboardScreen extends ConsumerWidget {
     final activityAsync = ref.watch(activityLogsPreviewProvider);
     final activeGoals = ref.watch(activePeriodGoalsProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
+    final profile = ref.watch(churchUserProfileProvider).valueOrNull;
+    final churchName = ref.watch(churchNameProvider) ?? 'your church';
 
     String armName(String id) {
       for (final a in arms) {
@@ -40,6 +47,10 @@ class PastorDashboardScreen extends ConsumerWidget {
       }
       return id;
     }
+
+    final nameParts = profile?.fullName.trim().split(RegExp(r'\s+')) ?? <String>[];
+    final firstName =
+        nameParts.isEmpty ? 'there' : TextCaseUtils.toTitleCase(nameParts.first);
 
     final total = stats.pendingCount + stats.approvedCount + stats.declinedCount;
     final pFlex = total == 0 ? 1 : stats.pendingCount;
@@ -56,236 +67,374 @@ class PastorDashboardScreen extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          AppSpacing.xxl,
+        ),
         child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const GettingStartedBanner(),
-          Text('Overview', style: AppTypography.heading2),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Live counts from partnership entries in your church.',
-            style: AppTypography.body,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
-            children: [
-              PillrButton(
-                label: 'Review pending',
-                variant: PillrButtonVariant.primary,
-                onPressed: () => context.go('/approvals'),
-              ),
-              PillrButton(
-                label: 'New entry',
-                variant: PillrButtonVariant.secondary,
-                onPressed: () => context.go('/entries/new'),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          LayoutBuilder(
-            builder: (context, c) {
-              final cross = c.maxWidth > 1100 ? 4 : (c.maxWidth > 700 ? 2 : 1);
-              return GridView.count(
-                crossAxisCount: cross,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: AppSpacing.md,
-                crossAxisSpacing: AppSpacing.md,
-                childAspectRatio: 1.4,
-                children: [
-                  FadeInOnce(
-                    delay: Duration.zero,
-                    child: _AnimatedIntStatCard(
-                      label: 'Total collected (approved)',
-                      value: stats.totalApprovedCedis,
-                      format: (v) => formatCedis(v),
-                      periodLabel: 'All approved entries',
-                    ),
-                  ),
-                  FadeInOnce(
-                    delay: const Duration(milliseconds: 50),
-                    child: _AnimatedIntStatCard(
-                      label: 'Pending approvals',
-                      value: stats.pendingCount.toDouble(),
-                      format: (v) => v.round().toString(),
-                      periodLabel: 'Awaiting review',
-                    ),
-                  ),
-                  FadeInOnce(
-                    delay: const Duration(milliseconds: 100),
-                    child: _AnimatedIntStatCard(
-                      label: 'Active partners',
-                      value: partnerCount.toDouble(),
-                      format: (v) => v.round().toString(),
-                      periodLabel: 'Non-inactive partners',
-                    ),
-                  ),
-                  FadeInOnce(
-                    delay: const Duration(milliseconds: 150),
-                    child: PillrStatCard(
-                      label: 'Goal progress',
-                      valueText: goalPct == null ? '—' : '${goalPct.round()}%',
-                      periodLabel: goalPct == null ? 'Set goals for the active period' : 'Active period (all arms)',
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          PillrCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const GettingStartedBanner(),
+            const SizedBox(height: AppSpacing.sm),
+            LayoutBuilder(
+              builder: (context, c) {
+                final narrow = c.maxWidth < 640;
+                final welcome = DashboardWelcomeBlock(
+                  firstName: firstName,
+                  subtitle:
+                      'Here\'s what\'s happening at $churchName — live counts from partnership entries.',
+                );
+                if (narrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      welcome,
+                      const SizedBox(height: AppSpacing.md),
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.sm,
+                        children: [
+                          PillrButton(
+                            label: 'Open queue',
+                            icon: LucideIcons.clipboardList,
+                            variant: PillrButtonVariant.secondary,
+                            onPressed: () => context.go('/approvals'),
+                          ),
+                          PillrButton(
+                            label: 'Create entry',
+                            icon: LucideIcons.plus,
+                            variant: PillrButtonVariant.primary,
+                            onPressed: () => context.go('/entries/new'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Partnership mix', style: AppTypography.heading3),
-                    const Spacer(),
-                    Text(
-                      '${stats.totalEntries} entries · ${formatCedis(stats.totalApprovedCedis)} approved',
-                      style: AppTypography.caption,
+                    Expanded(child: welcome),
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: PillrButton(
+                        label: 'Open queue',
+                        icon: LucideIcons.clipboardList,
+                        variant: PillrButtonVariant.secondary,
+                        onPressed: () => context.go('/approvals'),
+                      ),
+                    ),
+                    PillrButton(
+                      label: 'Create entry',
+                      icon: LucideIcons.plus,
+                      variant: PillrButtonVariant.primary,
+                      onPressed: () => context.go('/entries/new'),
                     ),
                   ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _SegmentBar(
-                  segments: [
-                    _Seg(pFlex.toDouble(), AppColors.progressOrange),
-                    _Seg(aFlex.toDouble(), AppColors.progressTeal),
-                    _Seg(dFlex.toDouble(), AppColors.progressRed),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.lg,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    _LegendDot(color: AppColors.progressOrange, label: 'Pending'),
-                    _LegendDot(color: AppColors.progressTeal, label: 'Approved'),
-                    _LegendDot(color: AppColors.progressRed, label: 'Declined'),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Text('Goal progress (active period)', style: AppTypography.heading3),
-              const Spacer(),
-              TextButton(onPressed: () => context.go('/goals'), child: const Text('Manage goals')),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          activeGoals.isEmpty
-              ? Text('No goals for the active period yet.', style: AppTypography.caption)
-              : Column(
+            const SizedBox(height: AppSpacing.xl),
+            LayoutBuilder(
+              builder: (context, c) {
+                final cross = c.maxWidth > 1100 ? 4 : (c.maxWidth > 700 ? 2 : 1);
+                return GridView.count(
+                  crossAxisCount: cross,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: AppSpacing.md,
+                  crossAxisSpacing: AppSpacing.md,
+                  childAspectRatio: cross == 4 ? 1.55 : 1.45,
                   children: [
-                    for (final g in activeGoals)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              armName(g.partnershipArmId),
-                              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(AppRadius.full),
-                              child: LinearProgressIndicator(
-                                value: g.progressFraction,
-                                minHeight: 8,
-                                backgroundColor: AppColors.gray100,
-                                color: AppColors.primaryColor,
-                              ),
-                            ),
-                            Text(
-                              '${formatCedis(g.currentAmountCedis)} / ${formatCedis(g.targetAmountCedis)}',
-                              style: AppTypography.caption,
-                            ),
-                          ],
+                    FadeInOnce(
+                      delay: Duration.zero,
+                      child: _AnimatedIntStatCard(
+                        label: 'Total collected (approved)',
+                        value: stats.totalApprovedCedis,
+                        format: formatCedis,
+                        periodLabel: 'All approved entries',
+                        backgroundColor: DashboardTints.totalBg,
+                        iconCircleColor: DashboardTints.totalIconCircle,
+                        iconColor: AppColors.primaryColor,
+                        icon: LucideIcons.wallet,
+                      ),
+                    ),
+                    FadeInOnce(
+                      delay: const Duration(milliseconds: 50),
+                      child: _AnimatedIntStatCard(
+                        label: 'Pending approvals',
+                        value: stats.pendingCount.toDouble(),
+                        format: (v) => v.round().toString(),
+                        periodLabel: 'Awaiting review',
+                        backgroundColor: DashboardTints.pendingBg,
+                        iconCircleColor: DashboardTints.pendingIconCircle,
+                        iconColor: const Color(0xFFB45309),
+                        icon: LucideIcons.clock,
+                      ),
+                    ),
+                    FadeInOnce(
+                      delay: const Duration(milliseconds: 100),
+                      child: _AnimatedIntStatCard(
+                        label: 'Active partners',
+                        value: partnerCount.toDouble(),
+                        format: (v) => v.round().toString(),
+                        periodLabel: 'Giving records',
+                        backgroundColor: DashboardTints.partnersBg,
+                        iconCircleColor: DashboardTints.partnersIconCircle,
+                        iconColor: AppColors.navActiveForeground,
+                        icon: LucideIcons.users,
+                      ),
+                    ),
+                    FadeInOnce(
+                      delay: const Duration(milliseconds: 150),
+                      child: PillrStatCard(
+                        label: 'Goal progress',
+                        valueText: goalPct == null ? '—' : '${goalPct.round()}%',
+                        periodLabel: goalPct == null ? 'Set goals for the active period' : 'Active period (all arms)',
+                        backgroundColor: DashboardTints.goalBg,
+                        iconCircleColor: DashboardTints.goalIconCircle,
+                        iconColor: AppColors.primaryDark,
+                        icon: LucideIcons.target,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            PillrCard(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text('Partnership mix', style: AppTypography.heading3),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Flexible(
+                        child: Text(
+                          '${stats.totalEntries} entries · ${formatCedis(stats.totalApprovedCedis)} approved',
+                          style: AppTypography.caption,
+                          textAlign: TextAlign.end,
                         ),
                       ),
-                  ],
-                ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Text('Leaderboard preview', style: AppTypography.heading3),
-              const Spacer(),
-              TextButton(onPressed: () => context.go('/leaderboard'), child: const Text('Full leaderboard')),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          if (preview.isEmpty)
-            Text('No approved entries in the active period yet.', style: AppTypography.caption)
-          else
-            ...preview.map(
-              (r) => ListTile(
-                dense: true,
-                leading: Text('${r.rank}', style: AppTypography.label),
-                title: Text(r.partnerName),
-                trailing: Text(formatCedis(r.totalCedis)),
-                onTap: () => context.go('/partners/${r.partnerId}'),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  _SegmentBar(
+                    segments: [
+                      _Seg(pFlex.toDouble(), AppColors.progressOrange),
+                      _Seg(aFlex.toDouble(), AppColors.progressTeal),
+                      _Seg(dFlex.toDouble(), AppColors.progressRed),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Wrap(
+                    spacing: AppSpacing.lg,
+                    runSpacing: AppSpacing.sm,
+                    children: const [
+                      _LegendDot(color: AppColors.progressOrange, label: 'Pending'),
+                      _LegendDot(color: AppColors.progressTeal, label: 'Approved'),
+                      _LegendDot(color: AppColors.progressRed, label: 'Declined'),
+                    ],
+                  ),
+                ],
               ),
             ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('Recent activity', style: AppTypography.heading3),
-          const SizedBox(height: AppSpacing.sm),
-          activityAsync.when(
-            loading: () => const Text('Loading…'),
-            error: (e, _) => Text('$e', style: AppTypography.caption),
-            data: (logs) {
-              final slice = logs.take(10).toList();
-              if (slice.isEmpty) {
-                return Text('No activity yet.', style: AppTypography.caption);
-              }
-              return Column(
-                children: [
-                  for (final row in slice) _ActivityLine(row: row),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+            const SizedBox(height: AppSpacing.lg),
+            DashboardSectionHeader(
+              title: 'Goal progress (active period)',
+              actionLabel: 'Manage goals',
+              onAction: () => context.go('/goals'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            activeGoals.isEmpty
+                ? PillrCard(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Text(
+                      'No goals for the active period yet.',
+                      style: AppTypography.body.copyWith(color: AppColors.gray400),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      for (final g in activeGoals)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: PillrCard(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  armName(g.partnershipArmId),
+                                  style: AppTypography.body.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.gray900,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(AppRadius.full),
+                                  child: LinearProgressIndicator(
+                                    value: g.progressFraction,
+                                    minHeight: 10,
+                                    backgroundColor: AppColors.gray100,
+                                    color: AppColors.primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(height: AppSpacing.sm),
+                                Text(
+                                  '${formatCedis(g.currentAmountCedis)} / ${formatCedis(g.targetAmountCedis)}',
+                                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+            const SizedBox(height: AppSpacing.lg),
+            DashboardSectionHeader(
+              title: 'Leaderboard preview',
+              actionLabel: 'Full leaderboard',
+              onAction: () => context.go('/leaderboard'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            PillrCard(
+              padding: EdgeInsets.zero,
+              child: preview.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Text(
+                        'No approved entries in the active period yet.',
+                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < preview.length; i++)
+                          _LeaderboardRow(
+                            row: preview[i],
+                            showDivider: i < preview.length - 1,
+                          ),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Recent activity', style: AppTypography.heading3),
+            const SizedBox(height: AppSpacing.md),
+            PillrCard(
+              padding: EdgeInsets.zero,
+              child: activityAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(AppSpacing.lg),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Text('$e', style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                ),
+                data: (logs) {
+                  final slice = logs.take(10).toList();
+                  if (slice.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Text(
+                        'No activity yet.',
+                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (var i = 0; i < slice.length; i++)
+                        DashboardActivityLine(
+                          row: slice[i],
+                          showDivider: i < slice.length - 1,
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ActivityLine extends StatelessWidget {
-  const _ActivityLine({required this.row});
+class _LeaderboardRow extends StatelessWidget {
+  const _LeaderboardRow({
+    required this.row,
+    required this.showDivider,
+  });
 
-  final ActivityLogRow row;
+  final LeaderboardRow row;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    final t = row.createdAt;
-    final when =
-        '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(when, style: AppTypography.caption),
-          ),
-          Expanded(
-            child: Text(
-              '${row.actorName} · ${row.action} · ${row.entityType}',
-              style: AppTypography.caption,
+    final name = TextCaseUtils.toTitleCase(row.partnerName);
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => context.go('/partners/${row.partnerId}'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
+            child: Row(
+              children: [
+                Text(
+                  '${row.rank}',
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.gray400,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: AppColors.gray100,
+                  child: Text(
+                    initial,
+                    style: AppTypography.label.copyWith(
+                      color: AppColors.gray600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: AppTypography.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.gray900,
+                    ),
+                  ),
+                ),
+                Text(
+                  formatCedis(row.totalCedis),
+                  style: AppTypography.body.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.gray900,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+        if (showDivider)
+          Divider(height: 1, thickness: 1, color: AppColors.gray200),
+      ],
     );
   }
 }
@@ -296,12 +445,20 @@ class _AnimatedIntStatCard extends StatelessWidget {
     required this.value,
     required this.format,
     required this.periodLabel,
+    this.backgroundColor,
+    this.iconCircleColor,
+    this.iconColor,
+    this.icon,
   });
 
   final String label;
   final double value;
   final String Function(double) format;
   final String periodLabel;
+  final Color? backgroundColor;
+  final Color? iconCircleColor;
+  final Color? iconColor;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -314,6 +471,10 @@ class _AnimatedIntStatCard extends StatelessWidget {
           label: label,
           valueText: format(v),
           periodLabel: periodLabel,
+          backgroundColor: backgroundColor,
+          iconCircleColor: iconCircleColor,
+          iconColor: iconColor,
+          icon: icon,
         );
       },
     );
@@ -334,9 +495,9 @@ class _SegmentBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.full),
+      borderRadius: BorderRadius.circular(9999),
       child: SizedBox(
-        height: 10,
+        height: 14,
         child: Row(
           children: [
             for (final s in segments)
@@ -367,8 +528,14 @@ class _LegendDot extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
-        Text(label, style: AppTypography.caption),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: AppTypography.caption.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }

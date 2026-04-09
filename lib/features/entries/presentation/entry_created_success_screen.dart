@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
@@ -64,7 +65,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Icon(
-                    Icons.check_circle_rounded,
+                    LucideIcons.checkCircle,
                     size: 72,
                     color: AppColors.successColor,
                   )
@@ -100,14 +101,14 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xl),
                   PillrButton(
                     label: l10n.entrySuccessViewEntry,
-                    icon: Icons.visibility_outlined,
+                    icon: LucideIcons.eye,
                     onPressed: () => context.go('/entries/$entryId'),
                     variant: PillrButtonVariant.primary,
                   ).animate().fadeIn(duration: ms(200), delay: ms(260)).slideY(begin: 0.05, end: 0),
                   const SizedBox(height: AppSpacing.sm),
                   PillrButton(
                     label: l10n.entrySuccessAddAnother,
-                    icon: Icons.add,
+                    icon: LucideIcons.plus,
                     onPressed: () => context.go('/entries/new'),
                     variant: PillrButtonVariant.secondary,
                   ).animate().fadeIn(duration: ms(200), delay: ms(300)).slideY(begin: 0.05, end: 0),

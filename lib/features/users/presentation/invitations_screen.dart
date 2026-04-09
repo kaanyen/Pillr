@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -8,6 +9,7 @@ import '../../../common/layout/responsive_layout.dart';
 import '../../../common/widgets/pillr_badge.dart';
 import '../../../common/widgets/pillr_button.dart';
 import '../../../common/widgets/pillr_data_table.dart';
+import '../../../common/widgets/pillr_segmented_control.dart';
 import '../../../common/widgets/pillr_entity_card.dart';
 import '../../../common/widgets/pillr_empty_state.dart';
 import '../../../common/widgets/pillr_error_state.dart';
@@ -149,7 +151,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
               ),
               PillrButton(
                 label: '+ Send invite',
-                icon: Icons.add,
+                icon: LucideIcons.plus,
                 onPressed: idx == null ? null : () => _openSendDialog(context, ref, idx.churchId),
                 variant: PillrButtonVariant.primary,
               ),
@@ -402,14 +404,14 @@ class _SendInviteDialogState extends ConsumerState<_SendInviteDialog> {
             const SizedBox(height: AppSpacing.md),
             Align(
               alignment: Alignment.centerLeft,
-              child: SegmentedButton<String>(
+              child: PillrSegmentedControl<String>(
                 segments: const [
-                  ButtonSegment(value: 'staff', label: Text('Staff')),
-                  ButtonSegment(value: 'pastor', label: Text('Pastor')),
-                  ButtonSegment(value: 'admin', label: Text('Admin')),
+                  PillrSegment(value: 'staff', label: 'Staff'),
+                  PillrSegment(value: 'pastor', label: 'Pastor'),
+                  PillrSegment(value: 'admin', label: 'Admin'),
                 ],
-                selected: {_role},
-                onSelectionChanged: (s) => setState(() => _role = s.first),
+                selected: _role,
+                onChanged: (v) => setState(() => _role = v),
               ),
             ),
             if (_error != null) ...[

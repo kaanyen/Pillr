@@ -2,18 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:lucide_icons/lucide_icons.dart';
+
 import '../../../common/widgets/pillr_button.dart';
-import '../../../common/widgets/pillr_card.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/validation_utils.dart';
 import '../domain/invite_models.dart';
 import '../providers/auth_providers.dart';
+import 'widgets/auth_split_shell.dart';
 
 class JoinScreen extends ConsumerStatefulWidget {
   const JoinScreen({super.key, this.prefilledCode});
@@ -144,25 +145,46 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.surfaceColor,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => context.go('/login'),
-        ),
+    final form = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.xl + 8,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: PillrLayout.formMaxWidth),
-            child: PillrCard(
-              child: _step == 1 ? _buildStep1() : _buildStep2(),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Back to sign in',
+                icon: const Icon(LucideIcons.arrowLeft, size: 22),
+                onPressed: () => context.go('/login'),
+              ),
+              Text(
+                'Join Pillr',
+                style: AppTypography.heading3,
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.go('/login'),
+                child: Text(
+                  'Sign in',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.lg),
+          if (_step == 1) _buildStep1() else _buildStep2(),
+        ],
       ),
+    );
+
+    return Scaffold(
+      body: AuthSplitShell(form: form),
     );
   }
 

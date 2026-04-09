@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../common/widgets/pillr_button.dart';
+import '../../../common/widgets/pillr_form_dialog.dart';
 import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_spacing.dart' show AppRadius, AppSpacing;
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
@@ -84,8 +86,8 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
           entityId: created.id,
           entitySnapshot: {
             'memberId': created.memberId,
-            'fullName': _fullName.text.trim(),
-            'fellowship': _fellowship.text.trim(),
+            'fullName': TextCaseUtils.toTitleCase(_fullName.text),
+            'fellowship': TextCaseUtils.toTitleCase(_fellowship.text),
           },
         );
       } else {
@@ -108,8 +110,8 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
           isActive: _active,
         );
         final after = {
-          'fullName': _fullName.text.trim(),
-          'fellowship': _fellowship.text.trim(),
+          'fullName': TextCaseUtils.toTitleCase(_fullName.text),
+          'fellowship': TextCaseUtils.toTitleCase(_fellowship.text),
           'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
           'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
           'isActive': _active,
@@ -134,73 +136,93 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return AlertDialog(
-      title: Text(isEdit ? 'Edit partner' : 'Add partner', style: AppTypography.heading3),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (isEdit) ...[
-                Text('Member ID', style: AppTypography.label),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  widget.existing!.memberId,
-                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-              ] else ...[
-                Text(
-                  'Member ID is generated automatically: church initials + a random 6-digit number (e.g. FBC482193).',
-                  style: AppTypography.caption.copyWith(color: AppColors.gray600),
-                ),
-                const SizedBox(height: AppSpacing.md),
-              ],
-              PillrTextField(controller: _fullName, label: 'Full name'),
-              const SizedBox(height: AppSpacing.md),
-              PillrTextField(controller: _fellowship, label: 'Fellowship'),
-              const SizedBox(height: AppSpacing.md),
-              PillrTextField(
-                controller: _email,
-                label: 'Email (optional)',
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              PillrTextField(
-                controller: _phone,
-                label: 'Phone (optional)',
-                keyboardType: TextInputType.phone,
-              ),
-              if (isEdit) ...[
-                const SizedBox(height: AppSpacing.md),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Active', style: AppTypography.body),
-                  value: _active,
-                  onChanged: (v) => setState(() => _active = v),
-                ),
-              ],
-              if (_error != null)
-                Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
-            ],
-          ),
-        ),
-      ),
+    return PillrFormDialog(
+      title: isEdit ? 'Edit partner' : 'Add partner',
+      subtitle: isEdit
+          ? 'Update member details for partnership records.'
+          : 'Member ID is assigned automatically when you save.',
+      leading: PillrFormDialog.leadingIcon(LucideIcons.users),
+      maxWidth: 480,
       actions: [
-        PillrButton(
-          label: 'Cancel',
-          variant: PillrButtonVariant.ghost,
+        OutlinedButton(
           onPressed: _loading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
         ),
-        PillrButton(
-          label: isEdit ? 'Save' : 'Create',
-          loading: _loading,
+        FilledButton(
           onPressed: _loading ? null : _save,
-          variant: PillrButtonVariant.primary,
+          child: _loading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEdit ? 'Save' : 'Create'),
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isEdit) ...[
+            Text('Member ID', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              widget.existing!.memberId,
+              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ] else ...[
+            Text(
+              'Church initials + a random 6-digit number (e.g. FBC482193).',
+              style: AppTypography.caption.copyWith(color: AppColors.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          PillrTextField(controller: _fullName, label: 'Full name'),
+          const SizedBox(height: AppSpacing.md),
+          PillrTextField(controller: _fellowship, label: 'Fellowship'),
+          const SizedBox(height: AppSpacing.md),
+          PillrTextField(
+            controller: _email,
+            label: 'Email (optional)',
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          PillrTextField(
+            controller: _phone,
+            label: 'Phone (optional)',
+            keyboardType: TextInputType.phone,
+          ),
+          if (isEdit) ...[
+            const SizedBox(height: AppSpacing.md),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: AppColors.gray200),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('Active', style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
+                    ),
+                    Switch.adaptive(
+                      value: _active,
+                      onChanged: (v) => setState(() => _active = v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+          ],
+        ],
+      ),
     );
   }
 }

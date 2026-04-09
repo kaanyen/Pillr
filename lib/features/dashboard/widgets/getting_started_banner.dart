@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -96,10 +97,10 @@ class _CheckRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
-            Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 20),
+            Icon(done ? LucideIcons.checkCircle : LucideIcons.circle, size: 20),
             const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(label, style: AppTypography.body)),
-            const Icon(Icons.chevron_right, size: 18),
+            const Icon(LucideIcons.chevronRight, size: 18),
           ],
         ),
       ),

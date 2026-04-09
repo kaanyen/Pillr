@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,59 +40,59 @@ List<NavSectionData> navSectionsForRole(
   if (idx.isAdmin) {
     return [
       NavSectionData(l10n.navSectionMain, [
-        NavItemData('/dashboard', l10n.navDashboard, Icons.dashboard_outlined),
+        NavItemData('/dashboard', l10n.navDashboard, LucideIcons.layoutDashboard),
       ]),
       NavSectionData(l10n.navSectionAdmin, [
-        NavItemData('/users', l10n.navUsers, Icons.manage_accounts_outlined),
-        NavItemData('/invitations', l10n.navInvitations, Icons.mail_outline),
-        NavItemData('/logs', l10n.navActivityLogs, Icons.history),
+        NavItemData('/users', l10n.navUsers, LucideIcons.users),
+        NavItemData('/invitations', l10n.navInvitations, LucideIcons.mail),
+        NavItemData('/logs', l10n.navActivityLogs, LucideIcons.history),
       ]),
       NavSectionData(null, [
-        NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
-        NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
+        NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
+        NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
       ]),
     ];
   }
   if (idx.isPastor) {
     return [
       NavSectionData(l10n.navSectionMain, [
-        NavItemData('/dashboard', l10n.navDashboard, Icons.home_outlined),
-        NavItemData('/entries', l10n.navEntries, Icons.receipt_long_outlined),
+        NavItemData('/dashboard', l10n.navDashboard, LucideIcons.home),
+        NavItemData('/entries', l10n.navEntries, LucideIcons.fileText),
         NavItemData(
           '/approvals',
           l10n.navApprovals,
-          Icons.pending_actions_outlined,
+          LucideIcons.clipboardCheck,
           badge: pendingApprovalCount > 0 ? pendingApprovalCount : null,
         ),
       ]),
       NavSectionData(l10n.navSectionPartnership, [
-        NavItemData('/partners', l10n.navPartners, Icons.people_outline),
-        NavItemData('/leaderboard', l10n.navLeaderboard, Icons.emoji_events_outlined),
-        NavItemData('/goals', l10n.navGoals, Icons.flag_outlined),
+        NavItemData('/partners', l10n.navPartners, LucideIcons.users),
+        NavItemData('/leaderboard', l10n.navLeaderboard, LucideIcons.trophy),
+        NavItemData('/goals', l10n.navGoals, LucideIcons.flag),
       ]),
       NavSectionData(l10n.navSectionConfiguration, [
-        NavItemData('/arms', l10n.navPartnershipArms, Icons.volunteer_activism_outlined),
-        NavItemData('/periods', l10n.navPeriods, Icons.calendar_month_outlined),
+        NavItemData('/arms', l10n.navPartnershipArms, LucideIcons.heartHandshake),
+        NavItemData('/periods', l10n.navPeriods, LucideIcons.calendar),
       ]),
       NavSectionData(l10n.navSectionAdmin, [
-        NavItemData('/users', l10n.navUsers, Icons.manage_accounts_outlined),
-        NavItemData('/invitations', l10n.navInvitations, Icons.mail_outline),
+        NavItemData('/users', l10n.navUsers, LucideIcons.users),
+        NavItemData('/invitations', l10n.navInvitations, LucideIcons.mail),
       ]),
       NavSectionData(null, [
-        NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
-        NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
+        NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
+        NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
       ]),
     ];
   }
   return [
     NavSectionData(l10n.navSectionMain, [
-      NavItemData('/dashboard', l10n.navDashboard, Icons.home_outlined),
-      NavItemData('/entries', l10n.navEntries, Icons.receipt_long_outlined),
-      NavItemData('/partners', l10n.navPartners, Icons.people_outline),
+      NavItemData('/dashboard', l10n.navDashboard, LucideIcons.home),
+      NavItemData('/entries', l10n.navEntries, LucideIcons.fileText),
+      NavItemData('/partners', l10n.navPartners, LucideIcons.users),
     ]),
     NavSectionData(null, [
-      NavItemData('/help', l10n.navHelp, Icons.help_outline_rounded),
-      NavItemData('/settings', l10n.navSettings, Icons.settings_outlined),
+      NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
+      NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
     ]),
   ];
 }
@@ -158,10 +159,10 @@ class AdaptiveSidebar extends ConsumerWidget {
                             height: 22,
                             fit: BoxFit.cover,
                             errorWidget: (context, url, error) =>
-                                Icon(Icons.church_outlined, color: scheme.primary, size: 22),
+                                Icon(LucideIcons.church, color: scheme.primary, size: 22),
                           ),
                         )
-                      : Icon(Icons.church_outlined, color: scheme.primary, size: 22),
+                      : Icon(LucideIcons.church, color: scheme.primary, size: 22),
                 ),
                 if (!collapsed) ...[
                   const SizedBox(width: AppSpacing.sm),
@@ -223,12 +224,8 @@ class AdaptiveSidebar extends ConsumerWidget {
                           AppSpacing.sm,
                         ),
                         child: Text(
-                          section.title!,
-                          style: AppTypography.caption.copyWith(
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.gray400,
-                          ),
+                          section.title!.toUpperCase(),
+                          style: AppTypography.overline,
                         ),
                       ),
                     for (final item in section.items)
@@ -315,8 +312,8 @@ class _SidebarTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = active ? scheme.primaryContainer.withValues(alpha: 0.65) : Colors.transparent;
-    final fg = active ? scheme.primary : AppColors.gray600;
+    final bg = active ? AppColors.navActiveBackground : Colors.transparent;
+    final fg = active ? AppColors.navActiveForeground : AppColors.textSecondary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),

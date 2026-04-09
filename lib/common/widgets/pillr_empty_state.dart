@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -12,7 +13,7 @@ class PillrEmptyState extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
-    this.icon = Icons.inbox_outlined,
+    this.icon = LucideIcons.inbox,
   });
 
   final String title;

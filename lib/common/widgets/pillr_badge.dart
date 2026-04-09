@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
@@ -28,36 +29,36 @@ class PillrBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, icon) = switch (kind) {
       PillrBadgeKind.approved => (
-          AppColors.successLight,
+          AppColors.successColor.withValues(alpha: 0.1),
           AppColors.successColor,
-          Icons.check_rounded,
+          LucideIcons.checkCircle,
         ),
       PillrBadgeKind.pending => (
-          AppColors.warningLight,
+          AppColors.warningColor.withValues(alpha: 0.1),
           AppColors.warningColor,
-          Icons.schedule_rounded,
+          LucideIcons.clock,
         ),
       PillrBadgeKind.declined => (
-          AppColors.dangerLight,
+          AppColors.dangerColor.withValues(alpha: 0.1),
           AppColors.dangerColor,
-          Icons.close_rounded,
+          LucideIcons.x,
         ),
       PillrBadgeKind.active => (
-          AppColors.successLight,
+          AppColors.successColor.withValues(alpha: 0.1),
           AppColors.successColor,
-          Icons.circle,
+          LucideIcons.circle,
         ),
       PillrBadgeKind.inactive => (
-          AppColors.gray100,
-          AppColors.gray400,
-          Icons.circle_outlined,
+          AppColors.gray600.withValues(alpha: 0.1),
+          AppColors.gray600,
+          LucideIcons.circleDashed,
         ),
     };
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 10,
-        vertical: compact ? 4 : 6,
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 4 : 4,
       ),
       decoration: BoxDecoration(
         color: bg,

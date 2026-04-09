@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -21,7 +22,7 @@ class OfflineBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              Icon(Icons.wifi_off_rounded, color: AppColors.warningColor, size: 20),
+              Icon(LucideIcons.wifiOff, color: AppColors.warningColor, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

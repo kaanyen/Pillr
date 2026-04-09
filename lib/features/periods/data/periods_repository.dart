@@ -3,6 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../../../core/constants/firebase_constants.dart';
 import '../../../core/errors/app_exception.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../domain/partnership_period.dart';
 
 class PeriodsRepository {
@@ -41,7 +42,7 @@ class PeriodsRepository {
     await ref.set({
       'id': ref.id,
       'churchId': churchId,
-      'name': name.trim(),
+      'name': TextCaseUtils.toTitleCase(name),
       'description': description?.trim().isEmpty ?? true ? null : description!.trim(),
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
@@ -63,7 +64,7 @@ class PeriodsRepository {
     required DateTime endDate,
   }) async {
     await _periods(churchId).doc(period.id).update({
-      'name': name.trim(),
+      'name': TextCaseUtils.toTitleCase(name),
       'description': description?.trim().isEmpty ?? true ? null : description!.trim(),
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),

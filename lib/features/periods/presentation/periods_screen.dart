@@ -1,10 +1,12 @@
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../common/widgets/pillr_button.dart';
+import '../../../common/widgets/pillr_date_picker.dart';
 import '../../../common/widgets/pillr_confirmation_dialog.dart';
 import '../../../common/widgets/pillr_data_table.dart';
 import '../../../common/widgets/pillr_entity_card.dart';
@@ -65,7 +67,7 @@ class PeriodsScreen extends ConsumerWidget {
               ),
               PillrButton(
                 label: '+ Add period',
-                icon: Icons.add,
+                icon: LucideIcons.plus,
                 onPressed: idx == null
                     ? null
                     : () => _openEditor(context, ref, churchId: idx.churchId, uid: idx.uid, existing: null),
@@ -121,8 +123,8 @@ class PeriodsScreen extends ConsumerWidget {
                             )),
                             DataCell(
                               r.isActive
-                                  ? const Icon(Icons.check_circle, color: AppColors.successColor, size: 20)
-                                  : const Icon(Icons.circle_outlined, color: AppColors.gray400, size: 20),
+                                  ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 20)
+                                  : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 20),
                             ),
                             DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
                             DataCell(
@@ -174,8 +176,8 @@ class PeriodsScreen extends ConsumerWidget {
                           subtitle:
                               '${df.format(r.startDate)} – ${df.format(r.endDate)} · Total ${r.totalApprovedAmount.toStringAsFixed(2)}',
                           trailing: r.isActive
-                              ? const Icon(Icons.check_circle, color: AppColors.successColor, size: 22)
-                              : const Icon(Icons.circle_outlined, color: AppColors.gray400, size: 22),
+                              ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 22)
+                              : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 22),
                           footer: Wrap(
                             alignment: WrapAlignment.end,
                             spacing: AppSpacing.xs,
@@ -419,7 +421,7 @@ class _PeriodEditorDialogState extends ConsumerState<_PeriodEditorDialog> {
 
   Future<void> _pickStart() async {
     final now = DateTime.now();
-    final d = await showDatePicker(
+    final d = await showPillrDatePicker(
       context: context,
       initialDate: _start ?? now,
       firstDate: DateTime(now.year - 5),
@@ -430,7 +432,7 @@ class _PeriodEditorDialogState extends ConsumerState<_PeriodEditorDialog> {
 
   Future<void> _pickEnd() async {
     final now = DateTime.now();
-    final d = await showDatePicker(
+    final d = await showPillrDatePicker(
       context: context,
       initialDate: _end ?? _start ?? now,
       firstDate: DateTime(now.year - 5),

@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/text_case_utils.dart';
 import '../../auth/domain/church_user.dart';
 import '../domain/partnership_entry.dart';
+
+bool _isPastorRole(ChurchUser staff) => staff.role == 'pastor';
 
 class EntriesRepository {
   EntriesRepository(this._firestore);
@@ -150,29 +153,34 @@ class EntriesRepository {
   }) async {
     final docRef = _entries(churchId).doc();
     final now = FieldValue.serverTimestamp();
+    final pastorCreates = _isPastorRole(staff);
     await docRef.set({
       'id': docRef.id,
       'churchId': churchId,
       'partnerId': partnerId,
-      'partnerSnapshot': partnerSnapshot,
+      'partnerSnapshot': TextCaseUtils.normalizePartnerSnapshot(partnerSnapshot),
       'partnershipArmId': partnershipArmId,
-      'armSnapshot': armSnapshot,
+      'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
-      'periodSnapshot': periodSnapshot,
+      'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
       'amountCedis': amountCedis,
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
-      'status': 'pending',
+      'status': pastorCreates ? 'approved' : 'pending',
       'createdBy': staff.uid,
-      'createdBySnapshot': {
+      'createdBySnapshot': TextCaseUtils.normalizePersonSnapshot({
         'fullName': staff.fullName,
         'role': staff.role,
-      },
+      }),
       'createdAt': now,
       'updatedAt': now,
-      'reviewedBy': null,
-      'reviewedBySnapshot': null,
-      'reviewedAt': null,
+      'reviewedBy': pastorCreates ? staff.uid : null,
+      'reviewedBySnapshot': pastorCreates
+          ? TextCaseUtils.normalizePersonSnapshot({
+              'fullName': staff.fullName,
+            })
+          : null,
+      'reviewedAt': pastorCreates ? now : null,
       'declineReason': null,
       'editHistory': <Map<String, dynamic>>[],
     });
@@ -208,11 +216,11 @@ class EntriesRepository {
     });
     await _entries(churchId).doc(existing.id).update({
       'partnerId': partnerId,
-      'partnerSnapshot': partnerSnapshot,
+      'partnerSnapshot': TextCaseUtils.normalizePartnerSnapshot(partnerSnapshot),
       'partnershipArmId': partnershipArmId,
-      'armSnapshot': armSnapshot,
+      'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
-      'periodSnapshot': periodSnapshot,
+      'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
       'amountCedis': amountCedis,
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
@@ -234,9 +242,9 @@ class EntriesRepository {
     await _entries(churchId).doc(entry.id).update({
       'status': 'approved',
       'reviewedBy': pastor.uid,
-      'reviewedBySnapshot': {
+      'reviewedBySnapshot': TextCaseUtils.normalizePersonSnapshot({
         'fullName': pastor.fullName,
-      },
+      }),
       'reviewedAt': FieldValue.serverTimestamp(),
       'declineReason': null,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -252,9 +260,9 @@ class EntriesRepository {
     await _entries(churchId).doc(entry.id).update({
       'status': 'declined',
       'reviewedBy': pastor.uid,
-      'reviewedBySnapshot': {
+      'reviewedBySnapshot': TextCaseUtils.normalizePersonSnapshot({
         'fullName': pastor.fullName,
-      },
+      }),
       'reviewedAt': FieldValue.serverTimestamp(),
       'declineReason': reason.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -288,11 +296,11 @@ class EntriesRepository {
     });
     await _entries(churchId).doc(existing.id).update({
       'partnerId': partnerId,
-      'partnerSnapshot': partnerSnapshot,
+      'partnerSnapshot': TextCaseUtils.normalizePartnerSnapshot(partnerSnapshot),
       'partnershipArmId': partnershipArmId,
-      'armSnapshot': armSnapshot,
+      'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
-      'periodSnapshot': periodSnapshot,
+      'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
       'amountCedis': amountCedis,
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),

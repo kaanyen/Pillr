@@ -308,6 +308,12 @@ abstract class AppLocalizations {
   /// **'How partnership recording works'**
   String get titleHelp;
 
+  /// No description provided for @titleBulkImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk import'**
+  String get titleBulkImport;
+
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
@@ -415,6 +421,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose an .xlsx file (no macros). The sheet must include headers such as Date, Name, Fellowship, Amount, Category (arm), and optionally Pastor confirmation (YES/NO). The active partnership period is applied to all rows.'**
   String get bulkImportHint;
+
+  /// No description provided for @bulkImportUploadTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload spreadsheet'**
+  String get bulkImportUploadTitle;
+
+  /// No description provided for @bulkImportUploadSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag and drop your Excel file here, or use Browse.'**
+  String get bulkImportUploadSubtitle;
+
+  /// No description provided for @bulkImportDropPrimary.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a file or drag & drop it here.'**
+  String get bulkImportDropPrimary;
+
+  /// No description provided for @bulkImportDropFormats.
+  ///
+  /// In en, this message translates to:
+  /// **'.xlsx only (no macros). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.'**
+  String get bulkImportDropFormats;
+
+  /// No description provided for @bulkImportBrowseFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse files'**
+  String get bulkImportBrowseFiles;
 
   /// No description provided for @bulkImportParsing.
   ///
@@ -722,11 +758,95 @@ abstract class AppLocalizations {
   /// **'Import entries'**
   String get bulkImportConfirm;
 
+  /// No description provided for @bulkImportCompleteImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete import'**
+  String get bulkImportCompleteImport;
+
   /// No description provided for @bulkImportCommitting.
   ///
   /// In en, this message translates to:
   /// **'Importing…'**
   String get bulkImportCommitting;
+
+  /// No description provided for @bulkImportTableHeaderRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Row'**
+  String get bulkImportTableHeaderRow;
+
+  /// No description provided for @bulkImportTableHeaderPartner.
+  ///
+  /// In en, this message translates to:
+  /// **'Partner'**
+  String get bulkImportTableHeaderPartner;
+
+  /// No description provided for @bulkImportTableHeaderAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get bulkImportTableHeaderAmount;
+
+  /// No description provided for @bulkImportTableHeaderDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get bulkImportTableHeaderDate;
+
+  /// No description provided for @bulkImportTableHeaderStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get bulkImportTableHeaderStatus;
+
+  /// No description provided for @bulkImportTableReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get bulkImportTableReview;
+
+  /// No description provided for @bulkImportTableRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get bulkImportTableRemove;
+
+  /// No description provided for @bulkImportRowStatusBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get bulkImportRowStatusBlocked;
+
+  /// No description provided for @bulkImportRowStatusCheck.
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get bulkImportRowStatusCheck;
+
+  /// No description provided for @bulkImportRowStatusReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get bulkImportRowStatusReady;
+
+  /// No description provided for @bulkImportRowStatusDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get bulkImportRowStatusDuplicate;
+
+  /// No description provided for @bulkImportReplaceFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace spreadsheet'**
+  String get bulkImportReplaceFile;
+
+  /// No description provided for @bulkImportConfirmNotDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm new entry'**
+  String get bulkImportConfirmNotDuplicate;
 
   /// No description provided for @bulkImportResolutionExisting.
   ///
@@ -1043,7 +1163,7 @@ abstract class AppLocalizations {
   /// No description provided for @helpIntro.
   ///
   /// In en, this message translates to:
-  /// **'Partnership entries link a partner, amount, period, and arm. Staff record gifts; the pastor approves so totals and goals stay accurate.'**
+  /// **'Partnership entries link a partner, amount, period, and arm. Staff record partnership entries; the pastor approves so totals and goals stay accurate.'**
   String get helpIntro;
 
   /// No description provided for @helpSectionPeriodTitle.

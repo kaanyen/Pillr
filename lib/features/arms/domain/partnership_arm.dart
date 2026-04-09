@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 
 class PartnershipArm {
   const PartnershipArm({
@@ -32,7 +33,7 @@ class PartnershipArm {
     return PartnershipArm(
       id: d.id,
       churchId: m['churchId'] as String? ?? '',
-      name: m['name'] as String? ?? '',
+      name: TextCaseUtils.toTitleCase(m['name'] as String? ?? ''),
       description: m['description'] as String?,
       isActive: m['isActive'] as bool? ?? true,
       colorHex: m['colorHex'] as String?,
