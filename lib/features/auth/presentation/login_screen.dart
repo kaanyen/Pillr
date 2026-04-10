@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -10,8 +9,11 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/validation_utils.dart';
 import '../providers/auth_providers.dart';
+import 'widgets/auth_field_decoration.dart';
+import 'widgets/auth_primary_button.dart';
 import 'widgets/auth_split_shell.dart';
 
+/// Email + password sign-in for returning users (invite flow uses [JoinScreen]).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -25,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
   bool _loading = false;
   bool _obscurePassword = true;
+  bool _keepLoggedIn = true;
 
   @override
   void dispose() {
@@ -76,280 +79,155 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _openExternal(String url) async {
-    final u = Uri.parse(url);
-    if (await canLaunchUrl(u)) {
-      await launchUrl(u, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  void _comingSoon(String name) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$name sign-in is not configured yet.')),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final form = Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xl + 8,
-      ),
-      child: AutofillGroup(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(LucideIcons.church, color: AppColors.primaryColor, size: 20),
-                ),
-                const Spacer(),
-                Text('Don\'t have an account?', style: AppTypography.caption),
-                const SizedBox(width: 6),
-                TextButton(
-                  onPressed: () => context.go('/join'),
-                  child: Text(
-                    'Join',
-                    style: AppTypography.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Welcome back to Pillr',
-              style: AppTypography.heading1.copyWith(fontSize: 28),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Sign in to your church workspace.',
-              style: AppTypography.body.copyWith(color: AppColors.gray600),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            if (_error != null) ...[
-              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
-              const SizedBox(height: AppSpacing.md),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _comingSoon('Google'),
-                    icon: const Text('G', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                    label: const Text('Continue with Google'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gray900,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: AppColors.gray200),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _comingSoon('Apple'),
-                    icon: Icon(LucideIcons.apple, size: 18, color: AppColors.gray900),
-                    label: const Text('Continue with Apple'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gray900,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: AppColors.gray200),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                const Expanded(child: Divider(color: AppColors.gray200)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Text('Or sign in with', style: AppTypography.caption.copyWith(color: AppColors.gray400)),
-                ),
-                const Expanded(child: Divider(color: AppColors.gray200)),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Email', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              decoration: InputDecoration(
-                hintText: 'you@church.org',
-                filled: true,
-                fillColor: AppColors.gray100,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primaryColor.withValues(alpha: 0.5)),
+    return AuthSplitShell(
+      formChild: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Sign in',
+                style: AppTypography.heading1.copyWith(
+                  fontSize: 28,
+                  color: AppColors.gray900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text('Password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _password,
-              obscureText: _obscurePassword,
-              autofillHints: const [AutofillHints.password],
-              decoration: InputDecoration(
-                hintText: '••••••••',
-                filled: true,
-                fillColor: AppColors.gray100,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: AppColors.primaryColor.withValues(alpha: 0.5)),
-                ),
-                suffixIcon: IconButton(
-                  tooltip: _obscurePassword ? 'Show password' : 'Hide password',
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  icon: Icon(
-                    _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
-                    color: AppColors.gray400,
-                    size: 20,
-                  ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Welcome back! Enter your email and password below to sign in.',
+                style: AppTypography.body.copyWith(
+                  color: AppColors.textSecondary,
+                  height: 1.45,
                 ),
               ),
-              onSubmitted: (_) => _loading ? null : _submit(),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _loading ? null : _forgot,
-                child: Text(
-                  'Forgot password?',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.primaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _PrimarySignInButton(
-              loading: _loading,
-              onPressed: _loading ? null : _submit,
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+              const SizedBox(height: AppSpacing.xl),
+              if (_error != null) ...[
                 Text(
-                  '© ${DateTime.now().year} Pillr',
-                  style: AppTypography.caption.copyWith(color: AppColors.gray400),
+                  _error!,
+                  style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
                 ),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => _openExternal('https://pillr.dev'),
-                      child: Text(
-                        'Privacy',
-                        style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              Text(
+                'Email',
+                style: AppTypography.label.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                decoration: authCardInputDecoration(hintText: 'Enter your email'),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Password',
+                style: AppTypography.label.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _password,
+                obscureText: _obscurePassword,
+                autofillHints: const [AutofillHints.password],
+                decoration: authCardInputDecoration(
+                  hintText: 'Enter your password',
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
+                      color: AppColors.gray400,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                onSubmitted: (_) => _loading ? null : _submit(),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: Checkbox(
+                      value: _keepLoggedIn,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      onChanged: (v) => setState(() => _keepLoggedIn = v ?? true),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Keep me logged in',
+                      style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _loading ? null : _forgot,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Forgot password?',
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.primaryColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AuthPrimaryButton(
+                label: 'Sign in',
+                loading: _loading,
+                onPressed: _loading ? null : _submit,
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      "Don't have an account?",
+                      style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                    ),
                     TextButton(
-                      onPressed: () => _openExternal('mailto:support@pillr.dev'),
+                      onPressed: () => context.go('/join'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       child: Text(
-                        'Support',
-                        style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                        'Join with invite',
+                        style: AppTypography.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryColor,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-
-    return Scaffold(
-      body: AuthSplitShell(form: form),
-    );
-  }
-}
-
-class _PrimarySignInButton extends StatelessWidget {
-  const _PrimarySignInButton({
-    required this.loading,
-    required this.onPressed,
-  });
-
-  final bool loading;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.onAccent,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(999),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: loading
-                ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Sign in',
-                        style: AppTypography.body.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(LucideIcons.arrowRight, color: Colors.white, size: 20),
-                    ],
-                  ),
+              ),
+            ],
           ),
         ),
-      ),
     );
   }
 }

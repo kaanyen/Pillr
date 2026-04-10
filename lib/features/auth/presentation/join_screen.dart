@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../common/widgets/pillr_button.dart';
-import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -14,6 +11,8 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/validation_utils.dart';
 import '../domain/invite_models.dart';
 import '../providers/auth_providers.dart';
+import 'widgets/auth_field_decoration.dart';
+import 'widgets/auth_primary_button.dart';
 import 'widgets/auth_split_shell.dart';
 
 class JoinScreen extends ConsumerStatefulWidget {
@@ -37,6 +36,8 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   InviteValidationResult? _validated;
   String? _error;
   bool _loading = false;
+  bool _obscurePassword = true;
+  bool _obscurePassword2 = true;
 
   @override
   void initState() {
@@ -134,6 +135,17 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     }
   }
 
+  void _onBack() {
+    if (_step == 2) {
+      setState(() {
+        _step = 1;
+        _error = null;
+      });
+    } else {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
@@ -145,76 +157,69 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final form = Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xl + 8,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Back to sign in',
-                icon: const Icon(LucideIcons.arrowLeft, size: 22),
-                onPressed: () => context.go('/login'),
-              ),
-              Text(
-                'Join Pillr',
-                style: AppTypography.heading3,
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () => context.go('/login'),
-                child: Text(
-                  'Sign in',
-                  style: AppTypography.caption.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryColor,
-                  ),
+    return AuthSplitShell(
+      formChild: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  tooltip: _step == 2 ? 'Back' : 'Back to home',
+                  icon: const Icon(LucideIcons.arrowLeft, size: 22),
+                  onPressed: _onBack,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          if (_step == 1) _buildStep1() else _buildStep2(),
-        ],
-      ),
-    );
-
-    return Scaffold(
-      body: AuthSplitShell(form: form),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            if (_step == 1) _buildStep1() else _buildStep2(),
+          ],
+        ),
     );
   }
 
   Widget _buildStep1() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "You've been invited",
-          style: AppTypography.heading1,
+          'Get started',
+          style: AppTypography.heading1.copyWith(
+            fontSize: 28,
+            color: AppColors.gray900,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Enter the email that received the invite and your 8-character code.',
-          style: AppTypography.body,
+          'Verify your church invitation — enter the email and code you received.',
+          style: AppTypography.body.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        const SizedBox(height: AppSpacing.xl),
         if (_error != null)
-          Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
-        const SizedBox(height: AppSpacing.md),
-        PillrTextField(
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+          ),
+        Text('Email', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
           controller: _email,
-          label: 'Email',
           keyboardType: TextInputType.emailAddress,
+          decoration: authCardInputDecoration(hintText: 'Enter your email'),
         ),
         const SizedBox(height: AppSpacing.md),
-        PillrTextField(
+        Text('Invite code', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
           controller: _code,
-          label: 'Invite code',
           textCapitalization: TextCapitalization.characters,
+          decoration: authCardInputDecoration(hintText: 'Enter your code'),
           onChanged: (v) {
             _code.value = TextEditingValue(
               text: v.toUpperCase(),
@@ -223,12 +228,37 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
           },
         ),
         const SizedBox(height: AppSpacing.lg),
-        PillrButton(
-          label: 'Verify invitation',
-          expanded: true,
+        AuthPrimaryButton(
+          label: 'Continue',
           loading: _loading,
-          onPressed: _loading ? null : _verifyInvite,
-          variant: PillrButtonVariant.primary,
+          onPressed: _verifyInvite,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              Text(
+                'Have an account?',
+                style: AppTypography.caption.copyWith(color: AppColors.gray600),
+              ),
+              TextButton(
+                onPressed: () => context.go('/sign-in'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Login',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -237,41 +267,114 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   Widget _buildStep2() {
     final church = _validated?.churchName ?? 'your church';
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Welcome to $church', style: AppTypography.heading1),
+        Text(
+          'Create your account',
+          style: AppTypography.heading1.copyWith(
+            fontSize: 28,
+            color: AppColors.gray900,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
         const SizedBox(height: AppSpacing.sm),
-        Text('Complete your profile to finish registration.', style: AppTypography.body),
-        const SizedBox(height: AppSpacing.lg),
+        Text(
+          'Welcome to $church — finish your profile to continue.',
+          style: AppTypography.body.copyWith(
+            color: AppColors.textSecondary,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xl),
         if (_error != null)
-          Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+          ),
+        Text('Full name', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _name,
+          decoration: authCardInputDecoration(hintText: 'Full name'),
+        ),
         const SizedBox(height: AppSpacing.md),
-        PillrTextField(controller: _name, label: 'Full name'),
-        const SizedBox(height: AppSpacing.md),
-        PillrTextField(
+        Text('Phone', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
           controller: _phone,
-          label: 'Phone',
           keyboardType: TextInputType.phone,
+          decoration: authCardInputDecoration(hintText: 'Phone number'),
         ),
         const SizedBox(height: AppSpacing.md),
-        PillrTextField(
+        Text('Password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
           controller: _password,
-          label: 'Password',
-          obscureText: true,
+          obscureText: _obscurePassword,
+          decoration: authCardInputDecoration(
+            hintText: 'At least 8 characters',
+            suffixIcon: IconButton(
+              tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+              icon: Icon(
+                _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
+                color: AppColors.gray400,
+                size: 20,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: AppSpacing.md),
-        PillrTextField(
+        Text('Confirm password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        const SizedBox(height: 8),
+        TextField(
           controller: _password2,
-          label: 'Confirm password',
-          obscureText: true,
+          obscureText: _obscurePassword2,
+          decoration: authCardInputDecoration(
+            hintText: 'Repeat password',
+            suffixIcon: IconButton(
+              tooltip: _obscurePassword2 ? 'Show password' : 'Hide password',
+              onPressed: () => setState(() => _obscurePassword2 = !_obscurePassword2),
+              icon: Icon(
+                _obscurePassword2 ? LucideIcons.eye : LucideIcons.eyeOff,
+                color: AppColors.gray400,
+                size: 20,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
-        PillrButton(
-          label: 'Create account',
-          expanded: true,
+        AuthPrimaryButton(
+          label: 'Sign up',
           loading: _loading,
-          onPressed: _loading ? null : _createAccount,
-          variant: PillrButtonVariant.primary,
+          onPressed: _createAccount,
+        ),
+        const SizedBox(height: AppSpacing.xl),
+        Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              Text(
+                'Have an account?',
+                style: AppTypography.caption.copyWith(color: AppColors.gray600),
+              ),
+              TextButton(
+                onPressed: () => context.go('/sign-in'),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Login',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

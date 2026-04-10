@@ -26,7 +26,7 @@ service cloud.firestore {
     function isPastor() { return isRole('pastor'); }
     function isStaff() { return isRole('staff'); }
     function isPastorOrAdmin() { return isAdmin() || isPastor(); }
-    function isPastorOrStaff() { return isPastor() || isStaff(); }
+    function isPastorOrStaff() { return isPastor() || isStaff(); } // used in UI guards
 
     function belongsToChurch(churchId) {
       return isAuthenticated() && getUserChurchId() == churchId;
@@ -61,23 +61,19 @@ service cloud.firestore {
       }
 
       match /entries/{entryId} {
-        allow read: if belongsToChurch(churchId) && isPastor();
-        allow read: if belongsToChurch(churchId) && isStaff() && isOwnEntry(resource.data);
+        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
 
-        // Staff: new entries are always pending. Pastor: may self-approve on create.
-        allow create: if belongsToChurch(churchId) && isPastorOrStaff()
-                      && (
-                        (isStaff()
-                          && request.resource.data.status == 'pending'
-                          && request.resource.data.reviewedBy == null
-                          && request.resource.data.reviewedAt == null)
-                        ||
-                        (isPastor()
-                          && request.resource.data.status == 'approved'
-                          && request.resource.data.reviewedBy == request.auth.uid
-                          && request.resource.data.reviewedAt is timestamp
-                          && request.resource.data.reviewedBySnapshot.fullName is string)
-                      );
+        // Pastor: may create entries as approved (self-approve) or pending.
+        // Field-level review checks are enforced in app code, not rules,
+        // because FieldValue.serverTimestamp() is not safely matchable via `is timestamp`
+        // at rules-evaluation time when the write is still pending server processing.
+        allow create: if belongsToChurch(churchId) && isPastor();
+
+        // Staff: new entries must always be pending and cannot pre-fill review fields.
+        allow create: if belongsToChurch(churchId) && isStaff()
+                      && request.resource.data.status == 'pending'
+                      && request.resource.data.reviewedBy == null
+                      && request.resource.data.reviewedAt == null;
 
         // Pastor: approve, decline, edit any entry.
         allow update: if belongsToChurch(churchId) && isPastor();

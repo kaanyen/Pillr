@@ -93,7 +93,7 @@ class AppShell extends ConsumerWidget {
                             idx: idx,
                             onSignOut: () async {
                               await ref.read(authRepositoryProvider).signOut();
-                              if (context.mounted) context.go('/login');
+                              if (context.mounted) context.go('/');
                             },
                           ),
                           Expanded(

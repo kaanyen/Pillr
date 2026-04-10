@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/extensions/async_value_ext.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/router/app_router.dart';
+import 'core/session/session_idle_listener.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/color_utils.dart';
 import 'features/church/providers/church_settings_providers.dart';
@@ -25,6 +26,11 @@ class PillrApp extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       theme: AppTheme.light(seedColor: seed),
       routerConfig: appRouter,
+      builder: (context, child) {
+        return SessionIdleListener(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

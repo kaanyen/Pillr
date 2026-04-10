@@ -816,8 +816,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
   Future<void> _applyDatabaseDuplicateFlags(UserChurchIndex idx) async {
     if (_resolved == null) return;
     final entriesRepo = ref.read(entriesRepositoryProvider);
-    final allChurch = idx.isPastor;
-    final staffUid = idx.isStaff ? idx.uid : null;
+    // Always scan ALL church entries — staff can now read all entries and need
+    // to detect duplicates created by other staff members too.
     try {
       final updated = <BulkResolvedRow>[];
       for (final r in _resolved!) {
@@ -830,8 +830,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         final list = await entriesRepo.fetchEntriesForDuplicateCheck(
           idx.churchId,
           partnerId: r.partnerId!,
-          allChurchEntries: allChurch,
-          createdByUid: allChurch ? null : staffUid,
+          allChurchEntries: true,
+          createdByUid: null,
         );
         if (hasSimilarPartnershipEntryWithSameDate(
           list,
@@ -1138,7 +1138,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         rows: resolved,
         arms: arms,
         period: period,
-        allChurchEntries: ref.read(userChurchIndexProvider).valueOrNull?.isPastor ?? false,
+        allChurchEntries: true, // all roles can now read all entries; scan church-wide for duplicates
         viewerIsPastor: viewerIsPastor,
         duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
       );

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'app_router_redirect.dart';
 import '../../features/arms/presentation/arms_screen.dart';
 import '../../features/auth/presentation/join_screen.dart';
+import '../../features/auth/presentation/landing_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/dashboard/presentation/role_dashboard_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
@@ -40,7 +41,17 @@ GoRouter createRouter() {
     redirect: appRouterRedirect,
     routes: [
       GoRoute(
+        path: '/',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => const NoTransitionPage(child: LandingScreen()),
+      ),
+      GoRoute(
         path: '/login',
+        parentNavigatorKey: rootNavigatorKey,
+        redirect: (context, state) => '/sign-in',
+      ),
+      GoRoute(
+        path: '/sign-in',
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) => const NoTransitionPage(child: LoginScreen()),
       ),
