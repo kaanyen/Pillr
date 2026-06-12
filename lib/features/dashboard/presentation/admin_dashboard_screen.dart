@@ -74,7 +74,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         valueText: usersCount.when(
                           data: (n) => '$n',
                           loading: () => '…',
-                          error: (_, __) => '—',
+                          error: (_, _) => '—',
                         ),
                         periodLabel: 'accounts in this church',
                         backgroundColor: DashboardTints.totalBg,
@@ -102,7 +102,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         valueText: activityAsync.when(
                           data: (l) => '${l.length}',
                           loading: () => '…',
-                          error: (_, __) => '—',
+                          error: (_, _) => '—',
                         ),
                         periodLabel: 'recent log rows',
                         backgroundColor: DashboardTints.goalBg,

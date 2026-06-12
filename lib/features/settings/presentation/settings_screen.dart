@@ -233,7 +233,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     digest.when(
                       loading: () => const SizedBox(height: 8),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
                       data: (v) => SwitchListTile(
                         title: const Text('Daily pending digest (email/FCM when available)'),
                         value: v,
@@ -246,7 +246,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     goals.when(
                       loading: () => const SizedBox(height: 8),
-                      error: (_, __) => const SizedBox.shrink(),
+                      error: (_, _) => const SizedBox.shrink(),
                       data: (v) => SwitchListTile(
                         title: const Text('Goal milestone alerts'),
                         value: v,

@@ -1319,6 +1319,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     bool viewerIsPastor,
   ) async {
     final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final profile = ref.read(churchUserProfileProvider).valueOrNull;
     final resolved = _resolved;
     if (profile == null || resolved == null) return;
@@ -1374,6 +1375,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         await BulkImportSessionStore.clear(uid: uid, churchId: clearChurchId);
       }
       if (!mounted) return;
+      final successMessage = l10n.bulkImportCommitSuccessToast(r.entriesCreated);
       setState(() {
         _result = r;
         _committing = false;
@@ -1383,8 +1385,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         _fileBytes = null;
         _duplicateAcknowledgedSheetRows.clear();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.bulkImportCommitSuccessToast(r.entriesCreated))),
+      messenger.showSnackBar(
+        SnackBar(content: Text(successMessage)),
       );
       Future<void>.delayed(const Duration(seconds: 4), () {
         if (mounted) {

@@ -578,7 +578,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               final useCards = PillrLayout.useCardListLayout(constraints.maxWidth);
-              final dateFmt = (PartnershipEntry e) =>
+              String dateFmt(PartnershipEntry e) =>
                   '${e.createdAt.year}-${e.createdAt.month.toString().padLeft(2, '0')}-${e.createdAt.day.toString().padLeft(2, '0')}';
               final table = PillrDataTable(
                 minWidth: 720,

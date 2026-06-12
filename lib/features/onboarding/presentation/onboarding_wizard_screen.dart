@@ -254,7 +254,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                     ),
                     const SizedBox(height: AppSpacing.md),
                     DropdownButtonFormField<String>(
-                      value: _currencyCode,
+                      initialValue: _currencyCode,
                       decoration: const InputDecoration(labelText: 'Currency'),
                       items: [
                         for (final c in _currencies)
@@ -313,7 +313,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                     ),
                     const SizedBox(height: AppSpacing.md),
                     DropdownButtonFormField<String>(
-                      value: _inviteRole,
+                      initialValue: _inviteRole,
                       decoration: const InputDecoration(labelText: 'Role'),
                       items: const [
                         DropdownMenuItem(value: 'staff', child: Text('Staff')),

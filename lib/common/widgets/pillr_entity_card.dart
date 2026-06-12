@@ -59,7 +59,7 @@ class PillrEntityCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) trailing!,
+              ?trailing,
             ],
           ),
           if (footer != null) ...[

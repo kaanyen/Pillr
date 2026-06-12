@@ -32,8 +32,8 @@ class UsersRepository {
       await callable.call(<String, dynamic>{
         'churchId': churchId,
         'targetUid': targetUid,
-        if (isActive != null) 'isActive': isActive,
-        if (role != null) 'role': role,
+        'isActive': ?isActive,
+        'role': ?role,
       });
     } on FirebaseFunctionsException catch (e) {
       throw AppException(e.message ?? 'Could not update member.', code: e.code);

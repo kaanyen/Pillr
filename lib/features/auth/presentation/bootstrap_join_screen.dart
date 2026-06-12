@@ -298,7 +298,7 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         DropdownButtonFormField<String>(
-          value: _currencyCode,
+          initialValue: _currencyCode,
           decoration: authCardInputDecoration(hintText: 'Currency'),
           items: [
             for (final c in _currencies)

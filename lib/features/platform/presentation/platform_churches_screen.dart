@@ -179,7 +179,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         DropdownButtonFormField<String>(
-                          value: _bootstrapRole,
+                          initialValue: _bootstrapRole,
                           decoration: const InputDecoration(
                             labelText: 'First user role',
                             border: OutlineInputBorder(),
