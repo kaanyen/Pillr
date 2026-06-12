@@ -6,6 +6,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isPlatformAdmin() {
+      return isAuthenticated()
+ && exists(/databases/$(database)/documents/platform_admins/$(request.auth.uid));
+    }
+
     function getUserData() {
       return get(/databases/$(database)/documents/user_church_index/$(request.auth.uid)).data;
     }
@@ -41,9 +46,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /platform_admins/{uid} {
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /church_bootstrap_invites/{inviteId} {
+      allow read, write: if false;
+    }
+
+    match /platform_audit_logs/{logId} {
+      allow read, write: if false;
+    }
+
     match /churches/{churchId} {
-      allow read: if belongsToChurch(churchId);
-      allow write: if belongsToChurch(churchId) && isAdmin();
+      allow read: if isPlatformAdmin() || belongsToChurch(churchId);
+      allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
 
       match /users/{uidField} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
@@ -93,12 +111,12 @@ service cloud.firestore {
 
       match /partnership_arms/{armId} {
         allow read: if belongsToChurch(churchId);
-        allow write: if belongsToChurch(churchId) && isPastor();
+        allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
       }
 
       match /partnership_periods/{periodId} {
         allow read: if belongsToChurch(churchId);
-        allow write: if belongsToChurch(churchId) && isPastor();
+        allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
       }
 
       match /goals/{goalId} {

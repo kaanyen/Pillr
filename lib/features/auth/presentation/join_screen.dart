@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/router/church_tenant_gate_cache.dart';
+import '../../../core/router/user_church_index_cache.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -127,7 +129,11 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
         await auth.deleteCurrentUser();
         rethrow;
       }
-      if (mounted) context.go('/dashboard');
+      if (mounted) {
+        UserChurchIndexCache.clear();
+        ChurchTenantGateCache.clear();
+        context.go('/dashboard');
+      }
     } catch (e) {
       setState(() => _error = humanizeAuthException(e));
     } finally {

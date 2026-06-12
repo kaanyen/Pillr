@@ -10,8 +10,8 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../providers/entries_providers.dart';
 
 /// Shown after creating a new entry — clear next steps (plan: dedicated success screen).
@@ -22,6 +22,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final l10n = AppLocalizations.of(context);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final entryAsync = idx == null
@@ -56,7 +57,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                 );
               }
               final partner = entry.partnerSnapshot['fullName']?.toString() ?? '—';
-              final amount = formatCedis(entry.amountCedis);
+              final amount = formatMoney(entry.amountCedis);
               final period = entry.periodSnapshot['name']?.toString() ?? '';
               final arm = entry.armSnapshot['name']?.toString() ?? '';
 

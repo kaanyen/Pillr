@@ -188,6 +188,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Choisissez un fichier ou glissez-le ici.';
 
   @override
+  String get bulkImportDropResumeHint =>
+      'Your draft is saved — pick a new file to replace it.';
+
+  @override
   String get bulkImportDropFormats =>
       '.xlsx uniquement (sans macros). En-têtes : Date, Nom, Communauté, Montant, Catégorie (bras), confirmation pasteur (OUI/NON) facultatif. La période active s\'applique à toutes les lignes.';
 
@@ -292,6 +296,31 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bulkImportFieldDate => 'Date';
+
+  @override
+  String get bulkImportFieldDateHint => 'YYYY-MM-DD (e.g. 2026-05-17)';
+
+  @override
+  String get bulkImportSelectArm => 'Select partnership arm';
+
+  @override
+  String get bulkImportCommitProgressTitle => 'Importing entries…';
+
+  @override
+  String get bulkImportCommitDoneTitle => 'Import complete';
+
+  @override
+  String get bulkImportCommitDismiss => 'Minimize';
+
+  @override
+  String bulkImportCommitProgressCount(int current, int total) {
+    return '$current of $total';
+  }
+
+  @override
+  String bulkImportCommitSuccessToast(int created) {
+    return 'Bulk import finished: $created entries created.';
+  }
 
   @override
   String get bulkImportFieldName => 'Nom';
@@ -421,6 +450,25 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bulkImportReplaceFile => 'Remplacer le classeur';
+
+  @override
+  String get bulkImportReplaceConfirmTitle =>
+      'Remplacer le brouillon enregistré ?';
+
+  @override
+  String get bulkImportReplaceConfirmMessage =>
+      'Votre classeur actuel et vos modifications seront supprimés. Vous devrez réimporter pour les récupérer.';
+
+  @override
+  String get bulkImportReplaceConfirmAction => 'Remplacer';
+
+  @override
+  String get bulkImportDraftRestored =>
+      'Brouillon restauré — vous pouvez reprendre votre import.';
+
+  @override
+  String get bulkImportRestoringDraft =>
+      'Restauration de votre import enregistré…';
 
   @override
   String get bulkImportConfirmNotDuplicate => 'Confirmer une nouvelle saisie';

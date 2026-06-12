@@ -48,6 +48,58 @@ function randomCode(): string {
   return s;
 }
 
+/** Stronger code for church bootstrap invites (10 chars). */
+function randomBootstrapCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  for (let i = 0; i < 10; i++) {
+    s += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return s;
+}
+
+function slugFromName(name: string): string {
+  const s = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return s.slice(0, 48) || "church";
+}
+
+async function isPlatformAdminUid(uid: string): Promise<boolean> {
+  const snap = await db.doc(`platform_admins/${uid}`).get();
+  if (snap.exists) return true;
+  const raw = process.env.PLATFORM_ADMIN_EMAILS;
+  if (!raw?.trim()) return false;
+  const allow = new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (allow.size === 0) return false;
+  const user = await admin.auth().getUser(uid);
+  const em = user.email?.toLowerCase();
+  return em != null && allow.has(em);
+}
+
+const DEFAULT_CURRENCY_SYMBOL: Record<string, string> = {
+  GHS: "\u20B5",
+  USD: "$",
+  EUR: "\u20AC",
+  GBP: "\u00A3",
+};
+
+async function appendPlatformAudit(action: string, actorUid: string, payload: Record<string, unknown>) {
+  await db.collection("platform_audit_logs").add({
+    action,
+    actorUid,
+    payload,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 async function sendInviteEmail(
   toEmail: string,
   churchName: string,
@@ -84,6 +136,298 @@ async function sendInviteEmail(
       </div>`,
   });
 }
+
+async function sendBootstrapInviteEmail(
+  toEmail: string,
+  inviteCode: string,
+  role: string,
+  inviterLabel: string,
+): Promise<void> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) {
+    console.warn("RESEND_API_KEY not set; skipping bootstrap email.");
+    return;
+  }
+  const resend = new Resend(key);
+  const base =
+    process.env.PUBLIC_WEB_ORIGIN?.replace(/\/$/, "") ?? "https://thepillr2.web.app";
+  const joinUrl = `${base}/bootstrap-join?code=${inviteCode}`;
+  await resend.emails.send({
+    from: RESEND_FROM,
+    to: toEmail,
+    subject: "Set up your church on Pillr",
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 560px; margin: 0 auto;">
+        <h2>Create your church workspace</h2>
+        <p>${inviterLabel} invited you to register <strong>${role}</strong> as the first user for a new church on Pillr.</p>
+        <p>Your setup code is:</p>
+        <div style="background: #F3F4F6; padding: 24px; border-radius: 8px; text-align: center; margin: 24px 0;">
+          <span style="font-size: 28px; font-weight: 700; letter-spacing: 3px; color: #1A56DB;">
+            ${inviteCode}
+          </span>
+        </div>
+        <p>This code expires in <strong>24 hours</strong>.</p>
+        <a href="${joinUrl}" style="display: inline-block; background: #1A56DB; color: white;
+          padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
+          Continue setup
+        </a>
+      </div>`,
+  });
+}
+
+/** Pre-sign-in validation for bootstrap join UI. */
+export const validateBootstrapInvite = onCall({region: REGION}, async (request) => {
+  const email = String(request.data?.email ?? "").trim().toLowerCase();
+  const code = String(request.data?.code ?? "").trim().toUpperCase();
+  if (!email || !code) {
+    return {valid: false, message: "Email and code are required."};
+  }
+  const snap = await db
+    .collection("church_bootstrap_invites")
+    .where("code", "==", code)
+    .where("email", "==", email)
+    .limit(1)
+    .get();
+  if (snap.empty) {
+    return {valid: false, message: "Setup code not found for this email."};
+  }
+  const doc = snap.docs[0];
+  const data = doc.data();
+  if (data.status !== "pending") {
+    return {valid: false, message: "This setup code is no longer valid."};
+  }
+  const exp = data.expiresAt as admin.firestore.Timestamp;
+  if (exp.toMillis() < Date.now()) {
+    await doc.ref.update({status: "expired"});
+    return {valid: false, message: "This setup code has expired."};
+  }
+  return {
+    valid: true,
+    role: data.role as string,
+    inviteId: doc.id,
+  };
+});
+
+export const createBootstrapInvite = onCall({region: REGION}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  if (!(await isPlatformAdminUid(uid))) {
+    throw new HttpsError("permission-denied", "Platform admin only.");
+  }
+  const targetEmail = String(request.data?.email ?? "").trim().toLowerCase();
+  const role = String(request.data?.role ?? "pastor").trim().toLowerCase();
+  if (!targetEmail || !["admin", "pastor"].includes(role)) {
+    throw new HttpsError("invalid-argument", "email and role (admin|pastor) are required.");
+  }
+  const code = randomBootstrapCode();
+  const now = admin.firestore.Timestamp.now();
+  const expiresAt = admin.firestore.Timestamp.fromMillis(now.toMillis() + 24 * 60 * 60 * 1000);
+  const inviterSnap = await admin.auth().getUser(uid);
+  const inviterLabel = inviterSnap.displayName || inviterSnap.email || "Pillr support";
+  const col = db.collection("church_bootstrap_invites");
+  const newRef = col.doc();
+  await newRef.set({
+    id: newRef.id,
+    code,
+    email: targetEmail,
+    role,
+    status: "pending",
+    createdAt: now,
+    expiresAt,
+    createdByUid: uid,
+    usedAt: null,
+    usedByUid: null,
+    churchId: null,
+  });
+  await sendBootstrapInviteEmail(targetEmail, code, role, inviterLabel);
+  await appendPlatformAudit("bootstrap_invite_created", uid, {
+    inviteId: newRef.id,
+    email: targetEmail,
+    role,
+  });
+  return {success: true, inviteId: newRef.id};
+});
+
+export const redeemBootstrapInvite = onCall({region: REGION}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const email = (request.auth?.token?.email as string | undefined)?.toLowerCase();
+  if (!email) {
+    throw new HttpsError("failed-precondition", "Account must have an email.");
+  }
+  const fullName = toTitleCase(String(request.data?.fullName ?? ""));
+  const phone = String(request.data?.phone ?? "").trim();
+  const code = String(request.data?.code ?? "").trim().toUpperCase();
+  const churchNameRaw = String(request.data?.churchName ?? "").trim();
+  const currency = String(request.data?.currency ?? "GHS").trim().toUpperCase();
+  const symIn = String(request.data?.currencySymbol ?? "").trim();
+  const currencySymbol = symIn || DEFAULT_CURRENCY_SYMBOL[currency] || currency;
+  if (!fullName || !code || !churchNameRaw) {
+    throw new HttpsError("invalid-argument", "fullName, code, and churchName are required.");
+  }
+  const indexSnap = await db.doc(`user_church_index/${uid}`).get();
+  if (indexSnap.exists) {
+    throw new HttpsError("failed-precondition", "This account already belongs to a church.");
+  }
+  const invQuery = await db
+    .collection("church_bootstrap_invites")
+    .where("code", "==", code)
+    .where("email", "==", email)
+    .limit(1)
+    .get();
+  if (invQuery.empty) {
+    throw new HttpsError("not-found", "Setup code not found for this email.");
+  }
+  const invRef = invQuery.docs[0].ref;
+
+  const churchRef = db.collection("churches").doc();
+  const churchId = churchRef.id;
+  const churchName = toTitleCase(churchNameRaw);
+  const slug = slugFromName(churchNameRaw);
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  let redeemedRole = "";
+
+  await db.runTransaction(async (tx) => {
+    const invSnap = await tx.get(invRef);
+    if (!invSnap.exists) {
+      throw new HttpsError("not-found", "Setup code not found.");
+    }
+    const inv = invSnap.data()!;
+    if (inv.status !== "pending") {
+      throw new HttpsError("failed-precondition", "Setup code is not valid.");
+    }
+    const exp = inv.expiresAt as admin.firestore.Timestamp;
+    if (exp.toMillis() < Date.now()) {
+      tx.update(invRef, {status: "expired"});
+      throw new HttpsError("failed-precondition", "Setup code has expired.");
+    }
+    const role = inv.role as string;
+    if (!["admin", "pastor"].includes(role)) {
+      throw new HttpsError("failed-precondition", "Invalid invite role.");
+    }
+    redeemedRole = role;
+    tx.set(churchRef, {
+      id: churchId,
+      name: churchName,
+      slug,
+      logoUrl: null,
+      logoStoragePath: null,
+      primaryColorHex: null,
+      address: null,
+      city: null,
+      region: null,
+      country: null,
+      contactEmail: email,
+      contactPhone: phone || null,
+      primaryContactName: fullName,
+      timezone: "Africa/Accra",
+      currency,
+      currencySymbol,
+      isActive: true,
+      churchSetupCompletedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      settings: {
+        requireApproval: true,
+        allowStaffDeleteOwn: true,
+        notifyPastorOnEntry: true,
+        notifyStaffOnApproval: true,
+      },
+    });
+    tx.set(db.doc(`user_church_index/${uid}`), {
+      churchId,
+      role,
+      updatedAt: now,
+    });
+    tx.set(db.doc(`churches/${churchId}/users/${uid}`), {
+      uid,
+      churchId,
+      role,
+      fullName,
+      email,
+      phone: phone || null,
+      avatarUrl: null,
+      isActive: true,
+      fcmToken: null,
+      inviteCodeId: null,
+      createdAt: now,
+      updatedAt: now,
+      lastLoginAt: null,
+    });
+    tx.update(invRef, {
+      status: "used",
+      usedAt: now,
+      usedByUid: uid,
+      churchId,
+    });
+  });
+  await appendPlatformAudit("bootstrap_redeemed", uid, {churchId, email, role: redeemedRole});
+  return {success: true, churchId};
+});
+
+export const listChurchSummariesForPlatform = onCall({region: REGION}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  if (!(await isPlatformAdminUid(uid))) {
+    throw new HttpsError("permission-denied", "Platform admin only.");
+  }
+  const churchesSnap = await db.collection("churches").orderBy("name").limit(500).get();
+  const items: Record<string, unknown>[] = [];
+  for (const doc of churchesSnap.docs) {
+    const d = doc.data();
+    const usersSnap = await db
+      .collection(`churches/${doc.id}/users`)
+      .where("isActive", "==", true)
+      .count()
+      .get();
+    const activeUsers = usersSnap.data().count;
+    items.push({
+      churchId: doc.id,
+      name: d.name ?? "",
+      isActive: d.isActive !== false,
+      logoUrl: d.logoUrl ?? null,
+      contactEmail: d.contactEmail ?? null,
+      contactPhone: d.contactPhone ?? null,
+      primaryContactName: d.primaryContactName ?? null,
+      address: d.address ?? null,
+      city: d.city ?? null,
+      region: d.region ?? null,
+      country: d.country ?? null,
+      currency: d.currency ?? "GHS",
+      churchSetupCompletedAt: d.churchSetupCompletedAt ?? null,
+      createdAt: d.createdAt ?? null,
+      activeUsers,
+    });
+  }
+  return {items};
+});
+
+export const setChurchActive = onCall({region: REGION}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  if (!(await isPlatformAdminUid(uid))) {
+    throw new HttpsError("permission-denied", "Platform admin only.");
+  }
+  const churchId = String(request.data?.churchId ?? "").trim();
+  const isActive = request.data?.isActive as boolean | undefined;
+  if (!churchId || typeof isActive !== "boolean") {
+    throw new HttpsError("invalid-argument", "churchId and isActive boolean are required.");
+  }
+  await db.doc(`churches/${churchId}`).update({
+    isActive,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await appendPlatformAudit("church_active_toggled", uid, {churchId, isActive});
+  return {success: true};
+});
 
 export const validateInviteCode = onCall({region: REGION}, async (request) => {
   const email = String(request.data?.email ?? "").trim().toLowerCase();
@@ -275,7 +619,7 @@ export const expireInviteCodes = onSchedule({schedule: "every 30 minutes", regio
   await writer.close();
 });
 
-/** Pastor-only: sets exactly one active period for the church. */
+/** Pastor or church admin: sets exactly one active period for the church. */
 export const activatePeriod = onCall({region: REGION}, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
@@ -291,8 +635,15 @@ export const activatePeriod = onCall({region: REGION}, async (request) => {
     throw new HttpsError("permission-denied", "No church membership.");
   }
   const idx = indexSnap.data()!;
-  if (idx.churchId !== churchId || idx.role !== "pastor") {
-    throw new HttpsError("permission-denied", "Only pastors can activate periods.");
+  if (idx.churchId !== churchId) {
+    throw new HttpsError("permission-denied", "Wrong church.");
+  }
+  const role = idx.role as string;
+  if (role !== "pastor" && role !== "admin") {
+    throw new HttpsError(
+      "permission-denied",
+      "Only pastors and church admins can activate periods.",
+    );
   }
   const col = db.collection(`churches/${churchId}/partnership_periods`);
   const snap = await col.get();

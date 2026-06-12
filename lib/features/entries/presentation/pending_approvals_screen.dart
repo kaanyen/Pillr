@@ -15,7 +15,6 @@ import '../../../common/widgets/pillr_loading_shimmer.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/pdf_report_utils.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
@@ -27,6 +26,7 @@ class PendingApprovalsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final pending = ref.watch(pendingEntriesProvider);
 
     return SingleChildScrollView(
@@ -80,7 +80,7 @@ class PendingApprovalsScreen extends ConsumerWidget {
                             for (final e in rows)
                               [
                                 e.partnerSnapshot['fullName']?.toString() ?? '—',
-                                formatCedis(e.amountCedis),
+                                formatMoney(e.amountCedis),
                                 e.createdAt.toIso8601String().split('T').first,
                               ],
                           ],
@@ -96,7 +96,7 @@ class PendingApprovalsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   for (var i = 0; i < rows.length; i++)
-                    _EntryCard(entry: rows[i])
+                    _EntryCard(entry: rows[i], formatMoney: formatMoney)
                         .animate()
                         .fade(duration: 350.ms, delay: (40 * i).ms)
                         .slideY(begin: 0.04, curve: Curves.easeOutCubic),
@@ -111,9 +111,10 @@ class PendingApprovalsScreen extends ConsumerWidget {
 }
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.entry});
+  const _EntryCard({required this.entry, required this.formatMoney});
 
   final PartnershipEntry entry;
+  final String Function(num) formatMoney;
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +147,7 @@ class _EntryCard extends StatelessWidget {
                   style: AppTypography.caption,
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(formatCedis(entry.amountCedis), style: AppTypography.heading2),
+                Text(formatMoney(entry.amountCedis), style: AppTypography.heading2),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   'By ${entry.createdBySnapshot['fullName'] ?? 'Staff'}',

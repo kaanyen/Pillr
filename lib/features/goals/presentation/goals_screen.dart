@@ -10,11 +10,11 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
 import '../domain/partnership_goal.dart';
@@ -114,6 +114,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final periodsAsync = ref.watch(periodsStreamProvider);
     final armsAsync = ref.watch(armsStreamProvider);
 
@@ -212,7 +213,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
                                 Text(
-                                  '${formatCedis(g.currentAmountCedis)} of ${formatCedis(g.targetAmountCedis)} '
+                                  '${formatMoney(g.currentAmountCedis)} of ${formatMoney(g.targetAmountCedis)} '
                                   '(${g.progressFraction >= 1 ? 100 : (g.progressFraction * 100).round()}%)',
                                   style: AppTypography.caption,
                                 ),

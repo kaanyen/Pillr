@@ -30,12 +30,12 @@ class ArmsScreen extends ConsumerWidget {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final arms = ref.watch(armsStreamProvider);
 
-    if (idx != null && !idx.isPastor) {
+    if (idx != null && !idx.isPastor && !idx.isAdmin) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Text(
-            'Partnership arms are managed by pastors.',
+            'Partnership arms are managed by pastors and church admins.',
             style: AppTypography.body,
             textAlign: TextAlign.center,
           ),

@@ -15,8 +15,10 @@ import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/entries/providers/entries_providers.dart';
 import '../../features/goals/presentation/goal_milestone_listener.dart';
+import '../../features/platform/providers/platform_providers.dart';
 import '../../services/connectivity_service.dart';
 import '../widgets/offline_banner.dart';
+import '../../core/navigation/route_persistence_listener.dart';
 import 'adaptive_bottom_nav.dart';
 import 'adaptive_sidebar.dart';
 import 'responsive_layout.dart';
@@ -103,7 +105,9 @@ class AppShell extends ConsumerWidget {
                                 constraints: const BoxConstraints(
                                   maxWidth: PillrLayout.contentMaxWidth,
                                 ),
-                                child: GoalMilestoneListener(child: child),
+                                child: RoutePersistenceListener(
+                          child: GoalMilestoneListener(child: child),
+                        ),
                               ),
                             ),
                           ),
@@ -148,6 +152,18 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
         selectedIcon: LucideIcons.mail,
         label: 'Invites',
         path: '/invitations',
+      ),
+      const BottomNavItem(
+        icon: LucideIcons.heartHandshake,
+        selectedIcon: LucideIcons.heartHandshake,
+        label: 'Arms',
+        path: '/arms',
+      ),
+      const BottomNavItem(
+        icon: LucideIcons.calendar,
+        selectedIcon: LucideIcons.calendar,
+        label: 'Periods',
+        path: '/periods',
       ),
       const BottomNavItem(
         icon: LucideIcons.settings,
@@ -245,6 +261,7 @@ class _TopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pending = ref.watch(pendingApprovalCountProvider);
+    final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final l10n = AppLocalizations.of(context);
     final showBack = currentPath == '/entries/bulk-import' || context.canPop();
@@ -359,6 +376,12 @@ class _TopBar extends ConsumerWidget {
               ),
               const SizedBox(width: AppSpacing.sm),
             ],
+            if (isPlatform)
+              IconButton(
+                tooltip: 'Platform',
+                onPressed: () => context.go('/platform/churches'),
+                icon: Icon(LucideIcons.layoutGrid, color: AppColors.textSecondary),
+              ),
             IconButton(
               tooltip: l10n.toolbarHelp,
               onPressed: () => context.push('/help'),

@@ -1,3 +1,17 @@
+class BootstrapValidationResult {
+  BootstrapValidationResult({
+    required this.valid,
+    this.role,
+    this.inviteId,
+    this.errorMessage,
+  });
+
+  final bool valid;
+  final String? role;
+  final String? inviteId;
+  final String? errorMessage;
+}
+
 class InviteValidationResult {
   InviteValidationResult({
     required this.valid,

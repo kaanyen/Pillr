@@ -185,8 +185,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bulkImportDropPrimary => 'Choose a file or drag & drop it here.';
 
   @override
+  String get bulkImportDropResumeHint =>
+      'Your draft is saved — pick a new file to replace it.';
+
+  @override
   String get bulkImportDropFormats =>
-      '.xlsx only (no macros). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.';
+      '.xlsx only (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.';
 
   @override
   String get bulkImportBrowseFiles => 'Browse files';
@@ -289,6 +293,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportFieldDate => 'Date';
+
+  @override
+  String get bulkImportFieldDateHint => 'YYYY-MM-DD (e.g. 2026-05-17)';
+
+  @override
+  String get bulkImportSelectArm => 'Select partnership arm';
+
+  @override
+  String get bulkImportCommitProgressTitle => 'Importing entries…';
+
+  @override
+  String get bulkImportCommitDoneTitle => 'Import complete';
+
+  @override
+  String get bulkImportCommitDismiss => 'Minimize';
+
+  @override
+  String bulkImportCommitProgressCount(int current, int total) {
+    return '$current of $total';
+  }
+
+  @override
+  String bulkImportCommitSuccessToast(int created) {
+    return 'Bulk import finished: $created entries created.';
+  }
 
   @override
   String get bulkImportFieldName => 'Name';
@@ -418,6 +447,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportReplaceFile => 'Replace spreadsheet';
+
+  @override
+  String get bulkImportReplaceConfirmTitle => 'Replace saved draft?';
+
+  @override
+  String get bulkImportReplaceConfirmMessage =>
+      'Your current spreadsheet and any edits will be discarded. This cannot be undone until you import again.';
+
+  @override
+  String get bulkImportReplaceConfirmAction => 'Replace';
+
+  @override
+  String get bulkImportDraftRestored =>
+      'Draft restored — your previous import is ready to continue.';
+
+  @override
+  String get bulkImportRestoringDraft => 'Restoring your saved import…';
 
   @override
   String get bulkImportConfirmNotDuplicate => 'Confirm new entry';

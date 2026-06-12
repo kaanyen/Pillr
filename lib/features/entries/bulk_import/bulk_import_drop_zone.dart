@@ -14,10 +14,12 @@ class BulkImportDropZone extends StatelessWidget {
     super.key,
     required this.onPick,
     required this.loading,
+    this.fileName,
   });
 
   final VoidCallback onPick;
   final bool loading;
+  final String? fileName;
 
   static const _cornerRadius = 16.0;
 
@@ -47,14 +49,32 @@ class BulkImportDropZone extends StatelessWidget {
                     color: AppColors.gray400,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  Text(
-                    l10n.bulkImportDropPrimary,
-                    textAlign: TextAlign.center,
-                    style: AppTypography.body.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gray900,
+                  if (fileName != null && fileName!.isNotEmpty) ...[
+                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: AppColors.primaryColor),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      fileName!,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.gray900,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      l10n.bulkImportDropResumeHint,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ] else
+                    Text(
+                      l10n.bulkImportDropPrimary,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.body.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.gray900,
+                      ),
+                    ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     l10n.bulkImportDropFormats,

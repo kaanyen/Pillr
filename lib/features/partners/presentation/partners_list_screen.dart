@@ -19,8 +19,8 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../domain/partner.dart';
 import '../providers/partners_providers.dart';
@@ -199,6 +199,7 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final staffTotals = ref.watch(staffApprovedTotalsByPartnerProvider);
     final inSearch = _search.text.trim().isNotEmpty;
@@ -327,7 +328,7 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                           DataCell(Text(p.fellowship, style: AppTypography.body)),
                           DataCell(
                             Text(
-                              formatCedis(
+                              formatMoney(
                                 idx.isStaff == true ? (staffTotals.valueOrNull?[p.id] ?? 0) : p.totalApprovedAmount,
                               ),
                               style: AppTypography.body,
@@ -357,7 +358,7 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                       PillrEntityCard(
                         onTap: () => context.go('/partners/${p.id}'),
                         title: p.fullName,
-                        subtitle: '${p.memberId} · ${p.fellowship} · ${formatCedis(idx.isStaff == true ? (staffTotals.valueOrNull?[p.id] ?? 0) : p.totalApprovedAmount)}',
+                        subtitle: '${p.memberId} · ${p.fellowship} · ${formatMoney(idx.isStaff == true ? (staffTotals.valueOrNull?[p.id] ?? 0) : p.totalApprovedAmount)}',
                         trailing: p.isActive
                             ? const PillrBadge(label: 'Active', kind: PillrBadgeKind.approved, compact: true)
                             : const PillrBadge(label: 'Inactive', kind: PillrBadgeKind.inactive, compact: true),

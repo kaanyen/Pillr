@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "church_bootstrap_invites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "code", "order": "ASCENDING" },
+        { "fieldPath": "email", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "entries",
       "queryScope": "COLLECTION",
       "fields": [

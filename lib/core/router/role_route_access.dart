@@ -4,7 +4,7 @@ bool isPathForbiddenForRole(String location, String role) {
 
   bool starts(String p) => path == p || path.startsWith('$p/');
 
-  // Admin: no financial / entry areas
+  // Admin: no financial / entry areas (arms & periods are managed here too)
   if (role == 'admin') {
     if (starts('/search')) return true;
     if (starts('/approvals')) return true;
@@ -12,8 +12,6 @@ bool isPathForbiddenForRole(String location, String role) {
     if (starts('/partners')) return true;
     if (starts('/leaderboard')) return true;
     if (starts('/goals')) return true;
-    if (starts('/arms')) return true;
-    if (starts('/periods')) return true;
     return false;
   }
 

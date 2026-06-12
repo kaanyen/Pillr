@@ -57,7 +57,8 @@
   "bulkImportUploadTitle": "Upload spreadsheet",
   "bulkImportUploadSubtitle": "Drag and drop your Excel file here, or use Browse.",
   "bulkImportDropPrimary": "Choose a file or drag & drop it here.",
-  "bulkImportDropFormats": ".xlsx only (no macros). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.",
+  "bulkImportDropResumeHint": "Your draft is saved — pick a new file to replace it.",
+  "bulkImportDropFormats": ".xlsx only (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.",
   "bulkImportBrowseFiles": "Browse files",
   "bulkImportParsing": "Reading…",
   "bulkImportPickFile": "Choose Excel file",
@@ -130,6 +131,24 @@
     }
   },
   "bulkImportFieldDate": "Date",
+  "bulkImportFieldDateHint": "YYYY-MM-DD (e.g. 2026-05-17)",
+  "bulkImportSelectArm": "Select partnership arm",
+  "bulkImportCommitProgressTitle": "Importing entries…",
+  "bulkImportCommitDoneTitle": "Import complete",
+  "bulkImportCommitDismiss": "Minimize",
+  "bulkImportCommitProgressCount": "{current} of {total}",
+  "@bulkImportCommitProgressCount": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "bulkImportCommitSuccessToast": "Bulk import finished: {created} entries created.",
+  "@bulkImportCommitSuccessToast": {
+    "placeholders": {
+      "created": {"type": "int"}
+    }
+  },
   "bulkImportFieldName": "Name",
   "bulkImportFieldFellowship": "Fellowship",
   "bulkImportFieldPhone": "Phone",
@@ -189,6 +208,11 @@
   "bulkImportRowStatusReady": "Ready",
   "bulkImportRowStatusDuplicate": "Duplicate",
   "bulkImportReplaceFile": "Replace spreadsheet",
+  "bulkImportReplaceConfirmTitle": "Replace saved draft?",
+  "bulkImportReplaceConfirmMessage": "Your current spreadsheet and any edits will be discarded. This cannot be undone until you import again.",
+  "bulkImportReplaceConfirmAction": "Replace",
+  "bulkImportDraftRestored": "Draft restored — your previous import is ready to continue.",
+  "bulkImportRestoringDraft": "Restoring your saved import…",
   "bulkImportConfirmNotDuplicate": "Confirm new entry",
   "bulkImportResolutionExisting": "Existing partner",
   "bulkImportResolutionCreate": "Will create partner",

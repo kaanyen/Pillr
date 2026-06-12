@@ -440,10 +440,16 @@ abstract class AppLocalizations {
   /// **'Choose a file or drag & drop it here.'**
   String get bulkImportDropPrimary;
 
+  /// No description provided for @bulkImportDropResumeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your draft is saved — pick a new file to replace it.'**
+  String get bulkImportDropResumeHint;
+
   /// No description provided for @bulkImportDropFormats.
   ///
   /// In en, this message translates to:
-  /// **'.xlsx only (no macros). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.'**
+  /// **'.xlsx only (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.'**
   String get bulkImportDropFormats;
 
   /// No description provided for @bulkImportBrowseFiles.
@@ -607,6 +613,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Date'**
   String get bulkImportFieldDate;
+
+  /// No description provided for @bulkImportFieldDateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'YYYY-MM-DD (e.g. 2026-05-17)'**
+  String get bulkImportFieldDateHint;
+
+  /// No description provided for @bulkImportSelectArm.
+  ///
+  /// In en, this message translates to:
+  /// **'Select partnership arm'**
+  String get bulkImportSelectArm;
+
+  /// No description provided for @bulkImportCommitProgressTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing entries…'**
+  String get bulkImportCommitProgressTitle;
+
+  /// No description provided for @bulkImportCommitDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import complete'**
+  String get bulkImportCommitDoneTitle;
+
+  /// No description provided for @bulkImportCommitDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimize'**
+  String get bulkImportCommitDismiss;
+
+  /// No description provided for @bulkImportCommitProgressCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{current} of {total}'**
+  String bulkImportCommitProgressCount(int current, int total);
+
+  /// No description provided for @bulkImportCommitSuccessToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulk import finished: {created} entries created.'**
+  String bulkImportCommitSuccessToast(int created);
 
   /// No description provided for @bulkImportFieldName.
   ///
@@ -841,6 +889,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Replace spreadsheet'**
   String get bulkImportReplaceFile;
+
+  /// No description provided for @bulkImportReplaceConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace saved draft?'**
+  String get bulkImportReplaceConfirmTitle;
+
+  /// No description provided for @bulkImportReplaceConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current spreadsheet and any edits will be discarded. This cannot be undone until you import again.'**
+  String get bulkImportReplaceConfirmMessage;
+
+  /// No description provided for @bulkImportReplaceConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get bulkImportReplaceConfirmAction;
+
+  /// No description provided for @bulkImportDraftRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft restored — your previous import is ready to continue.'**
+  String get bulkImportDraftRestored;
+
+  /// No description provided for @bulkImportRestoringDraft.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring your saved import…'**
+  String get bulkImportRestoringDraft;
 
   /// No description provided for @bulkImportConfirmNotDuplicate.
   ///

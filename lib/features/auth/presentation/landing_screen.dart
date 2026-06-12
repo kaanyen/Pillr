@@ -40,6 +40,19 @@ class LandingScreen extends StatelessWidget {
               loading: false,
               onPressed: () => context.go('/join'),
             ),
+            const SizedBox(height: AppSpacing.md),
+            Center(
+              child: TextButton(
+                onPressed: () => context.go('/bootstrap-join'),
+                child: Text(
+                  'Starting a new church? Use your setup code',
+                  style: AppTypography.caption.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryColor,
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: AppSpacing.xl),
             Center(
               child: Wrap(

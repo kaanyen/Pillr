@@ -18,10 +18,10 @@ import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/date_utils.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../../entries/domain/partnership_entry.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../../periods/domain/partnership_period.dart';
@@ -92,6 +92,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final partnerAsync = ref.watch(partnerStreamProvider(widget.partnerId));
     final entriesAsync = ref.watch(partnerEntriesProvider(widget.partnerId));
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
@@ -228,8 +229,8 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                   builder: (context, c) {
                                     final narrow = c.maxWidth < 520;
                                     final summary = idx?.isStaff == true
-                                        ? 'Your approved total: ${formatCedis(staffApprovedTotal)}'
-                                        : 'Lifetime approved: ${formatCedis(partner.totalApprovedAmount)}';
+                                        ? 'Your approved total: ${formatMoney(staffApprovedTotal)}'
+                                        : 'Lifetime approved: ${formatMoney(partner.totalApprovedAmount)}';
                                     final grid = narrow
                                         ? Column(
                                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -398,7 +399,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                                 DataCell(Text(_fmt(e), style: AppTypography.body)),
                                                 DataCell(Text(_periodLabel(e.partnershipPeriodId, periods), style: AppTypography.body)),
                                                 DataCell(Text(_armLabel(e.partnershipArmId, arms), style: AppTypography.body)),
-                                                DataCell(Text(formatCedis(e.amountCedis), style: AppTypography.body)),
+                                                DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.body)),
                                                 DataCell(_statusBadge(e.status)),
                                               ],
                                             ),
@@ -410,7 +411,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                           for (final e in filtered)
                                             PillrEntityCard(
                                               onTap: () => context.go('/entries/${e.id}'),
-                                              title: formatCedis(e.amountCedis),
+                                              title: formatMoney(e.amountCedis),
                                               subtitle:
                                                   '${_fmt(e)} · ${_periodLabel(e.partnershipPeriodId, periods)} · ${_armLabel(e.partnershipArmId, arms)}',
                                               trailing: _statusBadge(e.status),

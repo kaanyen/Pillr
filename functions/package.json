@@ -9,7 +9,8 @@
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
     "lint": "eslint --ext .ts src/",
-    "seed-demo": "node scripts/seed-demo.cjs"
+    "seed-demo": "node scripts/seed-demo.cjs",
+    "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs"
   },
   "dependencies": {
     "@types/pdfkit": "^0.17.5",

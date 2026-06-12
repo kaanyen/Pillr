@@ -14,6 +14,7 @@ import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/entries/providers/entries_providers.dart';
+import '../../features/platform/providers/platform_providers.dart';
 
 class NavItemData {
   const NavItemData(this.path, this.label, this.icon, {this.badge});
@@ -35,12 +36,27 @@ List<NavSectionData> navSectionsForRole(
   AppLocalizations l10n,
   UserChurchIndex? idx, {
   int pendingApprovalCount = 0,
+  bool showPlatform = false,
 }) {
   if (idx == null) return [];
-  if (idx.isAdmin) {
+  List<NavSectionData> withPlatform(List<NavSectionData> inner) {
+    if (!showPlatform) return inner;
     return [
+      NavSectionData(
+        'Platform',
+        [NavItemData('/platform/churches', 'All churches', LucideIcons.building)],
+      ),
+      ...inner,
+    ];
+  }
+  if (idx.isAdmin) {
+    return withPlatform([
       NavSectionData(l10n.navSectionMain, [
         NavItemData('/dashboard', l10n.navDashboard, LucideIcons.layoutDashboard),
+      ]),
+      NavSectionData(l10n.navSectionConfiguration, [
+        NavItemData('/arms', l10n.navPartnershipArms, LucideIcons.heartHandshake),
+        NavItemData('/periods', l10n.navPeriods, LucideIcons.calendar),
       ]),
       NavSectionData(l10n.navSectionAdmin, [
         NavItemData('/users', l10n.navUsers, LucideIcons.users),
@@ -51,10 +67,10 @@ List<NavSectionData> navSectionsForRole(
         NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
         NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
       ]),
-    ];
+    ]);
   }
   if (idx.isPastor) {
-    return [
+    return withPlatform([
       NavSectionData(l10n.navSectionMain, [
         NavItemData('/dashboard', l10n.navDashboard, LucideIcons.home),
         NavItemData('/entries', l10n.navEntries, LucideIcons.fileText),
@@ -82,9 +98,9 @@ List<NavSectionData> navSectionsForRole(
         NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
         NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
       ]),
-    ];
+    ]);
   }
-  return [
+  return withPlatform([
     NavSectionData(l10n.navSectionMain, [
       NavItemData('/dashboard', l10n.navDashboard, LucideIcons.home),
       NavItemData('/entries', l10n.navEntries, LucideIcons.fileText),
@@ -94,7 +110,7 @@ List<NavSectionData> navSectionsForRole(
       NavItemData('/help', l10n.navHelp, LucideIcons.helpCircle),
       NavItemData('/settings', l10n.navSettings, LucideIcons.settings),
     ]),
-  ];
+  ]);
 }
 
 /// Sidebar: Reference 2–3 — grouped sections, soft active pill, Inter typography.
@@ -122,8 +138,14 @@ class AdaptiveSidebar extends ConsumerWidget {
     final branding = ref.watch(churchSettingsProvider).valueOrNull;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final pendingCount = ref.watch(pendingApprovalCountProvider);
+    final showPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
     final l10n = AppLocalizations.of(context);
-    final sections = navSectionsForRole(l10n, idx, pendingApprovalCount: pendingCount);
+    final sections = navSectionsForRole(
+      l10n,
+      idx,
+      pendingApprovalCount: pendingCount,
+      showPlatform: showPlatform,
+    );
 
     final width = collapsed
         ? AppConstants.sidebarWidthCollapsed

@@ -59,6 +59,26 @@ Firebase **Crashlytics** is skipped on **web** in `main.dart` (the plugin has no
 
 For invite emails, set `RESEND_API_KEY` in `functions/.env` (see earlier setup notes). The **From** address must use a domain you have **verified in Resend** (Dashboard → Domains). Override with `RESEND_FROM` if needed, e.g. `RESEND_FROM="The Pillr <invites@thepillr.com>"`. The default matches `thepillr.com`, not `pillr.app`.
 
+Optional: set `PUBLIC_WEB_ORIGIN` (no trailing slash) so bootstrap invite emails link to the correct web host (defaults to `https://thepillr2.web.app`).
+
+## Platform admin and church bootstrap
+
+**Platform operators** (separate from a church’s `admin` role) can invite brand-new churches and manage tenant status.
+
+1. **Grant platform admin** — In Firestore, create `platform_admins/{firebaseAuthUid}` (empty document is enough). The signed-in user can then open **Platform → All churches** in the app and call `createBootstrapInvite`.
+2. **Email allowlist (optional)** — Set `PLATFORM_ADMIN_EMAILS` on Cloud Functions (comma-separated addresses) so listed accounts are treated as platform admins without a `platform_admins` doc.
+3. **Bootstrap flow** — Platform admin sends a bootstrap invite → recipient opens `/bootstrap-join`, signs up or signs in, redeems the code → new `churches` doc + membership → first-run **onboarding** wizard (arms, period, optional teammate invite) → `churchSetupCompletedAt` is set.
+4. **Legacy churches** — Run once so existing tenants are not forced through onboarding:
+
+   ```bash
+   npm run migrate-church-setup --prefix functions
+   ```
+
+   (Same credentials as `seed-demo`.) The seed script also sets `churchSetupCompletedAt`, `isActive: true`, and branding fields for the demo church.
+5. **Suspended workspace** — If `churches/{id}.isActive` is `false`, members see a read-only **Workspace unavailable** screen and can sign out. Platform admins who also belong to that church can still open `/platform/churches` to manage other tenants.
+
+Callable Functions (see `functions/src/index.ts`): `validateBootstrapInvite`, `createBootstrapInvite`, `redeemBootstrapInvite`, `listChurchSummariesForPlatform`, `setChurchActive`. Client apps cannot read or write `church_bootstrap_invites` or `platform_audit_logs` (rules deny all).
+
 ## Phase 4 — Deploy checklist
 
 1. **Firestore** — `firebase deploy --only firestore:rules,firestore:indexes` (includes `partnerId` + `createdBy` on `entries` for duplicate checks).

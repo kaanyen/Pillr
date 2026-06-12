@@ -9,6 +9,7 @@ import 'core/session/session_idle_listener.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/color_utils.dart';
 import 'features/church/providers/church_settings_providers.dart';
+import 'features/entries/bulk_import/bulk_import_commit_progress.dart';
 
 class PillrApp extends ConsumerWidget {
   const PillrApp({super.key});
@@ -28,7 +29,9 @@ class PillrApp extends ConsumerWidget {
       routerConfig: appRouter,
       builder: (context, child) {
         return SessionIdleListener(
-          child: child ?? const SizedBox.shrink(),
+          child: BulkImportCommitProgressOverlay(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

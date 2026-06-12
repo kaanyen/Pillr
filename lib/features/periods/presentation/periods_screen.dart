@@ -32,18 +32,21 @@ class PeriodsScreen extends ConsumerWidget {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final periods = ref.watch(periodsStreamProvider);
 
-    if (idx != null && !idx.isPastor) {
+    if (idx != null && !idx.isPastor && !idx.isAdmin) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Text(
-            'Partnership periods are managed by pastors.',
+            'Partnership periods are managed by pastors and church admins.',
             style: AppTypography.body,
             textAlign: TextAlign.center,
           ),
         ),
       );
     }
+
+    // Church admins manage periods but do not see roll-up totals or report PDFs here.
+    final showFinancialRollups = idx?.isAdmin != true;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -98,7 +101,7 @@ class PeriodsScreen extends ConsumerWidget {
                 builder: (context, constraints) {
                   final useCards = PillrLayout.useCardListLayout(constraints.maxWidth);
                   final table = PillrDataTable(
-                    minWidth: 800,
+                    minWidth: showFinancialRollups ? 800 : 640,
                     columns: [
                       DataColumn2(
                         label: Text('NAME', style: AppTypography.tableHeader),
@@ -106,7 +109,8 @@ class PeriodsScreen extends ConsumerWidget {
                       ),
                       DataColumn2(label: Text('RANGE', style: AppTypography.tableHeader)),
                       DataColumn2(label: Text('ACTIVE', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('TOTAL ₵', style: AppTypography.tableHeader)),
+                      if (showFinancialRollups)
+                        DataColumn2(label: Text('TOTAL ₵', style: AppTypography.tableHeader)),
                       DataColumn2(
                         label: Text('ACTIONS', style: AppTypography.tableHeader),
                         fixedWidth: 220,
@@ -126,7 +130,8 @@ class PeriodsScreen extends ConsumerWidget {
                                   ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 20)
                                   : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 20),
                             ),
-                            DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
+                            if (showFinancialRollups)
+                              DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
                             DataCell(
                               Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -138,7 +143,9 @@ class PeriodsScreen extends ConsumerWidget {
                                           : () => _confirmActivate(context, ref, idx.churchId, r),
                                       child: const Text('Activate'),
                                     ),
-                                  if (r.summaryPdfUrl != null && r.summaryPdfUrl!.isNotEmpty)
+                                  if (showFinancialRollups &&
+                                      r.summaryPdfUrl != null &&
+                                      r.summaryPdfUrl!.isNotEmpty)
                                     TextButton(
                                       onPressed: () async {
                                         final u = Uri.parse(r.summaryPdfUrl!);
@@ -173,8 +180,9 @@ class PeriodsScreen extends ConsumerWidget {
                       for (final r in rows)
                         PillrEntityCard(
                           title: r.name,
-                          subtitle:
-                              '${df.format(r.startDate)} – ${df.format(r.endDate)} · Total ${r.totalApprovedAmount.toStringAsFixed(2)}',
+                          subtitle: showFinancialRollups
+                              ? '${df.format(r.startDate)} – ${df.format(r.endDate)} · Total ${r.totalApprovedAmount.toStringAsFixed(2)}'
+                              : '${df.format(r.startDate)} – ${df.format(r.endDate)}',
                           trailing: r.isActive
                               ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 22)
                               : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 22),
@@ -190,7 +198,9 @@ class PeriodsScreen extends ConsumerWidget {
                                       : () => _confirmActivate(context, ref, idx.churchId, r),
                                   child: const Text('Activate'),
                                 ),
-                              if (r.summaryPdfUrl != null && r.summaryPdfUrl!.isNotEmpty)
+                              if (showFinancialRollups &&
+                                  r.summaryPdfUrl != null &&
+                                  r.summaryPdfUrl!.isNotEmpty)
                                 TextButton(
                                   onPressed: () async {
                                     final uri = Uri.parse(r.summaryPdfUrl!);

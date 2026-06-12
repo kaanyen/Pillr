@@ -4,9 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import 'app_router_redirect.dart';
 import '../../features/arms/presentation/arms_screen.dart';
+import '../../features/auth/presentation/bootstrap_join_screen.dart';
 import '../../features/auth/presentation/join_screen.dart';
 import '../../features/auth/presentation/landing_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/workspace_suspended_screen.dart';
+import '../../features/onboarding/presentation/onboarding_wizard_screen.dart';
+import '../../features/platform/presentation/platform_churches_screen.dart';
 import '../../features/dashboard/presentation/role_dashboard_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
 import '../../features/entries/presentation/entries_list_screen.dart';
@@ -62,6 +66,29 @@ GoRouter createRouter() {
           final code = state.uri.queryParameters['code'];
           return NoTransitionPage(child: JoinScreen(prefilledCode: code));
         },
+      ),
+      GoRoute(
+        path: '/bootstrap-join',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final code = state.uri.queryParameters['code'];
+          return NoTransitionPage(child: BootstrapJoinScreen(prefilledCode: code));
+        },
+      ),
+      GoRoute(
+        path: '/onboarding',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => const NoTransitionPage(child: OnboardingWizardScreen()),
+      ),
+      GoRoute(
+        path: '/workspace-suspended',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => const NoTransitionPage(child: WorkspaceSuspendedScreen()),
+      ),
+      GoRoute(
+        path: '/platform/churches',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => const NoTransitionPage(child: PlatformChurchesScreen()),
       ),
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),

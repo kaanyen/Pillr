@@ -22,12 +22,12 @@ import '../../../core/theme/pillr_layout.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/entry_export.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../../periods/providers/periods_providers.dart';
 import '../domain/partnership_entry.dart';
+import '../providers/entries_list_session_provider.dart';
 import '../providers/entries_providers.dart';
 
 class EntriesListScreen extends ConsumerStatefulWidget {
@@ -39,6 +39,7 @@ class EntriesListScreen extends ConsumerStatefulWidget {
 
 class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
   final List<PartnershipEntry> _items = [];
+  final ScrollController _scrollController = ScrollController();
   DocumentSnapshot<Map<String, dynamic>>? _cursor;
   bool _hasMore = true;
   bool _loading = true;
@@ -56,10 +57,79 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
 
   String? get _statusFilterParam => _statusSegment == 'all' ? null : _statusSegment;
 
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _pushToSession();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+    ref.read(entriesListSessionProvider.notifier).apply(
+          churchId: idx.churchId,
+          scrollOffset: _scrollController.offset,
+        );
+  }
+
+  void _pushToSession() {
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+    ref.read(entriesListSessionProvider.notifier).apply(
+          churchId: idx.churchId,
+          initialized: _items.isNotEmpty || !_loading,
+          items: List<PartnershipEntry>.from(_items),
+          hasMore: _hasMore,
+          statusSegment: _statusSegment,
+          newestFirst: _newestFirst,
+          filterArmId: _filterArmId,
+          filterPeriodId: _filterPeriodId,
+          scrollOffset: _scrollController.hasClients ? _scrollController.offset : 0,
+        );
+  }
+
+  void _hydrateFromSession(String churchId) {
+    final s = ref.read(entriesListSessionProvider);
+    if (s.churchId != churchId || !s.initialized) return;
+    setState(() {
+      _items
+        ..clear()
+        ..addAll(s.items);
+      _hasMore = s.hasMore;
+      _statusSegment = s.statusSegment;
+      _newestFirst = s.newestFirst;
+      _filterArmId = s.filterArmId;
+      _filterPeriodId = s.filterPeriodId;
+      _loading = false;
+      _error = null;
+    });
+    final offset = s.scrollOffset;
+    if (offset > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        final max = _scrollController.position.maxScrollExtent;
+        _scrollController.jumpTo(offset.clamp(0, max));
+      });
+    }
+  }
+
   void _ensureInitialLoad() {
     final i = ref.read(userChurchIndexProvider).valueOrNull;
     if (i == null || _scheduledInitial) return;
     _scheduledInitial = true;
+    final session = ref.read(entriesListSessionProvider);
+    if (session.churchId == i.churchId && session.initialized && session.items.isNotEmpty) {
+      _hydrateFromSession(i.churchId);
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadFirst();
     });
@@ -91,6 +161,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
         _hasMore = page.hasMore;
         _loading = false;
       });
+      _pushToSession();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -123,6 +194,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
         _hasMore = page.hasMore;
         _loadingMore = false;
       });
+      _pushToSession();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -155,6 +227,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
       await shareEntriesPdf(
         title: l10n.entriesPdfTitle,
         subtitle: churchName,
+        formatAmount: ref.read(churchMoneyFormatProvider),
         columnHeaders: [
           l10n.pdfTableHeaderPartner,
           l10n.pdfTableHeaderAmount,
@@ -210,6 +283,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final l10n = AppLocalizations.of(context);
 
@@ -217,6 +291,9 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
       final pc = prev?.valueOrNull?.churchId;
       final nc = next.valueOrNull?.churchId;
       if (pc != nc) {
+        if (nc != null) {
+          ref.read(entriesListSessionProvider.notifier).resetForChurch(nc);
+        }
         _items.clear();
         _cursor = null;
         _hasMore = true;
@@ -224,6 +301,8 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
         _scheduledInitial = false;
         _statusSegment = 'all';
         _newestFirst = true;
+        _filterArmId = null;
+        _filterPeriodId = null;
         _ensureInitialLoad();
       }
     });
@@ -426,7 +505,10 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                         for (final a in arms)
                           DropdownMenuItem<String?>(value: a.id, child: Text(a.name)),
                       ],
-                      onChanged: (v) => setState(() => _filterArmId = v),
+                      onChanged: (v) {
+                        setState(() => _filterArmId = v);
+                        _pushToSession();
+                      },
                     ),
                   ),
                 ],
@@ -445,7 +527,10 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                         for (final p in periods)
                           DropdownMenuItem<String?>(value: p.id, child: Text(p.name)),
                       ],
-                      onChanged: (v) => setState(() => _filterPeriodId = v),
+                      onChanged: (v) {
+                        setState(() => _filterPeriodId = v);
+                        _pushToSession();
+                      },
                     ),
                   ),
                 ],
@@ -514,7 +599,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           e.partnerSnapshot['fullName']?.toString() ?? '—',
                           style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
                         )),
-                        DataCell(Text(formatCedis(e.amountCedis), style: AppTypography.body)),
+                        DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.body)),
                         DataCell(_AnimatedStatusBadge(key: ValueKey('${e.id}-${e.status}'), status: e.status, l10n: l10n)),
                         DataCell(Text(
                           dateFmt(e),
@@ -532,7 +617,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                       onTap: () => context.go('/entries/${e.id}'),
                       title: e.partnerSnapshot['fullName']?.toString() ?? '—',
                       subtitle:
-                          '${l10n.entriesColAmount}: ${formatCedis(e.amountCedis)} · ${l10n.entriesColSubmitted}: ${dateFmt(e)}',
+                          '${l10n.entriesColAmount}: ${formatMoney(e.amountCedis)} · ${l10n.entriesColSubmitted}: ${dateFmt(e)}',
                       trailing: _AnimatedStatusBadge(key: ValueKey('c-${e.id}-${e.status}'), status: e.status, l10n: l10n),
                     ),
                 ],
@@ -562,6 +647,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
     return RefreshIndicator(
       onRefresh: _loadFirst,
       child: SingleChildScrollView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: body,

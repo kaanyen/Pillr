@@ -11,7 +11,6 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -40,6 +39,7 @@ class PastorDashboardScreen extends ConsumerWidget {
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final churchName = ref.watch(churchNameProvider) ?? 'your church';
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
 
     String armName(String id) {
       for (final a in arms) {
@@ -153,7 +153,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                       child: _AnimatedIntStatCard(
                         label: 'Total collected (approved)',
                         value: stats.totalApprovedCedis,
-                        format: formatCedis,
+                        format: (v) => formatMoney(v),
                         periodLabel: 'All approved entries',
                         backgroundColor: DashboardTints.totalBg,
                         iconCircleColor: DashboardTints.totalIconCircle,
@@ -218,7 +218,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                       const SizedBox(width: AppSpacing.md),
                       Flexible(
                         child: Text(
-                          '${stats.totalEntries} entries · ${formatCedis(stats.totalApprovedCedis)} approved',
+                          '${stats.totalEntries} entries · ${formatMoney(stats.totalApprovedCedis)} approved',
                           style: AppTypography.caption,
                           textAlign: TextAlign.end,
                         ),
@@ -290,7 +290,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
                                 Text(
-                                  '${formatCedis(g.currentAmountCedis)} / ${formatCedis(g.targetAmountCedis)}',
+                                  '${formatMoney(g.currentAmountCedis)} / ${formatMoney(g.targetAmountCedis)}',
                                   style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
                                 ),
                               ],
@@ -322,6 +322,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                           _LeaderboardRow(
                             row: preview[i],
                             showDivider: i < preview.length - 1,
+                            formatMoney: formatMoney,
                           ),
                       ],
                     ),
@@ -374,10 +375,12 @@ class _LeaderboardRow extends StatelessWidget {
   const _LeaderboardRow({
     required this.row,
     required this.showDivider,
+    required this.formatMoney,
   });
 
   final LeaderboardRow row;
   final bool showDivider;
+  final String Function(num) formatMoney;
 
   @override
   Widget build(BuildContext context) {
@@ -422,7 +425,7 @@ class _LeaderboardRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  formatCedis(row.totalCedis),
+                  formatMoney(row.totalCedis),
                   style: AppTypography.body.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.gray900,

@@ -72,6 +72,8 @@ Map<String, dynamic> _afterEntryValues({
 String _partnerCreateKey(BulkResolvedRow r) =>
     '${normalizePhoneDigits(r.phone)}|${r.fullName.toLowerCase().trim()}|${r.fellowship.toLowerCase().trim()}';
 
+typedef BulkImportCommitProgressCallback = void Function(int current, int total, String message);
+
 Future<BulkImportCommitResult> commitBulkImport({
   required WidgetRef ref,
   required String churchId,
@@ -83,6 +85,7 @@ Future<BulkImportCommitResult> commitBulkImport({
   required bool allChurchEntries,
   required bool viewerIsPastor,
   required Set<int> duplicateAcknowledgedSheetRows,
+  BulkImportCommitProgressCallback? onProgress,
 }) async {
   final partnersRepo = ref.read(partnersRepositoryProvider);
   final entriesRepo = ref.read(entriesRepositoryProvider);
@@ -147,6 +150,10 @@ Future<BulkImportCommitResult> commitBulkImport({
     );
     return p;
   }
+
+  final processable = rows.where((r) => !r.isBlocking && r.resolution != PartnerResolutionKind.ambiguous).length;
+  var processed = 0;
+  onProgress?.call(0, processable > 0 ? processable : rows.length, 'Starting import…');
 
   for (final r in rows) {
     if (r.isBlocking) {
@@ -263,6 +270,13 @@ Future<BulkImportCommitResult> commitBulkImport({
       skipped++;
       errors.add('Row ${r.sheetRowNumber}: $e');
     }
+
+    processed++;
+    onProgress?.call(
+      processed,
+      processable > 0 ? processable : rows.length,
+      'Row ${r.sheetRowNumber}',
+    );
   }
 
   ref.invalidate(entriesListProvider);

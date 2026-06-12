@@ -32,4 +32,23 @@ class ChurchSettingsRepository {
     if (logoStoragePath != null) map['logoStoragePath'] = logoStoragePath;
     await _church(churchId).set(map, SetOptions(merge: true));
   }
+
+  Future<void> updateLocaleCurrency({
+    required String churchId,
+    required String currency,
+    required String currencySymbol,
+  }) async {
+    await _church(churchId).set({
+      'currency': currency.toUpperCase(),
+      'currencySymbol': currencySymbol,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> completeSetup(String churchId) async {
+    await _church(churchId).set({
+      'churchSetupCompletedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

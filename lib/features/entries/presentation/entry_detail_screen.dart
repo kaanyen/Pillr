@@ -14,12 +14,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../auth/domain/church_user.dart';
 import '../../auth/domain/user_church_index.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../domain/partnership_entry.dart';
 import '../providers/entries_providers.dart';
 
@@ -30,6 +30,7 @@ class EntryDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final entryAsync = ref.watch(entryDetailProvider(entryId));
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
@@ -69,7 +70,7 @@ class EntryDetailScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: AppSpacing.lg),
-                  _EntryReceiptCard(entry: entry)
+                  _EntryReceiptCard(entry: entry, formatMoney: formatMoney)
                       .animate()
                       .fade(duration: 400.ms)
                       .slideY(begin: 0.05, curve: Curves.easeOutCubic),
@@ -201,9 +202,10 @@ bool _canEditEntry(UserChurchIndex? idx, PartnershipEntry entry) {
 }
 
 class _EntryReceiptCard extends StatelessWidget {
-  const _EntryReceiptCard({required this.entry});
+  const _EntryReceiptCard({required this.entry, required this.formatMoney});
 
   final PartnershipEntry entry;
+  final String Function(num) formatMoney;
 
   String get _headline {
     switch (entry.status) {
@@ -255,7 +257,7 @@ class _EntryReceiptCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _ReceiptKvRow(label: 'Amount', value: formatCedis(entry.amountCedis)),
+                  _ReceiptKvRow(label: 'Amount', value: formatMoney(entry.amountCedis)),
                   _ReceiptKvRow(label: 'Date given', value: formatFirestoreDate(entry.dateGiven)),
                   _ReceiptKvRow(
                     label: 'Partnership arm',

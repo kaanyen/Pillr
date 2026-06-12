@@ -28,7 +28,7 @@ class PeriodsRepository {
     return q.docs.map(PartnershipPeriod.fromDoc).toList();
   }
 
-  Future<void> createPeriod({
+  Future<String> createPeriod({
     required String churchId,
     required String uid,
     required String name,
@@ -53,6 +53,7 @@ class PeriodsRepository {
       'createdAt': now,
       'updatedAt': now,
     });
+    return ref.id;
   }
 
   Future<void> updatePeriod({

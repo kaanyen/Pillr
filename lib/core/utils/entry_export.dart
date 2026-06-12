@@ -13,6 +13,7 @@ Future<void> shareEntriesPdf({
   required String subtitle,
   required List<PartnershipEntry> entries,
   required List<String> columnHeaders,
+  String Function(num)? formatAmount,
   String filename = 'pillr-entries.pdf',
   String? logoUrl,
   String? generatedAtLine,
@@ -22,11 +23,12 @@ Future<void> shareEntriesPdf({
   final doc = pw.Document();
   final logo = await resolvePdfLogo(logoUrl);
   final whenLine = generatedAtLine ?? DateTime.now().toIso8601String();
+  final fmt = formatAmount ?? formatCedis;
   final data = <List<String>>[
     for (final e in entries)
       [
         e.partnerSnapshot['fullName']?.toString() ?? '—',
-        formatCedis(e.amountCedis),
+        fmt(e.amountCedis),
         e.status,
         e.periodSnapshot['name']?.toString() ?? '—',
         e.armSnapshot['name']?.toString() ?? '—',

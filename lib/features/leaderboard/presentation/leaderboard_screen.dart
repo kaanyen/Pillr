@@ -9,7 +9,6 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/pdf_report_utils.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../../arms/domain/partnership_arm.dart';
@@ -33,6 +32,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final entriesAsync = ref.watch(entriesListProvider);
     final periodsAsync = ref.watch(periodsStreamProvider);
     final armsAsync = ref.watch(armsStreamProvider);
@@ -92,7 +92,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                                         [
                                           r.rank.toString(),
                                           r.partnerName,
-                                          formatCedis(r.totalCedis),
+                                          formatMoney(r.totalCedis),
                                         ],
                                     ],
                                     filename: 'pillr-leaderboard.pdf',
@@ -133,7 +133,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       if (rows.isEmpty)
                         Text('No approved entries for this filter.', style: AppTypography.body)
                       else
-                        ...rows.map((r) => _LeaderTile(row: r)),
+                        ...rows.map((r) => _LeaderTile(row: r, formatMoney: formatMoney)),
                     ],
                   ),
                 );
@@ -209,9 +209,10 @@ class _ArmDropdown extends StatelessWidget {
 }
 
 class _LeaderTile extends StatelessWidget {
-  const _LeaderTile({required this.row});
+  const _LeaderTile({required this.row, required this.formatMoney});
 
   final LeaderboardRow row;
+  final String Function(num) formatMoney;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +249,7 @@ class _LeaderTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  formatCedis(row.totalCedis),
+                  formatMoney(row.totalCedis),
                   style: AppTypography.body.copyWith(color: AppColors.primaryColor),
                 ),
               ],

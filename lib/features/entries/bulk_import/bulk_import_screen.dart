@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -10,9 +12,11 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
 import '../../../core/theme/pillr_layout.dart';
+import '../../../common/widgets/pillr_dropdown_field.dart';
 import '../../../common/widgets/pillr_form_dialog.dart';
 import '../../../common/widgets/pillr_surface_card.dart';
 import '../../../common/widgets/pillr_text_field.dart';
+import '../../arms/domain/partnership_arm.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart' show AppRadius, AppSpacing;
 import '../../../core/theme/app_typography.dart';
@@ -29,6 +33,8 @@ import 'bulk_import_drop_zone.dart';
 import 'bulk_import_models.dart';
 import 'bulk_import_parser.dart';
 import 'bulk_import_resolver.dart';
+import 'bulk_import_commit_progress.dart';
+import 'bulk_import_session_store.dart';
 import 'bulk_import_xlsx_pick.dart';
 import '../providers/entries_providers.dart';
 
@@ -51,7 +57,7 @@ class BulkImportScreen extends ConsumerStatefulWidget {
   ConsumerState<BulkImportScreen> createState() => _BulkImportScreenState();
 }
 
-class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
+class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with WidgetsBindingObserver {
   List<BulkRawRow>? _rawRows;
   List<BulkImportIssue> _fileIssues = [];
   List<BulkResolvedRow>? _resolved;
@@ -60,10 +66,110 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
   bool _parsing = false;
   bool _loadingPartners = false;
   bool _committing = false;
+  bool _restoringSession = false;
   String? _error;
 
   /// Sheet row numbers the user has confirmed are intentional (not a duplicate).
   final Set<int> _duplicateAcknowledgedSheetRows = {};
+
+  String? _fileName;
+  Uint8List? _fileBytes;
+  bool _sessionRestored = false;
+  String? _persistUid;
+  String? _persistChurchId;
+  Timer? _persistDebounce;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restorePersistedSession());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _persistDebounce?.cancel();
+    _persistSession();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _persistDebounce?.cancel();
+      _persistSession();
+    }
+  }
+
+  void _cachePersistIds(UserChurchIndex idx) {
+    _persistUid ??= idx.uid;
+    _persistChurchId ??= idx.churchId;
+  }
+
+  void _schedulePersistSession() {
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 300), () {
+      _persistSession();
+    });
+  }
+
+  Future<void> _persistSession() async {
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx != null) _cachePersistIds(idx);
+    final uid = _persistUid;
+    final churchId = _persistChurchId;
+    if (uid == null || churchId == null) return;
+
+    final rows = _rawRows;
+    if (rows == null) return;
+    if (rows.isEmpty) {
+      await BulkImportSessionStore.clear(uid: uid, churchId: churchId);
+      return;
+    }
+    await BulkImportSessionStore.save(
+      uid: uid,
+      churchId: churchId,
+      fileName: _fileName,
+      fileBytes: _fileBytes,
+      rawRows: rows,
+      fileIssues: _fileIssues,
+      duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+    );
+  }
+
+  Future<void> _restorePersistedSession() async {
+    if (_sessionRestored) return;
+    _sessionRestored = true;
+    final idx = await _waitForChurchIndex();
+    if (idx == null || !mounted) return;
+    _cachePersistIds(idx);
+    final saved = await BulkImportSessionStore.load(uid: idx.uid, churchId: idx.churchId);
+    if (saved == null || saved.rawRows.isEmpty || !mounted) return;
+    setState(() {
+      _restoringSession = true;
+      _fileName = saved.fileName;
+      _fileBytes = saved.fileBytes;
+      _rawRows = saved.rawRows;
+      _fileIssues = saved.fileIssues;
+      _duplicateAcknowledgedSheetRows
+        ..clear()
+        ..addAll(saved.duplicateAcknowledgedSheetRows);
+      _result = null;
+      _resolved = null;
+    });
+    await _loadPartnersAndResolve();
+    if (!mounted) return;
+    setState(() => _restoringSession = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).bulkImportDraftRestored)),
+    );
+  }
+
+  bool get _hasDraftRows => _rawRows != null && _rawRows!.isNotEmpty;
+
+  bool get _isResolvingDraft =>
+      _restoringSession || (_hasDraftRows && _resolved == null && (_loadingPartners || _parsing));
 
   bool _rowHasDuplicateIssue(BulkResolvedRow r) {
     return r.issues.any(
@@ -110,6 +216,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         body: Center(child: Text(l10n.bulkImportAccessDenied)),
       );
     }
+    _cachePersistIds(idx);
+
+    final showUploadZone = !_hasDraftRows && !_isResolvingDraft;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceColor,
@@ -140,7 +249,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                   ),
                 if (_result != null) _buildResult(context, l10n, _result!),
                 if (_result == null) ...[
-                  if (_resolved == null || _rawRows == null) ...[
+                  if (_isResolvingDraft) ...[
+                    _buildRestoringDraft(context, l10n),
+                  ] else if (showUploadZone) ...[
                     Text(
                       l10n.bulkImportUploadTitle,
                       style: AppTypography.heading3.copyWith(color: AppColors.gray900),
@@ -157,8 +268,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                     BulkImportDropZone(
                       onPick: () => _pickAndParse(context),
                       loading: _parsing || _committing,
+                      fileName: _fileName,
                     ),
-                  ] else ...[
+                  ] else if (_hasDraftRows) ...[
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
@@ -168,7 +280,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                       ),
                     ),
                   ],
-                  if (_loadingPartners)
+                  if (_loadingPartners && !_isResolvingDraft)
                     Padding(
                       padding: const EdgeInsets.only(top: AppSpacing.md),
                       child: Text(l10n.bulkImportLoadingPartners, style: AppTypography.caption),
@@ -565,9 +677,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                             issueLabel: (code) => _issueLabel(l10n, code),
                             resolutionLabel: (k) => _resolutionLabel(l10n, k),
                             duplicateAcknowledged: _duplicateAcknowledgedSheetRows.contains(sr),
-                            onAcknowledgeDuplicate: () => setState(() {
-                              _duplicateAcknowledgedSheetRows.add(sr);
-                            }),
+                            onAcknowledgeDuplicate: () {
+                              setState(() => _duplicateAcknowledgedSheetRows.add(sr));
+                              _schedulePersistSession();
+                            },
                           );
                         }),
                       ],
@@ -666,6 +779,38 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     };
   }
 
+  Widget _buildRestoringDraft(BuildContext context, AppLocalizations l10n) {
+    return PillrSurfaceCard(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              l10n.bulkImportRestoringDraft,
+              textAlign: TextAlign.center,
+              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+            ),
+            if (_fileName != null && _fileName!.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                _fileName!,
+                textAlign: TextAlign.center,
+                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildResult(BuildContext context, AppLocalizations l10n, BulkImportCommitResult r) {
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
@@ -697,33 +842,50 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
   }
 
   Future<void> _pickAndParse(BuildContext context) async {
-    setState(() {
-      _error = null;
-      _fileIssues = [];
-      _rawRows = null;
-      _resolved = null;
-      _result = null;
-      _duplicateAcknowledgedSheetRows.clear();
-    });
+    final l10n = AppLocalizations.of(context);
+
+    if (_hasDraftRows) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.bulkImportReplaceConfirmTitle),
+          content: Text(l10n.bulkImportReplaceConfirmMessage),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.bulkImportCancel)),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.bulkImportReplaceConfirmAction),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+
     final picked = await pickBulkImportXlsx();
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
+
     final nameLower = picked.name.toLowerCase();
     final dot = nameLower.lastIndexOf('.');
     final ext = dot >= 0 ? nameLower.substring(dot + 1) : '';
     final isXlsx = ext == 'xlsx' || nameLower.endsWith('.xlsx');
     if (!isXlsx) {
-      setState(() => _error = AppLocalizations.of(context).bulkImportNeedXlsx);
+      setState(() => _error = l10n.bulkImportNeedXlsx);
       return;
     }
     if (ext == 'xlsm' || nameLower.endsWith('.xlsm')) {
-      setState(() => _error = AppLocalizations.of(context).bulkImportNoMacros);
+      setState(() => _error = l10n.bulkImportNoMacros);
       return;
     }
-    final bytes = picked.bytes;
-    setState(() => _parsing = true);
+
+    setState(() {
+      _error = null;
+      _parsing = true;
+    });
     try {
-      final parsed = parseBulkImportWorkbook(bytes);
+      final parsed = parseBulkImportWorkbook(picked.bytes);
       if (parsed.rows.isEmpty && parsed.fileIssues.isNotEmpty) {
+        if (!mounted) return;
         setState(() {
           _fileIssues = parsed.fileIssues;
           _parsing = false;
@@ -731,22 +893,31 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         return;
       }
       if (parsed.rows.isEmpty) {
+        if (!mounted) return;
         setState(() {
-          _error = AppLocalizations.of(context).bulkImportNoRows;
+          _error = l10n.bulkImportNoRows;
           _fileIssues = parsed.fileIssues;
           _parsing = false;
         });
         return;
       }
+      if (!mounted) return;
       setState(() {
+        _fileName = picked.name;
+        _fileBytes = picked.bytes;
         _rawRows = parsed.rows;
         _fileIssues = parsed.fileIssues;
+        _resolved = null;
+        _result = null;
+        _duplicateAcknowledgedSheetRows.clear();
         _parsing = false;
       });
       await _loadPartnersAndResolve();
+      await _persistSession();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _error = '${AppLocalizations.of(context).bulkImportParseError}: $e';
+        _error = '${l10n.bulkImportParseError}: $e';
         _parsing = false;
       });
     }
@@ -776,6 +947,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       });
       return;
     }
+    _cachePersistIds(idx);
     try {
       final armsRepo = ref.read(armsRepositoryProvider);
       final periodsRepo = ref.read(periodsRepositoryProvider);
@@ -803,6 +975,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         _loadingPartners = false;
       });
       await _applyDatabaseDuplicateFlags(idx);
+      await _persistSession();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -853,6 +1026,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       }
       if (!mounted) return;
       setState(() => _resolved = updated);
+      await _persistSession();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = '$e');
@@ -881,14 +1055,22 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     });
     if (_rawRows!.isEmpty) {
       setState(() => _resolved = []);
+      await _persistSession();
       return;
     }
     await _reResolve();
+    await _persistSession();
   }
 
   Future<void> _editRow(BuildContext context, AppLocalizations l10n, int index) async {
     final raw = _rawRows;
     if (raw == null || index >= raw.length) return;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+    final arms = await ref.read(armsRepositoryProvider).fetchArms(idx.churchId);
+    if (!context.mounted) return;
+    final activeArms = arms.where((a) => a.isActive).toList();
+
     final row = raw[index];
     final v = Map<BulkImportColumn, String>.from(row.valuesByColumn);
 
@@ -901,6 +1083,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     final armCtrl = TextEditingController(text: v[BulkImportColumn.category] ?? '');
     final notesCtrl = TextEditingController(text: v[BulkImportColumn.givenToNotes] ?? '');
     var pastorYes = _parseYes(v[BulkImportColumn.pastorConfirmed]);
+    PartnershipArm? selectedArm;
+    for (final a in activeArms) {
+      if (a.name.toLowerCase() == armCtrl.text.trim().toLowerCase()) {
+        selectedArm = a;
+        break;
+      }
+    }
 
     await showDialog<void>(
       context: context,
@@ -923,7 +1112,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                     v[BulkImportColumn.contact] = phoneCtrl.text.trim();
                     v[BulkImportColumn.email] = emailCtrl.text.trim();
                     v[BulkImportColumn.amount] = amountCtrl.text.trim();
-                    v[BulkImportColumn.category] = armCtrl.text.trim();
+                    v[BulkImportColumn.category] =
+                        (selectedArm?.name ?? armCtrl.text).trim();
                     v[BulkImportColumn.givenToNotes] = notesCtrl.text.trim();
                     v[BulkImportColumn.pastorConfirmed] = pastorYes ? 'YES' : 'NO';
                     _rawRows![index] = BulkRawRow(
@@ -931,7 +1121,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                       valuesByColumn: v,
                     );
                     Navigator.pop(ctx);
-                    _reResolve();
+                    _reResolve().then((_) => _schedulePersistSession());
                   },
                   child: Text(l10n.bulkImportSave),
                 ),
@@ -967,6 +1157,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                         PillrTextField(
                           controller: dateCtrl,
                           label: l10n.bulkImportFieldDate,
+                          hint: l10n.bulkImportFieldDateHint,
                         ),
                         PillrTextField(
                           controller: nameCtrl,
@@ -999,9 +1190,33 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      PillrTextField(
-                        controller: armCtrl,
-                        label: l10n.bulkImportFieldArm,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          l10n.bulkImportFieldArm,
+                          style: AppTypography.caption.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.gray600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      PillrDropdownButton<String>(
+                        value: selectedArm?.id,
+                        hint: Text(l10n.bulkImportSelectArm),
+                        onChanged: activeArms.isEmpty
+                            ? null
+                            : (id) {
+                                if (id == null) return;
+                                setLocal(() {
+                                  selectedArm = activeArms.firstWhere((a) => a.id == id);
+                                  armCtrl.text = selectedArm!.name;
+                                });
+                              },
+                        items: [
+                          for (final a in activeArms)
+                            DropdownMenuItem(value: a.id, child: Text(a.name)),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.md),
                       PillrTextField(
@@ -1063,10 +1278,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
   Future<void> _reResolve() async {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     if (idx == null || _rawRows == null) return;
-    setState(() {
-      _loadingPartners = true;
-      _duplicateAcknowledgedSheetRows.clear();
-    });
+    setState(() => _loadingPartners = true);
     try {
       final arms = await ref.read(armsRepositoryProvider).fetchArms(idx.churchId);
       final periods = await ref.read(periodsRepositoryProvider).fetchPeriods(idx.churchId);
@@ -1090,6 +1302,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         _loadingPartners = false;
       });
       await _applyDatabaseDuplicateFlags(idx);
+      await _persistSession();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1105,9 +1318,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     String churchId,
     bool viewerIsPastor,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final profile = ref.read(churchUserProfileProvider).valueOrNull;
     final resolved = _resolved;
     if (profile == null || resolved == null) return;
+
+    final progressNotifier = ref.read(bulkImportCommitProgressProvider.notifier);
+    final eligible = resolved.where((r) => !r.isBlocking).length;
+    progressNotifier.start(
+      eligible > 0 ? eligible : resolved.length,
+      l10n.bulkImportCommitProgressTitle,
+    );
 
     setState(() {
       _committing = true;
@@ -1123,10 +1344,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         period = null;
       }
       if (period == null) {
+        progressNotifier.fail(l10n.bulkImportIssuePeriodNotFound);
         if (!mounted) return;
         setState(() {
           _committing = false;
-          _error = AppLocalizations.of(context).bulkImportIssuePeriodNotFound;
+          _error = l10n.bulkImportIssuePeriodNotFound;
         });
         return;
       }
@@ -1138,16 +1360,39 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
         rows: resolved,
         arms: arms,
         period: period,
-        allChurchEntries: true, // all roles can now read all entries; scan church-wide for duplicates
+        allChurchEntries: true,
         viewerIsPastor: viewerIsPastor,
         duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+        onProgress: (current, total, message) {
+          progressNotifier.update(current, message);
+        },
       );
+      progressNotifier.complete();
+      final uid = _persistUid;
+      final clearChurchId = _persistChurchId;
+      if (uid != null && clearChurchId != null) {
+        await BulkImportSessionStore.clear(uid: uid, churchId: clearChurchId);
+      }
       if (!mounted) return;
       setState(() {
         _result = r;
         _committing = false;
+        _rawRows = null;
+        _resolved = null;
+        _fileName = null;
+        _fileBytes = null;
+        _duplicateAcknowledgedSheetRows.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.bulkImportCommitSuccessToast(r.entriesCreated))),
+      );
+      Future<void>.delayed(const Duration(seconds: 4), () {
+        if (mounted) {
+          ref.read(bulkImportCommitProgressProvider.notifier).reset();
+        }
       });
     } catch (e) {
+      progressNotifier.fail('$e');
       if (!mounted) return;
       setState(() {
         _error = '$e';

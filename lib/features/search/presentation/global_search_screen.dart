@@ -6,8 +6,8 @@ import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../church/providers/church_settings_providers.dart';
 import '../../entries/domain/partnership_entry.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../../partners/domain/partner.dart';
@@ -86,6 +86,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
     if (idx == null || !idx.isPastor) {
       return const Center(child: Text('Search is available to pastors only.'));
     }
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -141,7 +142,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             ..._entries.map(
               (e) => ListTile(
                 title: Text(e.partnerSnapshot['fullName']?.toString() ?? '—'),
-                subtitle: Text('${formatCedis(e.amountCedis)} · ${e.status}'),
+                subtitle: Text('${formatMoney(e.amountCedis)} · ${e.status}'),
                 onTap: () => context.go('/entries/${e.id}'),
               ),
             ),

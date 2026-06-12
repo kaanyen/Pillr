@@ -25,6 +25,60 @@ class AuthRepository {
     return _auth.sendPasswordResetEmail(email: email.trim());
   }
 
+  Future<BootstrapValidationResult> validateBootstrapInvite({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable(FirebaseConstants.validateBootstrapInvite);
+      final res = await callable.call(<String, dynamic>{
+        'email': email.trim(),
+        'code': code.trim().toUpperCase(),
+      });
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final valid = data['valid'] == true;
+      if (!valid) {
+        return BootstrapValidationResult(
+          valid: false,
+          errorMessage: data['message'] as String? ?? 'Invalid or expired setup code.',
+        );
+      }
+      return BootstrapValidationResult(
+        valid: true,
+        role: data['role'] as String?,
+        inviteId: data['inviteId'] as String?,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      return BootstrapValidationResult(
+        valid: false,
+        errorMessage: e.message ?? 'Could not verify setup code.',
+      );
+    }
+  }
+
+  Future<void> redeemBootstrapInvite({
+    required String fullName,
+    required String phone,
+    required String code,
+    required String churchName,
+    required String currency,
+    required String currencySymbol,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable(FirebaseConstants.redeemBootstrapInvite);
+      await callable.call(<String, dynamic>{
+        'fullName': fullName.trim(),
+        'phone': phone.trim(),
+        'code': code.trim().toUpperCase(),
+        'churchName': churchName.trim(),
+        'currency': currency,
+        'currencySymbol': currencySymbol,
+      });
+    } on FirebaseFunctionsException catch (e) {
+      throw AppException(e.message ?? 'Could not finish church setup.', code: e.code);
+    }
+  }
+
   Future<InviteValidationResult> validateInvite({
     required String email,
     required String code,

@@ -12,7 +12,6 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
@@ -26,6 +25,7 @@ class StaffDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final formatMoney = ref.watch(churchMoneyFormatProvider);
     final s = ref.watch(staffMyEntryStatsProvider);
     final entries = ref.watch(entriesListProvider).valueOrNull ?? [];
     final declined = entries.where((e) => e.status == 'declined').length;
@@ -142,7 +142,7 @@ class StaffDashboardScreen extends ConsumerWidget {
                       delay: const Duration(milliseconds: 60),
                       child: PillrStatCard(
                         label: 'My approved total',
-                        valueText: formatCedis(s.approvedTotalCedis),
+                        valueText: formatMoney(s.approvedTotalCedis),
                         periodLabel: '${s.approvedCount} approved',
                         backgroundColor: DashboardTints.partnersBg,
                         iconCircleColor: DashboardTints.partnersIconCircle,
@@ -173,6 +173,7 @@ class StaffDashboardScreen extends ConsumerWidget {
                           _StaffEntryRow(
                             entry: recent10[i],
                             showDivider: i < recent10.length - 1,
+                            formatMoney: formatMoney,
                           ),
                       ],
                     ),
@@ -199,10 +200,12 @@ class _StaffEntryRow extends StatelessWidget {
   const _StaffEntryRow({
     required this.entry,
     required this.showDivider,
+    required this.formatMoney,
   });
 
   final PartnershipEntry entry;
   final bool showDivider;
+  final String Function(num) formatMoney;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +228,7 @@ class _StaffEntryRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        formatCedis(entry.amountCedis),
+                        formatMoney(entry.amountCedis),
                         style: AppTypography.body.copyWith(
                           fontWeight: FontWeight.w600,
                           color: AppColors.gray900,
