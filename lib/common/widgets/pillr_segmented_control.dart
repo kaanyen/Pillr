@@ -5,7 +5,11 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import 'pillr_icon.dart';
 
-/// Linear / Untitled-style segmented control: white surface, 1px border, inner pill selection.
+/// Segmented control — selection is a Charcoal fill, not a tint.
+///
+/// The track is a Mist trough with a Fog hairline; the selected segment
+/// inverts to Charcoal with Paper text. That inversion is the same device the
+/// primary button uses, so "selected" and "the action" read consistently.
 class PillrSegment<T extends Object> {
   const PillrSegment({
     required this.value,
@@ -31,7 +35,8 @@ class PillrSegmentedControl<T extends Object> extends StatelessWidget {
   final T selected;
   final ValueChanged<T> onChanged;
 
-  /// When true, selected chip uses primary @ 10% fill; otherwise neutral gray tint.
+  /// Retained for source compatibility. Selection is always a Charcoal
+  /// inversion now — there is no accent tint in this system.
   final bool accentSelection;
 
   @override
@@ -39,9 +44,9 @@ class PillrSegmentedControl<T extends Object> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.gray200),
+        color: AppColors.mist,
+        borderRadius: BorderRadius.circular(AppRadius.input),
+        border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -76,26 +81,14 @@ class _SegmentChip<T extends Object> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color bg;
-    final Color fg;
-    if (selected) {
-      if (accentSelection) {
-        bg = AppColors.primaryColor.withValues(alpha: 0.1);
-        fg = AppColors.primaryDark;
-      } else {
-        bg = AppColors.gray900.withValues(alpha: 0.06);
-        fg = AppColors.gray900;
-      }
-    } else {
-      bg = Colors.transparent;
-      fg = AppColors.textSecondary;
-    }
+    final bg = selected ? AppColors.charcoal : Colors.transparent;
+    final fg = selected ? AppColors.paper : AppColors.smoke;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.full),
+        borderRadius: BorderRadius.circular(AppRadius.button),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,

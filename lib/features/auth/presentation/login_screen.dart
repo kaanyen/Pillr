@@ -89,17 +89,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               Text(
                 'Sign in',
-                style: AppTypography.heading1.copyWith(
-                  fontSize: 28,
-                  color: AppColors.gray900,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: AppTypography.heading,
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Welcome back! Enter your email and password below to sign in.',
                 style: AppTypography.body.copyWith(
-                  color: AppColors.textSecondary,
+                  color: AppColors.smoke,
                   height: 1.45,
                 ),
               ),
@@ -107,7 +103,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (_error != null) ...[
                 Text(
                   _error!,
-                  style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                  style: AppTypography.caption.copyWith(color: AppColors.ink),
                 ),
                 const SizedBox(height: AppSpacing.md),
               ],
@@ -115,7 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'Email',
                 style: AppTypography.label.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.gray900,
+                  color: AppColors.ink,
                 ),
               ),
               const SizedBox(height: 8),
@@ -130,7 +126,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 'Password',
                 style: AppTypography.label.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.gray900,
+                  color: AppColors.ink,
                 ),
               ),
               const SizedBox(height: 8),
@@ -145,7 +141,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     icon: Icon(
                       _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
-                      color: AppColors.gray400,
+                      color: AppColors.pewter,
                       size: 20,
                     ),
                   ),
@@ -170,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Expanded(
                     child: Text(
                       'Keep me logged in',
-                      style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
                     ),
                   ),
                   TextButton(
@@ -183,7 +179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Text(
                       'Forgot password?',
                       style: AppTypography.caption.copyWith(
-                        color: AppColors.primaryColor,
+                        color: AppColors.charcoal,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -205,7 +201,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     Text(
                       "Don't have an account?",
-                      style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
                     ),
                     TextButton(
                       onPressed: () => context.go('/join'),
@@ -218,7 +214,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         'Join with invite',
                         style: AppTypography.caption.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primaryColor,
+                          color: AppColors.charcoal,
                         ),
                       ),
                     ),

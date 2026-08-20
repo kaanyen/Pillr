@@ -237,7 +237,7 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Partners', style: AppTypography.heading2),
+                    Text('Partners', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Members who give — search by member ID, name, or fellowship.',
@@ -304,18 +304,18 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                   minWidth: 900,
                   columns: [
                     DataColumn2(
-                      label: Text('MEMBER ID', style: AppTypography.tableHeader),
+                      label: Text('Member ID', style: AppTypography.tableHeader),
                       size: ColumnSize.S,
                     ),
-                    DataColumn2(label: Text('NAME', style: AppTypography.tableHeader), size: ColumnSize.L),
-                    DataColumn2(label: Text('FELLOWSHIP', style: AppTypography.tableHeader)),
+                    DataColumn2(label: Text('Name', style: AppTypography.tableHeader), size: ColumnSize.L),
+                    DataColumn2(label: Text('Fellowship', style: AppTypography.tableHeader)),
                     DataColumn2(
                       label: Text(
                         idx.isStaff == true ? 'YOUR TOTAL ₵' : 'TOTAL ₵',
                         style: AppTypography.tableHeader,
                       ),
                     ),
-                    DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
+                    DataColumn2(label: Text('Status', style: AppTypography.tableHeader)),
                     DataColumn2(label: Text('', style: AppTypography.tableHeader), fixedWidth: 88),
                   ],
                   rows: [
@@ -323,9 +323,9 @@ class _PartnersListScreenState extends ConsumerState<PartnersListScreen> {
                       DataRow2(
                         onTap: () => context.go('/partners/${p.id}'),
                         cells: [
-                          DataCell(Text(p.memberId, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
-                          DataCell(Text(p.fullName, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
-                          DataCell(Text(p.fellowship, style: AppTypography.body)),
+                          DataCell(Text(p.memberId, style: AppTypography.tableCell.copyWith(fontWeight: FontWeight.w500))),
+                          DataCell(Text(p.fullName, style: AppTypography.tableCell.copyWith(fontWeight: FontWeight.w500))),
+                          DataCell(Text(p.fellowship, style: AppTypography.tableCell)),
                           DataCell(
                             Text(
                               formatMoney(

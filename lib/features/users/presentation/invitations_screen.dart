@@ -140,7 +140,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Invitations', style: AppTypography.heading2),
+                    Text('Invitations', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Invite teammates with expiring codes — emails are sent from Cloud Functions.',
@@ -184,14 +184,14 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
                   sortAscending: false,
                   columns: [
                     DataColumn2(
-                      label: Text('EMAIL', style: AppTypography.tableHeader),
+                      label: Text('Email', style: AppTypography.tableHeader),
                       size: ColumnSize.L,
                     ),
-                    DataColumn2(label: Text('ROLE', style: AppTypography.tableHeader)),
-                    DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                    DataColumn2(label: Text('EXPIRES', style: AppTypography.tableHeader)),
+                    DataColumn2(label: Text('Role', style: AppTypography.tableHeader)),
+                    DataColumn2(label: Text('Status', style: AppTypography.tableHeader)),
+                    DataColumn2(label: Text('Expires', style: AppTypography.tableHeader)),
                     DataColumn2(
-                      label: Text('ACTIONS', style: AppTypography.tableHeader),
+                      label: Text('', style: AppTypography.tableHeader),
                       fixedWidth: 120,
                     ),
                   ],
@@ -207,7 +207,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
                                 Text(
                                   r.email,
                                   style: AppTypography.body.copyWith(
-                                    color: AppColors.gray900,
+                                    color: AppColors.ink,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -215,7 +215,7 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen> {
                               ],
                             ),
                           ),
-                          DataCell(Text(r.role, style: AppTypography.body)),
+                          DataCell(Text(r.role, style: AppTypography.tableCell)),
                           DataCell(_statusBadge(r.status)),
                           DataCell(
                             Text(
@@ -387,7 +387,7 @@ class _SendInviteDialogState extends ConsumerState<_SendInviteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('Send invitation', style: AppTypography.heading3),
+      title: Text('Send invitation', style: AppTypography.headingSm),
       content: SizedBox(
         width: breakpointFor(MediaQuery.sizeOf(context).width) == AppBreakpoint.mobile
             ? double.infinity
@@ -418,7 +418,7 @@ class _SendInviteDialogState extends ConsumerState<_SendInviteDialog> {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 _error!,
-                style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                style: AppTypography.caption.copyWith(color: AppColors.ink),
               ),
             ],
           ],

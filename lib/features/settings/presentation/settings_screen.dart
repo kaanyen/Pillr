@@ -162,7 +162,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Settings', style: AppTypography.heading2),
+              Text('Settings', style: AppTypography.heading),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Branding, notifications, and account security.',

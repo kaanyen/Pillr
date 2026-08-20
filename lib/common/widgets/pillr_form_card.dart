@@ -43,13 +43,13 @@ class PillrFormCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title!, style: AppTypography.heading3.copyWith(color: AppColors.gray900)),
+                          Text(title!, style: AppTypography.headingSm.copyWith(color: AppColors.ink)),
                           if (subtitle != null && subtitle!.isNotEmpty) ...[
                             const SizedBox(height: AppSpacing.xs),
                             Text(
                               subtitle!,
                               style: AppTypography.body.copyWith(
-                                color: AppColors.textSecondary,
+                                color: AppColors.smoke,
                                 height: 1.4,
                               ),
                             ),
@@ -60,14 +60,14 @@ class PillrFormCard extends StatelessWidget {
                   ],
                 )
               else ...[
-                Text(title!, style: AppTypography.heading3.copyWith(color: AppColors.gray900)),
+                Text(title!, style: AppTypography.headingSm.copyWith(color: AppColors.ink)),
                 if (subtitle != null && subtitle!.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(subtitle!, style: AppTypography.caption),
                 ],
               ],
               const SizedBox(height: AppSpacing.md),
-              Divider(height: 1, color: AppColors.gray200.withValues(alpha: 0.9)),
+              Divider(height: 1, color: AppColors.fog.withValues(alpha: 0.9)),
               const SizedBox(height: AppSpacing.md),
             ],
             child,

@@ -9,7 +9,9 @@ import '../../core/constants/app_constants.dart';
 import '../../core/extensions/async_value_ext.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_typography.dart';
+import '../../core/utils/color_utils.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/church/providers/church_settings_providers.dart';
@@ -113,7 +115,12 @@ List<NavSectionData> navSectionsForRole(
   ]);
 }
 
-/// Sidebar: Reference 2–3 — grouped sections, soft active pill, Inter typography.
+/// Sidebar built on the reference's Person Row Card pattern.
+///
+/// Paper column with a Fog hairline on its right edge. Rows are 14/500 with a
+/// Mist wash when active — no colored pill, no accent bar. The only chromatic
+/// element is the church's identity mark at the top, which is the one place a
+/// tenant's own color is allowed to appear.
 class AdaptiveSidebar extends ConsumerWidget {
   const AdaptiveSidebar({
     super.key,
@@ -132,7 +139,6 @@ class AdaptiveSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final churchName = ref.watch(churchNameProvider) ?? 'Your church';
     final branding = ref.watch(churchSettingsProvider).valueOrNull;
@@ -151,9 +157,17 @@ class AdaptiveSidebar extends ConsumerWidget {
         ? AppConstants.sidebarWidthCollapsed
         : AppConstants.sidebarWidthExpanded;
 
+    // The tenant's own color, confined to the identity mark below.
+    final accent = AppTheme.tenantAccent(parseHexColor(branding?.primaryColorHex));
+
     return Container(
       width: width,
-      color: AppColors.white,
+      decoration: const BoxDecoration(
+        color: AppColors.paper,
+        border: Border(
+          right: BorderSide(color: AppColors.fog, width: AppBorders.hairline),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -166,32 +180,34 @@ class AdaptiveSidebar extends ConsumerWidget {
             ),
             child: Row(
               children: [
+                // Identity mark — the church's own color lives here and
+                // nowhere else in the chrome.
                 Container(
-                  padding: EdgeInsets.all(collapsed ? 8 : 10),
+                  height: collapsed ? 32 : 36,
+                  width: collapsed ? 32 : 36,
                   decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    color: AppColors.mist,
+                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   child: branding?.logoUrl != null && branding!.logoUrl!.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: CachedNetworkImage(
-                            imageUrl: branding.logoUrl!,
-                            width: 22,
-                            height: 22,
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) =>
-                                Icon(LucideIcons.church, color: scheme.primary, size: 22),
-                          ),
+                      ? CachedNetworkImage(
+                          imageUrl: branding.logoUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) =>
+                              Icon(LucideIcons.church, color: accent, size: 18),
                         )
-                      : Icon(LucideIcons.church, color: scheme.primary, size: 22),
+                      : Icon(LucideIcons.church, color: accent, size: 18),
                 ),
                 if (!collapsed) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       'Pillr',
-                      style: AppTypography.heading3.copyWith(color: AppColors.gray900),
+                      style: AppTypography.headingSm.copyWith(
+                        fontFamily: AppTypography.textFamily,
+                      ),
                     ),
                   ),
                 ],
@@ -204,9 +220,9 @@ class AdaptiveSidebar extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.gray50,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: AppColors.gray200),
+                  color: AppColors.mist,
+                  borderRadius: BorderRadius.circular(AppRadius.input),
+                  border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,16 +231,10 @@ class AdaptiveSidebar extends ConsumerWidget {
                       churchName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.body.copyWith(
-                        color: AppColors.gray900,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTypography.labelStrong,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Private workspace',
-                      style: AppTypography.caption,
-                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text('Private workspace', style: AppTypography.micro),
                   ],
                 ),
               ),
@@ -246,13 +256,14 @@ class AdaptiveSidebar extends ConsumerWidget {
                           AppSpacing.sm,
                         ),
                         child: Text(
-                          section.title!.toUpperCase(),
-                          style: AppTypography.overline,
+                          section.title!,
+                          style: AppTypography.micro.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     for (final item in section.items)
                       _SidebarTile(
-                        scheme: scheme,
                         icon: item.icon,
                         label: item.label,
                         path: item.path,
@@ -272,13 +283,13 @@ class AdaptiveSidebar extends ConsumerWidget {
               child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 18,
-                    backgroundColor: scheme.primaryContainer,
+                    radius: 16,
+                    backgroundColor: AppColors.mist,
                     child: Text(
                       profile.fullName.isNotEmpty
                           ? profile.fullName[0].toUpperCase()
                           : '?',
-                      style: AppTypography.label.copyWith(color: scheme.primary),
+                      style: AppTypography.label.copyWith(color: accent),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
@@ -290,14 +301,11 @@ class AdaptiveSidebar extends ConsumerWidget {
                           profile.fullName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.body.copyWith(
-                            color: AppColors.gray900,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: AppTypography.label,
                         ),
                         Text(
                           profile.role[0].toUpperCase() + profile.role.substring(1),
-                          style: AppTypography.caption,
+                          style: AppTypography.micro,
                         ),
                       ],
                     ),
@@ -313,7 +321,6 @@ class AdaptiveSidebar extends ConsumerWidget {
 
 class _SidebarTile extends StatelessWidget {
   const _SidebarTile({
-    required this.scheme,
     required this.icon,
     required this.label,
     required this.path,
@@ -323,7 +330,6 @@ class _SidebarTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final ColorScheme scheme;
   final IconData icon;
   final String label;
   final String path;
@@ -334,36 +340,39 @@ class _SidebarTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = active ? AppColors.navActiveBackground : Colors.transparent;
-    final fg = active ? AppColors.navActiveForeground : AppColors.textSecondary;
+    final bg = active ? AppColors.mist : Colors.transparent;
+    final fg = active ? AppColors.ink : AppColors.smoke;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 2),
       child: Material(
         color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: BorderRadius.circular(AppRadius.button),
         child: Semantics(
           button: true,
           label: label,
           selected: active,
           child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          hoverColor: AppColors.mist,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: collapsed ? 0 : AppSpacing.sm,
-              vertical: AppSpacing.sm + 2,
+              vertical: 10,
             ),
             child: Row(
               mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
-                Icon(icon, size: 22, color: fg),
+                Icon(icon, size: 18, color: fg),
                 if (!collapsed) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
                       label,
-                      style: AppTypography.body.copyWith(
+                      style: AppTypography.label.copyWith(
                         color: fg,
                         fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                       ),
@@ -371,16 +380,16 @@ class _SidebarTile extends StatelessWidget {
                   ),
                   if (badge != null && badge! > 0)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppColors.dangerColor,
-                        borderRadius: BorderRadius.circular(999),
+                        color: AppColors.charcoal,
+                        borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
                       child: Text(
                         '$badge',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.w700,
+                        style: AppTypography.pill.copyWith(
+                          color: AppColors.paper,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

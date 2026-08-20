@@ -49,7 +49,7 @@ class PillrEntityCard extends StatelessWidget {
                       title,
                       style: AppTypography.body.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: AppColors.gray900,
+                        color: AppColors.ink,
                       ),
                     ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[

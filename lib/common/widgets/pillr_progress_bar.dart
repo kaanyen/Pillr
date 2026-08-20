@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 
-/// Thin progress bar — table cells & stats (Reference 1 / 3).
+/// Thin progress bar — 4px radius, Ash track, Ink fill.
+///
+/// Progress is monochrome by default. Pass [foregroundColor] only inside a
+/// product-timeline context, where [AppColors.timelineBar] hues are the one
+/// sanctioned use of saturation.
 class PillrProgressBar extends StatelessWidget {
   const PillrProgressBar({
     super.key,
@@ -23,12 +27,12 @@ class PillrProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = value.clamp(0.0, 1.0);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.full),
+      borderRadius: BorderRadius.circular(AppRadius.bar),
       child: LinearProgressIndicator(
         value: v,
         minHeight: height,
-        backgroundColor: backgroundColor ?? AppColors.gray200,
-        color: foregroundColor ?? AppColors.primaryColor,
+        backgroundColor: backgroundColor ?? AppColors.ash,
+        color: foregroundColor ?? AppColors.ink,
       ),
     );
   }

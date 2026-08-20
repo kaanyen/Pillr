@@ -79,7 +79,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         periodLabel: 'accounts in this church',
                         backgroundColor: DashboardTints.totalBg,
                         iconCircleColor: DashboardTints.totalIconCircle,
-                        iconColor: AppColors.primaryColor,
+                        iconColor: AppColors.charcoal,
                         icon: LucideIcons.users,
                       ),
                     ),
@@ -91,7 +91,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         periodLabel: 'awaiting acceptance',
                         backgroundColor: DashboardTints.pendingBg,
                         iconCircleColor: DashboardTints.pendingIconCircle,
-                        iconColor: const Color(0xFFB45309),
+                        iconColor: AppColors.smoke,
                         icon: LucideIcons.mail,
                       ),
                     ),
@@ -107,7 +107,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                         periodLabel: 'recent log rows',
                         backgroundColor: DashboardTints.goalBg,
                         iconCircleColor: DashboardTints.goalIconCircle,
-                        iconColor: AppColors.primaryDark,
+                        iconColor: AppColors.ink,
                         icon: LucideIcons.scrollText,
                       ),
                     ),
@@ -116,7 +116,7 @@ class AdminDashboardScreen extends ConsumerWidget {
               },
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text('Quick links', style: AppTypography.heading3),
+            Text('Quick links', style: AppTypography.headingSm),
             const SizedBox(height: AppSpacing.md),
             PillrCard(
               padding: EdgeInsets.zero,
@@ -150,7 +150,7 @@ class AdminDashboardScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text('Recent activity', style: AppTypography.heading3),
+            Text('Recent activity', style: AppTypography.headingSm),
             const SizedBox(height: AppSpacing.md),
             PillrCard(
               padding: EdgeInsets.zero,
@@ -163,7 +163,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   child: Text(
                     '$e',
-                    style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                    style: AppTypography.caption.copyWith(color: AppColors.ink),
                   ),
                 ),
                 data: (logs) {
@@ -173,7 +173,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Text(
                         'No activity yet.',
-                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                        style: AppTypography.body.copyWith(color: AppColors.pewter),
                       ),
                     );
                   }
@@ -219,24 +219,24 @@ class _AdminQuickLink extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 16),
             child: Row(
               children: [
-                Icon(icon, size: 20, color: AppColors.gray600),
+                Icon(icon, size: 20, color: AppColors.smoke),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
                     label,
                     style: AppTypography.body.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.gray900,
+                      color: AppColors.ink,
                     ),
                   ),
                 ),
-                Icon(LucideIcons.chevronRight, size: 18, color: AppColors.gray400),
+                Icon(LucideIcons.chevronRight, size: 18, color: AppColors.pewter),
               ],
             ),
           ),
         ),
         if (showDivider)
-          Divider(height: 1, thickness: 1, color: AppColors.gray200),
+          Divider(height: 1, thickness: 1, color: AppColors.fog),
       ],
     );
   }

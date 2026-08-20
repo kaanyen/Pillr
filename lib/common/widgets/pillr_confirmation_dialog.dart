@@ -14,7 +14,7 @@ Future<bool?> showPillrConfirmationDialog({
   return showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(title, style: AppTypography.heading3),
+      title: Text(title, style: AppTypography.headingSm),
       content: Text(message, style: AppTypography.body),
       actions: [
         PillrButton(

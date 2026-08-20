@@ -29,7 +29,7 @@ class PillrSearchableDropdownTile<T> extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: AppTypography.body.copyWith(color: AppColors.gray900)),
+            Text(title, style: AppTypography.body.copyWith(color: AppColors.ink)),
             if (subtitle != null)
               Text(subtitle!, style: AppTypography.caption),
           ],

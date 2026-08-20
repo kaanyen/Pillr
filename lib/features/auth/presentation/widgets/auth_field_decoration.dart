@@ -8,11 +8,11 @@ InputDecoration authCardInputDecoration({
   Widget? suffixIcon,
 }) {
   const radius = 10.0;
-  const borderSide = BorderSide(color: AppColors.gray200);
+  const borderSide = BorderSide(color: AppColors.fog);
   return InputDecoration(
     hintText: hintText,
     filled: true,
-    fillColor: AppColors.white,
+    fillColor: AppColors.paper,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     border: const OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(radius)),
@@ -24,7 +24,7 @@ InputDecoration authCardInputDecoration({
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: const BorderRadius.all(Radius.circular(radius)),
-      borderSide: BorderSide(color: AppColors.primaryColor.withValues(alpha: 0.9)),
+      borderSide: BorderSide(color: AppColors.charcoal.withValues(alpha: 0.9)),
     ),
     suffixIcon: suffixIcon,
   );

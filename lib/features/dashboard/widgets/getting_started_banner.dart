@@ -50,7 +50,7 @@ class GettingStartedBanner extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text('Getting started', style: AppTypography.heading3)),
+                    Expanded(child: Text('Getting started', style: AppTypography.headingSm)),
                     TextButton(
                       onPressed: () async {
                         final p = await SharedPreferences.getInstance();

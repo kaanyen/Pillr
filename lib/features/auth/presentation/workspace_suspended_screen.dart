@@ -23,7 +23,7 @@ class WorkspaceSuspendedScreen extends ConsumerWidget {
               children: [
                 Text(
                   'Workspace unavailable',
-                  style: AppTypography.heading2,
+                  style: AppTypography.heading,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppSpacing.md),

@@ -221,16 +221,12 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
       children: [
         Text(
           'Create your church',
-          style: AppTypography.heading1.copyWith(
-            fontSize: 28,
-            color: AppColors.gray900,
-            fontWeight: FontWeight.w800,
-          ),
+          style: AppTypography.heading,
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Enter the email and setup code from your Pillr invitation.',
-          style: AppTypography.body.copyWith(color: AppColors.textSecondary, height: 1.45),
+          style: AppTypography.body.copyWith(color: AppColors.smoke, height: 1.45),
         ),
         const SizedBox(height: AppSpacing.lg),
         TextField(
@@ -247,7 +243,7 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
         ),
         if (_error != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Text(_error!, style: AppTypography.body.copyWith(color: AppColors.dangerColor)),
+          Text(_error!, style: AppTypography.body.copyWith(color: AppColors.ink)),
         ],
         const SizedBox(height: AppSpacing.lg),
         AuthPrimaryButton(
@@ -265,18 +261,14 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
       children: [
         Text(
           'Your profile & church',
-          style: AppTypography.heading1.copyWith(
-            fontSize: 28,
-            color: AppColors.gray900,
-            fontWeight: FontWeight.w800,
-          ),
+          style: AppTypography.heading,
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           _validatedRole != null
               ? 'You will join as ${_validatedRole == 'admin' ? 'church admin' : 'pastor'}.'
               : '',
-          style: AppTypography.body.copyWith(color: AppColors.textSecondary, height: 1.45),
+          style: AppTypography.body.copyWith(color: AppColors.smoke, height: 1.45),
         ),
         const SizedBox(height: AppSpacing.lg),
         TextField(
@@ -330,7 +322,7 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
         ),
         if (_error != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Text(_error!, style: AppTypography.body.copyWith(color: AppColors.dangerColor)),
+          Text(_error!, style: AppTypography.body.copyWith(color: AppColors.ink)),
         ],
         const SizedBox(height: AppSpacing.lg),
         AuthPrimaryButton(

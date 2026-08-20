@@ -174,7 +174,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
           ] else ...[
             Text(
               'Church initials + a random 6-digit number (e.g. FBC482193).',
-              style: AppTypography.caption.copyWith(color: AppColors.textSecondary, height: 1.4),
+              style: AppTypography.caption.copyWith(color: AppColors.smoke, height: 1.4),
             ),
             const SizedBox(height: AppSpacing.md),
           ],
@@ -197,9 +197,9 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
             const SizedBox(height: AppSpacing.md),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.white,
+                color: AppColors.paper,
                 borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(color: AppColors.gray200),
+                border: Border.all(color: AppColors.fog),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
@@ -219,7 +219,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
           ],
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+            Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
           ],
         ],
       ),

@@ -24,7 +24,7 @@ class FeaturePlaceholderScaffold extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: AppTypography.heading2),
+            Text(title, style: AppTypography.heading),
             const SizedBox(height: AppSpacing.sm),
             Text('$phaseLabel — $message', style: AppTypography.body),
           ],

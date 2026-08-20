@@ -157,7 +157,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                         periodLabel: 'All approved entries',
                         backgroundColor: DashboardTints.totalBg,
                         iconCircleColor: DashboardTints.totalIconCircle,
-                        iconColor: AppColors.primaryColor,
+                        iconColor: AppColors.charcoal,
                         icon: LucideIcons.wallet,
                       ),
                     ),
@@ -170,7 +170,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                         periodLabel: 'Awaiting review',
                         backgroundColor: DashboardTints.pendingBg,
                         iconCircleColor: DashboardTints.pendingIconCircle,
-                        iconColor: const Color(0xFFB45309),
+                        iconColor: AppColors.smoke,
                         icon: LucideIcons.clock,
                       ),
                     ),
@@ -183,7 +183,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                         periodLabel: 'Giving records',
                         backgroundColor: DashboardTints.partnersBg,
                         iconCircleColor: DashboardTints.partnersIconCircle,
-                        iconColor: AppColors.navActiveForeground,
+                        iconColor: AppColors.ink,
                         icon: LucideIcons.users,
                       ),
                     ),
@@ -195,7 +195,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                         periodLabel: goalPct == null ? 'Set goals for the active period' : 'Active period (all arms)',
                         backgroundColor: DashboardTints.goalBg,
                         iconCircleColor: DashboardTints.goalIconCircle,
-                        iconColor: AppColors.primaryDark,
+                        iconColor: AppColors.ink,
                         icon: LucideIcons.target,
                       ),
                     ),
@@ -213,7 +213,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text('Partnership mix', style: AppTypography.heading3),
+                        child: Text('Partnership mix', style: AppTypography.headingSm),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Flexible(
@@ -228,9 +228,9 @@ class PastorDashboardScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.lg),
                   _SegmentBar(
                     segments: [
-                      _Seg(pFlex.toDouble(), AppColors.progressOrange),
-                      _Seg(aFlex.toDouble(), AppColors.progressTeal),
-                      _Seg(dFlex.toDouble(), AppColors.progressRed),
+                      _Seg(pFlex.toDouble(), AppColors.smoke),
+                      _Seg(aFlex.toDouble(), AppColors.ink),
+                      _Seg(dFlex.toDouble(), AppColors.ash),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -238,9 +238,9 @@ class PastorDashboardScreen extends ConsumerWidget {
                     spacing: AppSpacing.lg,
                     runSpacing: AppSpacing.sm,
                     children: const [
-                      _LegendDot(color: AppColors.progressOrange, label: 'Pending'),
-                      _LegendDot(color: AppColors.progressTeal, label: 'Approved'),
-                      _LegendDot(color: AppColors.progressRed, label: 'Declined'),
+                      _LegendDot(color: AppColors.smoke, label: 'Pending'),
+                      _LegendDot(color: AppColors.ink, label: 'Approved'),
+                      _LegendDot(color: AppColors.ash, label: 'Declined'),
                     ],
                   ),
                 ],
@@ -258,7 +258,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Text(
                       'No goals for the active period yet.',
-                      style: AppTypography.body.copyWith(color: AppColors.gray400),
+                      style: AppTypography.body.copyWith(color: AppColors.pewter),
                     ),
                   )
                 : Column(
@@ -275,7 +275,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                                   armName(g.partnershipArmId),
                                   style: AppTypography.body.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.gray900,
+                                    color: AppColors.ink,
                                   ),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
@@ -284,14 +284,14 @@ class PastorDashboardScreen extends ConsumerWidget {
                                   child: LinearProgressIndicator(
                                     value: g.progressFraction,
                                     minHeight: 10,
-                                    backgroundColor: AppColors.gray100,
-                                    color: AppColors.primaryColor,
+                                    backgroundColor: AppColors.mist,
+                                    color: AppColors.charcoal,
                                   ),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
                                 Text(
                                   '${formatMoney(g.currentAmountCedis)} / ${formatMoney(g.targetAmountCedis)}',
-                                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                                  style: AppTypography.caption.copyWith(color: AppColors.smoke),
                                 ),
                               ],
                             ),
@@ -313,7 +313,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Text(
                         'No approved entries in the active period yet.',
-                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                        style: AppTypography.body.copyWith(color: AppColors.pewter),
                       ),
                     )
                   : Column(
@@ -328,7 +328,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                     ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text('Recent activity', style: AppTypography.heading3),
+            Text('Recent activity', style: AppTypography.headingSm),
             const SizedBox(height: AppSpacing.md),
             PillrCard(
               padding: EdgeInsets.zero,
@@ -339,7 +339,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Text('$e', style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                  child: Text('$e', style: AppTypography.caption.copyWith(color: AppColors.ink)),
                 ),
                 data: (logs) {
                   final slice = logs.take(10).toList();
@@ -348,7 +348,7 @@ class PastorDashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Text(
                         'No activity yet.',
-                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                        style: AppTypography.body.copyWith(color: AppColors.pewter),
                       ),
                     );
                   }
@@ -398,18 +398,18 @@ class _LeaderboardRow extends StatelessWidget {
                 Text(
                   '${row.rank}',
                   style: AppTypography.caption.copyWith(
-                    color: AppColors.gray400,
+                    color: AppColors.pewter,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.gray100,
+                  backgroundColor: AppColors.mist,
                   child: Text(
                     initial,
                     style: AppTypography.label.copyWith(
-                      color: AppColors.gray600,
+                      color: AppColors.smoke,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -420,7 +420,7 @@ class _LeaderboardRow extends StatelessWidget {
                     name,
                     style: AppTypography.body.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.gray900,
+                      color: AppColors.ink,
                     ),
                   ),
                 ),
@@ -428,7 +428,7 @@ class _LeaderboardRow extends StatelessWidget {
                   formatMoney(row.totalCedis),
                   style: AppTypography.body.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.gray900,
+                    color: AppColors.ink,
                   ),
                 ),
               ],
@@ -436,7 +436,7 @@ class _LeaderboardRow extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          Divider(height: 1, thickness: 1, color: AppColors.gray200),
+          Divider(height: 1, thickness: 1, color: AppColors.fog),
       ],
     );
   }
@@ -498,7 +498,7 @@ class _SegmentBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(9999),
+      borderRadius: BorderRadius.circular(AppRadius.full),
       child: SizedBox(
         height: 14,
         child: Row(
@@ -535,7 +535,7 @@ class _LegendDot extends StatelessWidget {
         Text(
           label,
           style: AppTypography.caption.copyWith(
-            color: AppColors.textSecondary,
+            color: AppColors.smoke,
             fontWeight: FontWeight.w500,
           ),
         ),

@@ -32,13 +32,13 @@ Future<DateTime?> showPillrDatePicker({
       return Theme(
         data: theme.copyWith(
           colorScheme: cs.copyWith(
-            primary: AppColors.gray900,
-            onPrimary: AppColors.white,
-            surface: AppColors.white,
-            onSurface: AppColors.gray900,
-            surfaceContainerHighest: AppColors.gray100,
+            primary: AppColors.ink,
+            onPrimary: AppColors.paper,
+            surface: AppColors.paper,
+            onSurface: AppColors.ink,
+            surfaceContainerHighest: AppColors.mist,
           ),
-          iconTheme: IconThemeData(color: AppColors.gray600, size: 20),
+          iconTheme: IconThemeData(color: AppColors.smoke, size: 20),
         ),
         child: MediaQuery(
           data: MediaQuery.of(context).copyWith(

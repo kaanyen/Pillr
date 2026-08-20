@@ -6,7 +6,10 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import 'pillr_icon.dart';
 
-/// Bordered, rounded dropdown (no Material underline) for filters and inline selects.
+/// Bordered dropdown for filters and inline selects.
+///
+/// Reads as a ghost control: Paper surface, Fog hairline, 8px radius, Smoke
+/// chevron. Never a filled or colored select.
 class PillrDropdownButton<T> extends StatelessWidget {
   const PillrDropdownButton({
     super.key,
@@ -38,13 +41,13 @@ class PillrDropdownButton<T> extends StatelessWidget {
         isDense: isDense,
         isExpanded: isExpanded,
         borderRadius: BorderRadius.circular(AppRadius.button),
-        dropdownColor: AppColors.white,
+        dropdownColor: AppColors.paper,
         icon: PillrIcon(
           LucideIcons.chevronDown,
           size: isDense ? 16 : 18,
-          color: AppColors.gray600,
+          color: AppColors.smoke,
         ),
-        style: AppTypography.body.copyWith(color: AppColors.gray900, fontWeight: FontWeight.w500),
+        style: AppTypography.label,
         underline: const SizedBox.shrink(),
       ),
     );
@@ -54,9 +57,9 @@ class PillrDropdownButton<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: AppColors.paper,
           borderRadius: BorderRadius.circular(AppRadius.button),
-          border: Border.all(color: AppColors.gray200),
+          border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
         ),
         child: child,
       ),

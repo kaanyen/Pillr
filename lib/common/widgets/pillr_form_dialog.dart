@@ -31,13 +31,13 @@ class PillrFormDialog extends StatelessWidget {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.gray100,
+        color: backgroundColor ?? AppColors.mist,
         shape: BoxShape.circle,
       ),
       child: Icon(
         icon,
         size: 22,
-        color: iconColor ?? AppColors.gray600,
+        color: iconColor ?? AppColors.smoke,
       ),
     );
   }
@@ -47,11 +47,11 @@ class PillrFormDialog extends StatelessWidget {
     final w = MediaQuery.sizeOf(context).width;
     final contentWidth = math.min(maxWidth, w - 48);
     return AlertDialog(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.paper,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: AppColors.gray200),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: const BorderSide(color: AppColors.fog),
       ),
       titlePadding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.sm),
       title: Row(
@@ -65,13 +65,13 @@ class PillrFormDialog extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTypography.heading3.copyWith(color: AppColors.gray900)),
+                Text(title, style: AppTypography.headingSm.copyWith(color: AppColors.ink)),
                 if (subtitle != null && subtitle!.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     subtitle!,
                     style: AppTypography.body.copyWith(
-                      color: AppColors.textSecondary,
+                      color: AppColors.smoke,
                       height: 1.4,
                     ),
                   ),

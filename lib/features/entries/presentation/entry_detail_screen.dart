@@ -12,7 +12,6 @@ import '../../../common/widgets/pillr_text_field.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../activity/activity_log_helper.dart';
@@ -54,7 +53,7 @@ class EntryDetailScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Text('Entry', style: AppTypography.heading2),
+                      Text('Entry', style: AppTypography.heading),
                       const Spacer(),
                       if (_canEditEntry(idx, entry))
                         TextButton.icon(
@@ -76,7 +75,7 @@ class EntryDetailScreen extends ConsumerWidget {
                       .slideY(begin: 0.05, curve: Curves.easeOutCubic),
                   if (entry.editHistory.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.lg),
-                    Text('Edit history', style: AppTypography.heading3),
+                    Text('Edit history', style: AppTypography.headingSm),
                     const SizedBox(height: AppSpacing.sm),
                     for (final h in entry.editHistory.reversed)
                       Padding(
@@ -223,10 +222,9 @@ class _EntryReceiptCard extends StatelessWidget {
     return Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.gray200),
-          boxShadow: AppTheme.cardShadow,
+          color: AppColors.paper,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColors.fog),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -240,13 +238,13 @@ class _EntryReceiptCard extends StatelessWidget {
                   Text(
                     _headline,
                     textAlign: TextAlign.center,
-                    style: AppTypography.heading2.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTypography.heading.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Reference · ${entry.id}',
                     textAlign: TextAlign.center,
-                    style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
                   ),
                 ],
               ),
@@ -312,7 +310,7 @@ class _EntryReceiptCard extends StatelessWidget {
                 children: [
                   Text(
                     'Status:',
-                    style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   PillrBadge(
@@ -343,18 +341,18 @@ class _ReceiptStatusIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg, icon) = switch (status) {
       'approved' => (
-          AppColors.successLight,
-          AppColors.successColor,
+          AppColors.mist,
+          AppColors.ink,
           LucideIcons.check,
         ),
       'declined' => (
-          AppColors.dangerLight,
-          AppColors.dangerColor,
+          AppColors.mist,
+          AppColors.ink,
           LucideIcons.x,
         ),
       _ => (
-          AppColors.warningLight,
-          AppColors.warningColor,
+          AppColors.mist,
+          AppColors.smoke,
           LucideIcons.clock,
         ),
     };
@@ -365,10 +363,7 @@ class _ReceiptStatusIcon extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.gray200),
-          boxShadow: const [
-            BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 4)),
-          ],
+          border: Border.all(color: AppColors.fog),
         ),
         child: Icon(icon, color: fg, size: 32),
       ),
@@ -393,7 +388,7 @@ class _ReceiptBlock extends StatelessWidget {
             title,
             style: AppTypography.body.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.gray900,
+              color: AppColors.ink,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -421,7 +416,7 @@ class _ReceiptKvRow extends StatelessWidget {
             flex: 2,
             child: Text(
               '$label:',
-              style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+              style: AppTypography.caption.copyWith(color: AppColors.smoke),
             ),
           ),
           Expanded(
@@ -431,7 +426,7 @@ class _ReceiptKvRow extends StatelessWidget {
               textAlign: TextAlign.right,
               style: AppTypography.body.copyWith(
                 fontWeight: FontWeight.w600,
-                color: AppColors.gray900,
+                color: AppColors.ink,
               ),
             ),
           ),
@@ -466,7 +461,7 @@ class _ReceiptDashesPainter extends CustomPainter {
     const dash = 5.0;
     const gap = 4.0;
     final paint = Paint()
-      ..color = AppColors.gray200
+      ..color = AppColors.fog
       ..strokeWidth = 1;
     var x = 0.0;
     while (x < size.width) {
@@ -493,15 +488,15 @@ Widget _editHistoryTile(Map<String, dynamic> h) {
   }
   return DecoratedBox(
     decoration: BoxDecoration(
-      border: Border.all(color: AppColors.gray200),
-      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: AppColors.fog),
+      borderRadius: BorderRadius.circular(AppRadius.button),
     ),
     child: Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(when, style: AppTypography.caption.copyWith(color: AppColors.gray600)),
+          Text(when, style: AppTypography.caption.copyWith(color: AppColors.smoke)),
           const SizedBox(height: 4),
           Text(desc, style: AppTypography.body),
           if (detail.isNotEmpty) ...[
@@ -519,7 +514,7 @@ Future<String?> _declineReasonDialog(BuildContext context) async {
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text('Decline reason', style: AppTypography.heading3),
+      title: Text('Decline reason', style: AppTypography.headingSm),
       content: PillrTextField(
         controller: c,
         label: 'Reason (required)',

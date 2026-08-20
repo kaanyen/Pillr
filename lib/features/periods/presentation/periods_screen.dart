@@ -59,7 +59,7 @@ class PeriodsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Partnership periods', style: AppTypography.heading2),
+                    Text('Partnership periods', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Only one period can be active at a time. Activating a period deactivates all others.',
@@ -104,15 +104,15 @@ class PeriodsScreen extends ConsumerWidget {
                     minWidth: showFinancialRollups ? 800 : 640,
                     columns: [
                       DataColumn2(
-                        label: Text('NAME', style: AppTypography.tableHeader),
+                        label: Text('Name', style: AppTypography.tableHeader),
                         size: ColumnSize.L,
                       ),
-                      DataColumn2(label: Text('RANGE', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('ACTIVE', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Range', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Active', style: AppTypography.tableHeader)),
                       if (showFinancialRollups)
                         DataColumn2(label: Text('TOTAL ₵', style: AppTypography.tableHeader)),
                       DataColumn2(
-                        label: Text('ACTIONS', style: AppTypography.tableHeader),
+                        label: Text('', style: AppTypography.tableHeader),
                         fixedWidth: 220,
                       ),
                     ],
@@ -120,18 +120,18 @@ class PeriodsScreen extends ConsumerWidget {
                       for (final r in rows)
                         DataRow(
                           cells: [
-                            DataCell(Text(r.name, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
+                            DataCell(Text(r.name, style: AppTypography.tableCell.copyWith(fontWeight: FontWeight.w500))),
                             DataCell(Text(
                               '${df.format(r.startDate)} – ${df.format(r.endDate)}',
                               style: AppTypography.body,
                             )),
                             DataCell(
                               r.isActive
-                                  ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 20)
-                                  : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 20),
+                                  ? const Icon(LucideIcons.checkCircle, color: AppColors.ink, size: 20)
+                                  : const Icon(LucideIcons.circle, color: AppColors.pewter, size: 20),
                             ),
                             if (showFinancialRollups)
-                              DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.body)),
+                              DataCell(Text(r.totalApprovedAmount.toStringAsFixed(2), style: AppTypography.tableCell)),
                             DataCell(
                               Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -165,7 +165,7 @@ class PeriodsScreen extends ConsumerWidget {
                                     onPressed: idx == null
                                         ? null
                                         : () => _confirmDelete(context, ref, idx.churchId, r),
-                                    child: Text('Delete', style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                                    child: Text('Delete', style: AppTypography.caption.copyWith(color: AppColors.ink)),
                                   ),
                                 ],
                               ),
@@ -184,8 +184,8 @@ class PeriodsScreen extends ConsumerWidget {
                               ? '${df.format(r.startDate)} – ${df.format(r.endDate)} · Total ${r.totalApprovedAmount.toStringAsFixed(2)}'
                               : '${df.format(r.startDate)} – ${df.format(r.endDate)}',
                           trailing: r.isActive
-                              ? const Icon(LucideIcons.checkCircle, color: AppColors.successColor, size: 22)
-                              : const Icon(LucideIcons.circle, color: AppColors.gray400, size: 22),
+                              ? const Icon(LucideIcons.checkCircle, color: AppColors.ink, size: 22)
+                              : const Icon(LucideIcons.circle, color: AppColors.pewter, size: 22),
                           footer: Wrap(
                             alignment: WrapAlignment.end,
                             spacing: AppSpacing.xs,
@@ -220,7 +220,7 @@ class PeriodsScreen extends ConsumerWidget {
                                 onPressed: idx == null
                                     ? null
                                     : () => _confirmDelete(context, ref, idx.churchId, r),
-                                child: Text('Delete', style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                                child: Text('Delete', style: AppTypography.caption.copyWith(color: AppColors.ink)),
                               ),
                             ],
                           ),
@@ -455,7 +455,7 @@ class _PeriodEditorDialogState extends ConsumerState<_PeriodEditorDialog> {
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
     return AlertDialog(
-      title: Text(isEdit ? 'Edit period' : 'Add period', style: AppTypography.heading3),
+      title: Text(isEdit ? 'Edit period' : 'Add period', style: AppTypography.headingSm),
       content: SizedBox(
         width: 400,
         child: Column(
@@ -485,7 +485,7 @@ class _PeriodEditorDialogState extends ConsumerState<_PeriodEditorDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
             ],
           ],
         ),

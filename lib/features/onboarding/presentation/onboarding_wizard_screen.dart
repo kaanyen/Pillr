@@ -227,7 +227,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
     final stepLabel = '${_step + 1} of 4';
 
     return Scaffold(
-      backgroundColor: AppColors.surfaceColor,
+      backgroundColor: AppColors.paper,
       appBar: AppBar(
         title: Text('Set up your church · $stepLabel'),
         automaticallyImplyLeading: false,
@@ -243,7 +243,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_step == 0) ...[
-                    Text('Church basics', style: AppTypography.heading2),
+                    Text('Church basics', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(controller: _churchName, label: 'Church name'),
                     const SizedBox(height: AppSpacing.md),
@@ -270,14 +270,14 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                     ),
                   ],
                   if (_step == 1) ...[
-                    Text('First partnership arm', style: AppTypography.heading2),
+                    Text('First partnership arm', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(controller: _armName, label: 'Arm name'),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(controller: _armDesc, label: 'Description (optional)'),
                   ],
                   if (_step == 2) ...[
-                    Text('Active giving period', style: AppTypography.heading2),
+                    Text('Active giving period', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(controller: _periodName, label: 'Period name'),
                     const SizedBox(height: AppSpacing.md),
@@ -304,7 +304,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                     ),
                   ],
                   if (_step == 3) ...[
-                    Text('Invite a teammate (optional)', style: AppTypography.heading2),
+                    Text('Invite a teammate (optional)', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.md),
                     PillrTextField(
                       controller: _inviteEmail,
@@ -330,7 +330,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(_error!, style: AppTypography.body.copyWith(color: AppColors.dangerColor)),
+                    Text(_error!, style: AppTypography.body.copyWith(color: AppColors.ink)),
                   ],
                   const SizedBox(height: AppSpacing.lg),
                   FilledButton(

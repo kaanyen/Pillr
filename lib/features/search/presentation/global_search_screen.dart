@@ -93,7 +93,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Search', style: AppTypography.heading2),
+          Text('Search', style: AppTypography.heading),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Find partners and recent entries by name or keyword.',
@@ -121,7 +121,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             Text(_error!, style: AppTypography.caption.copyWith(color: Colors.red)),
           ],
           const SizedBox(height: AppSpacing.xl),
-          Text('Partners', style: AppTypography.heading3),
+          Text('Partners', style: AppTypography.headingSm),
           const SizedBox(height: AppSpacing.sm),
           if (_partners.isEmpty)
             Text('No partner matches.', style: AppTypography.caption)
@@ -134,7 +134,7 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
               ),
             ),
           const SizedBox(height: AppSpacing.xl),
-          Text('Entries', style: AppTypography.heading3),
+          Text('Entries', style: AppTypography.headingSm),
           const SizedBox(height: AppSpacing.sm),
           if (_entries.isEmpty)
             Text('No entry matches in the latest batch.', style: AppTypography.caption)

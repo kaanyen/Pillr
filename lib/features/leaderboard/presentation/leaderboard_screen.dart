@@ -59,7 +59,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Leaderboard', style: AppTypography.heading2),
+                      Text('Leaderboard', style: AppTypography.heading),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         'Ranked by approved giving. Updates live as entries change.',
@@ -217,19 +217,19 @@ class _LeaderTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final medal = switch (row.rank) {
-      1 => Icon(LucideIcons.trophy, color: AppColors.warningColor, size: 28),
-      2 => Icon(LucideIcons.trophy, color: AppColors.gray400, size: 26),
-      3 => Icon(LucideIcons.trophy, color: AppColors.progressOrange, size: 24),
+      1 => Icon(LucideIcons.trophy, color: AppColors.ink, size: 28),
+      2 => Icon(LucideIcons.trophy, color: AppColors.smoke, size: 26),
+      3 => Icon(LucideIcons.trophy, color: AppColors.pewter, size: 24),
       _ => SizedBox(
           width: 28,
-          child: Text('${row.rank}', style: AppTypography.heading3, textAlign: TextAlign.center),
+          child: Text('${row.rank}', style: AppTypography.headingSm, textAlign: TextAlign.center),
         ),
     };
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Material(
-        color: AppColors.white,
+        color: AppColors.paper,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           onTap: () => context.go('/partners/${row.partnerId}'),
@@ -250,7 +250,7 @@ class _LeaderTile extends StatelessWidget {
                 ),
                 Text(
                   formatMoney(row.totalCedis),
-                  style: AppTypography.body.copyWith(color: AppColors.primaryColor),
+                  style: AppTypography.body.copyWith(color: AppColors.charcoal),
                 ),
               ],
             ),

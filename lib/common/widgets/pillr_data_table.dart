@@ -5,10 +5,15 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_typography.dart';
 
-/// Zendenta / Notion-style data table — white surface, grey header, row hover.
+/// Data table in the Hellotime idiom.
+///
+/// Paper surface inside a 16px hairline frame. The header is a Mist band with
+/// a Fog rule beneath it — no fill weight, no uppercase letter-spacing. Rows
+/// are separated by hairlines only, and cell text runs 14/400 at 1.2 leading:
+/// the one place the 1.5 default rhythm is deliberately tightened so more
+/// rows stay above the fold.
 class PillrDataTable extends StatelessWidget {
   const PillrDataTable({
     super.key,
@@ -61,10 +66,9 @@ class PillrDataTable extends StatelessWidget {
             : minWidth;
         return Container(
           decoration: BoxDecoration(
-            color: AppColors.white,
+            color: AppColors.paper,
             borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: AppColors.gray200),
-            boxShadow: AppTheme.cardShadow,
+            border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
           ),
           clipBehavior: Clip.antiAlias,
           child: SizedBox(
@@ -75,17 +79,23 @@ class PillrDataTable extends StatelessWidget {
                 width: effectiveWidth,
                 height: boundedHeight,
                 child: DataTable2(
-                  columnSpacing: AppSpacing.md,
-                  horizontalMargin: AppSpacing.md,
+                  columnSpacing: AppSpacing.lg,
+                  horizontalMargin: AppSpacing.lg,
                   minWidth: effectiveWidth,
                   headingRowHeight: _headingRowHeight,
                   dataRowHeight: _dataRowHeight,
                   headingRowDecoration: const BoxDecoration(
-                    color: AppColors.gray50,
+                    color: AppColors.mist,
                     border: Border(
-                      bottom: BorderSide(color: AppColors.gray200),
+                      bottom: BorderSide(
+                        color: AppColors.fog,
+                        width: AppBorders.hairline,
+                      ),
                     ),
                   ),
+                  dividerThickness: AppBorders.hairline,
+                  dataTextStyle: AppTypography.tableCell,
+                  headingTextStyle: AppTypography.tableHeader,
                   decoration: const BoxDecoration(),
                   sortColumnIndex: sortColumnIndex,
                   sortAscending: sortAscending,

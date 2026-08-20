@@ -255,24 +255,24 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (!_isEdit) ...[
-                Text(title, style: AppTypography.heading2),
+                Text(title, style: AppTypography.heading),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Choose who gave, then add amount and date — two quick steps.',
                   style: AppTypography.body.copyWith(
-                    color: AppColors.textSecondary,
+                    color: AppColors.smoke,
                     height: 1.4,
                   ),
                 ),
               ] else
-                Text(title, style: AppTypography.heading2),
+                Text(title, style: AppTypography.heading),
               const SizedBox(height: AppSpacing.md),
               if (!_isEdit && periodForCreate == null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: Text(
                     'No active partnership period. A pastor must activate a period under Periods.',
-                    style: AppTypography.caption.copyWith(color: AppColors.warningColor),
+                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
                   ),
                 ),
               if (_isEdit && entry != null)
@@ -280,7 +280,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
                   child: Text(
                     'Status: ${entry.status}',
-                    style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
                   ),
                 ),
               PillrFormCard(
@@ -315,7 +315,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
-                    Divider(height: 1, thickness: 1, color: AppColors.gray200),
+                    Divider(height: 1, thickness: 1, color: AppColors.fog),
                     const SizedBox(height: AppSpacing.lg),
                     const _FormSectionTitle(label: 'Partnership details'),
                     const SizedBox(height: AppSpacing.md),
@@ -387,7 +387,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                     PillrTextField(controller: _notes, label: 'Notes (optional)', maxLines: 2),
                     if (_error != null) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                      Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
                     ],
                     const SizedBox(height: AppSpacing.xl),
                     PillrButton(
@@ -413,9 +413,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final chosen = await showModalBottomSheet<Partner>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.paper,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
       ),
       builder: (ctx) => _PartnerPickerSheet(
         churchId: churchId,
@@ -620,7 +620,7 @@ class _FormSectionTitle extends StatelessWidget {
       label,
       style: AppTypography.body.copyWith(
         fontWeight: FontWeight.w700,
-        color: AppColors.gray900,
+        color: AppColors.ink,
       ),
     );
   }
@@ -639,7 +639,7 @@ class _PartnerPickerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final has = partner != null;
     return Material(
-      color: AppColors.gray50,
+      color: AppColors.mist,
       borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
         onTap: onTap,
@@ -650,14 +650,14 @@ class _PartnerPickerTile extends StatelessWidget {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.mist,
+                  borderRadius: BorderRadius.circular(AppRadius.button),
                 ),
                 padding: const EdgeInsets.all(10),
                 child: const PillrIcon(
                   LucideIcons.search,
                   size: 22,
-                  color: AppColors.primaryColor,
+                  color: AppColors.charcoal,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -667,14 +667,14 @@ class _PartnerPickerTile extends StatelessWidget {
                   children: [
                     Text(
                       has ? 'Selected partner' : 'Select partner',
-                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       has ? partner!.fullName : 'Search by name, member ID, fellowship…',
                       style: AppTypography.body.copyWith(
                         fontWeight: has ? FontWeight.w600 : FontWeight.w400,
-                        color: AppColors.gray900,
+                        color: AppColors.ink,
                       ),
                     ),
                   ],
@@ -682,7 +682,7 @@ class _PartnerPickerTile extends StatelessWidget {
               ),
               const PillrIcon(
                 LucideIcons.chevronRight,
-                color: AppColors.gray400,
+                color: AppColors.pewter,
                 size: 20,
               ),
             ],
@@ -761,35 +761,35 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: AppColors.gray200,
-                    borderRadius: BorderRadius.circular(999),
+                    color: AppColors.fog,
+                    borderRadius: BorderRadius.circular(AppRadius.full),
                   ),
                 ),
               ),
-              Text('Select partner', style: AppTypography.heading3),
+              Text('Select partner', style: AppTypography.headingSm),
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _controller,
                 decoration: InputDecoration(
                   hintText: 'Search by name, member ID, fellowship…',
                   filled: true,
-                  fillColor: AppColors.gray50,
+                  fillColor: AppColors.mist,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.gray200),
+                    borderSide: const BorderSide(color: AppColors.fog),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.gray200),
+                    borderSide: const BorderSide(color: AppColors.fog),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.primaryColor, width: 1.5),
+                    borderSide: const BorderSide(color: AppColors.charcoal, width: 1.5),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
                   prefixIcon: const Padding(
                     padding: EdgeInsets.only(left: 8),
-                    child: Icon(LucideIcons.search, color: AppColors.gray400, size: 20),
+                    child: Icon(LucideIcons.search, color: AppColors.pewter, size: 20),
                   ),
                 ),
               onChanged: (v) {

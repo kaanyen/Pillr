@@ -20,7 +20,7 @@ class HelpScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(l10n.titleHelp, style: AppTypography.heading2),
+              Text(l10n.titleHelp, style: AppTypography.heading),
               const SizedBox(height: AppSpacing.md),
               Text(l10n.helpIntro, style: AppTypography.body),
               const SizedBox(height: AppSpacing.xl),
@@ -51,7 +51,7 @@ class _HelpSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppTypography.heading3),
+          Text(title, style: AppTypography.headingSm),
           const SizedBox(height: AppSpacing.sm),
           Text(body, style: AppTypography.body),
         ],

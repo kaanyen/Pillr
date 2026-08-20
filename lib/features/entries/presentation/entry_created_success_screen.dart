@@ -46,7 +46,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(l10n.entryNotFound, style: AppTypography.heading3),
+                    Text(l10n.entryNotFound, style: AppTypography.headingSm),
                     const SizedBox(height: AppSpacing.md),
                     PillrButton(
                       label: l10n.entryBackToEntries,
@@ -65,10 +65,21 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
-                    LucideIcons.checkCircle,
-                    size: 72,
-                    color: AppColors.successColor,
+                  // Charcoal block rather than a big green tick — success is
+                  // weight here, not hue.
+                  Container(
+                    height: 64,
+                    width: 64,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.charcoal,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                    ),
+                    child: const Icon(
+                      LucideIcons.check,
+                      size: 28,
+                      color: AppColors.paper,
+                    ),
                   )
                       .animate()
                       .scale(
@@ -82,13 +93,15 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                   Text(
                     l10n.entrySubmittedTitle,
                     textAlign: TextAlign.center,
-                    style: AppTypography.heading2,
+                    style: AppTypography.headingLgFor(
+                      MediaQuery.sizeOf(context).width,
+                    ),
                   ).animate().fadeIn(duration: ms(220), delay: ms(120)).slideY(begin: 0.08, end: 0),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     '$partner · $amount',
                     textAlign: TextAlign.center,
-                    style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                    style: AppTypography.subheadingStrong,
                   ).animate().fadeIn(duration: ms(220), delay: ms(180)).slideY(begin: 0.06, end: 0),
                   if (period.isNotEmpty || arm.isNotEmpty)
                     Padding(

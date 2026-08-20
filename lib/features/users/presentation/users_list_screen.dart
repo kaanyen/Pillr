@@ -36,7 +36,7 @@ class UsersListScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Users', style: AppTypography.heading2),
+          Text('Users', style: AppTypography.heading),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Church members and roles. Role changes sync via Cloud Functions.',
@@ -59,18 +59,18 @@ class UsersListScreen extends ConsumerWidget {
                   final table = PillrDataTable(
                     minWidth: 960,
                     columns: [
-                      DataColumn2(label: Text('NAME', style: AppTypography.tableHeader), size: ColumnSize.L),
-                      DataColumn2(label: Text('EMAIL', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('ROLE', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('LAST ACTIVE', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('ACTIONS', style: AppTypography.tableHeader), fixedWidth: 200),
+                      DataColumn2(label: Text('Name', style: AppTypography.tableHeader), size: ColumnSize.L),
+                      DataColumn2(label: Text('Email', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Role', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Last active', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Status', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('', style: AppTypography.tableHeader), fixedWidth: 200),
                     ],
                     rows: [
                       for (final u in rows)
                         DataRow(
                           cells: [
-                            DataCell(Text(u.fullName, style: AppTypography.body.copyWith(fontWeight: FontWeight.w600))),
+                            DataCell(Text(u.fullName, style: AppTypography.tableCell.copyWith(fontWeight: FontWeight.w500))),
                             DataCell(Text(u.email, style: AppTypography.caption)),
                             DataCell(_RoleCell(idx: idx, user: u)),
                             DataCell(Text(

@@ -7,32 +7,45 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/theme/pillr_layout.dart';
+import '../../../../common/widgets/pillr_gradient_text.dart';
 
-/// Split layout: 70/30 row on wide viewports; marketing stays **left** in the left column,
-/// form card **left-aligned** in the right column (toward the split).
+/// Auth split: an editorial marketing column beside the form.
+///
+/// This is the one screen in the product that is genuinely a marketing
+/// surface, so it gets the full reference treatment — display headline with a
+/// single gradient keyword, Smoke subtext on a narrow measure, and a Paper
+/// canvas separated from the form by a hairline rather than a grey panel.
 class AuthSplitShell extends StatelessWidget {
   const AuthSplitShell({
     super.key,
     required this.formChild,
     this.marketingHeadline = kDefaultMarketingHeadline,
+    this.marketingHighlight = kDefaultMarketingHighlight,
     this.marketingSubtitle = kDefaultMarketingSubtitle,
     this.breakpoint = kBreakpoint,
   });
 
   final Widget formChild;
   final String marketingHeadline;
+
+  /// Keyword filled with the Electric Blue gradient. One or two words.
+  final String marketingHighlight;
+
   final String marketingSubtitle;
   final double breakpoint;
 
   /// Default wide-layout threshold (must match [kBreakpoint] unless overridden).
   static const double kBreakpoint = 900;
 
-  static const String kDefaultMarketingHeadline =
-      'Let us help you run transparent partnership giving.';
+  static const String kDefaultMarketingHeadline = 'Run partnership giving ';
+
+  /// The single gradient-highlighted word on this screen.
+  static const String kDefaultMarketingHighlight = 'transparently';
   static const String kDefaultMarketingSubtitle =
       'Our registration is quick and easy — verify your invite and you are ready to collaborate with your church team.';
 
-  static const Color _panelGrey = Color(0xFFF4F6F9);
+  static const Color _panelBackground = AppColors.paper;
 
   /// Max total width of the split content area — keeps both panels visually close
   /// on very wide viewports instead of stretching across the full screen.
@@ -41,13 +54,14 @@ class AuthSplitShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _panelGrey,
+      backgroundColor: _panelBackground,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, c) {
             final wide = c.maxWidth >= breakpoint;
             final left = _MarketingPanel(
               headline: marketingHeadline,
+              highlight: marketingHighlight,
               subtitle: marketingSubtitle,
             );
             final right = _FloatingFormPanel(
@@ -91,20 +105,19 @@ class _BrandRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
-            color: AppColors.primaryColor,
-            borderRadius: BorderRadius.circular(12),
+            color: AppColors.charcoal,
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
-          child: const Icon(LucideIcons.church, color: Colors.white, size: 24),
+          child: const Icon(LucideIcons.church, color: AppColors.paper, size: 18),
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           'Pillr',
-          style: AppTypography.heading2.copyWith(
-            color: AppColors.gray900,
-            fontWeight: FontWeight.w800,
+          style: AppTypography.headingSm.copyWith(
+            fontFamily: AppTypography.textFamily,
           ),
         ),
       ],
@@ -115,10 +128,12 @@ class _BrandRow extends StatelessWidget {
 class _MarketingPanel extends StatelessWidget {
   const _MarketingPanel({
     required this.headline,
+    required this.highlight,
     required this.subtitle,
   });
 
   final String headline;
+  final String highlight;
   final String subtitle;
 
   Future<void> _open(String url) async {
@@ -131,7 +146,7 @@ class _MarketingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: AuthSplitShell._panelGrey,
+      color: AuthSplitShell._panelBackground,
       child: LayoutBuilder(
         builder: (context, c) {
           final inset = const EdgeInsets.fromLTRB(
@@ -148,30 +163,28 @@ class _MarketingPanel extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxWidth: (c.maxWidth - inset.horizontal).clamp(0.0, 420.0),
+                    maxWidth: (c.maxWidth - inset.horizontal).clamp(0.0, 520.0),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _BrandRow(),
-                      const SizedBox(height: AppSpacing.xl + 8),
-                      Text(
-                        headline,
-                        style: AppTypography.heading1.copyWith(
-                          fontSize: 28,
-                          color: AppColors.gray900,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2,
+                      const SizedBox(height: AppSpacing.xxl),
+                      PillrGradientHeadline(
+                        before: headline,
+                        highlight: highlight,
+                        style: AppTypography.headingXlFor(
+                          MediaQuery.sizeOf(context).width,
                         ),
+                        textAlign: TextAlign.start,
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      Text(
-                        subtitle,
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.gray600,
-                          height: 1.5,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: PillrLayout.proseMaxWidth,
                         ),
+                        child: Text(subtitle, style: AppTypography.subheading),
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       const _FeatureCarousel(),
@@ -180,7 +193,7 @@ class _MarketingPanel extends StatelessWidget {
                         children: [
                           Text(
                             '© ${DateTime.now().year} Pillr',
-                            style: AppTypography.caption.copyWith(color: AppColors.gray400),
+                            style: AppTypography.caption.copyWith(color: AppColors.pewter),
                           ),
                           const Spacer(),
                           TextButton(
@@ -192,7 +205,7 @@ class _MarketingPanel extends StatelessWidget {
                             ),
                             child: Text(
                               'Privacy',
-                              style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                              style: AppTypography.caption.copyWith(color: AppColors.smoke),
                             ),
                           ),
                           TextButton(
@@ -204,7 +217,7 @@ class _MarketingPanel extends StatelessWidget {
                             ),
                             child: Text(
                               'Support',
-                              style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                              style: AppTypography.caption.copyWith(color: AppColors.smoke),
                             ),
                           ),
                         ],
@@ -320,18 +333,18 @@ class _FeatureCarouselState extends State<_FeatureCarousel> {
                 child: Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.onAccent,
-                    borderRadius: BorderRadius.circular(16),
+                    color: AppColors.charcoal,
+                    borderRadius: BorderRadius.circular(AppRadius.card),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(f.icon, color: AppColors.primaryLight, size: 28),
+                      Icon(f.icon, color: AppColors.paper, size: 20),
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         f.title,
                         style: AppTypography.body.copyWith(
-                          color: Colors.white,
+                          color: AppColors.paper,
                           fontWeight: FontWeight.w700,
                           height: 1.25,
                         ),
@@ -341,7 +354,7 @@ class _FeatureCarouselState extends State<_FeatureCarousel> {
                         child: Text(
                           f.body,
                           style: AppTypography.body.copyWith(
-                            color: Colors.white.withValues(alpha: 0.88),
+                            color: AppColors.pewter,
                             height: 1.45,
                             fontSize: 14,
                           ),
@@ -366,8 +379,8 @@ class _FeatureCarouselState extends State<_FeatureCarousel> {
                 width: _page == i ? 22 : 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: _page == i ? AppColors.primaryColor : AppColors.gray200,
-                  borderRadius: BorderRadius.circular(50),
+                  color: _page == i ? AppColors.charcoal : AppColors.fog,
+                  borderRadius: BorderRadius.circular(AppRadius.full),
                 ),
               ),
             ),
@@ -392,7 +405,7 @@ class _FloatingFormPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: AuthSplitShell._panelGrey,
+      color: AuthSplitShell._panelBackground,
       child: LayoutBuilder(
         builder: (context, c) {
           final padV = c.maxWidth >= 600 ? 28.0 : AppSpacing.md;
@@ -404,9 +417,9 @@ class _FloatingFormPanel extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 440),
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.gray200),
+                color: AppColors.paper,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                border: Border.all(color: AppColors.fog, width: AppBorders.hairline),
               ),
               padding: const EdgeInsets.all(AppSpacing.xl),
               child: child,

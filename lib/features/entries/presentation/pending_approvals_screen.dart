@@ -180,7 +180,7 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l10n.titleApprovals, style: AppTypography.heading2),
+          Text(l10n.titleApprovals, style: AppTypography.heading),
           const SizedBox(height: AppSpacing.sm),
           Text(l10n.approvalsSubtitle, style: AppTypography.body),
           const SizedBox(height: AppSpacing.lg),
@@ -228,7 +228,7 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
                       if (_selectedIds.isNotEmpty)
                         Text(
                           l10n.approvalsSelectedCount(_selectedIds.length),
-                          style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                          style: AppTypography.caption.copyWith(color: AppColors.smoke),
                         ),
                     ],
                   ),
@@ -324,7 +324,7 @@ class _EntryCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               entry.partnerSnapshot['fullName']?.toString() ?? 'Partner',
-                              style: AppTypography.heading3,
+                              style: AppTypography.headingSm,
                             ),
                           ),
                           const PillrBadge(label: 'Pending', kind: PillrBadgeKind.pending, compact: true),
@@ -336,7 +336,7 @@ class _EntryCard extends StatelessWidget {
                         style: AppTypography.caption,
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      Text(formatMoney(entry.amountCedis), style: AppTypography.heading2),
+                      Text(formatMoney(entry.amountCedis), style: AppTypography.heading),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         l10n.approvalsSubmittedBy(

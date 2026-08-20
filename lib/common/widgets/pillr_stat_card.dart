@@ -3,10 +3,13 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_typography.dart';
 
-/// Stat tile — white or soft-tint surface, large value, optional delta row.
+/// Stat tile — the number is the whole point.
+///
+/// Label sits small and Smoke above; the value drops in at display weight so
+/// the size gap does the hierarchy. Deltas are monochrome: direction is an
+/// arrow icon, not a green/red hue.
 class PillrStatCard extends StatelessWidget {
   const PillrStatCard({
     super.key,
@@ -19,6 +22,7 @@ class PillrStatCard extends StatelessWidget {
     this.backgroundColor,
     this.iconCircleColor,
     this.iconColor,
+    this.emphasized = false,
   });
 
   final String label;
@@ -27,91 +31,93 @@ class PillrStatCard extends StatelessWidget {
   final bool? deltaPositive;
   final String periodLabel;
   final IconData? icon;
-  /// Soft wash behind the card (modern SaaS summary tiles).
+
+  /// Retained for source compatibility; the system uses Paper or Mist only.
   final Color? backgroundColor;
   final Color? iconCircleColor;
   final Color? iconColor;
 
+  /// Inverts the tile to Charcoal. At most one per row — the "hero" metric.
+  final bool emphasized;
+
   @override
   Widget build(BuildContext context) {
-    final bg = backgroundColor ?? AppColors.white;
+    final onDark = emphasized;
+    final fg = onDark ? AppColors.paper : AppColors.ink;
+    final muted = onDark ? AppColors.pewter : AppColors.smoke;
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md + 4),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.gray200),
-        boxShadow: AppTheme.cardShadow,
+        color: onDark ? AppColors.charcoal : AppColors.paper,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: onDark
+            ? null
+            : Border.all(color: AppColors.fog, width: AppBorders.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Expanded(
                 child: Text(
                   label,
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.gray600,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTypography.caption.copyWith(color: muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (icon != null)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: iconCircleColor ?? AppColors.white.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: iconColor ?? AppColors.gray600,
-                  ),
-                ),
+                Icon(icon, size: 18, color: muted),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
+          // Display face, tight tracking — the tile's reason to exist.
           Text(
             valueText,
-            style: AppTypography.display.copyWith(
-              fontSize: 28,
-              color: AppColors.gray900,
-              letterSpacing: -0.5,
-            ),
+            style: AppTypography.headingLg.copyWith(color: fg),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           if (deltaPercent != null && deltaPositive != null) ...[
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
                 Icon(
-                  deltaPositive!
-                      ? LucideIcons.trendingUp
-                      : LucideIcons.trendingDown,
-                  size: 18,
-                  color: deltaPositive! ? AppColors.successColor : AppColors.dangerColor,
+                  deltaPositive! ? LucideIcons.arrowUpRight : LucideIcons.arrowDownRight,
+                  size: 14,
+                  color: fg,
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: AppSpacing.xs),
                 Text(
-                  '${deltaPositive! ? '▲' : '▼'} ${deltaPercent!.abs().toStringAsFixed(2)}%',
+                  '${deltaPercent!.abs().toStringAsFixed(1)}%',
                   style: AppTypography.caption.copyWith(
-                    color: deltaPositive! ? AppColors.successColor : AppColors.dangerColor,
+                    color: fg,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  periodLabel,
-                  style: AppTypography.caption,
-                ),
+                if (periodLabel.isNotEmpty) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      periodLabel,
+                      style: AppTypography.caption.copyWith(color: muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
             ),
           ] else if (periodLabel.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpacing.sm),
             Text(
               periodLabel,
-              style: AppTypography.caption.copyWith(color: AppColors.gray400),
+              style: AppTypography.caption.copyWith(color: muted),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ],

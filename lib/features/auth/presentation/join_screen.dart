@@ -192,17 +192,13 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       children: [
         Text(
           'Get started',
-          style: AppTypography.heading1.copyWith(
-            fontSize: 28,
-            color: AppColors.gray900,
-            fontWeight: FontWeight.w800,
-          ),
+          style: AppTypography.heading,
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Verify your church invitation — enter the email and code you received.',
           style: AppTypography.body.copyWith(
-            color: AppColors.textSecondary,
+            color: AppColors.smoke,
             height: 1.45,
           ),
         ),
@@ -210,9 +206,9 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
           ),
-        Text('Email', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Email', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _email,
@@ -220,7 +216,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
           decoration: authCardInputDecoration(hintText: 'Enter your email'),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Invite code', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Invite code', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _code,
@@ -246,7 +242,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
             children: [
               Text(
                 'Have an account?',
-                style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                style: AppTypography.caption.copyWith(color: AppColors.smoke),
               ),
               TextButton(
                 onPressed: () => context.go('/sign-in'),
@@ -259,7 +255,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   'Login',
                   style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primaryColor,
+                    color: AppColors.charcoal,
                   ),
                 ),
               ),
@@ -277,17 +273,13 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       children: [
         Text(
           'Create your account',
-          style: AppTypography.heading1.copyWith(
-            fontSize: 28,
-            color: AppColors.gray900,
-            fontWeight: FontWeight.w800,
-          ),
+          style: AppTypography.heading,
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Welcome to $church — finish your profile to continue.',
           style: AppTypography.body.copyWith(
-            color: AppColors.textSecondary,
+            color: AppColors.smoke,
             height: 1.45,
           ),
         ),
@@ -295,16 +287,16 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+            child: Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
           ),
-        Text('Full name', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Full name', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _name,
           decoration: authCardInputDecoration(hintText: 'Full name'),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Phone', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Phone', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _phone,
@@ -312,7 +304,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
           decoration: authCardInputDecoration(hintText: 'Phone number'),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _password,
@@ -324,14 +316,14 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
               icon: Icon(
                 _obscurePassword ? LucideIcons.eye : LucideIcons.eyeOff,
-                color: AppColors.gray400,
+                color: AppColors.pewter,
                 size: 20,
               ),
             ),
           ),
         ),
         const SizedBox(height: AppSpacing.md),
-        Text('Confirm password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.gray900)),
+        Text('Confirm password', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600, color: AppColors.ink)),
         const SizedBox(height: 8),
         TextField(
           controller: _password2,
@@ -343,7 +335,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
               onPressed: () => setState(() => _obscurePassword2 = !_obscurePassword2),
               icon: Icon(
                 _obscurePassword2 ? LucideIcons.eye : LucideIcons.eyeOff,
-                color: AppColors.gray400,
+                color: AppColors.pewter,
                 size: 20,
               ),
             ),
@@ -362,7 +354,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
             children: [
               Text(
                 'Have an account?',
-                style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                style: AppTypography.caption.copyWith(color: AppColors.smoke),
               ),
               TextButton(
                 onPressed: () => context.go('/sign-in'),
@@ -375,7 +367,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   'Login',
                   style: AppTypography.caption.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primaryColor,
+                    color: AppColors.charcoal,
                   ),
                 ),
               ),

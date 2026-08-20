@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// Solid primary CTA — reference blue block button (no gradient).
+/// Solid primary CTA — Charcoal block, the single filled action on the
+/// auth screens.
 class AuthPrimaryButton extends StatelessWidget {
   const AuthPrimaryButton({
     super.key,
@@ -23,13 +25,13 @@ class AuthPrimaryButton extends StatelessWidget {
       child: FilledButton(
         onPressed: loading ? null : onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primaryColor,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.gray200,
-          disabledForegroundColor: AppColors.gray400,
+          backgroundColor: AppColors.charcoal,
+          foregroundColor: AppColors.paper,
+          disabledBackgroundColor: AppColors.fog,
+          disabledForegroundColor: AppColors.pewter,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.button),
           ),
         ),
         child: loading
@@ -38,15 +40,12 @@ class AuthPrimaryButton extends StatelessWidget {
               width: 22,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white,
+                color: AppColors.paper,
               ),
             )
           : Text(
               label,
-              style: AppTypography.body.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
+              style: AppTypography.labelStrong.copyWith(color: AppColors.paper),
             ),
       ),
     );

@@ -348,7 +348,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                     children: [
                       Text(
                         idx?.isPastor == true ? l10n.entriesHeadingAll : l10n.entriesHeadingMine,
-                        style: AppTypography.heading2,
+                        style: AppTypography.heading,
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
@@ -402,7 +402,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           children: [
                             Text(
                               idx?.isPastor == true ? l10n.entriesHeadingAll : l10n.entriesHeadingMine,
-                              style: AppTypography.heading2,
+                              style: AppTypography.heading,
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             Text(
@@ -499,7 +499,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                     width: 220,
                     child: PillrDropdownButton<String?>(
                       value: _filterArmId,
-                      hint: Text(l10n.entriesAllArms, style: AppTypography.body.copyWith(color: AppColors.gray400)),
+                      hint: Text(l10n.entriesAllArms, style: AppTypography.body.copyWith(color: AppColors.pewter)),
                       items: [
                         DropdownMenuItem<String?>(value: null, child: Text(l10n.entriesAllArms)),
                         for (final a in arms)
@@ -521,7 +521,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                     width: 220,
                     child: PillrDropdownButton<String?>(
                       value: _filterPeriodId,
-                      hint: Text(l10n.entriesAllPeriods, style: AppTypography.body.copyWith(color: AppColors.gray400)),
+                      hint: Text(l10n.entriesAllPeriods, style: AppTypography.body.copyWith(color: AppColors.pewter)),
                       items: [
                         DropdownMenuItem<String?>(value: null, child: Text(l10n.entriesAllPeriods)),
                         for (final p in periods)
@@ -599,7 +599,7 @@ class _EntriesListScreenState extends ConsumerState<EntriesListScreen> {
                           e.partnerSnapshot['fullName']?.toString() ?? '—',
                           style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
                         )),
-                        DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.body)),
+                        DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.tableCell)),
                         DataCell(_AnimatedStatusBadge(key: ValueKey('${e.id}-${e.status}'), status: e.status, l10n: l10n)),
                         DataCell(Text(
                           dateFmt(e),

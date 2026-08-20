@@ -18,6 +18,11 @@ class BottomNavItem {
   final String path;
 }
 
+/// Bottom navigation for compact widths.
+///
+/// A Fog hairline on top rather than elevation, a Mist pill on the active
+/// destination, and weight (not color) marking selection — the same grammar
+/// the sidebar uses.
 class AdaptiveBottomNav extends StatelessWidget {
   const AdaptiveBottomNav({
     super.key,
@@ -31,24 +36,35 @@ class AdaptiveBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idx = items.indexWhere((e) => currentPath == e.path || currentPath.startsWith('${e.path}/'));
-    return NavigationBar(
-      selectedIndex: idx >= 0 ? idx : 0,
-      height: 64,
-      backgroundColor: AppColors.white,
-      indicatorColor: AppColors.navActiveBackground,
-      indicatorShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.paper,
+        border: Border(
+          top: BorderSide(color: AppColors.fog, width: AppBorders.hairline),
+        ),
       ),
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      onDestinationSelected: (i) => context.go(items[i].path),
-      destinations: [
-        for (final item in items)
-          NavigationDestination(
-            icon: Icon(item.icon),
-            selectedIcon: Icon(item.selectedIcon, color: AppColors.navActiveForeground),
-            label: item.label,
-          ),
-      ],
+      child: NavigationBar(
+        selectedIndex: idx >= 0 ? idx : 0,
+        height: 64,
+        elevation: 0,
+        backgroundColor: AppColors.paper,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        indicatorColor: AppColors.mist,
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.button),
+        ),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (i) => context.go(items[i].path),
+        destinations: [
+          for (final item in items)
+            NavigationDestination(
+              icon: Icon(item.icon, color: AppColors.smoke, size: 20),
+              selectedIcon: Icon(item.selectedIcon, color: AppColors.ink, size: 20),
+              label: item.label,
+            ),
+        ],
+      ),
     );
   }
 }

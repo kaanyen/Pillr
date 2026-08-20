@@ -85,13 +85,13 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
               controller: scroll,
               padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
-                Text(row.name, style: AppTypography.heading2),
+                Text(row.name, style: AppTypography.heading),
                 const SizedBox(height: AppSpacing.sm),
                 SelectableText('ID: ${row.churchId}', style: AppTypography.caption),
                 const SizedBox(height: AppSpacing.md),
                 if (row.logoUrl != null && row.logoUrl!.isNotEmpty)
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppRadius.button),
                     child: CachedNetworkImage(
                       imageUrl: row.logoUrl!,
                       height: 80,
@@ -159,15 +159,15 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(platformChurchesListProvider),
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               children: [
                 PillrSurfaceCard(
                   child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
+                    padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Invite new church', style: AppTypography.heading3),
+                        Text('Invite new church', style: AppTypography.headingSm),
                         const SizedBox(height: AppSpacing.sm),
                         TextField(
                           controller: _bootstrapEmail,
@@ -192,7 +192,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                         ),
                         if (_formError != null) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          Text(_formError!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+                          Text(_formError!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
                         ],
                         const SizedBox(height: AppSpacing.md),
                         FilledButton(

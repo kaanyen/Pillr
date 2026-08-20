@@ -3,22 +3,34 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/pillr_layout.dart';
+import '../../../common/widgets/pillr_gradient_text.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../../activity/domain/activity_log_row.dart' show ActivityLogRow;
 
-/// Soft tints for summary stat tiles (shared across role dashboards).
+/// Stat tile surfaces (shared across role dashboards).
+///
+/// Retained as named constants so call sites keep reading intent, but the
+/// pastel tints are gone: this system separates tiles with a Fog hairline on
+/// Paper, and uses Mist only where a nested surface genuinely needs to recede.
 abstract final class DashboardTints {
-  static const totalBg = Color(0xFFEFF6FF);
-  static const totalIconCircle = Color(0xFFDBEAFE);
-  static const pendingBg = Color(0xFFFFFBEB);
-  static const pendingIconCircle = Color(0xFFFDE68A);
-  static const partnersBg = Color(0xFFECFDF5);
-  static const partnersIconCircle = Color(0xFFD1FAE5);
-  static const goalBg = Color(0xFFF5F3FF);
-  static const goalIconCircle = Color(0xFFEDE9FE);
+  static const totalBg = AppColors.paper;
+  static const totalIconCircle = AppColors.mist;
+  static const pendingBg = AppColors.paper;
+  static const pendingIconCircle = AppColors.mist;
+  static const partnersBg = AppColors.paper;
+  static const partnersIconCircle = AppColors.mist;
+  static const goalBg = AppColors.paper;
+  static const goalIconCircle = AppColors.mist;
 }
 
 /// Hero title + subtitle under the app bar (all roles).
+/// The dashboard hero.
+///
+/// A dashboard is a low-density surface, so it carries the full editorial
+/// scale: display type stepping 64 → 40 → 30 with width, and the reader's own
+/// name as the one gradient-highlighted phrase on the screen. This is the only
+/// place inside the authenticated app where the gradient appears.
 class DashboardWelcomeBlock extends StatelessWidget {
   const DashboardWelcomeBlock({
     super.key,
@@ -31,17 +43,20 @@ class DashboardWelcomeBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Welcome back, $firstName!',
-          style: AppTypography.heading1.copyWith(fontSize: 26),
+        PillrGradientHeadline(
+          before: 'Welcome back, ',
+          highlight: firstName.isEmpty ? 'friend' : firstName,
+          style: AppTypography.displayFor(width),
+          textAlign: TextAlign.start,
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          subtitle,
-          style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary, height: 1.45),
+        const SizedBox(height: AppSpacing.md),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: PillrLayout.proseMaxWidth),
+          child: Text(subtitle, style: AppTypography.subheading),
         ),
       ],
     );
@@ -65,16 +80,10 @@ class DashboardSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(title, style: AppTypography.heading3)),
+        Expanded(child: Text(title, style: AppTypography.headingSm)),
         TextButton(
           onPressed: onAction,
-          child: Text(
-            actionLabel,
-            style: AppTypography.label.copyWith(
-              color: AppColors.primaryColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          child: Text(actionLabel, style: AppTypography.labelStrong),
         ),
       ],
     );
@@ -115,7 +124,7 @@ class DashboardActivityLine extends StatelessWidget {
                 child: Text(
                   when,
                   style: AppTypography.caption.copyWith(
-                    color: AppColors.gray600,
+                    color: AppColors.smoke,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -124,7 +133,7 @@ class DashboardActivityLine extends StatelessWidget {
                 child: Text(
                   '${dashboardFormatActivityActor(row.actorName)} · ${row.action} · ${row.entityType}',
                   style: AppTypography.body.copyWith(
-                    color: AppColors.textSecondary,
+                    color: AppColors.smoke,
                     height: 1.4,
                   ),
                 ),
@@ -133,7 +142,7 @@ class DashboardActivityLine extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          Divider(height: 1, thickness: 1, color: AppColors.gray200),
+          Divider(height: 1, thickness: 1, color: AppColors.fog),
       ],
     );
   }

@@ -113,7 +113,7 @@ class BulkImportCommitProgressOverlay extends ConsumerWidget {
         if (progress.phase == BulkImportCommitPhase.running && !progress.dismissed)
           Positioned.fill(
             child: ColoredBox(
-              color: Colors.black26,
+              color: AppColors.ink.withValues(alpha: 0.4),
               child: Center(
                 child: _BulkImportProgressCard(
                   progress: progress,
@@ -160,9 +160,9 @@ class _BulkImportProgressCard extends StatelessWidget {
         : l10n.bulkImportCommitProgressTitle;
 
     return Material(
-      elevation: 8,
+      elevation: 0,
       borderRadius: BorderRadius.circular(AppRadius.lg),
-      color: AppColors.white,
+      color: AppColors.paper,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: compact ? 320 : 400),
         child: Padding(
@@ -178,7 +178,7 @@ class _BulkImportProgressCard extends StatelessWidget {
                         ? LucideIcons.checkCircle
                         : LucideIcons.loader,
                     size: 20,
-                    color: AppColors.primaryColor,
+                    color: AppColors.charcoal,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(child: Text(title, style: AppTypography.label)),
@@ -193,13 +193,13 @@ class _BulkImportProgressCard extends StatelessWidget {
               if (progress.message != null)
                 Text(
                   progress.message!,
-                  style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.caption.copyWith(color: AppColors.smoke),
                 ),
               const SizedBox(height: AppSpacing.sm),
               LinearProgressIndicator(
                 value: progress.phase == BulkImportCommitPhase.done ? 1 : fraction.clamp(0, 1),
                 minHeight: 6,
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(AppRadius.bar),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(

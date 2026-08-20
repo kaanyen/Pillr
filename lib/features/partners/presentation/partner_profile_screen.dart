@@ -108,7 +108,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Partner not found', style: AppTypography.heading3),
+                Text('Partner not found', style: AppTypography.headingSm),
                 const SizedBox(height: AppSpacing.md),
                 TextButton(onPressed: () => context.go('/partners'), child: const Text('Back to partners')),
               ],
@@ -146,13 +146,13 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                   children: [
                                     CircleAvatar(
                                       radius: 40,
-                                      backgroundColor: AppColors.primaryLight,
+                                      backgroundColor: AppColors.mist,
                                       child: Text(
                                         partner.fullName.isNotEmpty
                                             ? partner.fullName[0].toUpperCase()
                                             : '?',
-                                        style: AppTypography.heading2.copyWith(
-                                          color: AppColors.primaryDark,
+                                        style: AppTypography.heading.copyWith(
+                                          color: AppColors.ink,
                                         ),
                                       ),
                                     ),
@@ -161,21 +161,21 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(partner.fullName, style: AppTypography.heading2),
+                                          Text(partner.fullName, style: AppTypography.heading),
                                           const SizedBox(height: AppSpacing.sm),
                                           Row(
                                             children: [
                                               const Icon(
                                                 LucideIcons.calendar,
                                                 size: 16,
-                                                color: AppColors.textSecondary,
+                                                color: AppColors.smoke,
                                               ),
                                               const SizedBox(width: 6),
                                               Expanded(
                                                 child: Text(
                                                   'Record since ${formatFirestoreDate(partner.createdAt, pattern: 'MMM d, y')}',
                                                   style: AppTypography.caption.copyWith(
-                                                    color: AppColors.textSecondary,
+                                                    color: AppColors.smoke,
                                                   ),
                                                 ),
                                               ),
@@ -212,13 +212,13 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                       width: 72,
                                       height: 72,
                                       decoration: BoxDecoration(
-                                        color: AppColors.gray50,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: AppColors.gray200),
+                                        color: AppColors.mist,
+                                        borderRadius: BorderRadius.circular(AppRadius.input),
+                                        border: Border.all(color: AppColors.fog),
                                       ),
                                       child: const Icon(
                                         LucideIcons.qrCode,
-                                        color: AppColors.gray400,
+                                        color: AppColors.pewter,
                                         size: 36,
                                       ),
                                     ),
@@ -385,21 +385,21 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                                       final table = PillrDataTable(
                                         minWidth: 720,
                                         columns: [
-                                          DataColumn2(label: Text('DATE', style: AppTypography.tableHeader)),
-                                          DataColumn2(label: Text('PERIOD', style: AppTypography.tableHeader)),
-                                          DataColumn2(label: Text('ARM', style: AppTypography.tableHeader)),
-                                          DataColumn2(label: Text('AMOUNT', style: AppTypography.tableHeader)),
-                                          DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
+                                          DataColumn2(label: Text('Date', style: AppTypography.tableHeader)),
+                                          DataColumn2(label: Text('Period', style: AppTypography.tableHeader)),
+                                          DataColumn2(label: Text('Arm', style: AppTypography.tableHeader)),
+                                          DataColumn2(label: Text('Amount', style: AppTypography.tableHeader)),
+                                          DataColumn2(label: Text('Status', style: AppTypography.tableHeader)),
                                         ],
                                         rows: [
                                           for (final e in filtered)
                                             DataRow2(
                                               onTap: () => context.go('/entries/${e.id}'),
                                               cells: [
-                                                DataCell(Text(_fmt(e), style: AppTypography.body)),
-                                                DataCell(Text(_periodLabel(e.partnershipPeriodId, periods), style: AppTypography.body)),
-                                                DataCell(Text(_armLabel(e.partnershipArmId, arms), style: AppTypography.body)),
-                                                DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.body)),
+                                                DataCell(Text(_fmt(e), style: AppTypography.tableCell)),
+                                                DataCell(Text(_periodLabel(e.partnershipPeriodId, periods), style: AppTypography.tableCell)),
+                                                DataCell(Text(_armLabel(e.partnershipArmId, arms), style: AppTypography.tableCell)),
+                                                DataCell(Text(formatMoney(e.amountCedis), style: AppTypography.tableCell)),
                                                 DataCell(_statusBadge(e.status)),
                                               ],
                                             ),
@@ -467,14 +467,14 @@ class _PartnerProfileField extends StatelessWidget {
         children: [
           Text(
             label,
-            style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.caption.copyWith(color: AppColors.smoke),
           ),
           const SizedBox(height: 4),
           Text(
             value,
             style: AppTypography.body.copyWith(
               fontWeight: FontWeight.w600,
-              color: AppColors.gray900,
+              color: AppColors.ink,
             ),
           ),
         ],

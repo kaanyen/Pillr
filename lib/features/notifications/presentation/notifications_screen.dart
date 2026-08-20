@@ -23,7 +23,7 @@ class NotificationsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Notifications', style: AppTypography.heading2),
+          Text('Notifications', style: AppTypography.heading),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'FCM pushes and daily digests are configured in Cloud Functions. '

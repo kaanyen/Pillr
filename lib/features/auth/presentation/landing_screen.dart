@@ -20,19 +20,12 @@ class LandingScreen extends StatelessWidget {
           children: [
             Text(
               'Get started',
-              style: AppTypography.heading1.copyWith(
-                fontSize: 28,
-                color: AppColors.gray900,
-                fontWeight: FontWeight.w800,
-              ),
+              style: AppTypography.heading,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Create your account now with an invite from your church.',
-              style: AppTypography.body.copyWith(
-                color: AppColors.textSecondary,
-                height: 1.45,
-              ),
+              style: AppTypography.bodyMuted,
             ),
             const SizedBox(height: AppSpacing.xl),
             AuthPrimaryButton(
@@ -46,10 +39,7 @@ class LandingScreen extends StatelessWidget {
                 onPressed: () => context.go('/bootstrap-join'),
                 child: Text(
                   'Starting a new church? Use your setup code',
-                  style: AppTypography.caption.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryColor,
-                  ),
+                  style: AppTypography.label,
                 ),
               ),
             ),
@@ -62,7 +52,7 @@ class LandingScreen extends StatelessWidget {
                 children: [
                   Text(
                     'Have an account?',
-                    style: AppTypography.caption.copyWith(color: AppColors.gray600),
+                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
                   ),
                   TextButton(
                     onPressed: () => context.go('/sign-in'),
@@ -73,10 +63,7 @@ class LandingScreen extends StatelessWidget {
                     ),
                     child: Text(
                       'Sign in',
-                      style: AppTypography.caption.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primaryColor,
-                      ),
+                      style: AppTypography.labelStrong,
                     ),
                   ),
                 ],

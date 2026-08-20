@@ -203,7 +203,7 @@ class _ActivityLogsScreenState extends ConsumerState<ActivityLogsScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Activity logs', style: AppTypography.heading2)),
+              Expanded(child: Text('Activity logs', style: AppTypography.heading)),
               PillrButton(
                 label: 'Export PDF',
                 variant: PillrButtonVariant.secondary,
@@ -414,11 +414,11 @@ class _LogTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: AppColors.paper,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.gray200),
+          border: Border.all(color: AppColors.fog),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,10 +427,10 @@ class _LogTile extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: AppColors.primaryLight,
+                  backgroundColor: AppColors.mist,
                   child: Text(
                     row.actorName.isNotEmpty ? row.actorName[0].toUpperCase() : '?',
-                    style: AppTypography.caption.copyWith(color: AppColors.primaryColor),
+                    style: AppTypography.caption.copyWith(color: AppColors.charcoal),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
@@ -453,7 +453,7 @@ class _LogTile extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${row.entityType}${row.entityId != null ? ' · ${row.entityId}' : ''}',
-              style: AppTypography.caption.copyWith(color: AppColors.gray600),
+              style: AppTypography.caption.copyWith(color: AppColors.smoke),
             ),
             if (row.entityId != null) _EntityLink(row: row),
           ],

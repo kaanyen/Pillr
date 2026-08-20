@@ -15,19 +15,19 @@ class OfflineBanner extends StatelessWidget {
     if (!visible) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     return Material(
-      color: AppColors.warningLight,
+      color: AppColors.mist,
       child: SafeArea(
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
-              Icon(LucideIcons.wifiOff, color: AppColors.warningColor, size: 20),
+              Icon(LucideIcons.wifiOff, color: AppColors.smoke, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   l10n.offlineBannerMessage,
-                  style: AppTypography.caption.copyWith(color: AppColors.gray900),
+                  style: AppTypography.caption.copyWith(color: AppColors.ink),
                 ),
               ),
             ],

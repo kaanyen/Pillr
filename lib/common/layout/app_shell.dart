@@ -6,7 +6,6 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../core/extensions/async_value_ext.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/pillr_layout.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
@@ -68,7 +67,7 @@ class AppShell extends ConsumerWidget {
         final bottomItems = _mobileNavItems(idx);
 
         return Scaffold(
-          backgroundColor: AppColors.surfaceColor,
+          backgroundColor: AppColors.paper,
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -83,7 +82,7 @@ class AppShell extends ConsumerWidget {
                         collapsed: sidebarCollapsed,
                       ),
                     if (showSidebar || sidebarCollapsed)
-                      const VerticalDivider(width: 1, color: AppColors.gray200),
+                      const VerticalDivider(width: 1, color: AppColors.fog),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -235,6 +234,12 @@ List<BottomNavItem> _mobileNavItems(UserChurchIndex? idx) {
   ];
 }
 
+/// Top navigation strip.
+///
+/// Per the reference: Paper background, 8px vertical padding, a single Fog
+/// hairline underneath, and no elevation. The screen title runs 18/600 in the
+/// text face (not the display face — this is chrome, not a headline), nav
+/// icons are 20px Smoke, and the account chip is a Pewter-outlined ghost.
 class _TopBar extends ConsumerWidget {
   const _TopBar({
     required this.title,
@@ -271,34 +276,32 @@ class _TopBar extends ConsumerWidget {
         : TextCaseUtils.toTitleCase(fullName.split(RegExp(r'\s+')).first);
 
     return Material(
-      color: AppColors.white,
+      color: AppColors.paper,
       elevation: 0,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          border: const Border(bottom: BorderSide(color: AppColors.gray200)),
-          boxShadow: AppTheme.cardShadow,
+        decoration: const BoxDecoration(
+          color: AppColors.paper,
+          border: Border(
+            bottom: BorderSide(color: AppColors.fog, width: AppBorders.hairline),
+          ),
         ),
         child: Row(
           children: [
             if (showBack)
               IconButton(
                 tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-                icon: Icon(LucideIcons.arrowLeft, size: 22, color: AppColors.textSecondary),
+                icon: const Icon(LucideIcons.arrowLeft, size: 20, color: AppColors.ink),
                 onPressed: () => _handleBack(context),
               ),
             Expanded(
               flex: showSearch ? 1 : 2,
               child: Text(
                 title,
-                style: AppTypography.heading2.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.gray900,
-                ),
+                style: AppTypography.subheadingStrong,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -308,18 +311,28 @@ class _TopBar extends ConsumerWidget {
                 flex: 2,
                 child: InkWell(
                   onTap: () => context.push('/search'),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  borderRadius: BorderRadius.circular(AppRadius.button),
                   child: IgnorePointer(
                     child: TextField(
                       decoration: InputDecoration(
                         hintText: l10n.searchHint,
-                        suffixIcon: Icon(LucideIcons.search, color: AppColors.textSecondary, size: 20),
+                        suffixIcon: const Icon(LucideIcons.search, color: AppColors.smoke, size: 18),
                         isDense: true,
                         filled: true,
-                        fillColor: AppColors.gray50,
+                        fillColor: AppColors.mist,
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                          borderSide: BorderSide.none,
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                          borderSide: const BorderSide(
+                            color: AppColors.ash,
+                            width: AppBorders.hairline,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.button),
+                          borderSide: const BorderSide(
+                            color: AppColors.ash,
+                            width: AppBorders.hairline,
+                          ),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.md,
@@ -334,27 +347,36 @@ class _TopBar extends ConsumerWidget {
             ],
             if (showSearch && firstName.isNotEmpty) ...[
               Material(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(AppRadius.full),
+                color: AppColors.paper,
+                borderRadius: BorderRadius.circular(AppRadius.button),
                 child: InkWell(
                   onTap: () => context.push('/settings'),
-                  borderRadius: BorderRadius.circular(AppRadius.full),
-                  child: Padding(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  hoverColor: AppColors.mist,
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppColors.pewter,
+                        width: AppBorders.hairline,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.button),
+                    ),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         CircleAvatar(
-                          radius: 14,
-                          backgroundColor: AppColors.primaryColor.withValues(alpha: 0.15),
+                          radius: 12,
+                          backgroundColor: AppColors.mist,
                           child: Text(
                             fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
-                            style: AppTypography.label.copyWith(
-                              color: AppColors.primaryColor,
-                              fontWeight: FontWeight.w700,
+                            style: AppTypography.pill.copyWith(
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -363,12 +385,13 @@ class _TopBar extends ConsumerWidget {
                           constraints: const BoxConstraints(maxWidth: 120),
                           child: Text(
                             firstName,
-                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                            style: AppTypography.label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Icon(LucideIcons.chevronDown, size: 16, color: AppColors.textSecondary),
+                        const SizedBox(width: AppSpacing.xs),
+                        const Icon(LucideIcons.chevronDown, size: 14, color: AppColors.smoke),
                       ],
                     ),
                   ),
@@ -380,12 +403,12 @@ class _TopBar extends ConsumerWidget {
               IconButton(
                 tooltip: 'Platform',
                 onPressed: () => context.go('/platform/churches'),
-                icon: Icon(LucideIcons.layoutGrid, color: AppColors.textSecondary),
+                icon: const Icon(LucideIcons.layoutGrid, color: AppColors.smoke, size: 20),
               ),
             IconButton(
               tooltip: l10n.toolbarHelp,
               onPressed: () => context.push('/help'),
-              icon: Icon(LucideIcons.helpCircle, color: AppColors.textSecondary),
+              icon: const Icon(LucideIcons.helpCircle, color: AppColors.smoke, size: 20),
             ),
             IconButton(
               tooltip: l10n.toolbarNotifications,
@@ -393,7 +416,7 @@ class _TopBar extends ConsumerWidget {
               icon: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Icon(LucideIcons.bell, color: AppColors.textSecondary),
+                  const Icon(LucideIcons.bell, color: AppColors.smoke, size: 20),
                   if (idx?.isPastor == true && pending > 0)
                     Positioned(
                       right: -2,
@@ -401,16 +424,16 @@ class _TopBar extends ConsumerWidget {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                          color: AppColors.dangerColor,
+                          color: AppColors.charcoal,
                           shape: BoxShape.circle,
                         ),
                         constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                         child: Text(
                           '$pending',
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
+                          style: AppTypography.pill.copyWith(
+                            color: AppColors.paper,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -422,7 +445,7 @@ class _TopBar extends ConsumerWidget {
             Tooltip(
               message: l10n.toolbarMoreOptions,
               child: PopupMenuButton<String>(
-                icon: Icon(LucideIcons.moreVertical, color: AppColors.textSecondary),
+                icon: const Icon(LucideIcons.moreVertical, color: AppColors.smoke, size: 20),
                 onSelected: (v) {
                   if (v == 'logout') onSignOut();
                 },

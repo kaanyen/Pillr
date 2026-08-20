@@ -28,14 +28,14 @@ class BulkImportDropZone extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return CustomPaint(
       foregroundPainter: const _DashedRRectPainter(
-        color: Color(0xFFD1D5DB),
+        color: AppColors.fog,
         strokeWidth: 1.5,
         radius: _cornerRadius,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_cornerRadius),
         child: Material(
-          color: AppColors.gray50,
+          color: AppColors.mist,
           child: InkWell(
             onTap: loading ? null : onPick,
             child: Padding(
@@ -46,25 +46,25 @@ class BulkImportDropZone extends StatelessWidget {
                   Icon(
                     LucideIcons.uploadCloud,
                     size: 48,
-                    color: AppColors.gray400,
+                    color: AppColors.pewter,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   if (fileName != null && fileName!.isNotEmpty) ...[
-                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: AppColors.primaryColor),
+                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: AppColors.charcoal),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       fileName!,
                       textAlign: TextAlign.center,
                       style: AppTypography.body.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.gray900,
+                        color: AppColors.ink,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       l10n.bulkImportDropResumeHint,
                       textAlign: TextAlign.center,
-                      style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
                     ),
                   ] else
                     Text(
@@ -72,7 +72,7 @@ class BulkImportDropZone extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: AppTypography.body.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.gray900,
+                        color: AppColors.ink,
                       ),
                     ),
                   const SizedBox(height: AppSpacing.sm),
@@ -80,7 +80,7 @@ class BulkImportDropZone extends StatelessWidget {
                     l10n.bulkImportDropFormats,
                     textAlign: TextAlign.center,
                     style: AppTypography.caption.copyWith(
-                      color: AppColors.textSecondary,
+                      color: AppColors.smoke,
                       height: 1.45,
                     ),
                   ),
@@ -88,8 +88,8 @@ class BulkImportDropZone extends StatelessWidget {
                   OutlinedButton(
                     onPressed: loading ? null : onPick,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gray900,
-                      side: const BorderSide(color: AppColors.gray200),
+                      foregroundColor: AppColors.ink,
+                      side: const BorderSide(color: AppColors.fog),
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
                         vertical: AppSpacing.md,

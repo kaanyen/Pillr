@@ -156,7 +156,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                   child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Goals', style: AppTypography.heading2),
+                    Text('Goals', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Set a target per period and arm. Approved entries update progress automatically.',
@@ -182,7 +182,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                                     Expanded(
                                       child: Text(
                                         '${_periodName(periods, g.partnershipPeriodId)} · ${_armName(arms, g.partnershipArmId)}',
-                                        style: AppTypography.heading3,
+                                        style: AppTypography.headingSm,
                                       ),
                                     ),
                                     IconButton(
@@ -194,7 +194,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                                     ),
                                     IconButton(
                                       tooltip: 'Delete',
-                                      icon: Icon(LucideIcons.trash2, color: AppColors.dangerColor),
+                                      icon: Icon(LucideIcons.trash2, color: AppColors.ink),
                                       onPressed: idx == null || profile == null
                                           ? null
                                           : () => _confirmDelete(context, ref, idx.churchId, g),
@@ -207,8 +207,8 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
                                   child: LinearProgressIndicator(
                                     value: g.progressFraction,
                                     minHeight: 10,
-                                    backgroundColor: AppColors.gray100,
-                                    color: AppColors.primaryColor,
+                                    backgroundColor: AppColors.mist,
+                                    color: AppColors.charcoal,
                                   ),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
@@ -282,7 +282,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text('New goal', style: AppTypography.heading3),
+          title: Text('New goal', style: AppTypography.headingSm),
           content: SizedBox(
             width: 420,
             child: StatefulBuilder(
@@ -402,7 +402,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Edit target', style: AppTypography.heading3),
+        title: Text('Edit target', style: AppTypography.headingSm),
         content: TextField(
           controller: target,
           decoration: const InputDecoration(
@@ -459,7 +459,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Delete goal?', style: AppTypography.heading3),
+        title: Text('Delete goal?', style: AppTypography.headingSm),
         content: const Text('This does not delete entries — only the target row.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),

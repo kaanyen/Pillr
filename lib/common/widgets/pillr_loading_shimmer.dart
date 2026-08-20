@@ -8,7 +8,7 @@ class PillrLoadingShimmer extends StatelessWidget {
   const PillrLoadingShimmer({
     super.key,
     this.height = 56,
-    this.borderRadius = AppRadius.md,
+    this.borderRadius = AppRadius.input,
   });
 
   final double height;
@@ -17,12 +17,12 @@ class PillrLoadingShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: AppColors.gray100,
-      highlightColor: AppColors.white,
+      baseColor: AppColors.mist,
+      highlightColor: AppColors.paper,
       child: Container(
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.gray100,
+          color: AppColors.mist,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),

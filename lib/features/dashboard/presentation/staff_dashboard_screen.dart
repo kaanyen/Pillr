@@ -95,18 +95,18 @@ class StaffDashboardScreen extends ConsumerWidget {
             if (declined > 0) ...[
               const SizedBox(height: AppSpacing.lg),
               Material(
-                color: const Color(0xFFFFF4E6),
+                color: AppColors.mist,
                 borderRadius: BorderRadius.circular(AppRadius.xl),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   child: Row(
                     children: [
-                      const Icon(LucideIcons.info, color: Color(0xFFB45309)),
+                      const Icon(LucideIcons.info, color: AppColors.smoke),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
                           '$declined entr${declined == 1 ? 'y' : 'ies'} need attention (declined). Open Entries to review.',
-                          style: AppTypography.caption.copyWith(color: const Color(0xFFB45309)),
+                          style: AppTypography.caption.copyWith(color: AppColors.smoke),
                         ),
                       ),
                     ],
@@ -134,7 +134,7 @@ class StaffDashboardScreen extends ConsumerWidget {
                         periodLabel: 'All statuses',
                         backgroundColor: DashboardTints.totalBg,
                         iconCircleColor: DashboardTints.totalIconCircle,
-                        iconColor: AppColors.primaryColor,
+                        iconColor: AppColors.charcoal,
                         icon: LucideIcons.fileText,
                       ),
                     ),
@@ -146,7 +146,7 @@ class StaffDashboardScreen extends ConsumerWidget {
                         periodLabel: '${s.approvedCount} approved',
                         backgroundColor: DashboardTints.partnersBg,
                         iconCircleColor: DashboardTints.partnersIconCircle,
-                        iconColor: AppColors.navActiveForeground,
+                        iconColor: AppColors.ink,
                         icon: LucideIcons.checkCircle,
                       ),
                     ),
@@ -155,7 +155,7 @@ class StaffDashboardScreen extends ConsumerWidget {
               },
             ),
             const SizedBox(height: AppSpacing.xl),
-            Text('My recent entries', style: AppTypography.heading3),
+            Text('My recent entries', style: AppTypography.headingSm),
             const SizedBox(height: AppSpacing.md),
             PillrCard(
               padding: EdgeInsets.zero,
@@ -164,7 +164,7 @@ class StaffDashboardScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(AppSpacing.lg),
                       child: Text(
                         'No entries yet.',
-                        style: AppTypography.body.copyWith(color: AppColors.gray400),
+                        style: AppTypography.body.copyWith(color: AppColors.pewter),
                       ),
                     )
                   : Column(
@@ -231,13 +231,13 @@ class _StaffEntryRow extends StatelessWidget {
                         formatMoney(entry.amountCedis),
                         style: AppTypography.body.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: AppColors.gray900,
+                          color: AppColors.ink,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '$dateStr · $partner',
-                        style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                        style: AppTypography.caption.copyWith(color: AppColors.smoke),
                       ),
                     ],
                   ),
@@ -248,7 +248,7 @@ class _StaffEntryRow extends StatelessWidget {
           ),
         ),
         if (showDivider)
-          Divider(height: 1, thickness: 1, color: AppColors.gray200),
+          Divider(height: 1, thickness: 1, color: AppColors.fog),
       ],
     );
   }

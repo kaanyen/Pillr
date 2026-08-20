@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 
-/// Text field with **label above** the box (reference: modern SaaS forms — not floating labels).
+/// Text field with the label **above** the box, never floating.
+///
+/// The box itself is a Mist fill with an Ash hairline; focus darkens the
+/// border to Ink and thickens it to 1.5px. Focus is a weight change, not a
+/// color change.
 class PillrTextField extends StatelessWidget {
   const PillrTextField({
     super.key,
@@ -54,7 +57,7 @@ class PillrTextField extends StatelessWidget {
       maxLines: maxLines,
       readOnly: readOnly,
       onTap: onTap,
-      style: AppTypography.body.copyWith(color: Theme.of(context).colorScheme.onSurface),
+      style: AppTypography.body,
       decoration: InputDecoration(
         hintText: hint,
         errorText: errorText,
@@ -71,13 +74,7 @@ class PillrTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label!,
-          style: AppTypography.label.copyWith(
-            fontWeight: FontWeight.w600,
-            color: AppColors.gray900,
-          ),
-        ),
+        Text(label!, style: AppTypography.labelStrong),
         const SizedBox(height: AppSpacing.sm),
         field,
       ],

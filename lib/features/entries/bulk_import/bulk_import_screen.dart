@@ -221,7 +221,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     final showUploadZone = !_hasDraftRows && !_isResolvingDraft;
 
     return Scaffold(
-      backgroundColor: AppColors.surfaceColor,
+      backgroundColor: AppColors.paper,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Center(
@@ -233,7 +233,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                    child: Text(_error!, style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
                   ),
                 if (_fileIssues.isNotEmpty)
                   ..._fileIssues.map(
@@ -242,7 +242,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       child: Text(
                         i.message ?? _issueLabel(l10n, i.code),
                         style: AppTypography.caption.copyWith(
-                          color: Theme.of(context).colorScheme.error,
+                          color: AppColors.ink,
                         ),
                       ),
                     ),
@@ -254,13 +254,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   ] else if (showUploadZone) ...[
                     Text(
                       l10n.bulkImportUploadTitle,
-                      style: AppTypography.heading3.copyWith(color: AppColors.gray900),
+                      style: AppTypography.headingSm.copyWith(color: AppColors.ink),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       l10n.bulkImportUploadSubtitle,
                       style: AppTypography.body.copyWith(
-                        color: AppColors.textSecondary,
+                        color: AppColors.smoke,
                         height: 1.45,
                       ),
                     ),
@@ -275,7 +275,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: _parsing || _committing ? null : () => _pickAndParse(context),
-                        icon: Icon(LucideIcons.upload, size: 18, color: AppColors.primaryColor),
+                        icon: Icon(LucideIcons.upload, size: 18, color: AppColors.charcoal),
                         label: Text(l10n.bulkImportReplaceFile),
                       ),
                     ),
@@ -300,20 +300,20 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                     const SizedBox(height: AppSpacing.md),
                     if (_resolved!.any((r) => r.isBlocking))
                       Material(
-                        color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
+                        color: AppColors.mist,
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                         child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
+                          padding: const EdgeInsets.all(AppSpacing.lg),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(LucideIcons.alertTriangle, size: 18, color: Theme.of(context).colorScheme.error),
+                              const Icon(LucideIcons.alertTriangle, size: 18, color: AppColors.ink),
                               const SizedBox(width: AppSpacing.sm),
                               Expanded(
                                 child: Text(
                                   l10n.bulkImportBlocking,
                                   style: AppTypography.caption.copyWith(
-                                    color: Theme.of(context).colorScheme.error,
+                                    color: AppColors.ink,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -328,7 +328,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                         child: Text(
                           l10n.bulkImportNoActivePeriod,
                           style: AppTypography.caption.copyWith(
-                            color: Theme.of(context).colorScheme.error,
+                            color: AppColors.ink,
                           ),
                         ),
                       ),
@@ -347,8 +347,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                         return FilledButton(
                           style: allClear
                               ? FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: AppColors.white,
+                                  backgroundColor: AppColors.charcoal,
+                                  foregroundColor: AppColors.paper,
                                 )
                               : null,
                           onPressed: _committing ||
@@ -376,7 +376,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (allClear) ...[
-                                      Icon(LucideIcons.clipboardCheck, size: 20, color: AppColors.white),
+                                      Icon(LucideIcons.clipboardCheck, size: 20, color: AppColors.paper),
                                       const SizedBox(width: AppSpacing.sm),
                                     ],
                                     Text(
@@ -405,14 +405,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   ) {
     final s = summarize(rows, viewerIsStaff: viewerIsStaff);
     final fmt = NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2);
-    const totalBg = Color(0xFFEFF6FF);
-    const totalIconCircle = Color(0xFFDBEAFE);
-    const pendingBg = Color(0xFFFFFBEB);
-    const pendingIconCircle = Color(0xFFFDE68A);
-    const partnersBg = Color(0xFFECFDF5);
-    const partnersIconCircle = Color(0xFFD1FAE5);
-    const goalBg = Color(0xFFF5F3FF);
-    const goalIconCircle = Color(0xFFEDE9FE);
+    const totalBg = AppColors.paper;
+    const totalIconCircle = AppColors.mist;
+    const pendingBg = AppColors.paper;
+    const pendingIconCircle = AppColors.mist;
+    const partnersBg = AppColors.paper;
+    const partnersIconCircle = AppColors.mist;
+    const goalBg = AppColors.paper;
+    const goalIconCircle = AppColors.mist;
 
     Widget compactTile({
       required String label,
@@ -427,7 +427,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.gray200),
+          border: Border.all(color: AppColors.fog),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -436,7 +436,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconCircle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppRadius.button),
               ),
               child: Icon(icon, size: 16, color: iconColor),
             ),
@@ -448,11 +448,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                 children: [
                   Text(
                     label,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.gray600,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                      height: 1.2,
+                    style: AppTypography.micro.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -460,11 +457,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   const SizedBox(height: 2),
                   Text(
                     valueText,
-                    style: AppTypography.body.copyWith(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gray900,
-                    ),
+                    style: AppTypography.subheadingStrong,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -483,7 +476,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.list,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: AppColors.charcoal,
       ),
       compactTile(
         label: l10n.bulkImportStatNewPartners(0).split(':').first.trim(),
@@ -491,7 +484,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userPlus,
         bg: partnersBg,
         iconCircle: partnersIconCircle,
-        iconColor: const Color(0xFF059669),
+        iconColor: AppColors.smoke,
       ),
       compactTile(
         label: l10n.bulkImportStatExistingPartners(0).split(':').first.trim(),
@@ -499,7 +492,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userCheck,
         bg: goalBg,
         iconCircle: goalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: AppColors.charcoal,
       ),
       compactTile(
         label: l10n.bulkImportStatTotal('').split(':').first.trim(),
@@ -507,7 +500,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.wallet,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: AppColors.charcoal,
       ),
     ];
 
@@ -518,24 +511,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.alertTriangle,
         bg: pendingBg,
         iconCircle: pendingIconCircle,
-        iconColor: const Color(0xFFB45309),
+        iconColor: AppColors.smoke,
       ),
       compactTile(
         label: l10n.bulkImportStatErrors(0).split(':').first.trim(),
         valueText: '${s.blockingCount}',
         icon: LucideIcons.xCircle,
-        bg: const Color(0xFFFEF2F2),
-        iconCircle: const Color(0xFFFECACA),
-        iconColor: AppColors.dangerColor,
+        bg: AppColors.paper,
+        iconCircle: AppColors.mist,
+        iconColor: AppColors.ink,
       ),
       if (s.pastorYesCount > 0)
         compactTile(
           label: l10n.bulkImportStatPastorYes(0).split(':').first.trim(),
           valueText: '${s.pastorYesCount}',
           icon: LucideIcons.check,
-          bg: const Color(0xFFECFDF5),
-          iconCircle: const Color(0xFFD1FAE5),
-          iconColor: const Color(0xFF059669),
+          bg: AppColors.paper,
+          iconCircle: AppColors.mist,
+          iconColor: AppColors.smoke,
         ),
     ];
 
@@ -545,7 +538,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         Text(
           l10n.bulkImportSummary,
           style: AppTypography.label.copyWith(
-            color: AppColors.gray600,
+            color: AppColors.smoke,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -645,7 +638,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             child: Text(
               l10n.bulkImportPreview,
               style: AppTypography.label.copyWith(
-                color: AppColors.gray600,
+                color: AppColors.smoke,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -802,7 +795,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               Text(
                 _fileName!,
                 textAlign: TextAlign.center,
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                style: AppTypography.caption.copyWith(color: AppColors.smoke),
               ),
             ],
           ],
@@ -813,9 +806,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   Widget _buildResult(BuildContext context, AppLocalizations l10n, BulkImportCommitResult r) {
     return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
+      color: AppColors.mist,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1196,7 +1189,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                           l10n.bulkImportFieldArm,
                           style: AppTypography.caption.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.gray600,
+                            color: AppColors.smoke,
                           ),
                         ),
                       ),
@@ -1227,9 +1220,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       const SizedBox(height: AppSpacing.md),
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: AppColors.white,
+                          color: AppColors.paper,
                           borderRadius: BorderRadius.circular(AppRadius.lg),
-                          border: Border.all(color: AppColors.gray200),
+                          border: Border.all(color: AppColors.fog),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
@@ -1483,7 +1476,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                     child: Icon(
                       _expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
                       size: 20,
-                      color: AppColors.textSecondary,
+                      color: AppColors.smoke,
                     ),
                   ),
                   SizedBox(
@@ -1545,7 +1538,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                       onPressed: widget.loadingLocked ? null : widget.onReview,
                       child: Text(
                         l10n.bulkImportTableReview,
-                        style: const TextStyle(fontSize: 13),
+                        style: AppTypography.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1558,12 +1551,12 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: Theme.of(context).colorScheme.error,
+                        foregroundColor: AppColors.ink,
                       ),
                       onPressed: widget.loadingLocked ? null : widget.onRemove,
                       child: Text(
                         l10n.bulkImportTableRemove,
-                        style: const TextStyle(fontSize: 13),
+                        style: AppTypography.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1609,7 +1602,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
     final showDupAck = hasDup && !widget.duplicateAcknowledged;
 
     final labelStyle = AppTypography.caption.copyWith(
-      color: AppColors.gray600,
+      color: AppColors.smoke,
       fontWeight: FontWeight.w600,
     );
     final valueStyle = AppTypography.body;
@@ -1668,11 +1661,16 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                       (i) => Chip(
                         label: Text(
                           i.message ?? widget.issueLabel(i.code),
-                          style: const TextStyle(fontSize: 11),
+                          style: AppTypography.pill.copyWith(
+                            // Errors read heavier; warnings stay regular.
+                            fontWeight: i.severity == BulkImportSeverity.error
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
                         ),
                         backgroundColor: i.severity == BulkImportSeverity.error
-                            ? Theme.of(context).colorScheme.errorContainer
-                            : Theme.of(context).colorScheme.secondaryContainer,
+                            ? AppColors.mist
+                            : AppColors.paper,
                       ),
                     )
                     .toList(),
@@ -1684,7 +1682,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                 0: FlexColumnWidth(1.05),
                 1: FlexColumnWidth(2.15),
               },
-              border: TableBorder.all(color: AppColors.gray200, width: 1, borderRadius: BorderRadius.circular(AppRadius.md)),
+              border: TableBorder.all(color: AppColors.fog, width: 1, borderRadius: BorderRadius.circular(AppRadius.md)),
               children: tableRows,
             ),
             if (showDupAck) ...[
@@ -1693,7 +1691,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   onPressed: widget.loadingLocked ? null : widget.onAcknowledgeDuplicate,
-                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: AppColors.primaryColor),
+                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: AppColors.charcoal),
                   label: Text(l10n.bulkImportConfirmNotDuplicate),
                 ),
               ),
@@ -1736,8 +1734,8 @@ class _BulkImportStatusBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: scheme.errorContainer,
-          borderRadius: BorderRadius.circular(6),
+          color: AppColors.mist,
+          borderRadius: BorderRadius.circular(AppRadius.bar),
         ),
         child: Text(
           l10n.bulkImportRowStatusBlocked,
@@ -1752,20 +1750,20 @@ class _BulkImportStatusBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFF3E8FF),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFFB45309).withValues(alpha: 0.35)),
+          color: AppColors.mist,
+          borderRadius: BorderRadius.circular(AppRadius.bar),
+          border: Border.all(color: AppColors.smoke.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.copy, size: 14, color: const Color(0xFF7C3AED)),
+            Icon(LucideIcons.copy, size: 14, color: AppColors.smoke),
             const SizedBox(width: 4),
             Text(
               l10n.bulkImportRowStatusDuplicate,
               style: AppTypography.caption.copyWith(
-                color: const Color(0xFF5B21B6),
+                color: AppColors.ink,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1780,12 +1778,12 @@ class _BulkImportStatusBadge extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.gray400),
+            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.pewter),
             const SizedBox(width: 4),
             Text(
               l10n.bulkImportRowStatusCheck,
               style: AppTypography.caption.copyWith(
-                color: AppColors.gray600,
+                color: AppColors.smoke,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1796,19 +1794,19 @@ class _BulkImportStatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFDCFCE7),
-        borderRadius: BorderRadius.circular(6),
+        color: AppColors.mist,
+        borderRadius: BorderRadius.circular(AppRadius.bar),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.check, size: 14, color: const Color(0xFF166534)),
+          Icon(LucideIcons.check, size: 14, color: AppColors.ink),
           const SizedBox(width: 4),
           Text(
             l10n.bulkImportRowStatusReady,
             style: AppTypography.caption.copyWith(
-              color: const Color(0xFF166534),
+              color: AppColors.ink,
               fontWeight: FontWeight.w600,
             ),
           ),

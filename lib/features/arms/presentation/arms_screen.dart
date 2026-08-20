@@ -54,7 +54,7 @@ class ArmsScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Partnership arms', style: AppTypography.heading2),
+                    Text('Partnership arms', style: AppTypography.heading),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       'Categories for giving (e.g. Venue, Rhapsody). Toggle inactive arms to hide them from new entries.',
@@ -113,14 +113,14 @@ class ArmsScreen extends ConsumerWidget {
                     sortAscending: true,
                     columns: [
                       DataColumn2(
-                        label: Text('NAME', style: AppTypography.tableHeader),
+                        label: Text('Name', style: AppTypography.tableHeader),
                         size: ColumnSize.L,
                       ),
-                      DataColumn2(label: Text('COLOR', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('STATUS', style: AppTypography.tableHeader)),
-                      DataColumn2(label: Text('UPDATED', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Color', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Status', style: AppTypography.tableHeader)),
+                      DataColumn2(label: Text('Updated', style: AppTypography.tableHeader)),
                       DataColumn2(
-                        label: Text('ACTIONS', style: AppTypography.tableHeader),
+                        label: Text('', style: AppTypography.tableHeader),
                         fixedWidth: 140,
                       ),
                     ],
@@ -132,7 +132,7 @@ class ArmsScreen extends ConsumerWidget {
                               Text(
                                 r.name,
                                 style: AppTypography.body.copyWith(
-                                  color: AppColors.gray900,
+                                  color: AppColors.ink,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -146,7 +146,7 @@ class ArmsScreen extends ConsumerWidget {
                                     : (v) => _setActive(context, ref, idx.churchId, r, v),
                               ),
                             ),
-                            DataCell(Text(df.format(r.updatedAt.toLocal()), style: AppTypography.body)),
+                            DataCell(Text(df.format(r.updatedAt.toLocal()), style: AppTypography.tableCell)),
                             DataCell(
                               Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -169,7 +169,7 @@ class ArmsScreen extends ConsumerWidget {
                                         : () => _confirmDelete(context, ref, idx.churchId, r),
                                     child: Text(
                                       'Delete',
-                                      style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                                      style: AppTypography.caption.copyWith(color: AppColors.ink),
                                     ),
                                   ),
                                 ],
@@ -215,7 +215,7 @@ class ArmsScreen extends ConsumerWidget {
                                     : () => _confirmDelete(context, ref, idx.churchId, r),
                                 child: Text(
                                   'Delete',
-                                  style: AppTypography.caption.copyWith(color: AppColors.dangerColor),
+                                  style: AppTypography.caption.copyWith(color: AppColors.ink),
                                 ),
                               ),
                             ],
@@ -235,7 +235,7 @@ class ArmsScreen extends ConsumerWidget {
 
   static Widget _colorSwatch(String? hex) {
     if (hex == null || hex.isEmpty) {
-      return Text('—', style: AppTypography.caption.copyWith(color: AppColors.gray400));
+      return Text('—', style: AppTypography.caption.copyWith(color: AppColors.pewter));
     }
     Color? c;
     try {
@@ -255,8 +255,8 @@ class ArmsScreen extends ConsumerWidget {
           height: 20,
           decoration: BoxDecoration(
             color: c,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AppColors.gray200),
+            borderRadius: BorderRadius.circular(AppRadius.bar),
+            border: Border.all(color: AppColors.fog),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -448,7 +448,7 @@ class _ArmEditorDialogState extends ConsumerState<_ArmEditorDialog> {
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
     return AlertDialog(
-      title: Text(isEdit ? 'Edit arm' : 'Add partnership arm', style: AppTypography.heading3),
+      title: Text(isEdit ? 'Edit arm' : 'Add partnership arm', style: AppTypography.headingSm),
       content: SizedBox(
         width: 400,
         child: Column(
@@ -474,7 +474,7 @@ class _ArmEditorDialogState extends ConsumerState<_ArmEditorDialog> {
             ),
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.sm),
-              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.dangerColor)),
+              Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
             ],
           ],
         ),
