@@ -20,6 +20,46 @@
   "navHelp": "Help",
   "titleDashboard": "Dashboard",
   "titleApprovals": "Approvals",
+  "approvalsSubtitle": "Review entries submitted by staff. Approve individually or in bulk, or decline with a reason.",
+  "approvalsEmptyTitle": "All caught up",
+  "approvalsEmptyMessage": "No pending entries right now.",
+  "approvalsExportPdf": "Export PDF",
+  "approvalsSelectAll": "Select all",
+  "approvalsClearSelection": "Clear selection",
+  "approvalsSelectedCount": "{count} selected",
+  "@approvalsSelectedCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "approvalsApproveSelected": "Approve selected",
+  "approvalsApproveAll": "Approve all ({count})",
+  "@approvalsApproveAll": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "approvalsApproveConfirmTitle": "Approve entries?",
+  "approvalsApproveConfirmMessage": "Approve {count} pending entr{count, plural, one {y} other {ies}}? Approved entries count toward totals, goals, and the leaderboard.",
+  "@approvalsApproveConfirmMessage": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "approvalsApproveConfirmAction": "Approve",
+  "approvalsApproveSuccess": "{count} entr{count, plural, one {y} other {ies}} approved.",
+  "@approvalsApproveSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "approvalsReview": "Review",
+  "approvalsSubmittedBy": "By {name}",
+  "@approvalsSubmittedBy": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
   "titleEntries": "Entries",
   "titleMyEntries": "My entries",
   "titleEntrySubmitted": "Entry submitted",

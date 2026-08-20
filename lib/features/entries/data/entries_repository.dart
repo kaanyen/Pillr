@@ -239,17 +239,44 @@ class EntriesRepository {
     required PartnershipEntry entry,
     required ChurchUser pastor,
   }) async {
-    await _entries(churchId).doc(entry.id).update({
-      'status': 'approved',
-      'reviewedBy': pastor.uid,
-      'reviewedBySnapshot': TextCaseUtils.normalizePersonSnapshot({
-        'fullName': pastor.fullName,
-      }),
-      'reviewedAt': FieldValue.serverTimestamp(),
-      'declineReason': null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _entries(churchId).doc(entry.id).update(_approvePatch(pastor));
   }
+
+  /// Approves many pending entries in Firestore batches (max 500 ops per batch).
+  Future<int> approveEntries({
+    required String churchId,
+    required List<PartnershipEntry> entries,
+    required ChurchUser pastor,
+  }) async {
+    final pending = entries.where((e) => e.status == 'pending').toList();
+    if (pending.isEmpty) return 0;
+
+    const chunkSize = 500;
+    var approved = 0;
+    final patch = _approvePatch(pastor);
+
+    for (var i = 0; i < pending.length; i += chunkSize) {
+      final end = (i + chunkSize < pending.length) ? i + chunkSize : pending.length;
+      final batch = _firestore.batch();
+      for (var j = i; j < end; j++) {
+        batch.update(_entries(churchId).doc(pending[j].id), patch);
+        approved++;
+      }
+      await batch.commit();
+    }
+    return approved;
+  }
+
+  Map<String, dynamic> _approvePatch(ChurchUser pastor) => {
+        'status': 'approved',
+        'reviewedBy': pastor.uid,
+        'reviewedBySnapshot': TextCaseUtils.normalizePersonSnapshot({
+          'fullName': pastor.fullName,
+        }),
+        'reviewedAt': FieldValue.serverTimestamp(),
+        'declineReason': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
 
   Future<void> declineEntry({
     required String churchId,

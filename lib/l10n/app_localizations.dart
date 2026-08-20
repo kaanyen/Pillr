@@ -218,6 +218,96 @@ abstract class AppLocalizations {
   /// **'Approvals'**
   String get titleApprovals;
 
+  /// No description provided for @approvalsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Review entries submitted by staff. Approve individually or in bulk, or decline with a reason.'**
+  String get approvalsSubtitle;
+
+  /// No description provided for @approvalsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All caught up'**
+  String get approvalsEmptyTitle;
+
+  /// No description provided for @approvalsEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending entries right now.'**
+  String get approvalsEmptyMessage;
+
+  /// No description provided for @approvalsExportPdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Export PDF'**
+  String get approvalsExportPdf;
+
+  /// No description provided for @approvalsSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get approvalsSelectAll;
+
+  /// No description provided for @approvalsClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get approvalsClearSelection;
+
+  /// No description provided for @approvalsSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String approvalsSelectedCount(int count);
+
+  /// No description provided for @approvalsApproveSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve selected'**
+  String get approvalsApproveSelected;
+
+  /// No description provided for @approvalsApproveAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve all ({count})'**
+  String approvalsApproveAll(int count);
+
+  /// No description provided for @approvalsApproveConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve entries?'**
+  String get approvalsApproveConfirmTitle;
+
+  /// No description provided for @approvalsApproveConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve {count} pending entr{count, plural, one {y} other {ies}}? Approved entries count toward totals, goals, and the leaderboard.'**
+  String approvalsApproveConfirmMessage(int count);
+
+  /// No description provided for @approvalsApproveConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get approvalsApproveConfirmAction;
+
+  /// No description provided for @approvalsApproveSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} entr{count, plural, one {y} other {ies}} approved.'**
+  String approvalsApproveSuccess(int count);
+
+  /// No description provided for @approvalsReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get approvalsReview;
+
+  /// No description provided for @approvalsSubmittedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'By {name}'**
+  String approvalsSubmittedBy(String name);
+
   /// No description provided for @titleEntries.
   ///
   /// In en, this message translates to:

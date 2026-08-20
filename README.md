@@ -57,6 +57,8 @@ Firebase **Crashlytics** is skipped on **web** in `main.dart` (the plugin has no
 - Indexes: `firestore.indexes.json`
 - Cloud Functions: `functions/` (`npm run build`, then `firebase deploy --only functions`)
 
+**Firestore backups (compliance):** weekly export to GCS — see [`docs/BACKUP.md`](docs/BACKUP.md). One-time: `npm run setup-firestore-backup --prefix functions`, then deploy `scheduledFirestoreBackup`.
+
 For invite emails, set `RESEND_API_KEY` in `functions/.env` (see earlier setup notes). The **From** address must use a domain you have **verified in Resend** (Dashboard → Domains). Override with `RESEND_FROM` if needed, e.g. `RESEND_FROM="The Pillr <invites@thepillr.com>"`. The default matches `thepillr.com`, not `pillr.app`.
 
 Optional: set `PUBLIC_WEB_ORIGIN` (no trailing slash) so bootstrap invite emails link to the correct web host (defaults to `https://thepillr2.web.app`).

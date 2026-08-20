@@ -69,6 +69,74 @@ class AppLocalizationsEn extends AppLocalizations {
   String get titleApprovals => 'Approvals';
 
   @override
+  String get approvalsSubtitle =>
+      'Review entries submitted by staff. Approve individually or in bulk, or decline with a reason.';
+
+  @override
+  String get approvalsEmptyTitle => 'All caught up';
+
+  @override
+  String get approvalsEmptyMessage => 'No pending entries right now.';
+
+  @override
+  String get approvalsExportPdf => 'Export PDF';
+
+  @override
+  String get approvalsSelectAll => 'Select all';
+
+  @override
+  String get approvalsClearSelection => 'Clear selection';
+
+  @override
+  String approvalsSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get approvalsApproveSelected => 'Approve selected';
+
+  @override
+  String approvalsApproveAll(int count) {
+    return 'Approve all ($count)';
+  }
+
+  @override
+  String get approvalsApproveConfirmTitle => 'Approve entries?';
+
+  @override
+  String approvalsApproveConfirmMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ies',
+      one: 'y',
+    );
+    return 'Approve $count pending entr$_temp0? Approved entries count toward totals, goals, and the leaderboard.';
+  }
+
+  @override
+  String get approvalsApproveConfirmAction => 'Approve';
+
+  @override
+  String approvalsApproveSuccess(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ies',
+      one: 'y',
+    );
+    return '$count entr$_temp0 approved.';
+  }
+
+  @override
+  String get approvalsReview => 'Review';
+
+  @override
+  String approvalsSubmittedBy(String name) {
+    return 'By $name';
+  }
+
+  @override
   String get titleEntries => 'Entries';
 
   @override

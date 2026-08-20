@@ -10,12 +10,14 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "lint": "eslint --ext .ts src/",
     "seed-demo": "node scripts/seed-demo.cjs",
-    "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs"
+    "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs",
+    "setup-firestore-backup": "node scripts/setup-firestore-backup-bucket.cjs"
   },
   "dependencies": {
     "@types/pdfkit": "^0.17.5",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^6.0.1",
+    "google-auth-library": "^9.15.1",
     "pdfkit": "^0.18.0",
     "resend": "^4.0.0"
   },

@@ -69,6 +69,63 @@ class AppLocalizationsFr extends AppLocalizations {
   String get titleApprovals => 'Approbations';
 
   @override
+  String get approvalsSubtitle =>
+      'Examinez les saisies soumises par le personnel. Approuvez individuellement ou en lot, ou refusez avec un motif.';
+
+  @override
+  String get approvalsEmptyTitle => 'Tout est à jour';
+
+  @override
+  String get approvalsEmptyMessage =>
+      'Aucune saisie en attente pour le moment.';
+
+  @override
+  String get approvalsExportPdf => 'Exporter PDF';
+
+  @override
+  String get approvalsSelectAll => 'Tout sélectionner';
+
+  @override
+  String get approvalsClearSelection => 'Effacer la sélection';
+
+  @override
+  String approvalsSelectedCount(int count) {
+    return '$count sélectionné(s)';
+  }
+
+  @override
+  String get approvalsApproveSelected => 'Approuver la sélection';
+
+  @override
+  String approvalsApproveAll(int count) {
+    return 'Tout approuver ($count)';
+  }
+
+  @override
+  String get approvalsApproveConfirmTitle => 'Approuver les saisies ?';
+
+  @override
+  String approvalsApproveConfirmMessage(int count) {
+    return 'Approuver $count saisie(s) en attente ? Les saisies approuvées comptent dans les totaux, objectifs et classement.';
+  }
+
+  @override
+  String get approvalsApproveConfirmAction => 'Approuver';
+
+  @override
+  String approvalsApproveSuccess(int count) {
+    return '$count saisie(s) approuvée(s).';
+  }
+
+  @override
+  String get approvalsReview => 'Examiner';
+
+  @override
+  String approvalsSubmittedBy(String name) {
+    return 'Par $name';
+  }
+
+  @override
   String get titleEntries => 'Saisies';
 
   @override
