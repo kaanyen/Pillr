@@ -107,25 +107,25 @@ abstract class AppLocalizations {
   /// No description provided for @navSectionMain.
   ///
   /// In en, this message translates to:
-  /// **'MAIN'**
+  /// **'Main'**
   String get navSectionMain;
 
   /// No description provided for @navSectionAdmin.
   ///
   /// In en, this message translates to:
-  /// **'ADMIN'**
+  /// **'Admin'**
   String get navSectionAdmin;
 
   /// No description provided for @navSectionPartnership.
   ///
   /// In en, this message translates to:
-  /// **'PARTNERSHIP'**
+  /// **'Partnership'**
   String get navSectionPartnership;
 
   /// No description provided for @navSectionConfiguration.
   ///
   /// In en, this message translates to:
-  /// **'CONFIGURATION'**
+  /// **'Configuration'**
   String get navSectionConfiguration;
 
   /// No description provided for @navDashboard.
@@ -1265,25 +1265,25 @@ abstract class AppLocalizations {
   /// No description provided for @entriesColPartner.
   ///
   /// In en, this message translates to:
-  /// **'PARTNER'**
+  /// **'Partner'**
   String get entriesColPartner;
 
   /// No description provided for @entriesColAmount.
   ///
   /// In en, this message translates to:
-  /// **'AMOUNT'**
+  /// **'Amount'**
   String get entriesColAmount;
 
   /// No description provided for @entriesColStatus.
   ///
   /// In en, this message translates to:
-  /// **'STATUS'**
+  /// **'Status'**
   String get entriesColStatus;
 
   /// No description provided for @entriesColSubmitted.
   ///
   /// In en, this message translates to:
-  /// **'SUBMITTED'**
+  /// **'Submitted'**
   String get entriesColSubmitted;
 
   /// No description provided for @entriesView.

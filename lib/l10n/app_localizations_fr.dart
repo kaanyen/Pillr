@@ -12,16 +12,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appTitle => 'Pillr';
 
   @override
-  String get navSectionMain => 'PRINCIPAL';
+  String get navSectionMain => 'Principal';
 
   @override
-  String get navSectionAdmin => 'ADMIN';
+  String get navSectionAdmin => 'Admin';
 
   @override
-  String get navSectionPartnership => 'PARTENARIAT';
+  String get navSectionPartnership => 'Partenariat';
 
   @override
-  String get navSectionConfiguration => 'CONFIGURATION';
+  String get navSectionConfiguration => 'Configuration';
 
   @override
   String get navDashboard => 'Tableau de bord';
@@ -667,16 +667,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get entriesClearFilters => 'Effacer les filtres';
 
   @override
-  String get entriesColPartner => 'PARTENAIRE';
+  String get entriesColPartner => 'Partenaire';
 
   @override
-  String get entriesColAmount => 'MONTANT';
+  String get entriesColAmount => 'Montant';
 
   @override
-  String get entriesColStatus => 'STATUT';
+  String get entriesColStatus => 'Statut';
 
   @override
-  String get entriesColSubmitted => 'ENVOYÉ';
+  String get entriesColSubmitted => 'Envoyé';
 
   @override
   String get entriesView => 'Voir';
