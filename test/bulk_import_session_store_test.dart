@@ -50,6 +50,7 @@ void main() {
         ),
       ],
       duplicateAcknowledgedSheetRows: {3, 7},
+      mapping: const {BulkImportColumn.name: 1, BulkImportColumn.amount: 5},
     );
 
     final loaded = await BulkImportSessionStore.load(uid: uid, churchId: churchId);
@@ -62,6 +63,13 @@ void main() {
     expect(loaded.fileIssues.length, 1);
     expect(loaded.fileIssues.single.code, BulkImportIssueCode.missingDate);
     expect(loaded.duplicateAcknowledgedSheetRows, {3, 7});
+    // The mapping rides along so a resumed draft shows its columns in the
+    // order they appeared in the file.
+    expect(loaded.mapping, {
+      BulkImportColumn.name: 1,
+      BulkImportColumn.amount: 5,
+    });
+    expect(loaded.savedAt, isNotNull);
   });
 
   test('clear removes saved draft', () async {
@@ -76,6 +84,7 @@ void main() {
       rawRows: [sampleRow()],
       fileIssues: const [],
       duplicateAcknowledgedSheetRows: {},
+      mapping: const {},
     );
 
     await BulkImportSessionStore.clear(uid: uid, churchId: churchId);
@@ -112,6 +121,7 @@ void main() {
       rawRows: [sampleRow()],
       fileIssues: const [],
       duplicateAcknowledgedSheetRows: {},
+      mapping: const {},
     );
 
     await BulkImportSessionStore.save(
@@ -122,6 +132,7 @@ void main() {
       rawRows: const [],
       fileIssues: const [],
       duplicateAcknowledgedSheetRows: {},
+      mapping: const {},
     );
 
     final loaded = await BulkImportSessionStore.load(uid: uid, churchId: churchId);
