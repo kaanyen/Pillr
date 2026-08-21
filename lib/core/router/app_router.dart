@@ -6,10 +6,10 @@ import 'app_router_redirect.dart';
 import '../../features/onboarding/presentation/onboarding_wizard_screen.dart';
 import '../../features/platform/presentation/platform_churches_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
-import '../../features/entries/presentation/entry_detail_screen.dart';
-import '../../features/entries/presentation/entry_created_success_screen.dart';
-import '../../features/entries/presentation/entry_form_screen.dart';
-import '../../features/partners/presentation/partner_profile_screen.dart';
+import '../../screens/entries/entry_detail_screen.dart';
+import '../../screens/entries/entry_success_screen.dart';
+import '../../screens/entries/entry_form_screen.dart';
+import '../../screens/partner_profile_screen.dart';
 import '../../shell/sel_shell.dart';
 import '../../screens/activity_screen.dart';
 import '../../screens/help_screen.dart';
@@ -165,7 +165,7 @@ GoRouter createRouter() {
             pageBuilder: (context, state) {
               final entryId = state.pathParameters['entryId']!;
               return NoTransitionPage(
-                child: EntryCreatedSuccessScreen(entryId: entryId),
+                child: EntrySuccessScreen(entryId: entryId),
               );
             },
           ),

@@ -6,31 +6,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../common/widgets/pillr_date_picker.dart';
-import '../../../common/widgets/pillr_button.dart';
-import '../../../common/widgets/pillr_form_card.dart';
-import '../../../common/widgets/pillr_form_dialog.dart';
-import '../../../common/widgets/pillr_icon.dart';
-import '../../../common/widgets/pillr_text_field.dart';
-import '../../../core/extensions/async_value_ext.dart';
-import '../../../core/utils/entry_duplicate_utils.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/pillr_layout.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../../activity/activity_log_helper.dart';
-import '../../arms/domain/partnership_arm.dart';
-import '../../arms/providers/arms_providers.dart';
-import '../../auth/domain/church_user.dart';
-import '../../auth/domain/user_church_index.dart';
-import '../../auth/providers/auth_providers.dart';
-import '../../partners/domain/partner.dart';
-import '../../partners/presentation/partner_form_dialog.dart';
-import '../../partners/providers/partners_providers.dart';
-import '../../periods/domain/partnership_period.dart';
-import '../../periods/providers/periods_providers.dart';
-import '../domain/partnership_entry.dart';
-import '../providers/entries_providers.dart';
+import '../../core/extensions/async_value_ext.dart';
+import '../../core/utils/date_utils.dart';
+import '../../core/utils/entry_duplicate_utils.dart';
+import '../../design/seline.dart';
+import '../../features/church/providers/church_settings_providers.dart';
+import '../../features/activity/activity_log_helper.dart';
+import '../../features/arms/domain/partnership_arm.dart';
+import '../../features/arms/providers/arms_providers.dart';
+import '../../features/auth/domain/church_user.dart';
+import '../../features/auth/domain/user_church_index.dart';
+import '../../features/auth/providers/auth_providers.dart';
+import '../../features/partners/domain/partner.dart';
+import '../../features/partners/presentation/partner_form_dialog.dart';
+import '../../features/partners/providers/partners_providers.dart';
+import '../../features/periods/domain/partnership_period.dart';
+import '../../features/periods/providers/periods_providers.dart';
+import '../../features/entries/domain/partnership_entry.dart';
+import '../../features/entries/providers/entries_providers.dart';
 
 Map<String, dynamic> _entryValuesForActivityLog(PartnershipEntry e) => {
       'partnerId': e.partnerId,
@@ -232,178 +225,183 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     required String? uid,
     required List<PartnershipArm> armList,
     required List<PartnershipPeriod> periodList,
-    PartnershipEntry? entry,
+    required PartnershipEntry? entry,
     PartnershipPeriod? activePeriodFallback,
   }) {
-    if (idx == null || profile == null || churchId == null || uid == null) {
-      return const Center(child: Text('Sign in required'));
-    }
+    final arms = _armsForForm(entry, armList);
+    final period = _period ?? activePeriodFallback;
+    final money = ref.watch(churchMoneyFormatProvider);
 
-    final activeArms = _armsForForm(entry, armList);
-    final title = _isEdit ? 'Edit entry' : 'New entry';
-    final periodForCreate = activePeriodFallback ?? _period;
-    if (!_isEdit && periodForCreate == null) {
-      // Create mode: warn if no active period
-    }
+    return SelPageBody(
+      maxWidth: 640,
+      children: [
+        SelPageTitle(
+          title: _isEdit ? 'Edit entry' : 'Record a ',
+          highlight: _isEdit ? null : 'partnership',
+          subtitle: _isEdit
+              ? 'Changes are re-recorded in the activity log.'
+              : 'Who gave, how much, and toward what.',
+        ),
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: PillrLayout.formMaxWidth),
+        if (_error != null) ...[
+          SelCard(
+            lift: SelLift.flat,
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.x4,
+              vertical: SelSpace.x3,
+            ),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.alertCircle, size: 14, color: Sel.ink),
+                const SizedBox(width: SelSpace.x2),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: SelType.bodySm.copyWith(color: Sel.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
+
+        SelPanel(
+          title: 'Partner',
+          subtitle: 'Who this partnership is from.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!_isEdit) ...[
-                Text(title, style: AppTypography.heading),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Choose who gave, then add amount and date — two quick steps.',
-                  style: AppTypography.body.copyWith(
-                    color: AppColors.smoke,
-                    height: 1.4,
-                  ),
-                ),
-              ] else
-                Text(title, style: AppTypography.heading),
-              const SizedBox(height: AppSpacing.md),
-              if (!_isEdit && periodForCreate == null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: Text(
-                    'No active partnership period. A pastor must activate a period under Periods.',
-                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
-                  ),
-                ),
-              if (_isEdit && entry != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                  child: Text(
-                    'Status: ${entry.status}',
-                    style: AppTypography.caption.copyWith(color: AppColors.smoke),
-                  ),
-                ),
-              PillrFormCard(
-                title: _isEdit ? 'Entry' : 'Partnership entry',
-                subtitle: _isEdit ? null : 'Partner first, then partnership details.',
-                leading: _isEdit ? null : PillrFormDialog.leadingIcon(LucideIcons.filePlus),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _FormSectionTitle(label: 'Partner'),
-                    const SizedBox(height: AppSpacing.md),
-                    _PartnerPickerTile(
-                      partner: _partner,
-                      onTap: () => _pickPartner(context, churchId, uid),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () async {
-                          await showDialog<void>(
-                            context: context,
-                            builder: (ctx) => PartnerFormDialog(
-                              churchId: churchId,
-                              uid: uid,
-                              existing: null,
-                            ),
-                          );
-                        },
-                        icon: const PillrIcon(LucideIcons.userPlus, size: 18),
-                        label: const Text('Create new partner'),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Divider(height: 1, thickness: 1, color: AppColors.fog),
-                    const SizedBox(height: AppSpacing.lg),
-                    const _FormSectionTitle(label: 'Partnership details'),
-                    const SizedBox(height: AppSpacing.md),
-                    Text('Partnership arm', style: AppTypography.label),
-                    const SizedBox(height: AppSpacing.sm),
-                    DropdownMenu<String>(
-                      key: ValueKey<String?>('arm-${_arm?.id}'),
-                      initialSelection: _arm?.id,
-                      label: const Text('Select arm'),
-                      dropdownMenuEntries: [
-                        for (final a in activeArms) DropdownMenuEntry<String>(value: a.id, label: a.name),
-                      ],
-                      onSelected: (id) {
-                        if (id == null) return;
-                        PartnershipArm? found;
-                        for (final a in activeArms) {
-                          if (a.id == id) found = a;
-                        }
-                        setState(() => _arm = found);
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Text('Period', style: AppTypography.label),
-                    const SizedBox(height: AppSpacing.sm),
-                    if (_isEdit)
-                      DropdownMenu<String>(
-                        key: ValueKey<String?>('period-${_period?.id}'),
-                        initialSelection: _period?.id,
-                        label: const Text('Partnership period'),
-                        dropdownMenuEntries: [
-                          for (final p in periodList)
-                            DropdownMenuEntry<String>(value: p.id, label: p.name),
-                        ],
-                        onSelected: (id) {
-                          if (id == null) return;
-                          PartnershipPeriod? found;
-                          for (final p in periodList) {
-                            if (p.id == id) found = p;
-                          }
-                          setState(() => _period = found);
-                        },
-                      )
-                    else
-                      Text(
-                        periodForCreate?.name ?? '—',
-                        style: AppTypography.body,
-                      ),
-                    const SizedBox(height: AppSpacing.lg),
-                    PillrTextField(
-                      controller: _amount,
-                      label: 'Amount (₵)',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final d = await showPillrDatePicker(
-                          context: context,
-                          initialDate: _dateGiven,
-                          firstDate: DateTime(DateTime.now().year - 2),
-                          lastDate: DateTime(DateTime.now().year + 1),
-                        );
-                        if (d != null) setState(() => _dateGiven = d);
-                      },
-                      icon: const PillrIcon(LucideIcons.calendar, size: 18),
-                      label: Text('Date given: ${_dateGiven.toIso8601String().split('T').first}'),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    PillrTextField(controller: _notes, label: 'Notes (optional)', maxLines: 2),
-                    if (_error != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
-                    PillrButton(
-                      label: _isEdit ? 'Save changes' : 'Submit entry',
-                      loading: _loading,
-                      onPressed: _loading ? null : () => _submit(churchId, profile, entry),
-                      variant: PillrButtonVariant.primary,
-                      expanded: true,
-                    ),
-                  ],
-                ),
+              _PartnerTile(
+                partner: _partner,
+                onTap: churchId == null || uid == null
+                    ? null
+                    : () => _pickPartner(context, churchId, uid),
               ),
             ],
           ),
         ),
-      ),
+
+        const SizedBox(height: SelSpace.x4),
+
+        SelPanel(
+          title: 'Partnership details',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SelSelect<String>(
+                value: _arm?.id,
+                label: 'Partnership arm',
+                hint: Text('Select an arm', style: SelType.bodyMuted),
+                onChanged: (v) => setState(() {
+                  _arm = arms.where((a) => a.id == v).firstOrNull;
+                }),
+                items: [
+                  for (final a in arms)
+                    DropdownMenuItem(value: a.id, child: Text(a.name)),
+                ],
+              ),
+              const SizedBox(height: SelSpace.x4),
+              if (_isEdit)
+                SelSelect<String>(
+                  value: period?.id,
+                  label: 'Period',
+                  onChanged: (v) => setState(() {
+                    _period = periodList.where((p) => p.id == v).firstOrNull;
+                  }),
+                  items: [
+                    for (final p in periodList)
+                      DropdownMenuItem(value: p.id, child: Text(p.name)),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Period', style: SelType.bodyMedium),
+                    const SizedBox(height: SelSpace.x2),
+                    Text(
+                      period?.name ?? 'No active period',
+                      style: SelType.bodyMuted,
+                    ),
+                  ],
+                ),
+              const SizedBox(height: SelSpace.x4),
+              SelField(
+                controller: _amount,
+                label: 'Amount',
+                hint: '500',
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: SelSpace.x4),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Date given', style: SelType.bodyMedium),
+                  const SizedBox(height: SelSpace.x2),
+                  SelButton(
+                    label: formatFirestoreDate(_dateGiven, pattern: 'd MMMM y'),
+                    icon: LucideIcons.calendar,
+                    onPressed: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _dateGiven,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now().add(const Duration(days: 1)),
+                      );
+                      if (d != null) setState(() => _dateGiven = d);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: SelSpace.x4),
+              SelField(
+                controller: _notes,
+                label: 'Notes',
+                hint: 'Optional',
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: SelSpace.x6),
+
+        Row(
+          children: [
+            SelButton(
+              label: 'Cancel',
+              kind: SelButtonKind.quiet,
+              onPressed: () => context.go('/queue'),
+            ),
+            const Spacer(),
+            SelButton.cyan(
+              label: _isEdit ? 'Save changes' : 'Record entry',
+              loading: _loading,
+              onPressed: churchId == null || profile == null
+                  ? null
+                  : () => _submit(churchId, profile, entry),
+            ),
+          ],
+        ),
+
+        if (!_isEdit && idx?.isStaff == true) ...[
+          const SizedBox(height: SelSpace.x4),
+          Text(
+            'Your entry goes to a pastor for review before it counts toward '
+            'totals.',
+            style: SelType.small,
+          ),
+        ],
+        if (_partner != null && _amount.text.isNotEmpty) ...[
+          const SizedBox(height: SelSpace.x4),
+          Text(
+            'Recording ${money(double.tryParse(_amount.text.replaceAll(',', '')) ?? 0)} '
+            'for ${_partner!.fullName}.',
+            style: SelType.small,
+          ),
+        ],
+      ],
     );
   }
 
@@ -413,9 +411,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final chosen = await showModalBottomSheet<Partner>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.paper,
+      backgroundColor: Sel.card,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(SelRadius.card)),
       ),
       builder: (ctx) => _PartnerPickerSheet(
         churchId: churchId,
@@ -609,81 +607,65 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   }
 }
 
-class _FormSectionTitle extends StatelessWidget {
-  const _FormSectionTitle({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: AppTypography.body.copyWith(
-        fontWeight: FontWeight.w700,
-        color: AppColors.ink,
-      ),
-    );
-  }
-}
-
-class _PartnerPickerTile extends StatelessWidget {
-  const _PartnerPickerTile({
-    required this.partner,
-    required this.onTap,
-  });
+/// Partner selection row.
+///
+/// When nothing is chosen this reads as an instruction rather than an empty
+/// field — picking a partner is the first real decision on this screen, so it
+/// gets a full-width target instead of a dropdown.
+class _PartnerTile extends StatelessWidget {
+  const _PartnerTile({required this.partner, required this.onTap});
 
   final Partner? partner;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final has = partner != null;
-    return Material(
-      color: AppColors.mist,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+    final p = partner;
+    return GestureDetector(
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: onTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SelSpace.x3,
+            vertical: SelSpace.x3,
+          ),
+          decoration: BoxDecoration(
+            color: Sel.canvas,
+            borderRadius: BorderRadius.circular(SelRadius.input),
+            border: Border.all(color: Sel.borderMuted),
+          ),
           child: Row(
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.mist,
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                ),
-                padding: const EdgeInsets.all(10),
-                child: const PillrIcon(
-                  LucideIcons.search,
-                  size: 22,
-                  color: AppColors.charcoal,
-                ),
+              Icon(
+                p == null ? LucideIcons.search : LucideIcons.user,
+                size: 15,
+                color: Sel.ash,
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: SelSpace.x3),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      has ? 'Selected partner' : 'Select partner',
-                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      has ? partner!.fullName : 'Search by name, member ID, fellowship…',
-                      style: AppTypography.body.copyWith(
-                        fontWeight: has ? FontWeight.w600 : FontWeight.w400,
-                        color: AppColors.ink,
+                child: p == null
+                    ? Text('Search by name, member ID or fellowship',
+                        style: SelType.bodyMuted)
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(p.fullName, style: SelType.bodyMedium),
+                          Text(
+                            [p.memberId, p.fellowship]
+                                .where((e) => e.isNotEmpty)
+                                .join(' · '),
+                            style: SelType.small,
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
-              const PillrIcon(
-                LucideIcons.chevronRight,
-                color: AppColors.pewter,
-                size: 20,
+              Text(
+                p == null ? 'Choose' : 'Change',
+                style: SelType.button.copyWith(color: Sel.cyanEdge),
               ),
             ],
           ),
@@ -745,9 +727,9 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.viewInsetsOf(context).bottom,
-        left: AppSpacing.lg,
-        right: AppSpacing.lg,
-        top: AppSpacing.sm,
+        left: SelSpace.x6,
+        right: SelSpace.x6,
+        top: SelSpace.x2,
       ),
       child: SafeArea(
         child: SizedBox(
@@ -759,37 +741,37 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
                 child: Container(
                   width: 40,
                   height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                  margin: const EdgeInsets.only(bottom: SelSpace.x4),
                   decoration: BoxDecoration(
-                    color: AppColors.fog,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
+                    color: Sel.border,
+                    borderRadius: BorderRadius.circular(SelRadius.pill),
                   ),
                 ),
               ),
-              Text('Select partner', style: AppTypography.headingSm),
-              const SizedBox(height: AppSpacing.md),
+              Text('Select partner', style: SelType.subtitle),
+              const SizedBox(height: SelSpace.x4),
               TextField(
                 controller: _controller,
                 decoration: InputDecoration(
                   hintText: 'Search by name, member ID, fellowship…',
                   filled: true,
-                  fillColor: AppColors.mist,
+                  fillColor: Sel.canvas,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.fog),
+                    borderRadius: BorderRadius.circular(SelRadius.input),
+                    borderSide: const BorderSide(color: Sel.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.fog),
+                    borderRadius: BorderRadius.circular(SelRadius.input),
+                    borderSide: const BorderSide(color: Sel.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    borderSide: const BorderSide(color: AppColors.charcoal, width: 1.5),
+                    borderRadius: BorderRadius.circular(SelRadius.input),
+                    borderSide: const BorderSide(color: Sel.soot, width: 1.5),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: 14),
                   prefixIcon: const Padding(
                     padding: EdgeInsets.only(left: 8),
-                    child: Icon(LucideIcons.search, color: AppColors.pewter, size: 20),
+                    child: Icon(LucideIcons.search, color: Sel.ash, size: 20),
                   ),
                 ),
               onChanged: (v) {
@@ -799,7 +781,7 @@ class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
                 });
               },
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
