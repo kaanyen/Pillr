@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../common/widgets/pillr_form_dialog.dart';
-import '../../../common/widgets/pillr_text_field.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart' show AppRadius, AppSpacing;
-import '../../../core/theme/app_typography.dart';
+import '../../../design/seline.dart';
+
 import '../../../core/utils/text_case_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../church/providers/church_settings_providers.dart';
@@ -136,13 +132,12 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return PillrFormDialog(
+    return SelDialog(
       title: isEdit ? 'Edit partner' : 'Add partner',
       subtitle: isEdit
           ? 'Update member details for partnership records.'
           : 'Member ID is assigned automatically when you save.',
-      leading: PillrFormDialog.leadingIcon(LucideIcons.users),
-      maxWidth: 480,
+      width: 480,
       actions: [
         OutlinedButton(
           onPressed: _loading ? null : () => Navigator.pop(context),
@@ -164,49 +159,49 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isEdit) ...[
-            Text('Member ID', style: AppTypography.label.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: AppSpacing.sm),
+            Text('Member ID', style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: SelSpace.x2),
             Text(
               widget.existing!.memberId,
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+              style: SelType.body.copyWith(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
           ] else ...[
             Text(
               'Church initials + a random 6-digit number (e.g. FBC482193).',
-              style: AppTypography.caption.copyWith(color: AppColors.smoke, height: 1.4),
+              style: SelType.small.copyWith(color: Sel.warm, height: 1.4),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
           ],
-          PillrTextField(controller: _fullName, label: 'Full name'),
-          const SizedBox(height: AppSpacing.md),
-          PillrTextField(controller: _fellowship, label: 'Fellowship'),
-          const SizedBox(height: AppSpacing.md),
-          PillrTextField(
+          SelField(controller: _fullName, label: 'Full name'),
+          const SizedBox(height: SelSpace.x4),
+          SelField(controller: _fellowship, label: 'Fellowship'),
+          const SizedBox(height: SelSpace.x4),
+          SelField(
             controller: _email,
             label: 'Email (optional)',
             keyboardType: TextInputType.emailAddress,
           ),
-          const SizedBox(height: AppSpacing.md),
-          PillrTextField(
+          const SizedBox(height: SelSpace.x4),
+          SelField(
             controller: _phone,
             label: 'Phone (optional)',
             keyboardType: TextInputType.phone,
           ),
           if (isEdit) ...[
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.paper,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(color: AppColors.fog),
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.card),
+                border: Border.all(color: Sel.border),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('Active', style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
+                      child: Text('Active', style: SelType.body.copyWith(fontWeight: FontWeight.w500)),
                     ),
                     Switch.adaptive(
                       value: _active,
@@ -218,8 +213,8 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
             ),
           ],
           if (_error != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(_error!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
+            const SizedBox(height: SelSpace.x2),
+            Text(_error!, style: SelType.small.copyWith(color: Sel.ink)),
           ],
         ],
       ),

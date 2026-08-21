@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
+import '../../../design/seline.dart';
+
 
 /// Dashed drop zone + cloud icon + Browse (reference: upload panel).
 class BulkImportDropZone extends StatelessWidget {
@@ -28,74 +27,74 @@ class BulkImportDropZone extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     return CustomPaint(
       foregroundPainter: const _DashedRRectPainter(
-        color: AppColors.fog,
+        color: Sel.border,
         strokeWidth: 1.5,
         radius: _cornerRadius,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_cornerRadius),
         child: Material(
-          color: AppColors.mist,
+          color: Sel.canvas,
           child: InkWell(
             onTap: loading ? null : onPick,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: AppSpacing.lg),
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: SelSpace.x6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     LucideIcons.uploadCloud,
                     size: 48,
-                    color: AppColors.pewter,
+                    color: Sel.ash,
                   ),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(height: SelSpace.x4),
                   if (fileName != null && fileName!.isNotEmpty) ...[
-                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: AppColors.charcoal),
-                    const SizedBox(height: AppSpacing.sm),
+                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: Sel.soot),
+                    const SizedBox(height: SelSpace.x2),
                     Text(
                       fileName!,
                       textAlign: TextAlign.center,
-                      style: AppTypography.body.copyWith(
+                      style: SelType.body.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
+                        color: Sel.ink,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: SelSpace.x1),
                     Text(
                       l10n.bulkImportDropResumeHint,
                       textAlign: TextAlign.center,
-                      style: AppTypography.caption.copyWith(color: AppColors.smoke),
+                      style: SelType.small.copyWith(color: Sel.warm),
                     ),
                   ] else
                     Text(
                       l10n.bulkImportDropPrimary,
                       textAlign: TextAlign.center,
-                      style: AppTypography.body.copyWith(
+                      style: SelType.body.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
+                        color: Sel.ink,
                       ),
                     ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: SelSpace.x2),
                   Text(
                     l10n.bulkImportDropFormats,
                     textAlign: TextAlign.center,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.smoke,
+                    style: SelType.small.copyWith(
+                      color: Sel.warm,
                       height: 1.45,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: SelSpace.x6),
                   OutlinedButton(
                     onPressed: loading ? null : onPick,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.ink,
-                      side: const BorderSide(color: AppColors.fog),
+                      foregroundColor: Sel.ink,
+                      side: const BorderSide(color: Sel.border),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
+                        horizontal: SelSpace.x6,
+                        vertical: SelSpace.x4,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.button),
+                        borderRadius: BorderRadius.circular(SelRadius.pill),
                       ),
                     ),
                     child: loading
@@ -106,7 +105,7 @@ class BulkImportDropZone extends StatelessWidget {
                           )
                         : Text(
                             l10n.bulkImportBrowseFiles,
-                            style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+                            style: SelType.body.copyWith(fontWeight: FontWeight.w600),
                           ),
                   ),
                 ],

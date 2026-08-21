@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_router_redirect.dart';
-import '../../features/onboarding/presentation/onboarding_wizard_screen.dart';
+import '../../screens/onboarding_screen.dart';
 import '../../features/platform/presentation/platform_churches_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
 import '../../screens/entries/entry_detail_screen.dart';

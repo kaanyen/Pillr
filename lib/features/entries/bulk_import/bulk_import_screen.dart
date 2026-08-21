@@ -9,17 +9,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
+import '../../../design/seline.dart';
+
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
-import '../../../core/theme/pillr_layout.dart';
-import '../../../common/widgets/pillr_dropdown_field.dart';
-import '../../../common/widgets/pillr_form_dialog.dart';
-import '../../../common/widgets/pillr_surface_card.dart';
-import '../../../common/widgets/pillr_text_field.dart';
 import '../../arms/domain/partnership_arm.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart' show AppRadius, AppSpacing;
-import '../../../core/theme/app_typography.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/domain/user_church_index.dart' show UserChurchIndex;
 import '../../auth/providers/auth_providers.dart';
@@ -221,28 +215,28 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     final showUploadZone = !_hasDraftRows && !_isResolvingDraft;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: Sel.card,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(SelSpace.x6),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: PillrLayout.bulkImportMaxWidth),
+            constraints: const BoxConstraints(maxWidth: 960.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_error != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Text(_error!, style: AppTypography.body.copyWith(fontWeight: FontWeight.w500)),
+                    padding: const EdgeInsets.only(bottom: SelSpace.x4),
+                    child: Text(_error!, style: SelType.body.copyWith(fontWeight: FontWeight.w500)),
                   ),
                 if (_fileIssues.isNotEmpty)
                   ..._fileIssues.map(
                     (i) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                      padding: const EdgeInsets.only(bottom: SelSpace.x1),
                       child: Text(
                         i.message ?? _issueLabel(l10n, i.code),
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.ink,
+                        style: SelType.small.copyWith(
+                          color: Sel.ink,
                         ),
                       ),
                     ),
@@ -254,17 +248,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   ] else if (showUploadZone) ...[
                     Text(
                       l10n.bulkImportUploadTitle,
-                      style: AppTypography.headingSm.copyWith(color: AppColors.ink),
+                      style: SelType.subtitle.copyWith(color: Sel.ink),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: SelSpace.x1),
                     Text(
                       l10n.bulkImportUploadSubtitle,
-                      style: AppTypography.body.copyWith(
-                        color: AppColors.smoke,
+                      style: SelType.body.copyWith(
+                        color: Sel.warm,
                         height: 1.45,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: SelSpace.x4),
                     BulkImportDropZone(
                       onPick: () => _pickAndParse(context),
                       loading: _parsing || _committing,
@@ -275,45 +269,45 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: _parsing || _committing ? null : () => _pickAndParse(context),
-                        icon: Icon(LucideIcons.upload, size: 18, color: AppColors.charcoal),
+                        icon: Icon(LucideIcons.upload, size: 18, color: Sel.soot),
                         label: Text(l10n.bulkImportReplaceFile),
                       ),
                     ),
                   ],
                   if (_loadingPartners && !_isResolvingDraft)
                     Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.md),
-                      child: Text(l10n.bulkImportLoadingPartners, style: AppTypography.caption),
+                      padding: const EdgeInsets.only(top: SelSpace.x4),
+                      child: Text(l10n.bulkImportLoadingPartners, style: SelType.small),
                     ),
                   if (_resolved != null && _rawRows != null) ...[
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: SelSpace.x6),
                     if (_resolved!.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: Text(l10n.bulkImportNoRowsInImport, style: AppTypography.caption),
+                        padding: const EdgeInsets.only(bottom: SelSpace.x4),
+                        child: Text(l10n.bulkImportNoRowsInImport, style: SelType.small),
                       ),
                     if (_resolved!.isNotEmpty) ...[
                       _buildSummary(context, l10n, _resolved!, idx.isStaff),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       _buildRowsTableSection(context, l10n, _resolved!),
                     ],
-                    const SizedBox(height: AppSpacing.md),
+                    const SizedBox(height: SelSpace.x4),
                     if (_resolved!.any((r) => r.isBlocking))
                       Material(
-                        color: AppColors.mist,
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        color: Sel.canvas,
+                        borderRadius: BorderRadius.circular(SelRadius.card),
                         child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          padding: const EdgeInsets.all(SelSpace.x6),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(LucideIcons.alertTriangle, size: 18, color: AppColors.ink),
-                              const SizedBox(width: AppSpacing.sm),
+                              const Icon(LucideIcons.alertTriangle, size: 18, color: Sel.ink),
+                              const SizedBox(width: SelSpace.x2),
                               Expanded(
                                 child: Text(
                                   l10n.bulkImportBlocking,
-                                  style: AppTypography.caption.copyWith(
-                                    color: AppColors.ink,
+                                  style: SelType.small.copyWith(
+                                    color: Sel.ink,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -324,15 +318,15 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       ),
                     if (activePeriod == null)
                       Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.md),
+                        padding: const EdgeInsets.only(top: SelSpace.x4, bottom: SelSpace.x4),
                         child: Text(
                           l10n.bulkImportNoActivePeriod,
-                          style: AppTypography.caption.copyWith(
-                            color: AppColors.ink,
+                          style: SelType.small.copyWith(
+                            color: Sel.ink,
                           ),
                         ),
                       ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SizedBox(height: SelSpace.x6),
                     Builder(
                       builder: (context) {
                         final sum = _resolved != null
@@ -347,8 +341,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                         return FilledButton(
                           style: allClear
                               ? FilledButton.styleFrom(
-                                  backgroundColor: AppColors.charcoal,
-                                  foregroundColor: AppColors.paper,
+                                  backgroundColor: Sel.soot,
+                                  foregroundColor: Sel.card,
                                 )
                               : null,
                           onPressed: _committing ||
@@ -368,7 +362,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                                       height: 18,
                                       child: CircularProgressIndicator(strokeWidth: 2),
                                     ),
-                                    const SizedBox(width: AppSpacing.sm),
+                                    const SizedBox(width: SelSpace.x2),
                                     Text(l10n.bulkImportCommitting),
                                   ],
                                 )
@@ -376,8 +370,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (allClear) ...[
-                                      Icon(LucideIcons.clipboardCheck, size: 20, color: AppColors.paper),
-                                      const SizedBox(width: AppSpacing.sm),
+                                      Icon(LucideIcons.clipboardCheck, size: 20, color: Sel.card),
+                                      const SizedBox(width: SelSpace.x2),
                                     ],
                                     Text(
                                       allClear ? l10n.bulkImportCompleteImport : l10n.bulkImportConfirm,
@@ -405,14 +399,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   ) {
     final s = summarize(rows, viewerIsStaff: viewerIsStaff);
     final fmt = NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2);
-    const totalBg = AppColors.paper;
-    const totalIconCircle = AppColors.mist;
-    const pendingBg = AppColors.paper;
-    const pendingIconCircle = AppColors.mist;
-    const partnersBg = AppColors.paper;
-    const partnersIconCircle = AppColors.mist;
-    const goalBg = AppColors.paper;
-    const goalIconCircle = AppColors.mist;
+    const totalBg = Sel.card;
+    const totalIconCircle = Sel.canvas;
+    const pendingBg = Sel.card;
+    const pendingIconCircle = Sel.canvas;
+    const partnersBg = Sel.card;
+    const partnersIconCircle = Sel.canvas;
+    const goalBg = Sel.card;
+    const goalIconCircle = Sel.canvas;
 
     Widget compactTile({
       required String label,
@@ -423,11 +417,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       required Color iconColor,
     }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(horizontal: SelSpace.x2, vertical: SelSpace.x2),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.fog),
+          borderRadius: BorderRadius.circular(SelRadius.card),
+          border: Border.all(color: Sel.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -436,11 +430,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconCircle,
-                borderRadius: BorderRadius.circular(AppRadius.button),
+                borderRadius: BorderRadius.circular(SelRadius.pill),
               ),
               child: Icon(icon, size: 16, color: iconColor),
             ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: SelSpace.x2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,7 +442,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                 children: [
                   Text(
                     label,
-                    style: AppTypography.micro.copyWith(
+                    style: SelType.small.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 2,
@@ -457,7 +451,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   const SizedBox(height: 2),
                   Text(
                     valueText,
-                    style: AppTypography.subheadingStrong,
+                    style: SelType.bodyMedium,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -476,7 +470,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.list,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.charcoal,
+        iconColor: Sel.soot,
       ),
       compactTile(
         label: l10n.bulkImportStatNewPartners(0).split(':').first.trim(),
@@ -484,7 +478,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userPlus,
         bg: partnersBg,
         iconCircle: partnersIconCircle,
-        iconColor: AppColors.smoke,
+        iconColor: Sel.warm,
       ),
       compactTile(
         label: l10n.bulkImportStatExistingPartners(0).split(':').first.trim(),
@@ -492,7 +486,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userCheck,
         bg: goalBg,
         iconCircle: goalIconCircle,
-        iconColor: AppColors.charcoal,
+        iconColor: Sel.soot,
       ),
       compactTile(
         label: l10n.bulkImportStatTotal('').split(':').first.trim(),
@@ -500,7 +494,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.wallet,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.charcoal,
+        iconColor: Sel.soot,
       ),
     ];
 
@@ -511,24 +505,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.alertTriangle,
         bg: pendingBg,
         iconCircle: pendingIconCircle,
-        iconColor: AppColors.smoke,
+        iconColor: Sel.warm,
       ),
       compactTile(
         label: l10n.bulkImportStatErrors(0).split(':').first.trim(),
         valueText: '${s.blockingCount}',
         icon: LucideIcons.xCircle,
-        bg: AppColors.paper,
-        iconCircle: AppColors.mist,
-        iconColor: AppColors.ink,
+        bg: Sel.card,
+        iconCircle: Sel.canvas,
+        iconColor: Sel.ink,
       ),
       if (s.pastorYesCount > 0)
         compactTile(
           label: l10n.bulkImportStatPastorYes(0).split(':').first.trim(),
           valueText: '${s.pastorYesCount}',
           icon: LucideIcons.check,
-          bg: AppColors.paper,
-          iconCircle: AppColors.mist,
-          iconColor: AppColors.smoke,
+          bg: Sel.card,
+          iconCircle: Sel.canvas,
+          iconColor: Sel.warm,
         ),
     ];
 
@@ -537,12 +531,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       children: [
         Text(
           l10n.bulkImportSummary,
-          style: AppTypography.label.copyWith(
-            color: AppColors.smoke,
+          style: SelType.bodyMedium.copyWith(
+            color: Sel.warm,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: SelSpace.x2),
         LayoutBuilder(
           builder: (context, c) {
             if (c.maxWidth < 520) {
@@ -555,19 +549,19 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       children: [
                         for (var i = 0; i < row1.length; i++) ...[
                           SizedBox(width: 168, child: row1[i]),
-                          if (i < row1.length - 1) const SizedBox(width: AppSpacing.sm),
+                          if (i < row1.length - 1) const SizedBox(width: SelSpace.x2),
                         ],
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: SelSpace.x2),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
                         for (var i = 0; i < row2.length; i++) ...[
                           SizedBox(width: 168, child: row2[i]),
-                          if (i < row2.length - 1) const SizedBox(width: AppSpacing.sm),
+                          if (i < row2.length - 1) const SizedBox(width: SelSpace.x2),
                         ],
                       ],
                     ),
@@ -583,24 +577,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   children: [
                     for (var i = 0; i < row1.length; i++) ...[
                       Expanded(child: row1[i]),
-                      if (i < row1.length - 1) const SizedBox(width: AppSpacing.sm),
+                      if (i < row1.length - 1) const SizedBox(width: SelSpace.x2),
                     ],
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: SelSpace.x2),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(child: row2[0]),
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: SelSpace.x2),
                     Expanded(child: row2[1]),
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: SelSpace.x2),
                     if (row2.length > 2) Expanded(child: row2[2]),
-                    if (row2.length > 2) const SizedBox(width: AppSpacing.sm),
+                    if (row2.length > 2) const SizedBox(width: SelSpace.x2),
                     if (row2.length > 2) const Expanded(child: SizedBox.shrink()),
                     if (row2.length == 2) ...[
                       const Expanded(child: SizedBox.shrink()),
-                      const SizedBox(width: AppSpacing.sm),
+                      const SizedBox(width: SelSpace.x2),
                       const Expanded(child: SizedBox.shrink()),
                     ],
                   ],
@@ -611,10 +605,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         ),
         if (viewerIsStaff && s.staffPastorYesCount > 0)
           Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
+            padding: const EdgeInsets.only(top: SelSpace.x4),
             child: Text(
               l10n.bulkImportStaffPastorNote,
-              style: AppTypography.caption.copyWith(
+              style: SelType.small.copyWith(
                 color: Theme.of(context).colorScheme.tertiary,
               ),
             ),
@@ -628,17 +622,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     AppLocalizations l10n,
     List<BulkResolvedRow> rows,
   ) {
-    return PillrSurfaceCard(
+    return SelCard(clip: true, 
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+            padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x2),
             child: Text(
               l10n.bulkImportPreview,
-              style: AppTypography.label.copyWith(
-                color: AppColors.smoke,
+              style: SelType.bodyMedium.copyWith(
+                color: Sel.warm,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -690,7 +684,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   Widget _bulkTableHeader(BuildContext context, AppLocalizations l10n) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x2),
       child: Row(
         children: [
           SizedBox(width: _BulkImportRowLayout.chevron),
@@ -698,21 +692,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             width: _BulkImportRowLayout.rowNum,
             child: Text(
               l10n.bulkImportTableHeaderRow,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
               l10n.bulkImportTableHeaderPartner,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           SizedBox(
             width: _BulkImportRowLayout.amount,
             child: Text(
               l10n.bulkImportTableHeaderAmount,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.right,
             ),
           ),
@@ -721,7 +715,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             width: _BulkImportRowLayout.date,
             child: Text(
               l10n.bulkImportTableHeaderDate,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.right,
             ),
           ),
@@ -729,7 +723,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             width: _BulkImportRowLayout.status,
             child: Text(
               l10n.bulkImportTableHeaderStatus,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
             ),
           ),
@@ -737,7 +731,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             width: _BulkImportRowLayout.action,
             child: Text(
               l10n.bulkImportTableReview,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -747,7 +741,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             width: _BulkImportRowLayout.action,
             child: Text(
               l10n.bulkImportTableRemove,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
+              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -773,9 +767,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   }
 
   Widget _buildRestoringDraft(BuildContext context, AppLocalizations l10n) {
-    return PillrSurfaceCard(
+    return SelCard(clip: true, 
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: SelSpace.x8, horizontal: SelSpace.x6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -784,18 +778,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               height: 28,
               child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             Text(
               l10n.bulkImportRestoringDraft,
               textAlign: TextAlign.center,
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+              style: SelType.body.copyWith(fontWeight: FontWeight.w600),
             ),
             if (_fileName != null && _fileName!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
               Text(
                 _fileName!,
                 textAlign: TextAlign.center,
-                style: AppTypography.caption.copyWith(color: AppColors.smoke),
+                style: SelType.small.copyWith(color: Sel.warm),
               ),
             ],
           ],
@@ -806,24 +800,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   Widget _buildResult(BuildContext context, AppLocalizations l10n, BulkImportCommitResult r) {
     return Card(
-      color: AppColors.mist,
+      color: Sel.canvas,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(SelSpace.x6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.bulkImportResultTitle, style: AppTypography.label),
-            const SizedBox(height: AppSpacing.sm),
+            Text(l10n.bulkImportResultTitle, style: SelType.bodyMedium),
+            const SizedBox(height: SelSpace.x2),
             Text(l10n.bulkImportEntriesCreated(r.entriesCreated)),
             Text(l10n.bulkImportPartnersCreated(r.partnersCreated)),
             Text(l10n.bulkImportApproved(r.entriesApproved)),
             Text(l10n.bulkImportSkipped(r.rowsSkipped)),
             if (r.errors.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(l10n.bulkImportErrorListHeader, style: AppTypography.caption),
-              ...r.errors.map((e) => Text('• $e', style: AppTypography.caption)),
+              const SizedBox(height: SelSpace.x2),
+              Text(l10n.bulkImportErrorListHeader, style: SelType.small),
+              ...r.errors.map((e) => Text('• $e', style: SelType.small)),
             ],
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             FilledButton(
               onPressed: () => context.go('/queue'),
               child: Text(l10n.bulkImportBack),
@@ -1089,9 +1083,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setLocal) {
-            return PillrFormDialog(
+            return SelDialog(
               title: l10n.bulkImportEditRowTitle(row.sheetRowNumber),
-              leading: PillrFormDialog.leadingIcon(LucideIcons.fileEdit),
               actions: [
                 OutlinedButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -1128,7 +1121,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           a,
-                          const SizedBox(height: AppSpacing.md),
+                          const SizedBox(height: SelSpace.x4),
                           b,
                         ],
                       );
@@ -1137,7 +1130,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: a),
-                        const SizedBox(width: AppSpacing.md),
+                        const SizedBox(width: SelSpace.x4),
                         Expanded(child: b),
                       ],
                     );
@@ -1147,54 +1140,54 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: dateCtrl,
                           label: l10n.bulkImportFieldDate,
                           hint: l10n.bulkImportFieldDateHint,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: nameCtrl,
                           label: l10n.bulkImportFieldName,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: fellowCtrl,
                           label: l10n.bulkImportFieldFellowship,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: phoneCtrl,
                           label: l10n.bulkImportFieldPhone,
                           keyboardType: TextInputType.phone,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: emailCtrl,
                           label: l10n.bulkImportFieldEmail,
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: amountCtrl,
                           label: l10n.bulkImportFieldAmount,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           l10n.bulkImportFieldArm,
-                          style: AppTypography.caption.copyWith(
+                          style: SelType.small.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.smoke,
+                            color: Sel.warm,
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      PillrDropdownButton<String>(
+                      const SizedBox(height: SelSpace.x1),
+                      SelSelect<String>(
                         value: selectedArm?.id,
                         hint: Text(l10n.bulkImportSelectArm),
                         onChanged: activeArms.isEmpty
@@ -1211,27 +1204,27 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                             DropdownMenuItem(value: a.id, child: Text(a.name)),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      PillrTextField(
+                      const SizedBox(height: SelSpace.x4),
+                      SelField(
                         controller: notesCtrl,
                         label: l10n.bulkImportFieldNotes,
                         maxLines: 3,
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: AppColors.paper,
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          border: Border.all(color: AppColors.fog),
+                          color: Sel.card,
+                          borderRadius: BorderRadius.circular(SelRadius.card),
+                          border: Border.all(color: Sel.border),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                          padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
                                   l10n.bulkImportFieldPastorYes,
-                                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w500),
+                                  style: SelType.body.copyWith(fontWeight: FontWeight.w500),
                                 ),
                               ),
                               Switch.adaptive(
@@ -1467,7 +1460,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
           child: InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -1476,20 +1469,20 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                     child: Icon(
                       _expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
                       size: 20,
-                      color: AppColors.smoke,
+                      color: Sel.warm,
                     ),
                   ),
                   SizedBox(
                     width: _BulkImportRowLayout.rowNum,
                     child: Text(
                       '${row.sheetRowNumber}',
-                      style: AppTypography.label,
+                      style: SelType.bodyMedium,
                     ),
                   ),
                   Expanded(
                     flex: 2,
                     child: Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding: const EdgeInsets.only(right: SelSpace.x2),
                       child: Text(
                         row.fullName,
                         maxLines: 2,
@@ -1501,7 +1494,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                     width: _BulkImportRowLayout.amount,
                     child: Text(
                       widget.fmtAmount(row.amountCedis),
-                      style: AppTypography.body,
+                      style: SelType.body,
                       textAlign: TextAlign.right,
                     ),
                   ),
@@ -1510,7 +1503,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                     width: _BulkImportRowLayout.date,
                     child: Text(
                       dateStr,
-                      style: AppTypography.body,
+                      style: SelType.body,
                       textAlign: TextAlign.right,
                     ),
                   ),
@@ -1538,7 +1531,7 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                       onPressed: widget.loadingLocked ? null : widget.onReview,
                       child: Text(
                         l10n.bulkImportTableReview,
-                        style: AppTypography.label,
+                        style: SelType.bodyMedium,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1551,12 +1544,12 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: AppColors.ink,
+                        foregroundColor: Sel.ink,
                       ),
                       onPressed: widget.loadingLocked ? null : widget.onRemove,
                       child: Text(
                         l10n.bulkImportTableRemove,
-                        style: AppTypography.label,
+                        style: SelType.bodyMedium,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1574,10 +1567,10 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
           child: _expanded
               ? Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm,
+                    SelSpace.x2,
                     0,
-                    AppSpacing.sm,
-                    AppSpacing.md,
+                    SelSpace.x2,
+                    SelSpace.x4,
                   ),
                   child: _detailsColumn(context),
                 )
@@ -1601,11 +1594,11 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
     );
     final showDupAck = hasDup && !widget.duplicateAcknowledged;
 
-    final labelStyle = AppTypography.caption.copyWith(
-      color: AppColors.smoke,
+    final labelStyle = SelType.small.copyWith(
+      color: Sel.warm,
       fontWeight: FontWeight.w600,
     );
-    final valueStyle = AppTypography.body;
+    final valueStyle = SelType.body;
 
     TableRow tr(String label, String value) {
       return TableRow(
@@ -1654,14 +1647,14 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
               Wrap(
                 alignment: WrapAlignment.start,
                 crossAxisAlignment: WrapCrossAlignment.start,
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
+                spacing: SelSpace.x1,
+                runSpacing: SelSpace.x1,
                 children: row.issues
                     .map(
                       (i) => Chip(
                         label: Text(
                           i.message ?? widget.issueLabel(i.code),
-                          style: AppTypography.pill.copyWith(
+                          style: SelType.tag.copyWith(
                             // Errors read heavier; warnings stay regular.
                             fontWeight: i.severity == BulkImportSeverity.error
                                 ? FontWeight.w600
@@ -1669,29 +1662,29 @@ class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
                           ),
                         ),
                         backgroundColor: i.severity == BulkImportSeverity.error
-                            ? AppColors.mist
-                            : AppColors.paper,
+                            ? Sel.canvas
+                            : Sel.card,
                       ),
                     )
                     .toList(),
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
             ],
             Table(
               columnWidths: const {
                 0: FlexColumnWidth(1.05),
                 1: FlexColumnWidth(2.15),
               },
-              border: TableBorder.all(color: AppColors.fog, width: 1, borderRadius: BorderRadius.circular(AppRadius.md)),
+              border: TableBorder.all(color: Sel.border, width: 1, borderRadius: BorderRadius.circular(SelRadius.input)),
               children: tableRows,
             ),
             if (showDupAck) ...[
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   onPressed: widget.loadingLocked ? null : widget.onAcknowledgeDuplicate,
-                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: AppColors.charcoal),
+                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: Sel.soot),
                   label: Text(l10n.bulkImportConfirmNotDuplicate),
                 ),
               ),
@@ -1734,12 +1727,12 @@ class _BulkImportStatusBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.mist,
-          borderRadius: BorderRadius.circular(AppRadius.bar),
+          color: Sel.canvas,
+          borderRadius: BorderRadius.circular(SelRadius.icon),
         ),
         child: Text(
           l10n.bulkImportRowStatusBlocked,
-          style: AppTypography.caption.copyWith(
+          style: SelType.small.copyWith(
             color: scheme.onErrorContainer,
             fontWeight: FontWeight.w600,
           ),
@@ -1750,20 +1743,20 @@ class _BulkImportStatusBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.mist,
-          borderRadius: BorderRadius.circular(AppRadius.bar),
-          border: Border.all(color: AppColors.smoke.withValues(alpha: 0.35)),
+          color: Sel.canvas,
+          borderRadius: BorderRadius.circular(SelRadius.icon),
+          border: Border.all(color: Sel.warm.withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.copy, size: 14, color: AppColors.smoke),
+            Icon(LucideIcons.copy, size: 14, color: Sel.warm),
             const SizedBox(width: 4),
             Text(
               l10n.bulkImportRowStatusDuplicate,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.ink,
+              style: SelType.small.copyWith(
+                color: Sel.ink,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1778,12 +1771,12 @@ class _BulkImportStatusBadge extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.pewter),
+            Icon(LucideIcons.alertCircle, size: 16, color: Sel.ash),
             const SizedBox(width: 4),
             Text(
               l10n.bulkImportRowStatusCheck,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.smoke,
+              style: SelType.small.copyWith(
+                color: Sel.warm,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1794,19 +1787,19 @@ class _BulkImportStatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.mist,
-        borderRadius: BorderRadius.circular(AppRadius.bar),
+        color: Sel.canvas,
+        borderRadius: BorderRadius.circular(SelRadius.icon),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.check, size: 14, color: AppColors.ink),
+          Icon(LucideIcons.check, size: 14, color: Sel.ink),
           const SizedBox(width: 4),
           Text(
             l10n.bulkImportRowStatusReady,
-            style: AppTypography.caption.copyWith(
-              color: AppColors.ink,
+            style: SelType.small.copyWith(
+              color: Sel.ink,
               fontWeight: FontWeight.w600,
             ),
           ),

@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../design/seline.dart';
+
 import '../../../core/extensions/async_value_ext.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../../goals/providers/goals_providers.dart';
@@ -42,15 +42,15 @@ class GettingStartedBanner extends ConsumerWidget {
         if (doneGoals) return const SizedBox.shrink();
 
         return Card(
-          margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+          margin: const EdgeInsets.only(bottom: SelSpace.x6),
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(SelSpace.x4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text('Getting started', style: AppTypography.headingSm)),
+                    Expanded(child: Text('Getting started', style: SelType.subtitle)),
                     TextButton(
                       onPressed: () async {
                         final p = await SharedPreferences.getInstance();
@@ -61,7 +61,7 @@ class GettingStartedBanner extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: SelSpace.x2),
                 _CheckRow(done: doneGoals, label: 'Set giving goals', onTap: () => context.go('/goals')),
                 _CheckRow(
                   done: false,
@@ -93,8 +93,8 @@ class _CheckRow extends StatelessWidget {
         child: Row(
           children: [
             Icon(done ? LucideIcons.checkCircle : LucideIcons.circle, size: 20),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text(label, style: AppTypography.body)),
+            const SizedBox(width: SelSpace.x2),
+            Expanded(child: Text(label, style: SelType.body)),
             const Icon(LucideIcons.chevronRight, size: 18),
           ],
         ),

@@ -5,11 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../design/seline.dart';
+
 import '../../../core/errors/error_handler.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
-import '../../../common/widgets/pillr_surface_card.dart';
 import '../data/platform_repository.dart';
 import '../providers/platform_providers.dart';
 
@@ -83,25 +81,25 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
           builder: (_, scroll) {
             return ListView(
               controller: scroll,
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(SelSpace.x6),
               children: [
-                Text(row.name, style: AppTypography.heading),
-                const SizedBox(height: AppSpacing.sm),
-                SelectableText('ID: ${row.churchId}', style: AppTypography.caption),
-                const SizedBox(height: AppSpacing.md),
+                Text(row.name, style: SelType.title),
+                const SizedBox(height: SelSpace.x2),
+                SelectableText('ID: ${row.churchId}', style: SelType.small),
+                const SizedBox(height: SelSpace.x4),
                 if (row.logoUrl != null && row.logoUrl!.isNotEmpty)
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    borderRadius: BorderRadius.circular(SelRadius.pill),
                     child: CachedNetworkImage(
                       imageUrl: row.logoUrl!,
                       height: 80,
                       fit: BoxFit.contain,
                     ),
                   ),
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: SelSpace.x4),
                 Text(
                   'Contact',
-                  style: AppTypography.label.copyWith(fontWeight: FontWeight.w700),
+                  style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
                   [
@@ -109,12 +107,12 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                     row.contactEmail,
                     row.contactPhone,
                   ].where((e) => e != null && e.toString().trim().isNotEmpty).join('\n'),
-                  style: AppTypography.body,
+                  style: SelType.body,
                 ),
-                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: SelSpace.x4),
                 Text(
                   'Location',
-                  style: AppTypography.label.copyWith(fontWeight: FontWeight.w700),
+                  style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w700),
                 ),
                 Text(
                   [
@@ -123,14 +121,14 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                     row.region,
                     row.country,
                   ].where((e) => e != null && e.toString().trim().isNotEmpty).join(', '),
-                  style: AppTypography.body,
+                  style: SelType.body,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                Text('Active users: ${row.activeUsers}', style: AppTypography.body),
-                Text('Currency: ${row.currency ?? '—'}', style: AppTypography.body),
+                const SizedBox(height: SelSpace.x4),
+                Text('Active users: ${row.activeUsers}', style: SelType.body),
+                Text('Currency: ${row.currency ?? '—'}', style: SelType.body),
                 Text(
                   'Setup completed: ${row.churchSetupCompletedAt != null ? 'yes' : 'no'}',
-                  style: AppTypography.body,
+                  style: SelType.body,
                 ),
               ],
             );
@@ -159,16 +157,16 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(platformChurchesListProvider),
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(SelSpace.x6),
               children: [
-                PillrSurfaceCard(
+                SelCard(clip: true, 
                   child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    padding: const EdgeInsets.all(SelSpace.x6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Invite new church', style: AppTypography.headingSm),
-                        const SizedBox(height: AppSpacing.sm),
+                        Text('Invite new church', style: SelType.subtitle),
+                        const SizedBox(height: SelSpace.x2),
                         TextField(
                           controller: _bootstrapEmail,
                           decoration: const InputDecoration(
@@ -177,7 +175,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        const SizedBox(height: AppSpacing.sm),
+                        const SizedBox(height: SelSpace.x2),
                         DropdownButtonFormField<String>(
                           initialValue: _bootstrapRole,
                           decoration: const InputDecoration(
@@ -191,10 +189,10 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                           onChanged: (v) => setState(() => _bootstrapRole = v ?? 'pastor'),
                         ),
                         if (_formError != null) ...[
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(_formError!, style: AppTypography.caption.copyWith(color: AppColors.ink)),
+                          const SizedBox(height: SelSpace.x2),
+                          Text(_formError!, style: SelType.small.copyWith(color: Sel.ink)),
                         ],
-                        const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: SelSpace.x4),
                         FilledButton(
                           onPressed: _inviting ? null : _sendBootstrapInvite,
                           child: _inviting
@@ -209,12 +207,12 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                     ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                Text('${rows.length} churches', style: AppTypography.caption),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: SelSpace.x4),
+                Text('${rows.length} churches', style: SelType.small),
+                const SizedBox(height: SelSpace.x2),
                 ...rows.map((row) {
                   return Card(
-                    margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    margin: const EdgeInsets.only(bottom: SelSpace.x2),
                     child: ListTile(
                       leading: row.logoUrl != null && row.logoUrl!.isNotEmpty
                           ? CircleAvatar(

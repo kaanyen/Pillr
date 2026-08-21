@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
+import '../../../design/seline.dart';
+
 
 enum BulkImportCommitPhase { idle, running, done, failed }
 
@@ -113,7 +112,7 @@ class BulkImportCommitProgressOverlay extends ConsumerWidget {
         if (progress.phase == BulkImportCommitPhase.running && !progress.dismissed)
           Positioned.fill(
             child: ColoredBox(
-              color: AppColors.ink.withValues(alpha: 0.4),
+              color: Sel.ink.withValues(alpha: 0.4),
               child: Center(
                 child: _BulkImportProgressCard(
                   progress: progress,
@@ -125,8 +124,8 @@ class BulkImportCommitProgressOverlay extends ConsumerWidget {
           ),
         if (progress.isActive && progress.dismissed)
           Positioned(
-            right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
+            right: SelSpace.x6,
+            bottom: SelSpace.x6,
             child: _BulkImportProgressCard(
               progress: progress,
               onDismiss: progress.phase == BulkImportCommitPhase.running
@@ -161,12 +160,12 @@ class _BulkImportProgressCard extends StatelessWidget {
 
     return Material(
       elevation: 0,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      color: AppColors.paper,
+      borderRadius: BorderRadius.circular(SelRadius.card),
+      color: Sel.card,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: compact ? 320 : 400),
         child: Padding(
-          padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.lg),
+          padding: EdgeInsets.all(compact ? SelSpace.x4 : SelSpace.x6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,10 +177,10 @@ class _BulkImportProgressCard extends StatelessWidget {
                         ? LucideIcons.checkCircle
                         : LucideIcons.loader,
                     size: 20,
-                    color: AppColors.charcoal,
+                    color: Sel.soot,
                   ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: Text(title, style: AppTypography.label)),
+                  const SizedBox(width: SelSpace.x2),
+                  Expanded(child: Text(title, style: SelType.bodyMedium)),
                   IconButton(
                     icon: const Icon(LucideIcons.x, size: 18),
                     onPressed: onDismiss,
@@ -189,22 +188,22 @@ class _BulkImportProgressCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
               if (progress.message != null)
                 Text(
                   progress.message!,
-                  style: AppTypography.caption.copyWith(color: AppColors.smoke),
+                  style: SelType.small.copyWith(color: Sel.warm),
                 ),
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
               LinearProgressIndicator(
                 value: progress.phase == BulkImportCommitPhase.done ? 1 : fraction.clamp(0, 1),
                 minHeight: 6,
-                borderRadius: BorderRadius.circular(AppRadius.bar),
+                borderRadius: BorderRadius.circular(SelRadius.icon),
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: SelSpace.x1),
               Text(
                 l10n.bulkImportCommitProgressCount(progress.current, progress.total),
-                style: AppTypography.caption,
+                style: SelType.small,
                 textAlign: TextAlign.end,
               ),
             ],
