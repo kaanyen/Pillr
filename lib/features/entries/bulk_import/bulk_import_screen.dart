@@ -22,7 +22,9 @@ import '../../church/providers/church_settings_providers.dart';
 import '../../partners/providers/partners_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
+import 'bulk_import_autofix.dart';
 import 'bulk_import_columns.dart';
+import 'bulk_import_grid.dart';
 import 'bulk_import_mapping.dart';
 import 'bulk_import_save.dart';
 import 'bulk_import_sources.dart';
@@ -87,6 +89,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   BulkImportHeaderDetection? _detection;
   Map<BulkImportColumn, int> _mapping = {};
   _Step _step = _Step.upload;
+  /// How to read an ambiguous numeric date. Ghana writes day first, so that
+  /// is the default, but the sheet cannot prove it — the grid shows the
+  /// reading and lets it be flipped.
+  bool _dayFirst = true;
+
+  /// A saved import found on disk, waiting to be resumed or discarded.
+  BulkImportPersistedSession? _pendingDraft;
+
   bool _sessionRestored = false;
   String? _persistUid;
   String? _persistChurchId;
@@ -148,6 +158,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       rawRows: rows,
       fileIssues: _fileIssues,
       duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+      mapping: _mapping,
     );
   }
 
@@ -159,17 +170,32 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     _cachePersistIds(idx);
     final saved = await BulkImportSessionStore.load(uid: idx.uid, churchId: idx.churchId);
     if (saved == null || saved.rawRows.isEmpty || !mounted) return;
+    // Offered, not resumed. Silently reopening someone else's half-finished
+    // import is how the wrong file gets committed; the choice is one click
+    // either way.
+    setState(() => _pendingDraft = saved);
+  }
+
+  /// Picks the saved draft back up where it was left.
+  Future<void> _continueDraft() async {
+    final saved = _pendingDraft;
+    if (saved == null) return;
     setState(() {
+      _pendingDraft = null;
       _restoringSession = true;
       _fileName = saved.fileName;
       _fileBytes = saved.fileBytes;
       _rawRows = saved.rawRows;
       _fileIssues = saved.fileIssues;
+      _mapping = saved.mapping.isNotEmpty
+          ? Map<BulkImportColumn, int>.from(saved.mapping)
+          : _mappingFromRows(saved.rawRows);
       _duplicateAcknowledgedSheetRows
         ..clear()
         ..addAll(saved.duplicateAcknowledgedSheetRows);
       _result = null;
       _resolved = null;
+      _step = _Step.resolve;
     });
     await _loadPartnersAndResolve();
     if (!mounted) return;
@@ -177,6 +203,51 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).bulkImportDraftRestored)),
     );
+  }
+
+  /// A draft saved before the mapping was persisted still has to show its
+  /// columns in a sensible order.
+  Map<BulkImportColumn, int> _mappingFromRows(List<BulkRawRow> rows) {
+    final seen = <BulkImportColumn>{};
+    for (final r in rows) {
+      seen.addAll(r.valuesByColumn.keys);
+    }
+    final ordered = [
+      for (final c in bulkImportMappableFields)
+        if (seen.contains(c)) c,
+    ];
+    return {for (var i = 0; i < ordered.length; i++) ordered[i]: i};
+  }
+
+  Future<void> _clearDraft(BuildContext context, AppLocalizations l10n) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard the saved import?'),
+        content: Text(
+          'The rows from ${_pendingDraft?.fileName ?? "the saved file"} will be '
+          'thrown away. Nothing has been imported yet, so nothing else changes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.bulkImportCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final uid = _persistUid;
+    final churchId = _persistChurchId;
+    if (uid != null && churchId != null) {
+      await BulkImportSessionStore.clear(uid: uid, churchId: churchId);
+    }
+    if (!mounted) return;
+    setState(() => _pendingDraft = null);
   }
 
   bool get _hasDraftRows => _rawRows != null && _rawRows!.isNotEmpty;
@@ -243,6 +314,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       );
     }
 
+    if (_step == _Step.resolve &&
+        _resolved != null &&
+        _resolved!.isNotEmpty &&
+        !_loadingPartners) {
+      return _buildResolveTakeover(context, l10n, idx);
+    }
+
     return SelPageBody(
       maxWidth: 900,
       children: [
@@ -300,15 +378,27 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       _fileBytes = null;
       _error = null;
       _duplicateAcknowledgedSheetRows.clear();
+      _pendingDraft = null;
       _step = _Step.upload;
     });
   }
 
   // ---------------------------------------------------------------- step 1
   Widget _buildUploadStep(BuildContext context, AppLocalizations l10n) {
+    final draft = _pendingDraft;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (draft != null) ...[
+          _DraftCard(
+            fileName: draft.fileName,
+            rowCount: draft.rawRows.length,
+            savedAt: draft.savedAt,
+            onContinue: _continueDraft,
+            onClear: () => _clearDraft(context, l10n),
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
         BulkImportDropZone(
           onPick: () => _pickAndParse(context),
           loading: _parsing,
@@ -449,6 +539,165 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   }
 
   // ---------------------------------------------------------------- step 3
+  /// The sheet, full screen.
+  ///
+  /// Reviewing an import inside a 900px column meant scrolling a list of
+  /// problems with no sight of the data they referred to. This is the whole
+  /// sheet at once, with the problems docked beside it, because the fix is
+  /// almost always obvious once you can see the row.
+  Widget _buildResolveTakeover(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    final resolved = _resolved!;
+    final arms = ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
+
+    // Sheet order, so the grid reads like the file it came from.
+    final columns = _mapping.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    final blocking = resolved.any((r) => r.isBlocking);
+    final duplicatesPending = !_duplicatesFullyAcknowledged();
+
+    return Padding(
+      // The shell's utility cluster floats over the top-right of the canvas,
+      // so the takeover has to start below it or the title collides with the
+      // account chip.
+      padding: const EdgeInsets.fromLTRB(
+        SelSpace.x8, SelSpace.x16, SelSpace.x8, SelSpace.x6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Check the sheet', style: SelType.title),
+                    const SizedBox(height: SelSpace.x1),
+                    Text(
+                      '${resolved.length} rows from ${_fileName ?? "your file"} '
+                      '— click any cell to change it.',
+                      style: SelType.bodyMuted,
+                    ),
+                  ],
+                ),
+              ),
+              if (_loadingPartners)
+                const Padding(
+                  padding: EdgeInsets.only(right: SelSpace.x3),
+                  child: SizedBox(
+                    height: 14,
+                    width: 14,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  ),
+                ),
+              SelButton(
+                label: 'Start over',
+                kind: SelButtonKind.quiet,
+                onPressed: _committing ? null : _startOver,
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          if (_error != null) ...[
+            _Notice(message: _error!, status: SelStatus.blocked),
+            const SizedBox(height: SelSpace.x4),
+          ],
+          Expanded(
+            child: BulkImportGrid(
+              rawRows: _rawRows ?? const [],
+              resolved: resolved,
+              columns: [for (final e in columns) e.key],
+              arms: arms,
+              dayFirst: _dayFirst,
+              busy: _loadingPartners || _committing,
+              issueLabel: (code) => _issueLabel(l10n, code),
+              acknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+              onAcknowledgeDuplicate: (sheetRow) => setState(
+                () => _duplicateAcknowledgedSheetRows.add(sheetRow),
+              ),
+              onEditCell: _editRawCell,
+              onApplyFixes: _applyFixes,
+              onDayFirstChanged: (v) => setState(() => _dayFirst = v),
+              onRemoveRow: (i) => _confirmRemoveRow(context, l10n, i),
+              onBulkMapArm: _bulkMapArm,
+            ),
+          ),
+          const SizedBox(height: SelSpace.x4),
+          Row(
+            children: [
+              SelButton(
+                label: 'Back',
+                kind: SelButtonKind.quiet,
+                onPressed: () => setState(() => _step = _Step.columns),
+              ),
+              const Spacer(),
+              if (blocking)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text(l10n.bulkImportBlocking, style: SelType.small),
+                )
+              else if (duplicatesPending)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text(
+                    'Say whether the possible duplicates should be kept.',
+                    style: SelType.small,
+                  ),
+                ),
+              SelButton.cyan(
+                label: 'Continue',
+                onPressed: blocking || duplicatesPending || _loadingPartners
+                    ? null
+                    : () => setState(() => _step = _Step.confirm),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Writes one cell back to the raw sheet and re-runs resolution.
+  ///
+  /// Everything downstream — arm matching, partner matching, duplicate
+  /// detection — depends on the raw values, so a corrected name has to be
+  /// able to turn a new partner into an existing one.
+  Future<void> _editRawCell(
+    int rowIndex,
+    BulkImportColumn column,
+    String value,
+  ) async {
+    final rows = _rawRows;
+    if (rows == null || rowIndex < 0 || rowIndex >= rows.length) return;
+    final row = rows[rowIndex];
+    final values = Map<BulkImportColumn, String>.from(row.valuesByColumn);
+    values[column] = value;
+    setState(() {
+      _rawRows = List<BulkRawRow>.from(rows)
+        ..[rowIndex] = BulkRawRow(
+          sheetRowNumber: row.sheetRowNumber,
+          valuesByColumn: values,
+        );
+      // An edited row is a different row: whatever was forgiven about the old
+      // one no longer applies.
+      _duplicateAcknowledgedSheetRows.remove(row.sheetRowNumber);
+    });
+    await _reResolve();
+    await _persistSession();
+  }
+
+  Future<void> _applyFixes(List<AutoFixProposal> proposals) async {
+    final rows = _rawRows;
+    if (rows == null || proposals.isEmpty) return;
+    setState(() => _rawRows = applyAutoFixes(rows, proposals));
+    await _reResolve();
+    await _persistSession();
+  }
+
   Widget _buildResolveStep(
     BuildContext context,
     AppLocalizations l10n,
@@ -2293,4 +2542,67 @@ class _Notice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The "you left something half-done" card at the top of the upload step.
+class _DraftCard extends StatelessWidget {
+  const _DraftCard({
+    required this.fileName,
+    required this.rowCount,
+    required this.savedAt,
+    required this.onContinue,
+    required this.onClear,
+  });
+
+  final String? fileName;
+  final int rowCount;
+  final DateTime? savedAt;
+  final VoidCallback onContinue;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return SelCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Pick up where you left off', style: SelType.bodyMedium),
+                const SizedBox(height: SelSpace.x1),
+                Text(
+                  '$rowCount ${rowCount == 1 ? "row" : "rows"} from '
+                  '${fileName ?? "a spreadsheet"}'
+                  '${savedAt == null ? "" : ", saved ${describeWhen(savedAt!)}"}. '
+                  'Nothing has been imported yet.',
+                  style: SelType.bodySm,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          SelButton(label: 'Clear', kind: SelButtonKind.quiet, onPressed: onClear),
+          const SizedBox(width: SelSpace.x2),
+          SelButton.cyan(label: 'Continue', onPressed: onContinue),
+        ],
+      ),
+    );
+  }
+}
+
+/// "3 minutes ago", "yesterday" — enough to recognise your own draft.
+String describeWhen(DateTime when) {
+  final diff = DateTime.now().difference(when);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) {
+    return '${diff.inMinutes} ${diff.inMinutes == 1 ? "minute" : "minutes"} ago';
+  }
+  if (diff.inHours < 24) {
+    return '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago';
+  }
+  if (diff.inDays == 1) return 'yesterday';
+  if (diff.inDays < 7) return '${diff.inDays} days ago';
+  return DateFormat('d MMM').format(when);
 }

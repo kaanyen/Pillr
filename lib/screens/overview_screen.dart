@@ -11,6 +11,8 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/dashboard/providers/dashboard_stats_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/bulk_import/bulk_import_draft_provider.dart';
+import '../features/entries/bulk_import/bulk_import_screen.dart' show describeWhen;
 import '../features/entries/providers/entries_providers.dart';
 import '../features/goals/providers/goals_providers.dart';
 import '../features/arms/providers/arms_providers.dart';
@@ -67,6 +69,8 @@ class OverviewScreen extends ConsumerWidget {
               ),
           ],
         ),
+
+        const _UnfinishedImport(),
 
         if (isAdmin)
           const _AdminBlocks()
@@ -393,6 +397,50 @@ class _ActivityLine extends StatelessWidget {
           const SizedBox(width: SelSpace.x4),
           Text(_relative(row.createdAt), style: SelType.small),
         ],
+      ),
+    );
+  }
+}
+
+/// "You left an import half-done" — shown only when there is one.
+class _UnfinishedImport extends ConsumerWidget {
+  const _UnfinishedImport();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final draft = ref.watch(bulkImportDraftProvider).valueOrNull;
+    if (draft == null) return const SizedBox.shrink();
+
+    final rows = draft.rawRows.length;
+    return Padding(
+      padding: const EdgeInsets.only(top: SelSpace.x6),
+      child: SelCard(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('An import is waiting', style: SelType.bodyMedium),
+                  const SizedBox(height: SelSpace.x1),
+                  Text(
+                    '$rows ${rows == 1 ? "row" : "rows"} from '
+                    '${draft.fileName ?? "a spreadsheet"}'
+                    '${draft.savedAt == null ? "" : ", left ${describeWhen(draft.savedAt!)}"}'
+                    ' — not imported yet.',
+                    style: SelType.bodySm,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: SelSpace.x4),
+            SelButton.cyan(
+              label: 'Continue import',
+              onPressed: () => context.go('/entries/bulk-import'),
+            ),
+          ],
+        ),
       ),
     );
   }
