@@ -47,7 +47,9 @@ extension SelStatusStyle on SelStatus {
   /// Maps a raw Firestore status string. Unknown values fall through to
   /// [SelStatus.pending] rather than throwing.
   static SelStatus parse(String? raw) => switch (raw?.trim().toLowerCase()) {
-        'approved' => SelStatus.approved,
+        // 'accepted' is the invite collection's word for the same settled
+        // state that entries call 'approved'.
+        'approved' || 'accepted' || 'complete' => SelStatus.approved,
         'declined' || 'rejected' || 'expired' => SelStatus.declined,
         'active' => SelStatus.active,
         'inactive' || 'suspended' => SelStatus.inactive,

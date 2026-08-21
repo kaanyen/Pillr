@@ -1,170 +1,178 @@
-# Pillr Design System — Hellotime
+# Pillr Design System — Seline
 
-> Monochrome editorial command center
+> Quiet analyst's desk on warm paper
 
-Applied on branch `ui/hellotime-overhaul`. This is the reference for anyone
-adding UI to Pillr.
+Implemented on branch `ui/seline-rewrite`. This is the reference for anyone
+adding UI to Pillr. The previous Hellotime system was removed entirely — if you
+find `AppColors`, `AppTypography` or a `Pillr*` widget anywhere, it is dead code.
 
 ## The one-paragraph version
 
-White canvas, near-black type, hairline borders, no shadows. Hierarchy comes
-from **type weight and size**, not from color. There is exactly one filled
-button per section (Charcoal), exactly one gradient (Electric Blue, on
-headline keywords only), and state is communicated through fill/border/weight
-plus an icon — never through hue.
+The page is **warm stone** (`#fafaf9`); cards are **white** and float on it with
+a soft shadow. Every neutral is warm-tinted, and there is exactly **one
+chromatic colour** — a cyan reserved for actions and links. Display type is Inter
+Tight at **weight 400**, even at 52px: authority comes from size and negative
+tracking, not from boldness. Buttons are pills; cards are 10px. Body is
+**14px / 400 / 1.64**, and that rhythm dominates the whole interface.
+
+## Import
+
+```dart
+import 'package:the_pillr/design/seline.dart';
+```
+
+One barrel gives you tokens and components. Never hardcode a colour, size or
+radius.
 
 ## Tokens
 
-All tokens live in `lib/core/theme/`. Never hardcode a color, size or radius.
-
-### Color — `app_colors.dart`
+### Colour — `Sel`
 
 | Token | Hex | Use |
 |---|---|---|
-| `AppColors.ink` | `#151619` | Primary text, icons, strong hairlines |
-| `AppColors.smoke` | `#7F8491` | Secondary text, metadata, placeholders |
-| `AppColors.fog` | `#C8CAD0` | **The default hairline** — card borders, dividers |
-| `AppColors.ash` | `#E1E2E5` | Input borders at rest, section dividers |
-| `AppColors.mist` | `#F3F3F5` | Card surfaces, hover wash, active nav rows |
-| `AppColors.paper` | `#FFFFFF` | Page canvas, nav background |
-| `AppColors.charcoal` | `#25272D` | **The only dark surface** — primary actions |
-| `AppColors.graphite` | `#363940` | Nav link text |
-| `AppColors.pewter` | `#B0B3BB` | Ghost button borders, disabled fills |
-| `AppColors.signalGreen` | `#059669` | Identity marks only (logo, tenant avatar) |
-| `AppColors.electricBlue` | gradient | Headline keyword highlight **only** |
+| `Sel.canvas` | `#FAFAF9` | **The page.** Warm, reads as paper |
+| `Sel.card` | `#FFFFFF` | Card surfaces, inputs, nav fills |
+| `Sel.border` | `#E8E6E5` | **The default hairline** — the primary structural device |
+| `Sel.borderMuted` | `#D6D3D1` | Input borders, secondary separators |
+| `Sel.ash` | `#A8A29E` | Icon strokes, disabled, captions |
+| `Sel.warm` | `#78716C` | Body text, nav links, metadata |
+| `Sel.ink` | `#0C0A09` | Headings, emphasised body |
+| `Sel.soot` | `#1C1917` | Inverted surfaces, active pills |
+| `Sel.cyan` | `#3BA6F1` | **The only fill colour.** Primary CTA |
+| `Sel.cyanEdge` | `#3398E1` | Outlined actions, links. Never a fill |
+| `Sel.skyWash` | `#C1E1F7` | Highlight-span background |
 
-### Type — `app_typography.dart`
+**The two rules that get broken:** the page is canvas and cards are white —
+never inverted. And cyan is for **actions only** — state never gets colour.
 
-Two optical sizes of Inter, **bundled locally** in `assets/fonts/` (subset to
-Latin + currency, incl. ₵). There is no runtime font fetch.
+### Type — `SelType`
 
-- `InterDisplay` → headlines, 24px and up (`AppTypography.displayFamily`)
-- `Inter` → body, labels, buttons, table cells (`AppTypography.textFamily`)
+Two families, bundled locally (no CDN fetch).
+
+- `InterTight` → display, 18px and up, **always weight 400**
+- `Inter` → body, labels, buttons, ledger cells
 
 | Style | Size / weight | Use |
 |---|---|---|
-| `displayLg` | 80 / 700 / -1.6 | Hero. One per screen at most |
-| `display` | 64 / 700 / -1.2 | Primary screen headline |
-| `headingXl` | 48 / 600 / -0.8 | Section title |
-| `headingLg` | 40 / 600 / -0.4 | Subsection, dense-screen hero |
-| `heading` | 24 / 600 | **Ceiling for dense screens** |
-| `headingSm` | 20 / 600 | Card and dialog titles |
-| `subheading` | 18 / 400 | Hero subtext (Smoke) |
-| `body` | 16 / 400 / 1.5 | The default rhythm |
-| `caption` | 14 / 400 | Helper text |
-| `label` | 14 / 500 | Metadata, nav links, buttons |
-| `tableCell` | 14 / 400 / 1.2 | Table rows — the one tightened leading |
-| `pill` | 12 / 500 | Tags, badges, eyebrows |
+| `hero` | 52 / 400 / -1.09 | Overview only |
+| `title` | 32 / 400 / -0.8 | Screen titles |
+| `subtitle` | 20 / 400 / -0.1 | Card and panel titles |
+| `lead` | 16 / 400 / 1.69 | Prose, hero subtext |
+| `body` | **14 / 400 / 1.64** | **The dominant rhythm** |
+| `bodyMedium` | 14 / 500 | Names, active nav, emphasis |
+| `bodyMuted` | 14 / 400 warm | Secondary copy |
+| `small` | 12 / 400 | Helper text, timestamps |
+| `tag` | 12 / 500 | Chips |
+| `caption` | 10 / 500 caps | Ledger column captions — the *one* place caps are correct |
 
-**Responsive display type.** The 64–80px scale is a desktop instrument. Use the
-`…For(width)` helpers so it steps down on phones:
+Use the responsive helpers so 52px does not become four words per line:
 
 ```dart
-final width = MediaQuery.sizeOf(context).width;
-Text(title, style: AppTypography.displayFor(width));  // 64 → 40 → 30
+Text(title, style: SelType.heroFor(MediaQuery.sizeOf(context).width));
 ```
 
-### Spacing & radius — `app_spacing.dart`
+### Spacing & shape
 
-8px base. `xs:4 · sm:8 · md:16 · lg:24 · xl:32 · xxl:40 · xxxl:48 · section:64 · sectionLg:80`
+4px base: `x1:4 · x2:8 · x3:12 · x4:16 · x6:24 · x8:32 · x12:48 · x16:64`, plus
+`section: 96`. Compact controls, generous section rhythm — that contrast is what
+makes it editorial rather than merely dense.
 
-Radii — **16px is the ceiling**:
-`bar:4` (progress) · `button:8` · `input:12` · `card:16` · `full:9999` (pills)
+Radii: `icon:4 · input:6 · card:10 · feature:16 · pill:9999`. Buttons and tags
+are fully round; cards stay at 10. Do not "harmonise" them.
 
-## Density: two registers
+### Elevation — `SelShadow`
 
-This is the one place Pillr deliberately adapts the reference. Hellotime is a
-marketing language; Pillr is a data app. So:
+Unusually for a flat-looking system, shadows are used — softly, with a strict
+hierarchy. `SelShadow.card` is the everyday lift. `SelShadow.floating` (the deep
+45px blur) is **one element per screen at most** — currently only the entry
+detail record card.
 
-**Editorial** — dashboards, auth, onboarding, empty/error states, success
-screens. Full display scale (40–80px), gradient keyword, 64–80px section gaps.
+## Layout: the bare canvas rail
 
-```dart
-PillrPageHeader.editorial(
-  title: 'Welcome back, ',
-  highlight: firstName,      // the gradient word
-  subtitle: 'Live counts from partnership entries.',
-)
-```
+The shell is two columns on one continuous sheet of paper. The nav rail has **no
+fill, no border, no divider and no panel** — links sit directly on the canvas
+like margin notes. The active link is the exception: it gets a white card, so
+the selected destination reads as continuous with the content beside it.
 
-**Dense** — entries, partners, users, arms, periods, goals, logs, search, bulk
-import. Titles capped at 24–40px with a hairline rule beneath, table text at
-14/400/1.2 so rows stay above the fold.
+Utility controls (search, notifications, account) float top-right *on the
+canvas*, not in a bar. `SelPageBody` reserves 72px of headroom for them.
 
-```dart
-PillrPageHeader.dense(title: 'Entries', actions: [PillrButton(...)])
-```
+Below 900px the rail is replaced by a bottom bar — the only place navigation
+uses a surface.
 
-## Rules
+## Information architecture
 
-### Do
+Twelve destinations were consolidated into seven:
 
-- Use `AppColors.fog` hairlines and `AppColors.mist` surface contrast for separation
-- One `PillrButtonVariant.primary` (Charcoal) per section; everything else `secondary`
-- Gradient on **1–2 words** inside a headline, via `PillrGradientHeadline`
-- Table headers in sentence case at 14/500 Smoke
-- 32px card padding, 64–80px between sections
+| Destination | Absorbed |
+|---|---|
+| **Overview** | four role dashboards, now one screen composing blocks by role |
+| **Queue** | Entries + Approvals, one list with a status filter and inline review |
+| **Partners** | + Leaderboard, as a ranked view of the same records |
+| **Goals** | — |
+| **Configuration** | Arms + Periods |
+| **People** | Users + Invitations |
+| **Activity** | — |
 
-### Don't
-
-- **No shadows.** `AppTheme.cardShadow` is deprecated and returns an empty list
-- **No blue fills.** The gradient is text-only — never a button, card or surface
-- **No color for state.** Use `PillrBadge` / `PillrStatusStyle`
-- **No radius above 16px**
-- **No weight above 700** — only 400/500/600/700 are bundled; anything else synthesizes
-- **No centered body paragraphs** — center headlines, CTAs and short labels only
-- **No uppercase letterspaced labels** — this system is weight-driven
-
-## State without color
-
-`PillrStatusStyle` replaces the old amber/green/red badges. Also better for
-colorblind users, since the icon carries what hue used to.
-
-| State | Fill | Border | Text | Icon | Reads as |
-|---|---|---|---|---|---|
-| Approved | Charcoal | — | Paper | `check` | Settled, final |
-| Pending | Mist | Fog | Ink | `clock` | In progress |
-| Declined | — | Pewter | Smoke | `x` | Closed |
-| Inactive | — | Ash | Smoke | `circleDashed` | Ambient |
-
-```dart
-PillrBadge.fromStatus(status: entry.status, label: 'Pending')
-```
-
-Errors follow the same logic: Ink text at weight 500, not red.
-
-## Tenant branding
-
-Churches set `primaryColorHex`. It is confined to **identity marks** — the
-church avatar and logo lockup — and never touches actions, state, borders or
-surfaces. It no longer seeds the `ColorScheme`.
-
-```dart
-final accent = AppTheme.tenantAccent(parseHexColor(settings?.primaryColorHex));
-```
-
-Falls back to Signal Green, the reference's own brand-mark accent.
-
-## Where saturation is still allowed
-
-Exactly one place: `AppColors.timelineBar(index)` for product-timeline and
-multi-series chart bars, mirroring the reference's Gantt bars. Everything else
-on the page stays neutral. Note that **status breakdowns are not this** — those
-use a tonal ramp (Ink → Smoke → Ash).
+Every old path is kept as a router redirect, pre-filtered where the old path
+implied one (`/approvals` → `/queue?filter=pending`).
 
 ## Components
 
-`lib/common/widgets/`
+`lib/design/components/`
 
-| Widget | Notes |
+| Component | Notes |
 |---|---|
-| `PillrCard` / `PillrSurfaceCard` / `PillrInverseCard` | Paper / clipped / Charcoal |
-| `PillrButton` | `primary` `secondary` `danger` `ghost` — danger is also Ink |
-| `PillrPillLink` | The eyebrow pill above hero headlines |
-| `PillrGradientHeadline` | The keyword highlight |
-| `PillrBadge` / `PillrCountBadge` | Monochrome state |
-| `PillrPageHeader` | `.editorial()` and `.dense()` |
-| `PillrSectionHeader` | Block divider inside a screen |
-| `PillrStatCard` | `emphasized: true` inverts one tile per row |
-| `PillrDataTable` | Mist header band, hairline rows |
-| `PillrEmptyState` / `PillrErrorState` | Editorial treatment |
+| `SelButton` | `cyan` `ghost` `quiet` `edge`. **One cyan per viewport.** |
+| `SelCard` / `SelPanel` / `SelInverseCard` | `SelLift.flat / card / floating` |
+| `SelLedger` | Replaces every data table. `SelColumn`, `SelRow`, `SelCell` |
+| `SelStatusMark` / `SelStatusChip` | Monochrome state |
+| `SelHighlight` | The sky-wash span. **One per screen.** |
+| `SelStat` / `SelStatRow` / `SelGoalLine` | Figures |
+| `SelField` / `SelSelect` / `SelPillGroup` | Inputs |
+| `SelPageBody` / `SelPageTitle` / `SelSectionLabel` | Page scaffolding |
+| `SelEmpty` / `SelError` / `SelSkeleton` | States |
+| `SelDialog` / `selConfirm` | Modals |
+
+## State without colour
+
+Seline spends its whole chromatic budget on the cyan action, so state gets none.
+
+| State | Icon | Colour | Weight |
+|---|---|---|---|
+| Approved / Accepted | `check` | Ink | 500 |
+| Pending | `clock` | Warm | 400 |
+| Declined / Expired | `x` | Ash | 400 |
+| Active | `circleDot` | Ink | 500 |
+| Inactive | `minus` | Ash | 400 |
+
+The glyph carries the meaning; the tone reinforces it. This is also the
+colourblind-safe arrangement. Errors follow the same logic — Ink at weight 500,
+never red. Destructive confirmations put the cyan on the *safe* choice and make
+the destructive one a ghost.
+
+## Do / Don't
+
+**Do**
+- Page is `Sel.canvas`; content lives in white `SelCard`s
+- One `SelButton.cyan` per viewport; everything else ghost or quiet
+- One `SelHighlight` per screen, on the value word
+- Body at 14/400/1.64 — do not break the rhythm without reason
+- Ledger captions in 10px caps; everything else sentence case
+
+**Don't**
+- No second accent colour. Stone neutrals plus one cyan, full stop
+- No colour for state
+- No display type above weight 500 — only 400/500 are bundled
+- No `SelShadow.floating` on more than one element per screen
+- No white page background
+- No headline set in Inter — display is Inter Tight
+
+## Tenant branding
+
+Churches set `primaryColorHex`. It appears on the **identity mark only** — the
+church avatar in the rail and on auth. It does not seed the `ColorScheme`.
+
+```dart
+final accent = SelTheme.tenantMark(parseHexColor(settings?.primaryColorHex));
+```
