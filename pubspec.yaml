@@ -110,10 +110,16 @@ flutter:
     - assets/branding/app_icon.png
 
   # All type is bundled locally — no runtime CDN fetch, no first-paint reflow.
-  # Inter stands in for SF Pro Text, InterDisplay for SF Pro Display (Hellotime
-  # style reference). Subset to Latin + currency (incl. ₵) to keep the web
-  # bundle small.
+  # Inter Tight stands in for Roobert (Seline's display face): geometric sans
+  # with tight negative tracking, used at weight 400 for display sizes.
+  # Inter is the body/UI workhorse. Both subset to Latin + currency (incl. ₵).
   fonts:
+    - family: InterTight
+      fonts:
+        - asset: assets/fonts/InterTight-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/InterTight-Medium.ttf
+          weight: 500
     - family: Inter
       fonts:
         - asset: assets/fonts/Inter-Regular.ttf
@@ -123,16 +129,6 @@ flutter:
         - asset: assets/fonts/Inter-SemiBold.ttf
           weight: 600
         - asset: assets/fonts/Inter-Bold.ttf
-          weight: 700
-    - family: InterDisplay
-      fonts:
-        - asset: assets/fonts/InterDisplay-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/InterDisplay-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/InterDisplay-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/InterDisplay-Bold.ttf
           weight: 700
     # Lucide icon font (bundled locally — `packages/lucide_icons/...` path is
     # unreliable in some builds).
