@@ -15,6 +15,7 @@ import '../features/partners/presentation/partner_form_dialog.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
+import 'arm_palette.dart';
 
 /// One partner: who they are, what they have given, and every entry.
 class PartnerProfileScreen extends ConsumerStatefulWidget {
@@ -226,9 +227,20 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                   SelRow(
                     onTap: () => context.go('/entries/${e.id}'),
                     cells: [
-                      SelCell.primary(armName(e.partnershipArmId)),
+                      ArmLabel(
+                        armId: e.partnershipArmId,
+                        name: armName(e.partnershipArmId),
+                        style: SelType.bodyMedium,
+                      ),
                       SelCell.secondary(periodName(e.partnershipPeriodId)),
-                      SelCell.numeric(money(e.amountCedis)),
+                      SelCell.numeric(
+                        money(e.amountCedis),
+                        tone: switch (e.status) {
+                          'approved' => SelTone.positive,
+                          'declined' => SelTone.negative,
+                          _ => SelTone.neutral,
+                        },
+                      ),
                       SelStatusMark.fromString(
                         status: e.status,
                         label: e.status[0].toUpperCase() + e.status.substring(1),

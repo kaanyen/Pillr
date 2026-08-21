@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -10,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../../design/seline.dart';
+import '../../../screens/arm_palette.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
@@ -33,17 +33,6 @@ import 'bulk_import_xlsx_pick.dart';
 import '../providers/entries_providers.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
-abstract final class _BulkImportRowLayout {
-  static const double chevron = 28;
-  static const double rowNum = 44;
-  /// Space between Amount and Date so they don’t read as one block.
-  static const double gapAfterAmount = 16;
-  static const double amount = 108;
-  static const double date = 118;
-  static const double status = 108;
-  static const double action = 88;
-}
-
 class BulkImportScreen extends ConsumerStatefulWidget {
   const BulkImportScreen({super.key});
 
@@ -289,7 +278,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                     if (_resolved!.isNotEmpty) ...[
                       _buildSummary(context, l10n, _resolved!, idx.isStaff),
                       const SizedBox(height: SelSpace.x4),
-                      _buildRowsTableSection(context, l10n, _resolved!),
+                      _buildIssueReview(context, l10n, _resolved!),
                     ],
                     const SizedBox(height: SelSpace.x4),
                     if (_resolved!.any((r) => r.isBlocking))
@@ -617,153 +606,105 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     );
   }
 
-  Widget _buildRowsTableSection(
+  /// Issue-first review.
+  ///
+  /// A bulk importer's failures are bulk failures: one misspelled arm name in
+  /// the source spreadsheet blocks every row that uses it. Listing rows and
+  /// asking someone to expand and fix each one turns a single mistake into
+  /// forty corrections.
+  ///
+  /// So this leads with the *problems*, grouped, each with the fix attached —
+  /// map every unmatched "Super Sunday" to a real arm once, and every row
+  /// carrying it clears at the same time. Rows that are already fine collapse
+  /// into a single line, because they need no attention.
+  Widget _buildIssueReview(
     BuildContext context,
     AppLocalizations l10n,
     List<BulkResolvedRow> rows,
   ) {
-    return SelCard(clip: true, 
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x2),
-            child: Text(
-              l10n.bulkImportPreview,
-              style: SelType.bodyMedium.copyWith(
-                color: Sel.warm,
-                fontWeight: FontWeight.w600,
-              ),
+    final byCode = <BulkImportIssueCode, List<int>>{};
+    final severityOf = <BulkImportIssueCode, BulkImportSeverity>{};
+    for (var i = 0; i < rows.length; i++) {
+      for (final issue in rows[i].issues) {
+        byCode.putIfAbsent(issue.code, () => []).add(i);
+        if (severityOf[issue.code] != BulkImportSeverity.error) {
+          severityOf[issue.code] = issue.severity;
+        }
+      }
+    }
+
+    final codes = byCode.keys.toList()
+      ..sort((a, b) {
+        final sa = severityOf[a] == BulkImportSeverity.error ? 0 : 1;
+        final sb = severityOf[b] == BulkImportSeverity.error ? 0 : 1;
+        if (sa != sb) return sa - sb;
+        return byCode[b]!.length.compareTo(byCode[a]!.length);
+      });
+
+    final clean = rows.where((r) => r.issues.isEmpty).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (codes.isNotEmpty) ...[
+          SelPanel(
+            title: 'Needs attention',
+            subtitle:
+                '${rows.length - clean.length} of ${rows.length} rows',
+            contentPadding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var i = 0; i < codes.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Sel.border),
+                  _IssueGroup(
+                    code: codes[i],
+                    severity: severityOf[codes[i]]!,
+                    label: _issueLabel(l10n, codes[i]),
+                    rowIndices: byCode[codes[i]]!,
+                    rows: rows,
+                    fmtAmount: fmtAmount,
+                    busy: _loadingPartners || _committing,
+                    onReviewRow: (idx) => _editRow(context, l10n, idx),
+                    onRemoveRow: (idx) => _confirmRemoveRow(context, l10n, idx),
+                    onBulkMapArm: _bulkMapArm,
+                  ),
+                ],
+              ],
             ),
           ),
-          LayoutBuilder(
-            builder: (context, c) {
-              final tableWidth = math.max(860.0, c.maxWidth);
-              return Scrollbar(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: tableWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _bulkTableHeader(context, l10n),
-                        const Divider(height: 1),
-                        ...List.generate(rows.length, (i) {
-                          final sr = rows[i].sheetRowNumber;
-                          return _BulkImportCollapsibleRow(
-                            key: ValueKey(sr),
-                            row: rows[i],
-                            index: i,
-                            l10n: l10n,
-                            fmtAmount: fmtAmount,
-                            onReview: () => _editRow(context, l10n, i),
-                            onRemove: () => _confirmRemoveRow(context, l10n, i),
-                            loadingLocked: _loadingPartners || _committing,
-                            issueLabel: (code) => _issueLabel(l10n, code),
-                            resolutionLabel: (k) => _resolutionLabel(l10n, k),
-                            duplicateAcknowledged: _duplicateAcknowledgedSheetRows.contains(sr),
-                            onAcknowledgeDuplicate: () {
-                              setState(() => _duplicateAcknowledgedSheetRows.add(sr));
-                              _schedulePersistSession();
-                            },
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          const SizedBox(height: SelSpace.x4),
         ],
-      ),
+        _CleanRowsPanel(rows: clean, fmtAmount: fmtAmount),
+      ],
     );
   }
 
-  Widget _bulkTableHeader(BuildContext context, AppLocalizations l10n) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x2),
-      child: Row(
-        children: [
-          SizedBox(width: _BulkImportRowLayout.chevron),
-          SizedBox(
-            width: _BulkImportRowLayout.rowNum,
-            child: Text(
-              l10n.bulkImportTableHeaderRow,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              l10n.bulkImportTableHeaderPartner,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.amount,
-            child: Text(
-              l10n.bulkImportTableHeaderAmount,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          SizedBox(width: _BulkImportRowLayout.gapAfterAmount),
-          SizedBox(
-            width: _BulkImportRowLayout.date,
-            child: Text(
-              l10n.bulkImportTableHeaderDate,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.status,
-            child: Text(
-              l10n.bulkImportTableHeaderStatus,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.action,
-            child: Text(
-              l10n.bulkImportTableReview,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.action,
-            child: Text(
-              l10n.bulkImportTableRemove,
-              style: SelType.small.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Applies one arm to every row whose arm cell holds [sourceText], then
+  /// re-resolves so the issue clears everywhere at once.
+  Future<void> _bulkMapArm(String sourceText, PartnershipArm arm) async {
+    final raw = _rawRows;
+    if (raw == null) return;
+    final needle = sourceText.trim().toLowerCase();
+    var changed = 0;
+    for (var i = 0; i < raw.length; i++) {
+      final v = Map<BulkImportColumn, String>.from(raw[i].valuesByColumn);
+      final current = (v[BulkImportColumn.category] ?? '').trim().toLowerCase();
+      if (current != needle) continue;
+      v[BulkImportColumn.category] = arm.name;
+      raw[i] = BulkRawRow(
+        sheetRowNumber: raw[i].sheetRowNumber,
+        valuesByColumn: v,
+      );
+      changed++;
+    }
+    if (changed == 0) return;
+    await _reResolve();
+    _schedulePersistSession();
   }
 
   String fmtAmount(double v) {
     if (v == v.roundToDouble()) return v.round().toString();
     return v.toStringAsFixed(2);
-  }
-
-  String _resolutionLabel(AppLocalizations l10n, PartnerResolutionKind k) {
-    return switch (k) {
-      PartnerResolutionKind.existing => l10n.bulkImportResolutionExisting,
-      PartnerResolutionKind.createNew => l10n.bulkImportResolutionCreate,
-      PartnerResolutionKind.ambiguous => l10n.bulkImportResolutionAmbiguous,
-      PartnerResolutionKind.unresolved => l10n.bulkImportResolutionUnresolved,
-    };
   }
 
   Widget _buildRestoringDraft(BuildContext context, AppLocalizations l10n) {
@@ -1412,397 +1353,394 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   }
 }
 
-class _BulkImportCollapsibleRow extends StatefulWidget {
-  const _BulkImportCollapsibleRow({
-    super.key,
-    required this.row,
-    required this.index,
-    required this.l10n,
+/// One problem, every row it affects, and the fix.
+class _IssueGroup extends ConsumerStatefulWidget {
+  const _IssueGroup({
+    required this.code,
+    required this.severity,
+    required this.label,
+    required this.rowIndices,
+    required this.rows,
     required this.fmtAmount,
-    required this.onReview,
-    required this.onRemove,
-    required this.loadingLocked,
-    required this.issueLabel,
-    required this.resolutionLabel,
-    required this.duplicateAcknowledged,
-    required this.onAcknowledgeDuplicate,
+    required this.busy,
+    required this.onReviewRow,
+    required this.onRemoveRow,
+    required this.onBulkMapArm,
   });
 
-  final BulkResolvedRow row;
-  final int index;
-  final AppLocalizations l10n;
+  final BulkImportIssueCode code;
+  final BulkImportSeverity severity;
+  final String label;
+  final List<int> rowIndices;
+  final List<BulkResolvedRow> rows;
   final String Function(double) fmtAmount;
-  final VoidCallback onReview;
-  final VoidCallback onRemove;
-  final bool loadingLocked;
-  final String Function(BulkImportIssueCode) issueLabel;
-  final String Function(PartnerResolutionKind) resolutionLabel;
-  final bool duplicateAcknowledged;
-  final VoidCallback onAcknowledgeDuplicate;
+  final bool busy;
+  final void Function(int index) onReviewRow;
+  final void Function(int index) onRemoveRow;
+  final Future<void> Function(String sourceText, PartnershipArm arm) onBulkMapArm;
 
   @override
-  State<_BulkImportCollapsibleRow> createState() => _BulkImportCollapsibleRowState();
+  ConsumerState<_IssueGroup> createState() => _IssueGroupState();
 }
 
-class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
-  bool _expanded = false;
+class _IssueGroupState extends ConsumerState<_IssueGroup> {
+  bool _open = false;
+  final Map<String, String?> _armChoice = {};
+  bool _applying = false;
+
+  /// Only unmatched-arm problems have a one-shot bulk fix; the rest need the
+  /// row editor because the correct value differs per row.
+  bool get _fixable =>
+      widget.code == BulkImportIssueCode.armNotFound ||
+      widget.code == BulkImportIssueCode.missingArm;
+
+  /// The distinct spreadsheet values that failed to match, with their counts.
+  Map<String, int> get _unmatched {
+    final counts = <String, int>{};
+    for (final i in widget.rowIndices) {
+      final raw = widget.rows[i].armName.trim();
+      final key = raw.isEmpty ? '(blank)' : raw;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final row = widget.row;
-    final l10n = widget.l10n;
-    final dateStr = DateFormat.yMMMd().format(row.dateGiven);
+    final isError = widget.severity == BulkImportSeverity.error;
+    final status = isError ? SelStatus.blocked : SelStatus.pending;
+    final count = widget.rowIndices.length;
+    final arms = (ref.watch(armsStreamProvider).valueOrNull ?? [])
+        .where((a) => a.isActive)
+        .toList();
 
-    return Column(
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x4, SelSpace.x4, SelSpace.x4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: _BulkImportRowLayout.chevron,
-                    child: Icon(
-                      _expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                      size: 20,
-                      color: Sel.warm,
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.rowNum,
-                    child: Text(
-                      '${row.sheetRowNumber}',
-                      style: SelType.bodyMedium,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: SelSpace.x2),
-                      child: Text(
-                        row.fullName,
-                        maxLines: 2,
+    final sample = widget.rowIndices
+        .take(3)
+        .map((i) => widget.rows[i].fullName)
+        .where((n) => n.trim().isNotEmpty)
+        .join(', ');
+
+    return Container(
+      color: _open ? Sel.canvas : Sel.card,
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.cardPad,
+        vertical: SelSpace.x4,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(status.icon, size: 15, color: status.color),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.label, style: SelType.bodyMedium),
+                    if (sample.isNotEmpty)
+                      Text(
+                        count > 3 ? '$sample and ${count - 3} more' : sample,
+                        style: SelType.small,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.amount,
-                    child: Text(
-                      widget.fmtAmount(row.amountCedis),
-                      style: SelType.body,
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  SizedBox(width: _BulkImportRowLayout.gapAfterAmount),
-                  SizedBox(
-                    width: _BulkImportRowLayout.date,
-                    child: Text(
-                      dateStr,
-                      style: SelType.body,
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.status,
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: _BulkImportStatusBadge(
-                          l10n: l10n,
-                          row: row,
-                          duplicateAcknowledged: widget.duplicateAcknowledged,
+                  ],
+                ),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              SelCountTag(
+                label: '$count ${count == 1 ? "row" : "rows"}',
+                emphasised: isError,
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton(
+                label: _open ? 'Hide' : 'Show rows',
+                kind: SelButtonKind.quiet,
+                dense: true,
+                onPressed: () => setState(() => _open = !_open),
+              ),
+            ],
+          ),
+          if (_fixable) ...[
+            const SizedBox(height: SelSpace.x4),
+            for (final entry in _unmatched.entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SelSpace.x2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          style: SelType.bodySm,
+                          children: [
+                            const TextSpan(text: 'Map '),
+                            TextSpan(
+                              text: '“${entry.key}”',
+                              style: SelType.bodySm.copyWith(
+                                color: Sel.ink,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            TextSpan(text: '  ·  ${entry.value} rows'),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.action,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: widget.loadingLocked ? null : widget.onReview,
-                      child: Text(
-                        l10n.bulkImportTableReview,
-                        style: SelType.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    SizedBox(
+                      width: 190,
+                      child: SelSelect<String>(
+                        value: _armChoice[entry.key],
+                        hint: Text('Select arm', style: SelType.bodyMuted),
+                        onChanged: widget.busy || _applying
+                            ? null
+                            : (v) => setState(() => _armChoice[entry.key] = v),
+                        items: [
+                          for (final a in arms)
+                            DropdownMenuItem(value: a.id, child: Text(a.name)),
+                        ],
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.action,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: Sel.ink,
-                      ),
-                      onPressed: widget.loadingLocked ? null : widget.onRemove,
-                      child: Text(
-                        l10n.bulkImportTableRemove,
-                        style: SelType.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    const SizedBox(width: SelSpace.x2),
+                    SelButton(
+                      label: 'Apply',
+                      kind: SelButtonKind.edge,
+                      dense: true,
+                      loading: _applying,
+                      onPressed: _armChoice[entry.key] == null || widget.busy
+                          ? null
+                          : () async {
+                              final arm = arms
+                                  .where((a) => a.id == _armChoice[entry.key])
+                                  .firstOrNull;
+                              if (arm == null) return;
+                              setState(() => _applying = true);
+                              await widget.onBulkMapArm(entry.key, arm);
+                              if (mounted) setState(() => _applying = false);
+                            },
                     ),
-                  ),
+                  ],
+                ),
+              ),
+          ],
+          if (_open) ...[
+            const SizedBox(height: SelSpace.x3),
+            Container(
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.input),
+                border: Border.all(color: Sel.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (var n = 0; n < widget.rowIndices.length; n++) ...[
+                    if (n > 0) const Divider(height: 1, color: Sel.border),
+                    _AffectedRow(
+                      row: widget.rows[widget.rowIndices[n]],
+                      fmtAmount: widget.fmtAmount,
+                      busy: widget.busy,
+                      onReview: () => widget.onReviewRow(widget.rowIndices[n]),
+                      onRemove: () => widget.onRemoveRow(widget.rowIndices[n]),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeInOut,
-          alignment: Alignment.topLeft,
-          child: _expanded
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    SelSpace.x2,
-                    0,
-                    SelSpace.x2,
-                    SelSpace.x4,
-                  ),
-                  child: _detailsColumn(context),
-                )
-              : const SizedBox.shrink(),
-        ),
-        const Padding(
-          padding: EdgeInsets.only(top: 4),
-          child: Divider(height: 1, thickness: 1),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
+}
 
-  Widget _detailsColumn(BuildContext context) {
-    final row = widget.row;
-    final l10n = widget.l10n;
-    final hasDup = row.issues.any(
-      (i) =>
-          i.code == BulkImportIssueCode.duplicateInFile ||
-          i.code == BulkImportIssueCode.duplicateInDatabase,
-    );
-    final showDupAck = hasDup && !widget.duplicateAcknowledged;
+/// One affected row inside an expanded group. A single line — the group header
+/// already said what is wrong, so the row only has to identify itself.
+class _AffectedRow extends StatelessWidget {
+  const _AffectedRow({
+    required this.row,
+    required this.fmtAmount,
+    required this.busy,
+    required this.onReview,
+    required this.onRemove,
+  });
 
-    final labelStyle = SelType.small.copyWith(
-      color: Sel.warm,
-      fontWeight: FontWeight.w600,
-    );
-    final valueStyle = SelType.body;
+  final BulkResolvedRow row;
+  final String Function(double) fmtAmount;
+  final bool busy;
+  final VoidCallback onReview;
+  final VoidCallback onRemove;
 
-    TableRow tr(String label, String value) {
-      return TableRow(
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x2 + 2,
+      ),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Text(label, style: labelStyle),
+          SizedBox(
+            width: 34,
+            child: Text('${row.sheetRowNumber}', style: SelType.small),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          Expanded(
+            flex: 3,
             child: Text(
-              value,
-              style: valueStyle,
-              textAlign: TextAlign.left,
+              row.fullName.isEmpty ? '(no name)' : row.fullName,
+              style: SelType.body,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              row.armName,
+              style: SelType.bodyMuted,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: 110,
+            child: Text(
+              fmtAmount(row.amountCedis),
+              textAlign: TextAlign.right,
+              style: SelType.body.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(width: SelSpace.x3),
+          SelButton(
+            label: 'Fix',
+            kind: SelButtonKind.quiet,
+            dense: true,
+            onPressed: busy ? null : onReview,
+          ),
+          SelButton(
+            label: 'Remove',
+            kind: SelButtonKind.quiet,
+            dense: true,
+            onPressed: busy ? null : onRemove,
           ),
         ],
-      );
-    }
-
-    final tableRows = <TableRow>[
-      tr(l10n.bulkImportFieldPartner, widget.resolutionLabel(row.resolution)),
-      if (row.partner != null)
-        tr(
-          l10n.bulkImportFieldName,
-          '${row.partner!.memberId} · ${row.partner!.fullName}',
-        ),
-      tr(l10n.bulkImportFieldArm, row.armName),
-      tr(l10n.bulkImportFieldPeriod, row.periodName),
-      if (row.notes != null && row.notes!.isNotEmpty) tr(l10n.bulkImportFieldNotes, row.notes!),
-      tr(
-        l10n.bulkImportFieldPastorYes,
-        row.pastorConfirmed ? l10n.bulkImportYes : l10n.bulkImportNo,
       ),
-    ];
+    );
+  }
+}
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (row.issues.isNotEmpty) ...[
-              Wrap(
-                alignment: WrapAlignment.start,
-                crossAxisAlignment: WrapCrossAlignment.start,
-                spacing: SelSpace.x1,
-                runSpacing: SelSpace.x1,
-                children: row.issues
-                    .map(
-                      (i) => Chip(
-                        label: Text(
-                          i.message ?? widget.issueLabel(i.code),
-                          style: SelType.tag.copyWith(
-                            // Errors read heavier; warnings stay regular.
-                            fontWeight: i.severity == BulkImportSeverity.error
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                        ),
-                        backgroundColor: i.severity == BulkImportSeverity.error
-                            ? Sel.canvas
-                            : Sel.card,
-                      ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: SelSpace.x2),
-            ],
-            Table(
-              columnWidths: const {
-                0: FlexColumnWidth(1.05),
-                1: FlexColumnWidth(2.15),
-              },
-              border: TableBorder.all(color: Sel.border, width: 1, borderRadius: BorderRadius.circular(SelRadius.input)),
-              children: tableRows,
+/// The rows that need nothing. Collapsed by default — they are the good news.
+class _CleanRowsPanel extends StatefulWidget {
+  const _CleanRowsPanel({required this.rows, required this.fmtAmount});
+
+  final List<BulkResolvedRow> rows;
+  final String Function(double) fmtAmount;
+
+  @override
+  State<_CleanRowsPanel> createState() => _CleanRowsPanelState();
+}
+
+class _CleanRowsPanelState extends State<_CleanRowsPanel> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.rows.length;
+    return SelCard(
+      padding: EdgeInsets.zero,
+      clip: true,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.cardPad,
+              vertical: SelSpace.x4,
             ),
-            if (showDupAck) ...[
-              const SizedBox(height: SelSpace.x2),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: widget.loadingLocked ? null : widget.onAcknowledgeDuplicate,
-                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: Sel.soot),
-                  label: Text(l10n.bulkImportConfirmNotDuplicate),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.check, size: 15, color: Sel.success),
+                const SizedBox(width: SelSpace.x3),
+                Expanded(
+                  child: Text('Ready to import', style: SelType.bodyMedium),
+                ),
+                SelCountTag(label: '$count ${count == 1 ? "row" : "rows"}'),
+                const SizedBox(width: SelSpace.x2),
+                if (count > 0)
+                  SelButton(
+                    label: _open ? 'Hide' : 'Show rows',
+                    kind: SelButtonKind.quiet,
+                    dense: true,
+                    onPressed: () => setState(() => _open = !_open),
+                  ),
+              ],
+            ),
+          ),
+          if (_open && count > 0) ...[
+            const Divider(height: 1, color: Sel.border),
+            for (var i = 0; i < count; i++) ...[
+              if (i > 0) const Divider(height: 1, color: Sel.border),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SelSpace.cardPad,
+                  vertical: SelSpace.x2 + 2,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 34,
+                      child: Text(
+                        '${widget.rows[i].sheetRowNumber}',
+                        style: SelType.small,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        widget.rows[i].fullName,
+                        style: SelType.body,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Row(
+                        children: [
+                          ArmDot(armId: widget.rows[i].armId ?? ''),
+                          const SizedBox(width: SelSpace.x2),
+                          Flexible(
+                            child: Text(
+                              widget.rows[i].armName,
+                              style: SelType.bodyMuted,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 110,
+                      child: Text(
+                        widget.fmtAmount(widget.rows[i].amountCedis),
+                        textAlign: TextAlign.right,
+                        style: SelType.body.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BulkImportStatusBadge extends StatelessWidget {
-  const _BulkImportStatusBadge({
-    required this.l10n,
-    required this.row,
-    required this.duplicateAcknowledged,
-  });
-
-  final AppLocalizations l10n;
-  final BulkResolvedRow row;
-  final bool duplicateAcknowledged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final hasDup = row.issues.any(
-      (i) =>
-          i.code == BulkImportIssueCode.duplicateInFile ||
-          i.code == BulkImportIssueCode.duplicateInDatabase,
-    );
-    final nonDupIssues = row.issues
-        .where(
-          (i) =>
-              i.code != BulkImportIssueCode.duplicateInFile &&
-              i.code != BulkImportIssueCode.duplicateInDatabase,
-        )
-        .toList();
-
-    if (row.isBlocking) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Sel.canvas,
-          borderRadius: BorderRadius.circular(SelRadius.icon),
-        ),
-        child: Text(
-          l10n.bulkImportRowStatusBlocked,
-          style: SelType.small.copyWith(
-            color: scheme.onErrorContainer,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-    if (hasDup && !duplicateAcknowledged) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Sel.canvas,
-          borderRadius: BorderRadius.circular(SelRadius.icon),
-          border: Border.all(color: Sel.warm.withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.copy, size: 14, color: Sel.warm),
-            const SizedBox(width: 4),
-            Text(
-              l10n.bulkImportRowStatusDuplicate,
-              style: SelType.small.copyWith(
-                color: Sel.ink,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (nonDupIssues.isNotEmpty) {
-      return Tooltip(
-        message: l10n.bulkImportTableReview,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.alertCircle, size: 16, color: Sel.ash),
-            const SizedBox(width: 4),
-            Text(
-              l10n.bulkImportRowStatusCheck,
-              style: SelType.small.copyWith(
-                color: Sel.warm,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Sel.canvas,
-        borderRadius: BorderRadius.circular(SelRadius.icon),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(LucideIcons.check, size: 14, color: Sel.ink),
-          const SizedBox(width: 4),
-          Text(
-            l10n.bulkImportRowStatusReady,
-            style: SelType.small.copyWith(
-              color: Sel.ink,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ],
       ),
     );

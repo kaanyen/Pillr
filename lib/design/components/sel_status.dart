@@ -5,42 +5,57 @@ import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
 
-/// Monochrome state vocabulary.
+/// State vocabulary.
 ///
-/// Seline spends its whole chromatic budget on the cyan action, so state gets
-/// none of it. Status reads through **icon + neutral weight** instead:
+/// State carries **icon + warm semantic colour + weight**. The icon is still
+/// doing the primary work — the palette is desaturated on purpose and the set
+/// stays legible without colour — but a blocked row now separates from a
+/// settled one at a glance, which pure monochrome could not manage on screens
+/// like bulk import where the state *is* the thing to act on.
 ///
-/// | State     | Icon    | Colour    | Weight | Reads as        |
-/// |-----------|---------|-----------|--------|-----------------|
-/// | approved  | check   | Ink       | 500    | settled, final  |
-/// | pending   | clock   | Warm gray | 400    | waiting on you  |
-/// | declined  | x       | Ash gray  | 400    | closed          |
-/// | active    | dot     | Ink       | 500    | live            |
-/// | inactive  | dash    | Ash gray  | 400    | dormant         |
-///
-/// This is also the colourblind-safe arrangement: the glyph carries the
-/// meaning, the tone only reinforces it.
-enum SelStatus { approved, pending, declined, active, inactive }
+/// | State     | Icon    | Colour  | Reads as         |
+/// |-----------|---------|---------|------------------|
+/// | approved  | check   | Moss    | settled, correct |
+/// | pending   | clock   | Ochre   | waiting on you   |
+/// | declined  | x       | Clay    | closed, rejected |
+/// | blocked   | alert   | Clay    | cannot proceed   |
+/// | active    | dot     | Moss    | live             |
+/// | inactive  | dash    | Ash     | dormant          |
+/// | info      | circle  | Cyan    | neutral notice   |
+enum SelStatus { approved, pending, declined, blocked, active, inactive, info }
 
 extension SelStatusStyle on SelStatus {
   IconData get icon => switch (this) {
         SelStatus.approved => LucideIcons.check,
         SelStatus.pending => LucideIcons.clock,
         SelStatus.declined => LucideIcons.x,
+        SelStatus.blocked => LucideIcons.alertTriangle,
         SelStatus.active => LucideIcons.circleDot,
         SelStatus.inactive => LucideIcons.minus,
+        SelStatus.info => LucideIcons.info,
       };
 
   Color get color => switch (this) {
-        SelStatus.approved => Sel.ink,
-        SelStatus.pending => Sel.warm,
-        SelStatus.declined => Sel.ash,
-        SelStatus.active => Sel.ink,
+        SelStatus.approved || SelStatus.active => Sel.success,
+        SelStatus.pending => Sel.warning,
+        SelStatus.declined || SelStatus.blocked => Sel.danger,
         SelStatus.inactive => Sel.ash,
+        SelStatus.info => Sel.info,
+      };
+
+  /// Chip background. Inactive stays on the canvas — a dormant record should
+  /// not draw a wash.
+  Color get wash => switch (this) {
+        SelStatus.approved || SelStatus.active => Sel.successWash,
+        SelStatus.pending => Sel.warningWash,
+        SelStatus.declined || SelStatus.blocked => Sel.dangerWash,
+        SelStatus.inactive => Sel.canvas,
+        SelStatus.info => Sel.infoWash,
       };
 
   FontWeight get weight => switch (this) {
-        SelStatus.approved || SelStatus.active => FontWeight.w500,
+        SelStatus.approved || SelStatus.active || SelStatus.blocked =>
+          FontWeight.w500,
         _ => FontWeight.w400,
       };
 
@@ -51,6 +66,8 @@ extension SelStatusStyle on SelStatus {
         // state that entries call 'approved'.
         'approved' || 'accepted' || 'complete' => SelStatus.approved,
         'declined' || 'rejected' || 'expired' => SelStatus.declined,
+        'blocked' || 'error' || 'invalid' => SelStatus.blocked,
+        'info' || 'notice' => SelStatus.info,
         'active' => SelStatus.active,
         'inactive' || 'suspended' => SelStatus.inactive,
         _ => SelStatus.pending,
@@ -119,9 +136,13 @@ class SelStatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: SelSpace.x2, vertical: 2),
       decoration: BoxDecoration(
-        color: Sel.canvas,
+        color: status.wash,
         borderRadius: BorderRadius.circular(SelRadius.pill),
-        border: Border.all(color: Sel.border),
+        border: Border.all(
+          color: status == SelStatus.inactive
+              ? Sel.border
+              : status.color.withValues(alpha: 0.22),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

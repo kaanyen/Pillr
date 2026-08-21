@@ -174,7 +174,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     SelCell.primary(
                       e.partnerSnapshot['fullName']?.toString() ?? '—',
                     ),
-                    SelCell.numeric(money(e.amountCedis)),
+                    SelCell.numeric(
+                      money(e.amountCedis),
+                      tone: switch (e.status) {
+                        'approved' => SelTone.positive,
+                        'declined' => SelTone.negative,
+                        _ => SelTone.neutral,
+                      },
+                    ),
                     SelStatusMark.fromString(
                       status: e.status,
                       label: e.status[0].toUpperCase() + e.status.substring(1),

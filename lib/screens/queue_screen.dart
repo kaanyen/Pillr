@@ -11,6 +11,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
+import 'arm_palette.dart';
 
 /// Which slice of the collection the queue is showing.
 enum _Filter { all, pending, approved, declined }
@@ -200,8 +201,18 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                       e.partnerSnapshot['fullName']?.toString() ?? '—',
                       e.createdBySnapshot['fullName']?.toString() ?? '',
                     ),
-                    SelCell.secondary(e.armSnapshot['name']?.toString() ?? '—'),
-                    SelCell.numeric(money(e.amountCedis)),
+                    ArmLabel(
+                      armId: e.partnershipArmId,
+                      name: e.armSnapshot['name']?.toString() ?? '—',
+                    ),
+                    SelCell.numeric(
+                      money(e.amountCedis),
+                      tone: switch (e.status) {
+                        'approved' => SelTone.positive,
+                        'declined' => SelTone.negative,
+                        _ => SelTone.neutral,
+                      },
+                    ),
                     SelStatusMark.fromString(
                       status: e.status,
                       label: _statusLabel(e.status),

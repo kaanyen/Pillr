@@ -265,6 +265,24 @@ class _LedgerRowState extends State<_LedgerRow> {
   }
 }
 
+/// Meaning of a figure, for [SelCell.numeric].
+enum SelTone {
+  /// Counted toward totals.
+  positive,
+
+  /// Rejected, reversed, or excluded from totals.
+  negative,
+
+  /// No direction — counts, targets, dates.
+  neutral;
+
+  Color get color => switch (this) {
+        SelTone.positive => Sel.success,
+        SelTone.negative => Sel.danger,
+        SelTone.neutral => Sel.ink,
+      };
+}
+
 /// Convenience cells so screens do not restate the type ramp on every row.
 abstract final class SelCell {
   /// The row's subject — a person, an arm, a period. Ink at weight 500.
@@ -284,11 +302,22 @@ abstract final class SelCell {
       );
 
   /// Money and other figures. Tabular so digits align down the column.
-  static Widget numeric(String text, {bool strong = true}) => Text(
+  ///
+  /// [tone] tints by meaning: an amount that counted toward totals reads
+  /// positive, one that was rejected or reversed reads negative. Neutral
+  /// figures — counts, targets, dates — stay Ink.
+  static Widget numeric(
+    String text, {
+    bool strong = true,
+    SelTone tone = SelTone.neutral,
+  }) =>
+      Text(
         text,
         textAlign: TextAlign.right,
-        style: (strong ? SelType.bodyMedium : SelType.bodyMuted)
-            .copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+        style: (strong ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
+          color: tone.color,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       );

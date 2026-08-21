@@ -42,8 +42,50 @@ radius.
 | `Sel.cyanEdge` | `#3398E1` | Outlined actions, links. Never a fill |
 | `Sel.skyWash` | `#C1E1F7` | Highlight-span background |
 
-**The two rules that get broken:** the page is canvas and cards are white —
-never inverted. And cyan is for **actions only** — state never gets colour.
+### Colour — semantic state
+
+Seline's own reference spends its whole budget on one cyan. That holds for a
+marketing page; it does not hold for a product whose core loop is approve /
+send back / blocked. A row someone must *fix* has to separate from one they can
+ignore — and on bulk import, where every row is a state, monochrome failed
+outright.
+
+So state gets colour, warm and desaturated so it sits with the stone rather
+than shouting off it. None of these is a fill for an action, so the cyan button
+is still the loudest thing on any screen.
+
+| Token | Hex | State |
+|---|---|---|
+| `Sel.success` | `#4D7C5F` | moss — settled, correct |
+| `Sel.warning` | `#B8862B` | ochre — waiting on you |
+| `Sel.danger` | `#A8453A` | clay — failed, blocked |
+| `Sel.info` | `#3398E1` | cyan edge — neutral notice |
+
+Each has a `…Wash` companion for chip backgrounds (`successWash`, etc.).
+
+### Colour — partnership arms
+
+Arms are the one genuinely categorical dimension: a handful per church, stable,
+appearing across ledgers, goals and charts. Each gets a swatch from
+`Sel.armPalette`, **assigned by `sortOrder`** via `armColorsProvider`.
+
+Use `ArmLabel` / `ArmDot` from `lib/screens/arm_palette.dart` — never colour an
+arm by hand. Hashing the arm id was the first attempt and it collided: with
+four arms drawing from eight swatches, two pairs landed on the same hue and the
+dots stopped distinguishing anything.
+
+A church that sets its own `colorHex` on an arm keeps that colour; the palette
+only fills the gaps.
+
+### Colour — money direction
+
+`SelCell.numeric(text, tone: …)` tints a figure by meaning: `SelTone.positive`
+for amounts that counted toward totals, `negative` for rejected or reversed,
+`neutral` (the default) for counts, targets and dates.
+
+**The rules that get broken:** the page is canvas and cards are white — never
+inverted. Cyan is for **actions**; the semantic set is for **state**; neither
+borrows the other's job.
 
 ### Type — `SelType`
 
@@ -134,22 +176,23 @@ implied one (`/approvals` → `/queue?filter=pending`).
 | `SelEmpty` / `SelError` / `SelSkeleton` | States |
 | `SelDialog` / `selConfirm` | Modals |
 
-## State without colour
-
-Seline spends its whole chromatic budget on the cyan action, so state gets none.
+## State
 
 | State | Icon | Colour | Weight |
 |---|---|---|---|
-| Approved / Accepted | `check` | Ink | 500 |
-| Pending | `clock` | Warm | 400 |
-| Declined / Expired | `x` | Ash | 400 |
-| Active | `circleDot` | Ink | 500 |
+| Approved / Accepted / Active | `check` / `circleDot` | Moss | 500 |
+| Pending | `clock` | Ochre | 400 |
+| Declined / Expired | `x` | Clay | 400 |
+| Blocked | `alertTriangle` | Clay | 500 |
 | Inactive | `minus` | Ash | 400 |
+| Info | `info` | Cyan edge | 400 |
 
-The glyph carries the meaning; the tone reinforces it. This is also the
-colourblind-safe arrangement. Errors follow the same logic — Ink at weight 500,
-never red. Destructive confirmations put the cyan on the *safe* choice and make
-the destructive one a ghost.
+The glyph still carries the meaning and the set stays legible in greyscale —
+the palette is deliberately low-chroma — so this remains colourblind-safe. The
+colour is there to make a column scannable, not to be the only signal.
+
+Destructive confirmations still put the cyan on the *safe* choice and make the
+destructive one a ghost.
 
 ## Do / Don't
 
@@ -161,8 +204,8 @@ the destructive one a ghost.
 - Ledger captions in 10px caps; everything else sentence case
 
 **Don't**
-- No second accent colour. Stone neutrals plus one cyan, full stop
-- No colour for state
+- No colours outside the tokens above — stone, one cyan, four semantic, the arm palette
+- No semantic colour on an action, and no cyan on a state
 - No display type above weight 500 — only 400/500 are bundled
 - No `SelShadow.floating` on more than one element per screen
 - No white page background

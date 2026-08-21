@@ -99,13 +99,22 @@ class SelStatRow extends StatelessWidget {
   }
 }
 
-/// Thin progress bar. Ink fill on a stone track — progress is not an accent.
+/// Thin progress bar on a stone track.
+///
+/// [color] carries the arm's identity so a column of goals is separable at a
+/// glance. Falls back to Ink where there is no category to express.
 class SelProgress extends StatelessWidget {
-  const SelProgress({super.key, required this.value, this.height = 4});
+  const SelProgress({
+    super.key,
+    required this.value,
+    this.height = 4,
+    this.color,
+  });
 
   /// 0..1
   final double value;
   final double height;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +124,7 @@ class SelProgress extends StatelessWidget {
         value: value.clamp(0.0, 1.0),
         minHeight: height,
         backgroundColor: Sel.border,
-        color: Sel.ink,
+        color: color ?? Sel.ink,
       ),
     );
   }
@@ -130,6 +139,7 @@ class SelGoalLine extends StatelessWidget {
     required this.target,
     required this.valueText,
     required this.targetText,
+    this.color,
   });
 
   final String label;
@@ -137,6 +147,9 @@ class SelGoalLine extends StatelessWidget {
   final num target;
   final String valueText;
   final String targetText;
+
+  /// The arm's identity colour. Also tints the bullet beside the label.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -147,12 +160,20 @@ class SelGoalLine extends StatelessWidget {
       children: [
         Row(
           children: [
+            if (color != null) ...[
+              Container(
+                height: 7,
+                width: 7,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: SelSpace.x2),
+            ],
             Expanded(child: Text(label, style: SelType.bodyMedium)),
             Text('${(pct * 100).round()}%', style: SelType.bodyMuted),
           ],
         ),
         const SizedBox(height: SelSpace.x2),
-        SelProgress(value: pct),
+        SelProgress(value: pct, color: color),
         const SizedBox(height: SelSpace.x1 + 2),
         Text('$valueText of $targetText', style: SelType.small),
       ],

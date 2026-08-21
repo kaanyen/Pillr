@@ -10,6 +10,7 @@ import '../features/church/providers/church_settings_providers.dart';
 import '../features/goals/domain/partnership_goal.dart';
 import '../features/goals/providers/goals_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
+import 'arm_palette.dart';
 
 /// Goals — targets per arm for the active period.
 ///
@@ -86,6 +87,7 @@ class GoalsScreen extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: SelGoalLine(
+                            color: armColorOf(ref, goals[i].partnershipArmId),
                             label: armName(goals[i].partnershipArmId),
                             value: goals[i].currentAmountCedis,
                             target: goals[i].targetAmountCedis,

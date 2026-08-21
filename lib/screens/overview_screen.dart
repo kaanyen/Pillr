@@ -19,6 +19,7 @@ import '../features/logs/providers/activity_logs_providers.dart';
 import '../features/users/providers/users_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
+import 'arm_palette.dart';
 
 /// Overview — one screen for every role.
 ///
@@ -160,6 +161,7 @@ class _PastorBlocks extends ConsumerWidget {
                         .where((a) => a.id == goals[i].partnershipArmId)
                         .firstOrNull;
                     return SelGoalLine(
+                      color: armColorOf(ref, goals[i].partnershipArmId),
                       label: arm?.name ?? 'Partnership arm',
                       value: goals[i].currentAmountCedis,
                       target: goals[i].targetAmountCedis,
