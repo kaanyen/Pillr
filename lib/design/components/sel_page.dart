@@ -149,13 +149,17 @@ class SelPageBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
     final gutter = SelLayout.isCompact(w) ? SelSpace.x4 : SelSpace.x8;
+    // The utility cluster floats on the canvas at the top right rather than
+    // sitting in a bar, so the content column has to reserve headroom for it —
+    // otherwise a page's own actions collide with the account chip.
+    const clusterHeadroom = 72.0;
 
     final scroll = SingleChildScrollView(
       controller: controller,
       physics: onRefresh != null
           ? const AlwaysScrollableScrollPhysics()
           : null,
-      padding: EdgeInsets.fromLTRB(gutter, SelSpace.x8, gutter, SelSpace.x20),
+      padding: EdgeInsets.fromLTRB(gutter, clusterHeadroom, gutter, SelSpace.x20),
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),

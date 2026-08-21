@@ -4,6 +4,9 @@ bool isPathForbiddenForRole(String location, String role) {
 
   bool starts(String p) => path == p || path.startsWith('$p/');
 
+  // Overview adapts to the viewer, so every role may open it.
+  if (starts('/overview')) return false;
+
   // Admin: no financial / entry areas (arms & periods are managed here too)
   if (role == 'admin') {
     if (starts('/search')) return true;

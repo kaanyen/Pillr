@@ -30,7 +30,8 @@ import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/users/presentation/invitations_screen.dart';
 import '../../features/users/presentation/users_list_screen.dart';
-import '../../common/layout/app_shell.dart';
+import '../../shell/sel_shell.dart';
+import '../../screens/overview_screen.dart';
 import 'route_guards.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -91,8 +92,13 @@ GoRouter createRouter() {
         pageBuilder: (context, state) => const NoTransitionPage(child: PlatformChurchesScreen()),
       ),
       ShellRoute(
-        builder: (context, state, child) => AppShell(child: child),
+        builder: (context, state, child) => SelShell(child: child),
         routes: [
+          GoRoute(
+            path: '/overview',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: OverviewScreen()),
+          ),
           GoRoute(
             path: '/dashboard',
             pageBuilder: (context, state) =>
