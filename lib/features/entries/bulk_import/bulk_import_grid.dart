@@ -283,6 +283,15 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     var colorIndex = 0;
     Color nextColor() => _groupPalette[colorIndex++ % _groupPalette.length];
 
+    // Work the fixes out first. A blocking problem that Pillr already knows
+    // how to repair — 'GHS 1,000' is not a number, but it obviously means
+    // 1000 — has to offer the repair on the problem itself. Listing the error
+    // at the top and the cure further down is how someone ends up editing
+    // eighteen cells by hand.
+    final allFixes = detectAutoFixes(widget.rawRows, dayFirst: widget.dayFirst);
+    final claimed = <String>{};
+    String fixKey(AutoFixProposal p) => '${p.rowIndex}|${p.column.name}';
+
     // Problems first — they are what stops the import.
     final byCode = <BulkImportIssueCode, List<int>>{};
     final severityOf = <BulkImportIssueCode, BulkImportSeverity>{};
@@ -320,6 +329,19 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
           byValue.putIfAbsent(v, () => []).add(i);
         }
       }
+      // Repairs that land on exactly these cells belong to this problem.
+      final repairs = <AutoFixProposal>[];
+      if (column != null) {
+        for (final g in allFixes) {
+          for (final p in g.proposals) {
+            if (p.column == column && rows.contains(p.rowIndex)) {
+              repairs.add(p);
+              claimed.add(fixKey(p));
+            }
+          }
+        }
+      }
+
       groups.add(
         _Group(
           id: 'code:${code.name}',
@@ -331,6 +353,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
           blocking: severityOf[code] == BulkImportSeverity.error,
           column: column,
           byValue: byValue,
+          proposals: repairs,
         ),
       );
     }
@@ -360,13 +383,14 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     }
 
     // Tidying last: it never blocks anything.
-    for (final g in detectAutoFixes(
-      widget.rawRows,
-      dayFirst: widget.dayFirst,
-    )) {
+    for (final g in allFixes) {
+      final proposals = <AutoFixProposal>[];
       final rows = <int>[];
       for (final p in g.proposals) {
         if (widget.droppedSheetRows.contains(p.sheetRow)) continue;
+        // Already offered on the problem it repairs — don't ask twice.
+        if (claimed.contains(fixKey(p))) continue;
+        proposals.add(p);
         if (!rows.contains(p.rowIndex)) rows.add(p.rowIndex);
       }
       if (rows.isEmpty) continue;
@@ -393,7 +417,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
           rows: rows,
           blocking: false,
           column: g.kind.column,
-          proposals: g.proposals,
+          proposals: proposals,
         ),
       );
     }
@@ -1242,9 +1266,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                       ],
                     ),
                   ),
-                  if (g.kind == _GroupKind.fix)
+                  if (g.proposals.isNotEmpty)
                     SelButton(
-                      label: 'Fix all',
+                      label: g.kind == _GroupKind.fix
+                          ? 'Fix all'
+                          : 'Fix ${g.proposals.length}',
                       kind: SelButtonKind.quiet,
                       onPressed: widget.busy
                           ? null
@@ -1340,6 +1366,43 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         g.column == BulkImportColumn.category &&
         widget.onBulkMapArm != null &&
         widget.arms.isNotEmpty;
+
+    // When we can repair it, show what the repair would do — the decision is
+    // "does this look right", not "trust me".
+    if (g.proposals.isNotEmpty && !canBulkMapArm) {
+      return [
+        for (final p in g.proposals.take(8))
+          _FixPreview(proposal: p, onTap: () => widget.onJumpToRow(p.rowIndex)),
+        if (g.proposals.length > 8)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SelSpace.x10,
+              SelSpace.x1,
+              SelSpace.x4,
+              SelSpace.x2,
+            ),
+            child: Text(
+              'and ${g.proposals.length - 8} more',
+              style: SelType.small,
+            ),
+          ),
+        if (g.rows.length > g.proposals.length)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              SelSpace.x10,
+              SelSpace.x1,
+              SelSpace.x4,
+              SelSpace.x2,
+            ),
+            child: Text(
+              '${g.rows.length - g.proposals.length} of these we cannot work '
+              'out — click the cell and type it in.',
+              style: SelType.small,
+            ),
+          ),
+        const SizedBox(height: SelSpace.x2),
+      ];
+    }
 
     // Grouping inside a problem by the offending value turns thirty
     // corrections back into one.
@@ -1444,7 +1507,14 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     final r = widget.resolved[i];
     final name = r.fullName.trim().isEmpty ? '(no name)' : r.fullName.trim();
     final date = '${r.dateGiven.day} ${_monthName(r.dateGiven.month)}';
-    return '$name · ${widget.money(r.amountCedis)} · $date';
+    // A row whose amount would not parse resolves to zero; showing "₵0" reads
+    // as a real figure, so show what the sheet actually says instead.
+    final rawAmount =
+        widget.rawRows[i].valuesByColumn[BulkImportColumn.amount]?.trim() ?? '';
+    final amount = r.amountCedis == 0 && rawAmount.isNotEmpty
+        ? rawAmount
+        : widget.money(r.amountCedis);
+    return '$name · $amount · $date';
   }
 
   Widget _rowLine(int i, Color color) {
