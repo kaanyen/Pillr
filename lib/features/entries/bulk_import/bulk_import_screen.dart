@@ -679,17 +679,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     );
   }
 
-  /// Applies one arm to every row whose arm cell holds [sourceText], then
-  /// re-resolves so the issue clears everywhere at once.
-  Future<void> _bulkMapArm(String sourceText, PartnershipArm arm) async {
+  /// Applies one arm to every row whose arm cell holds any of [sourceTexts],
+  /// then re-resolves so the issue clears everywhere at once.
+  Future<void> _bulkMapArm(List<String> sourceTexts, PartnershipArm arm) async {
     final raw = _rawRows;
     if (raw == null) return;
-    final needle = sourceText.trim().toLowerCase();
+    final needles = sourceTexts.map((t) => t.trim().toLowerCase()).toSet();
     var changed = 0;
     for (var i = 0; i < raw.length; i++) {
       final v = Map<BulkImportColumn, String>.from(raw[i].valuesByColumn);
       final current = (v[BulkImportColumn.category] ?? '').trim().toLowerCase();
-      if (current != needle) continue;
+      if (!needles.contains(current)) continue;
       v[BulkImportColumn.category] = arm.name;
       raw[i] = BulkRawRow(
         sheetRowNumber: raw[i].sheetRowNumber,
@@ -1377,7 +1377,8 @@ class _IssueGroup extends ConsumerStatefulWidget {
   final bool busy;
   final void Function(int index) onReviewRow;
   final void Function(int index) onRemoveRow;
-  final Future<void> Function(String sourceText, PartnershipArm arm) onBulkMapArm;
+  final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)
+      onBulkMapArm;
 
   @override
   ConsumerState<_IssueGroup> createState() => _IssueGroupState();
@@ -1403,6 +1404,47 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
       counts[key] = (counts[key] ?? 0) + 1;
     }
     return counts;
+  }
+
+  /// Groups spellings that plainly mean the same thing, so the reader fixes a
+  /// concept once rather than every way it was typed.
+  ///
+  /// The rule is **containment**: "Service" and "SUNDAY SERVICE" group because
+  /// one's words are a subset of the other's. "Super Sunday" does not join
+  /// them — it shares only the word "sunday" with one of them, and neither is
+  /// contained in the other. Merging on any shared word would collapse all
+  /// three, which is worse than not grouping at all.
+  List<_SpellingCluster> get _clusters {
+    Set<String> tokensOf(String v) => v
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((t) => t.length >= 3)
+        .toSet();
+
+    final entries = _unmatched.entries.toList()
+      // Shortest first, so the tersest spelling becomes the label.
+      ..sort((a, b) => a.key.length.compareTo(b.key.length));
+
+    final out = <_SpellingCluster>[];
+    for (final e in entries) {
+      final mine = tokensOf(e.key);
+      _SpellingCluster? home;
+      for (final c in out) {
+        final theirs = tokensOf(c.label);
+        if (mine.isEmpty || theirs.isEmpty) continue;
+        if (mine.containsAll(theirs) || theirs.containsAll(mine)) {
+          home = c;
+          break;
+        }
+      }
+      if (home == null) {
+        out.add(_SpellingCluster(label: e.key, variants: [e.key], rows: e.value));
+      } else {
+        home.variants.add(e.key);
+        home.rows += e.value;
+      }
+    }
+    return out;
   }
 
   @override
@@ -1469,37 +1511,58 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
           ),
           if (_fixable) ...[
             const SizedBox(height: SelSpace.x4),
-            for (final entry in _unmatched.entries)
+            for (final cluster in _clusters)
               Padding(
                 padding: const EdgeInsets.only(bottom: SelSpace.x2),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          style: SelType.bodySm,
-                          children: [
-                            const TextSpan(text: 'Map '),
-                            TextSpan(
-                              text: '“${entry.key}”',
-                              style: SelType.bodySm.copyWith(
-                                color: Sel.ink,
-                                fontWeight: FontWeight.w500,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 7),
+                            child: Text.rich(
+                              TextSpan(
+                                style: SelType.bodySm,
+                                children: [
+                                  const TextSpan(text: 'Map '),
+                                  TextSpan(
+                                    text: '“${cluster.label}”',
+                                    style: SelType.bodySm.copyWith(
+                                      color: Sel.ink,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '  ·  ${cluster.rows} '
+                                        '${cluster.rows == 1 ? "row" : "rows"}',
+                                  ),
+                                ],
                               ),
                             ),
-                            TextSpan(text: '  ·  ${entry.value} rows'),
-                          ],
-                        ),
+                          ),
+                          // Name the other spellings this will also fix, so
+                          // applying does not silently change more than the
+                          // label suggests.
+                          if (cluster.variants.length > 1)
+                            Text(
+                              'also ${cluster.variants.where((v) => v != cluster.label).map((v) => '“$v”').join(', ')}',
+                              style: SelType.small,
+                            ),
+                        ],
                       ),
                     ),
                     SizedBox(
                       width: 190,
                       child: SelSelect<String>(
-                        value: _armChoice[entry.key],
+                        value: _armChoice[cluster.label],
                         hint: Text('Select arm', style: SelType.bodyMuted),
                         onChanged: widget.busy || _applying
                             ? null
-                            : (v) => setState(() => _armChoice[entry.key] = v),
+                            : (v) => setState(() => _armChoice[cluster.label] = v),
                         items: [
                           for (final a in arms)
                             DropdownMenuItem(value: a.id, child: Text(a.name)),
@@ -1512,15 +1575,15 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
                       kind: SelButtonKind.edge,
                       dense: true,
                       loading: _applying,
-                      onPressed: _armChoice[entry.key] == null || widget.busy
+                      onPressed: _armChoice[cluster.label] == null || widget.busy
                           ? null
                           : () async {
                               final arm = arms
-                                  .where((a) => a.id == _armChoice[entry.key])
+                                  .where((a) => a.id == _armChoice[cluster.label])
                                   .firstOrNull;
                               if (arm == null) return;
                               setState(() => _applying = true);
-                              await widget.onBulkMapArm(entry.key, arm);
+                              await widget.onBulkMapArm(cluster.variants, arm);
                               if (mounted) setState(() => _applying = false);
                             },
                     ),
@@ -1745,4 +1808,22 @@ class _CleanRowsPanelState extends State<_CleanRowsPanel> {
       ),
     );
   }
+}
+
+/// A set of spreadsheet spellings that mean the same thing.
+class _SpellingCluster {
+  _SpellingCluster({
+    required this.label,
+    required this.variants,
+    required this.rows,
+  });
+
+  /// The tersest spelling in the group — what the reader is asked to map.
+  final String label;
+
+  /// Every spelling the mapping will be applied to, [label] included.
+  final List<String> variants;
+
+  /// Total affected rows across all [variants].
+  int rows;
 }
