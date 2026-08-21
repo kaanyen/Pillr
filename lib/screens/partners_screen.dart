@@ -11,6 +11,7 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/leaderboard/leaderboard_models.dart';
 import '../features/partners/presentation/partner_form_dialog.dart';
 import '../features/partners/providers/partners_providers.dart';
+import 'export_actions.dart';
 import '../features/periods/providers/periods_providers.dart';
 
 enum _View { directory, ranked }
@@ -56,6 +57,13 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
               ? 'Everyone with a giving record in your church.'
               : 'Ranked by approved giving in the active period.',
           actions: [
+            if (_view == _View.ranked)
+              EntryExportButtons(
+                entries: ref.watch(entriesListProvider).valueOrNull ?? [],
+                title: 'Partner ranking',
+                subtitle: 'Ranked by approved giving',
+              ),
+            if (_view == _View.ranked) const SizedBox(width: SelSpace.x2),
             SelButton.cyan(
               label: 'Add partner',
               icon: LucideIcons.plus,

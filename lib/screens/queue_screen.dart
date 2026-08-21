@@ -12,6 +12,8 @@ import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import 'arm_palette.dart';
+import 'approval_playback.dart';
+import 'export_actions.dart';
 
 /// Which slice of the collection the queue is showing.
 enum _Filter { all, pending, approved, declined }
@@ -102,6 +104,14 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               ? 'Entries waiting on a decision.'
               : 'Every partnership entry for your church, newest first.',
           actions: [
+            // Exports follow the current filter: what is on screen is what
+            // lands in the file.
+            EntryExportButtons(
+              entries: rows,
+              title: widget.mode == QueueMode.queue ? 'Queue' : 'Records',
+              subtitle: _filterDescription(rows.length),
+            ),
+            const SizedBox(width: SelSpace.x2),
             if (idx?.isStaff == true || isPastor)
               SelButton.cyan(
                 label: 'New entry',
@@ -120,21 +130,26 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         // holds records, the canvas holds controls.
         Row(
           children: [
-            Expanded(
-              child: SelPillGroup<_Filter>(
-                selected: _filter,
-                onChanged: (f) => setState(() {
-                  _filter = f;
-                  _selected.clear();
-                }),
-                options: [
-                  (_Filter.all, 'All ${all.isEmpty ? "" : "(${all.length})"}'.trim()),
-                  (_Filter.pending, 'Pending'),
-                  (_Filter.approved, 'Approved'),
-                  (_Filter.declined, 'Declined'),
-                ],
-              ),
-            ),
+            // Queue is a work list, so it has no status tabs: everything on it
+            // is pending by definition. Records is the archive and keeps them.
+            if (widget.mode == QueueMode.records)
+              Expanded(
+                child: SelPillGroup<_Filter>(
+                  selected: _filter,
+                  onChanged: (f) => setState(() {
+                    _filter = f;
+                    _selected.clear();
+                  }),
+                  options: [
+                    (_Filter.all, 'All ${all.isEmpty ? "" : "(${all.length})"}'.trim()),
+                    (_Filter.pending, 'Pending'),
+                    (_Filter.approved, 'Approved'),
+                    (_Filter.declined, 'Declined'),
+                  ],
+                ),
+              )
+            else
+              const Spacer(),
             if (arms.isNotEmpty) ...[
               const SizedBox(width: SelSpace.x4),
               SizedBox(
@@ -171,6 +186,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             onApprove: () => _approve(
               pendingInView.where((e) => _selected.contains(e.id)).toList(),
             ),
+            onApproveAll: () => _approve(pendingInView),
           ),
         ],
 
@@ -258,6 +274,24 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
   }
 
+  /// Describes what the export contains, so a PDF is not ambiguous later.
+  String _filterDescription(int count) {
+    final parts = <String>[
+      switch (_filter) {
+        _Filter.all => 'All statuses',
+        _Filter.pending => 'Pending',
+        _Filter.approved => 'Approved',
+        _Filter.declined => 'Declined',
+      },
+    ];
+    if (_armId != null) {
+      final arms = ref.read(armsStreamProvider).valueOrNull ?? [];
+      final arm = arms.where((a) => a.id == _armId).firstOrNull;
+      if (arm != null) parts.add(arm.name);
+    }
+    return '${parts.join(' · ')} — $count entries';
+  }
+
   String _statusLabel(String s) => switch (s) {
         'approved' => 'Approved',
         'declined' => 'Declined',
@@ -289,6 +323,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             pastor: pastor,
           );
       if (mounted) setState(() => _selected.clear());
+      // A receipt of what just happened. Only worth playing for a batch —
+      // after approving one row you already know what you did.
+      if (mounted && entries.length > 1) {
+        await ApprovalPlayback.show(
+          context,
+          entries: entries,
+          formatMoney: ref.read(churchMoneyFormatProvider),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -392,6 +435,7 @@ class _BulkBar extends StatelessWidget {
     required this.busy,
     required this.onSelectAll,
     required this.onApprove,
+    required this.onApproveAll,
   });
 
   final int selectedCount;
@@ -399,6 +443,7 @@ class _BulkBar extends StatelessWidget {
   final bool busy;
   final VoidCallback onSelectAll;
   final VoidCallback onApprove;
+  final VoidCallback onApproveAll;
 
   @override
   Widget build(BuildContext context) {
@@ -423,11 +468,18 @@ class _BulkBar extends StatelessWidget {
               padding: const EdgeInsets.only(right: SelSpace.x3),
               child: Text('$selectedCount selected', style: SelType.bodyMuted),
             ),
-          SelButton.cyan(
-            label: 'Approve selected',
-            loading: busy,
-            onPressed: selectedCount == 0 ? null : onApprove,
-          ),
+          if (selectedCount == 0)
+            SelButton.cyan(
+              label: 'Approve all $pendingCount',
+              loading: busy,
+              onPressed: onApproveAll,
+            )
+          else
+            SelButton.cyan(
+              label: 'Approve selected',
+              loading: busy,
+              onPressed: onApprove,
+            ),
         ],
       ),
     );
