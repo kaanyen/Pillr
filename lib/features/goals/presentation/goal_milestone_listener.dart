@@ -5,7 +5,7 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
-import '../../settings/presentation/settings_screen.dart';
+import '../../../screens/settings_screen.dart';
 import '../providers/goals_providers.dart';
 
 const _kPrefPrefix = 'pillr_goal_milestone_';

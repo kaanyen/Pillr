@@ -3,24 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_router_redirect.dart';
-import '../../features/auth/presentation/bootstrap_join_screen.dart';
-import '../../features/auth/presentation/join_screen.dart';
-import '../../features/auth/presentation/landing_screen.dart';
-import '../../features/auth/presentation/login_screen.dart';
-import '../../features/auth/presentation/workspace_suspended_screen.dart';
 import '../../features/onboarding/presentation/onboarding_wizard_screen.dart';
 import '../../features/platform/presentation/platform_churches_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
 import '../../features/entries/presentation/entry_detail_screen.dart';
 import '../../features/entries/presentation/entry_created_success_screen.dart';
 import '../../features/entries/presentation/entry_form_screen.dart';
-import '../../features/help/presentation/help_screen.dart';
 import '../../features/partners/presentation/partner_profile_screen.dart';
-import '../../features/notifications/presentation/notifications_screen.dart';
-import '../../features/search/presentation/global_search_screen.dart';
-import '../../features/settings/presentation/settings_screen.dart';
 import '../../shell/sel_shell.dart';
 import '../../screens/activity_screen.dart';
+import '../../screens/help_screen.dart';
+import '../../screens/notifications_screen.dart';
+import '../../screens/search_screen.dart';
+import '../../screens/settings_screen.dart';
+import '../../screens/auth/bootstrap_join_screen.dart';
+import '../../screens/auth/join_screen.dart';
+import '../../screens/auth/landing_screen.dart';
+import '../../screens/auth/sign_in_screen.dart';
+import '../../screens/auth/workspace_suspended_screen.dart';
 import '../../screens/configuration_screen.dart';
 import '../../screens/goals_screen.dart';
 import '../../screens/overview_screen.dart';
@@ -53,7 +53,7 @@ GoRouter createRouter() {
       GoRoute(
         path: '/sign-in',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: LoginScreen()),
+        pageBuilder: (context, state) => const NoTransitionPage(child: SignInScreen()),
       ),
       GoRoute(
         path: '/join',
@@ -186,7 +186,7 @@ GoRouter createRouter() {
           GoRoute(
             path: '/search',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: GlobalSearchScreen()),
+                const NoTransitionPage(child: SearchScreen()),
           ),
           GoRoute(
             path: '/notifications',
