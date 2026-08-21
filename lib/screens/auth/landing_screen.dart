@@ -21,16 +21,10 @@ class LandingScreen extends StatelessWidget {
       footer: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Starting a new church? '),
-          GestureDetector(
+          const Text('Starting a new church?'),
+          SelLink(
+            label: 'Use your setup code',
             onTap: () => context.go('/bootstrap-join'),
-            child: Text(
-              'Use your setup code',
-              style: SelType.small.copyWith(
-                color: Sel.cyanEdge,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
           ),
         ],
       ),

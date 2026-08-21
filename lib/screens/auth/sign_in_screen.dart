@@ -84,16 +84,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       footer: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Have an invite code instead? '),
-          GestureDetector(
+          const Text('Have an invite code instead?'),
+          SelLink(
+            label: 'Join a church',
             onTap: () => context.go('/join'),
-            child: Text(
-              'Join a church',
-              style: SelType.small.copyWith(
-                color: Sel.cyanEdge,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
           ),
         ],
       ),

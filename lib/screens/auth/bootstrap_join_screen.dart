@@ -165,20 +165,18 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
       subtitle: _step == 1
           ? 'Enter the email your setup code was sent to.'
           : 'This is what your team will see when they sign in.',
-      footer: GestureDetector(
-        onTap: () => _step == 2
-            ? setState(() {
-                _step = 1;
-                _error = null;
-              })
-            : context.go('/'),
-        child: Text(
-          _step == 2 ? 'Back to the code step' : 'Back',
-          style: SelType.small.copyWith(
-            color: Sel.cyanEdge,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+      footer: SelLink(
+        label: _step == 2 ? 'Back to the code step' : 'Back',
+        onTap: () {
+          if (_step == 2) {
+            setState(() {
+              _step = 1;
+              _error = null;
+            });
+          } else {
+            context.go('/');
+          }
+        },
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

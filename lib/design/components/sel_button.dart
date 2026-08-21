@@ -252,3 +252,71 @@ class SelIconButton extends StatelessWidget {
     return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
   }
 }
+
+/// An inline text link.
+///
+/// Exists because `GestureDetector(child: Text(...))` **does not work**:
+/// `RenderParagraph.hitTestSelf` returns false, so with the default
+/// `deferToChild` behaviour the detector never receives the tap. Text looks
+/// like a link, does nothing when clicked, and nothing in the analyzer or the
+/// type system complains. Every text link in the auth flow shipped dead
+/// because of it.
+///
+/// This sets [HitTestBehavior.opaque] and adds real padding, so the target is
+/// something a finger can actually hit rather than the glyph bounds.
+class SelLink extends StatefulWidget {
+  const SelLink({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.style,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+
+  /// Defaults to [SelType.small] in cyan edge at weight 500.
+  final TextStyle? style;
+
+  @override
+  State<SelLink> createState() => _SelLinkState();
+}
+
+class _SelLinkState extends State<SelLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = widget.style ??
+        SelType.small.copyWith(
+          color: Sel.cyanEdge,
+          fontWeight: FontWeight.w500,
+        );
+
+    return MouseRegion(
+      cursor: widget.onTap == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        // Without this the tap never lands — see the class doc.
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: SelSpace.x2,
+            vertical: SelSpace.x2,
+          ),
+          child: Text(
+            widget.label,
+            style: base.copyWith(
+              decoration: _hover ? TextDecoration.underline : null,
+              decorationColor: base.color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

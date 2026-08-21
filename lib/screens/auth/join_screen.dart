@@ -142,20 +142,18 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
           : church == null
               ? 'Choose how you will sign in from now on.'
               : 'You are joining $church.',
-      footer: GestureDetector(
-        onTap: () => _step == 2
-            ? setState(() {
-                _step = 1;
-                _error = null;
-              })
-            : context.go('/'),
-        child: Text(
-          _step == 2 ? 'Back to the code step' : 'Back',
-          style: SelType.small.copyWith(
-            color: Sel.cyanEdge,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+      footer: SelLink(
+        label: _step == 2 ? 'Back to the code step' : 'Back',
+        onTap: () {
+          if (_step == 2) {
+            setState(() {
+              _step = 1;
+              _error = null;
+            });
+          } else {
+            context.go('/');
+          }
+        },
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
