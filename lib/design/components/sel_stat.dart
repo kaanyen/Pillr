@@ -18,10 +18,14 @@ class SelStat extends StatelessWidget {
     this.footnote,
     this.icon,
     this.onTap,
+    this.exactValue,
   });
 
   final String label;
   final String value;
+
+  /// The unrounded figure, shown on hover when [value] is an abbreviation.
+  final String? exactValue;
   final String? footnote;
   final IconData? icon;
   final VoidCallback? onTap;
@@ -49,13 +53,22 @@ class SelStat extends StatelessWidget {
             ],
           ),
           const SizedBox(height: SelSpace.x2),
-          Text(
-            value,
-            style: SelType.title.copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
+          // Scale down before truncating. An ellipsised total tells you
+          // neither the amount nor its size.
+          Tooltip(
+            message: exactValue ?? '',
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: SelType.title.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+                maxLines: 1,
+                softWrap: false,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           if (footnote != null) ...[
             const SizedBox(height: SelSpace.x1),

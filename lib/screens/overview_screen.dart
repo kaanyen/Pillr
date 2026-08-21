@@ -12,6 +12,7 @@ import '../features/church/providers/church_settings_providers.dart';
 import '../features/dashboard/providers/dashboard_stats_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/bulk_import/bulk_import_draft_provider.dart';
+import '../features/entries/bulk_import/bulk_import_session_store.dart';
 import '../features/entries/bulk_import/bulk_import_screen.dart' show describeWhen;
 import '../features/entries/providers/entries_providers.dart';
 import '../features/goals/providers/goals_providers.dart';
@@ -105,6 +106,7 @@ class _PastorBlocks extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(pastorEntryStatsProvider);
+    final compactMoney = ref.watch(churchCompactMoneyProvider);
     final partners = ref.watch(activePartnerCountProvider);
     final goalPct = ref.watch(pastorGoalProgressPercentProvider);
     final goals = ref.watch(activePeriodGoalsProvider);
@@ -117,7 +119,8 @@ class _PastorBlocks extends ConsumerWidget {
         SelStatRow(stats: [
           SelStat(
             label: 'Approved',
-            value: money(stats.totalApprovedCedis),
+            value: compactMoney(stats.totalApprovedCedis),
+            exactValue: money(stats.totalApprovedCedis),
             footnote: '${stats.approvedCount} entries',
           ),
           SelStat(
@@ -298,10 +301,12 @@ class _StaffBlocks extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mine = ref.watch(staffMyEntryStatsProvider);
+    final compactMoney = ref.watch(churchCompactMoneyProvider);
     return SelStatRow(stats: [
       SelStat(
         label: 'Approved',
-        value: money(mine.approvedTotalCedis),
+        value: compactMoney(mine.approvedTotalCedis),
+        exactValue: money(mine.approvedTotalCedis),
         footnote: '${mine.approvedCount} of your entries',
       ),
       SelStat(
@@ -406,6 +411,34 @@ class _ActivityLine extends StatelessWidget {
 class _UnfinishedImport extends ConsumerWidget {
   const _UnfinishedImport();
 
+  Future<void> _discard(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard the saved import?'),
+        content: const Text(
+          'The rows will be thrown away. Nothing has been imported yet, so '
+          'nothing else changes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+    await BulkImportSessionStore.clear(uid: idx.uid, churchId: idx.churchId);
+    ref.invalidate(bulkImportDraftProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(bulkImportDraftProvider).valueOrNull;
@@ -435,6 +468,14 @@ class _UnfinishedImport extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: SelSpace.x4),
+            // Without this the card is permanent furniture: the only way out
+            // was to open the importer and clear it from there.
+            SelButton(
+              label: 'Discard',
+              kind: SelButtonKind.quiet,
+              onPressed: () => _discard(context, ref),
+            ),
+            const SizedBox(width: SelSpace.x2),
             SelButton.cyan(
               label: 'Continue import',
               onPressed: () => context.go('/entries/bulk-import'),

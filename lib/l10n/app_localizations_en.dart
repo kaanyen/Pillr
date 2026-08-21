@@ -258,7 +258,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportDropFormats =>
-      '.xlsx only (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.';
+      '.xlsx or .csv (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.';
 
   @override
   String get bulkImportBrowseFiles => 'Browse files';
@@ -456,7 +456,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportNeedXlsx =>
-      'Please choose an Excel file with the .xlsx extension.';
+      'Please choose a spreadsheet saved as .xlsx or .csv.';
 
   @override
   String get bulkImportNoMacros =>

@@ -539,7 +539,7 @@ abstract class AppLocalizations {
   /// No description provided for @bulkImportDropFormats.
   ///
   /// In en, this message translates to:
-  /// **'.xlsx only (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.'**
+  /// **'.xlsx or .csv (no macros). Use dates as YYYY-MM-DD (year-month-day). Headers: Date, Name, Fellowship, Amount, Category (arm), optional Pastor confirmation (YES/NO). Active period applies to all rows.'**
   String get bulkImportDropFormats;
 
   /// No description provided for @bulkImportBrowseFiles.
@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @bulkImportNeedXlsx.
   ///
   /// In en, this message translates to:
-  /// **'Please choose an Excel file with the .xlsx extension.'**
+  /// **'Please choose a spreadsheet saved as .xlsx or .csv.'**
   String get bulkImportNeedXlsx;
 
   /// No description provided for @bulkImportNoMacros.

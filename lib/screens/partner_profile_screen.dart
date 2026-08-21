@@ -133,7 +133,10 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
             SelStatRow(stats: [
               SelStat(
                 label: 'Total approved',
-                value: money(partner.totalApprovedAmount),
+                value: ref.watch(churchCompactMoneyProvider)(
+                  partner.totalApprovedAmount,
+                ),
+                exactValue: money(partner.totalApprovedAmount),
                 footnote: '${approved.length} entries',
               ),
               SelStat(

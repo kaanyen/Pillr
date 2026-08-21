@@ -8,11 +8,17 @@ import 'dart:typed_data';
 /// Web: native file input — avoids [file_picker] MethodChannel (missing on DDC / web).
 ///
 /// The input must be attached to the document or some browsers ignore [click].
+///
+/// Accepts .csv as well as .xlsx. The parser has always read both, but the
+/// dialog used to filter CSVs out, so a perfectly importable file could not be
+/// selected — it appeared greyed out with no explanation.
 Future<({String name, Uint8List bytes})?> pickBulkImportXlsx() async {
   final completer = Completer<({String name, Uint8List bytes})?>();
 
   final input = html.FileUploadInputElement()
-    ..accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ..accept = '.xlsx,.csv,'
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,'
+        'text/csv,text/plain'
     ..style.display = 'none';
 
   html.document.body?.append(input);
