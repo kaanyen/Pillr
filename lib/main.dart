@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app.dart';
 import 'core/constants/app_environment.dart';
+import 'core/router/auth_boot_gate.dart';
 import 'services/analytics_service.dart';
 import 'services/firebase_service.dart';
 
@@ -26,6 +27,8 @@ Future<void> main() async {
       providerApple: kDebugMode ? const AppleDebugProvider() : const AppleDeviceCheckProvider(),
     );
   }
+  AuthBootGate.start();
+
   await logPillrAppOpen();
 
   if (kDebugMode) {

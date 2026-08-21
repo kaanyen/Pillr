@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../navigation/last_route_storage.dart';
+import 'auth_boot_gate.dart';
 import 'church_tenant_gate_cache.dart';
 import 'platform_admin_cache.dart';
 import 'role_route_access.dart';
@@ -15,6 +16,12 @@ import 'user_church_index_cache.dart';
 FutureOr<String?> appRouterRedirect(BuildContext context, GoRouterState state) async {
   final loc = state.matchedLocation;
   final auth = FirebaseAuth.instance.currentUser;
+
+  // Firebase has not reported yet, so `auth == null` does not mean signed out.
+  // Leave the requested route alone; go_router re-runs this when the auth
+  // stream fires. Without this, refreshing on /queue lands you on the
+  // landing page.
+  if (auth == null && !AuthBootGate.settled) return null;
 
   if (auth == null) {
     UserChurchIndexCache.clear();

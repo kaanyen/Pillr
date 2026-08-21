@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -22,6 +23,10 @@ import '../../partners/providers/partners_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
 import 'bulk_import_columns.dart';
+import 'bulk_import_mapping.dart';
+import 'bulk_import_save.dart';
+import 'bulk_import_sources.dart';
+import 'bulk_import_template.dart';
 import 'bulk_import_commit.dart';
 import 'bulk_import_drop_zone.dart';
 import 'bulk_import_models.dart';
@@ -33,6 +38,24 @@ import 'bulk_import_xlsx_pick.dart';
 import '../providers/entries_providers.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
+/// The four stages of an import.
+///
+/// The old screen put uploading, reviewing and importing on one scrolling
+/// page, so there was no sense of progress and no clear finish line. Naming
+/// the stages lets the UI show one decision at a time and say how far in you
+/// are.
+enum _Step {
+  upload('Upload'),
+  columns('Check columns'),
+  resolve('Resolve'),
+  confirm('Import');
+
+  const _Step(this.label);
+  final String label;
+
+  static const ordered = [_Step.upload, _Step.columns, _Step.resolve, _Step.confirm];
+}
+
 class BulkImportScreen extends ConsumerStatefulWidget {
   const BulkImportScreen({super.key});
 
@@ -57,6 +80,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   String? _fileName;
   Uint8List? _fileBytes;
+
+  /// The sheet exactly as read, before any interpretation. Kept so the column
+  /// mapping step can be revisited without re-uploading.
+  List<List<String?>>? _grid;
+  BulkImportHeaderDetection? _detection;
+  Map<BulkImportColumn, int> _mapping = {};
+  _Step _step = _Step.upload;
   bool _sessionRestored = false;
   String? _persistUid;
   String? _persistChurchId;
@@ -191,192 +221,367 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final activePeriod = ref.watch(activePeriodProvider);
 
     if (idx == null || (!idx.isPastor && !idx.isStaff)) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.bulkImportTitle)),
-        body: Center(child: Text(l10n.bulkImportAccessDenied)),
+      return SelPageBody(
+        maxWidth: 640,
+        children: [SelEmpty(title: l10n.bulkImportAccessDenied, message: '')],
       );
     }
     _cachePersistIds(idx);
 
-    final showUploadZone = !_hasDraftRows && !_isResolvingDraft;
+    if (_result != null) {
+      return SelPageBody(
+        maxWidth: 720,
+        children: [_buildResult(context, l10n, _result!)],
+      );
+    }
+    if (_isResolvingDraft) {
+      return SelPageBody(
+        maxWidth: 720,
+        children: [_buildRestoringDraft(context, l10n)],
+      );
+    }
 
-    return Scaffold(
-      backgroundColor: Sel.card,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(SelSpace.x6),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 960.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: SelSpace.x4),
-                    child: Text(_error!, style: SelType.body.copyWith(fontWeight: FontWeight.w500)),
-                  ),
-                if (_fileIssues.isNotEmpty)
-                  ..._fileIssues.map(
-                    (i) => Padding(
-                      padding: const EdgeInsets.only(bottom: SelSpace.x1),
-                      child: Text(
-                        i.message ?? _issueLabel(l10n, i.code),
-                        style: SelType.small.copyWith(
-                          color: Sel.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_result != null) _buildResult(context, l10n, _result!),
-                if (_result == null) ...[
-                  if (_isResolvingDraft) ...[
-                    _buildRestoringDraft(context, l10n),
-                  ] else if (showUploadZone) ...[
+    return SelPageBody(
+      maxWidth: 900,
+      children: [
+        SelPageTitle(
+          title: 'Import entries',
+          subtitle: _fileName == null
+              ? 'Bring a spreadsheet of giving into Pillr.'
+              : _fileName!,
+          actions: [
+            if (_step != _Step.upload)
+              SelButton(
+                label: 'Start over',
+                kind: SelButtonKind.quiet,
+                onPressed: _committing ? null : _startOver,
+              ),
+          ],
+        ),
+
+        _StepBar(current: _step),
+        const SizedBox(height: SelSpace.x8),
+
+        if (_error != null) ...[
+          _Notice(message: _error!, status: SelStatus.blocked),
+          const SizedBox(height: SelSpace.x4),
+        ],
+        for (final i in _fileIssues) ...[
+          _Notice(
+            message: i.message ?? _issueLabel(l10n, i.code),
+            status: i.severity == BulkImportSeverity.error
+                ? SelStatus.blocked
+                : SelStatus.pending,
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
+
+        switch (_step) {
+          _Step.upload => _buildUploadStep(context, l10n),
+          _Step.columns => _buildColumnsStep(context, l10n),
+          _Step.resolve => _buildResolveStep(context, l10n, idx),
+          _Step.confirm => _buildConfirmStep(context, l10n, idx),
+        },
+      ],
+    );
+  }
+
+  void _startOver() {
+    setState(() {
+      _grid = null;
+      _detection = null;
+      _mapping = {};
+      _rawRows = null;
+      _resolved = null;
+      _fileIssues = const [];
+      _fileName = null;
+      _fileBytes = null;
+      _error = null;
+      _duplicateAcknowledgedSheetRows.clear();
+      _step = _Step.upload;
+    });
+  }
+
+  // ---------------------------------------------------------------- step 1
+  Widget _buildUploadStep(BuildContext context, AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        BulkImportDropZone(
+          onPick: () => _pickAndParse(context),
+          loading: _parsing,
+          fileName: _fileName,
+        ),
+        const SizedBox(height: SelSpace.x4),
+        SelCard(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('No spreadsheet handy?', style: SelType.bodyMedium),
                     Text(
-                      l10n.bulkImportUploadTitle,
-                      style: SelType.subtitle.copyWith(color: Sel.ink),
-                    ),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      l10n.bulkImportUploadSubtitle,
-                      style: SelType.body.copyWith(
-                        color: Sel.warm,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: SelSpace.x4),
-                    BulkImportDropZone(
-                      onPick: () => _pickAndParse(context),
-                      loading: _parsing || _committing,
-                      fileName: _fileName,
-                    ),
-                  ] else if (_hasDraftRows) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _parsing || _committing ? null : () => _pickAndParse(context),
-                        icon: Icon(LucideIcons.upload, size: 18, color: Sel.soot),
-                        label: Text(l10n.bulkImportReplaceFile),
-                      ),
+                      'Paste rows straight from Excel or Google Sheets, or '
+                      'start from a template with your own arms already listed.',
+                      style: SelType.bodySm,
                     ),
                   ],
-                  if (_loadingPartners && !_isResolvingDraft)
-                    Padding(
-                      padding: const EdgeInsets.only(top: SelSpace.x4),
-                      child: Text(l10n.bulkImportLoadingPartners, style: SelType.small),
-                    ),
-                  if (_resolved != null && _rawRows != null) ...[
-                    const SizedBox(height: SelSpace.x6),
-                    if (_resolved!.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: SelSpace.x4),
-                        child: Text(l10n.bulkImportNoRowsInImport, style: SelType.small),
-                      ),
-                    if (_resolved!.isNotEmpty) ...[
-                      _buildSummary(context, l10n, _resolved!, idx.isStaff),
-                      const SizedBox(height: SelSpace.x4),
-                      _buildIssueReview(context, l10n, _resolved!),
-                    ],
-                    const SizedBox(height: SelSpace.x4),
-                    if (_resolved!.any((r) => r.isBlocking))
-                      Material(
-                        color: Sel.canvas,
-                        borderRadius: BorderRadius.circular(SelRadius.card),
-                        child: Padding(
-                          padding: const EdgeInsets.all(SelSpace.x6),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(LucideIcons.alertTriangle, size: 18, color: Sel.ink),
-                              const SizedBox(width: SelSpace.x2),
-                              Expanded(
-                                child: Text(
-                                  l10n.bulkImportBlocking,
-                                  style: SelType.small.copyWith(
-                                    color: Sel.ink,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (activePeriod == null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: SelSpace.x4, bottom: SelSpace.x4),
-                        child: Text(
-                          l10n.bulkImportNoActivePeriod,
-                          style: SelType.small.copyWith(
-                            color: Sel.ink,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: SelSpace.x6),
-                    Builder(
-                      builder: (context) {
-                        final sum = _resolved != null
-                            ? summarize(_resolved!, viewerIsStaff: idx.isStaff)
-                            : null;
-                        final nonDupWarnings =
-                            _resolved != null ? _countNonDuplicateWarnings(_resolved!) : 0;
-                        final allClear = sum != null &&
-                            sum.blockingCount == 0 &&
-                            nonDupWarnings == 0 &&
-                            _duplicatesFullyAcknowledged();
-                        return FilledButton(
-                          style: allClear
-                              ? FilledButton.styleFrom(
-                                  backgroundColor: Sel.soot,
-                                  foregroundColor: Sel.card,
-                                )
-                              : null,
-                          onPressed: _committing ||
-                                  activePeriod == null ||
-                                  _resolved == null ||
-                                  _resolved!.isEmpty ||
-                                  _resolved!.any((r) => r.isBlocking) ||
-                                  !_duplicatesFullyAcknowledged()
-                              ? null
-                              : () => _commit(context, idx.churchId, idx.isPastor),
-                          child: _committing
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                    const SizedBox(width: SelSpace.x2),
-                                    Text(l10n.bulkImportCommitting),
-                                  ],
-                                )
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (allClear) ...[
-                                      Icon(LucideIcons.clipboardCheck, size: 20, color: Sel.card),
-                                      const SizedBox(width: SelSpace.x2),
-                                    ],
-                                    Text(
-                                      allClear ? l10n.bulkImportCompleteImport : l10n.bulkImportConfirm,
-                                    ),
-                                  ],
-                                ),
-                        );
-                      },
-                    ),
-                  ],
-                ],
-              ],
-            ),
+                ),
+              ),
+              const SizedBox(width: SelSpace.x4),
+              SelButton(
+                label: 'Paste rows',
+                icon: LucideIcons.clipboard,
+                onPressed: _parsing ? null : () => _pasteRows(context),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton(
+                label: 'Template',
+                icon: LucideIcons.download,
+                onPressed: _parsing ? null : _downloadTemplate,
+              ),
+            ],
           ),
         ),
-      ),
+        const SizedBox(height: SelSpace.x4),
+        Text(
+          '.xlsx or .csv. The active giving period is applied to every row.',
+          style: SelType.small,
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------- step 2
+  Widget _buildColumnsStep(BuildContext context, AppLocalizations l10n) {
+    final detection = _detection;
+    final grid = _grid;
+    if (detection == null || grid == null) return const SizedBox.shrink();
+
+    final missing = BulkImportHeaderDetection.required
+        .where((c) => !_mapping.containsKey(c))
+        .toList();
+
+    // One preview value per column, so the reader can tell which is which
+    // without going back to the spreadsheet.
+    String sample(int col) {
+      for (var r = detection.headerRowIndex + 1;
+          r < grid.length && r < detection.headerRowIndex + 6;
+          r++) {
+        if (col < grid[r].length) {
+          final v = (grid[r][col] ?? '').trim();
+          if (v.isNotEmpty) return v;
+        }
+      }
+      return '—';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SelPanel(
+          title: 'Check columns',
+          subtitle: 'We found ${detection.labels.where((l) => l.isNotEmpty).length} '
+              'columns. Point each one at the right field.',
+          contentPadding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (var c = 0; c < detection.labels.length; c++)
+                if (detection.labels[c].isNotEmpty) ...[
+                  if (c > 0) const Divider(height: 1, color: Sel.border),
+                  _ColumnRow(
+                    header: detection.labels[c],
+                    sample: sample(c),
+                    value: _fieldForColumn(c),
+                    onChanged: (field) => _assignColumn(c, field),
+                  ),
+                ],
+            ],
+          ),
+        ),
+        if (missing.isNotEmpty) ...[
+          const SizedBox(height: SelSpace.x4),
+          _Notice(
+            status: SelStatus.blocked,
+            message: 'Still needed: '
+                '${missing.map(bulkImportFieldLabel).join(', ')}. '
+                'Pick the column that holds each.',
+          ),
+        ],
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: () => setState(() => _step = _Step.upload),
+            ),
+            const Spacer(),
+            SelButton.cyan(
+              label: 'Continue',
+              loading: _parsing,
+              onPressed: missing.isEmpty ? _applyMappingAndResolve : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  BulkImportColumn? _fieldForColumn(int columnIndex) {
+    for (final e in _mapping.entries) {
+      if (e.value == columnIndex) return e.key;
+    }
+    return null;
+  }
+
+  void _assignColumn(int columnIndex, BulkImportColumn? field) {
+    setState(() {
+      // A field maps to exactly one column, so assigning it here releases it
+      // from wherever it was.
+      _mapping.removeWhere((k, v) => v == columnIndex);
+      if (field != null) _mapping[field] = columnIndex;
+    });
+  }
+
+  // ---------------------------------------------------------------- step 3
+  Widget _buildResolveStep(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    if (_loadingPartners) {
+      return SelCard(
+        child: Column(
+          children: [
+            Text(l10n.bulkImportLoadingPartners, style: SelType.bodyMuted),
+            const SizedBox(height: SelSpace.x4),
+            const SelSkeletonRows(count: 4),
+          ],
+        ),
+      );
+    }
+    final resolved = _resolved;
+    if (resolved == null) return const SizedBox.shrink();
+    if (resolved.isEmpty) {
+      return SelCard(
+        child: SelEmpty(
+          title: l10n.bulkImportNoRowsInImport,
+          message: 'Go back and check the column mapping.',
+          actionLabel: 'Back to columns',
+          onAction: () => setState(() => _step = _Step.columns),
+        ),
+      );
+    }
+
+    final blocking = resolved.any((r) => r.isBlocking);
+    final duplicatesPending = !_duplicatesFullyAcknowledged();
+    final otherWarnings = _countNonDuplicateWarnings(resolved);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildIssueReview(context, l10n, resolved),
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: () => setState(() => _step = _Step.columns),
+            ),
+            const Spacer(),
+            if (blocking)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(l10n.bulkImportBlocking, style: SelType.small),
+              )
+            else if (duplicatesPending)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(
+                  'Confirm the possible duplicates before continuing.',
+                  style: SelType.small,
+                ),
+              )
+            else if (otherWarnings > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(
+                  '$otherWarnings ${otherWarnings == 1 ? "warning" : "warnings"} '
+                  '— you can continue.',
+                  style: SelType.small,
+                ),
+              ),
+            SelButton.cyan(
+              label: 'Continue',
+              onPressed: blocking || duplicatesPending
+                  ? null
+                  : () => setState(() => _step = _Step.confirm),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------- step 4
+  Widget _buildConfirmStep(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    final resolved = _resolved;
+    if (resolved == null) return const SizedBox.shrink();
+    final period = ref.watch(activePeriodProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSummary(context, l10n, resolved, idx.isStaff),
+        const SizedBox(height: SelSpace.x4),
+        SelCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Everything checks out', style: SelType.subtitle),
+              const SizedBox(height: SelSpace.x2),
+              Text(
+                idx.isStaff
+                    ? 'These entries will be submitted for a pastor to review.'
+                    : 'These entries will be recorded against '
+                        '${period?.name ?? "the active period"}.',
+                style: SelType.bodyMuted,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: _committing
+                  ? null
+                  : () => setState(() => _step = _Step.resolve),
+            ),
+            const Spacer(),
+            SelButton.cyan(
+              label: 'Import ${resolved.length} '
+                  '${resolved.length == 1 ? "entry" : "entries"}',
+              loading: _committing,
+              onPressed: _committing
+                  ? null
+                  : () => _commit(context, idx.churchId, idx.isPastor),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -698,6 +903,25 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       changed++;
     }
     if (changed == 0) return;
+
+    // Remember the decision so the same wording resolves by itself next time.
+    // Best-effort: a failure here must not cost the user the mapping they
+    // just applied, so it is caught and ignored.
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx != null) {
+      for (final spelling in needles) {
+        try {
+          await ref.read(armsRepositoryProvider).rememberArmAlias(
+                churchId: idx.churchId,
+                armId: arm.id,
+                alias: spelling,
+              );
+        } catch (_) {
+          // Non-fatal: the mapping still applies to this import.
+        }
+      }
+    }
+
     await _reResolve();
     _schedulePersistSession();
   }
@@ -794,15 +1018,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     if (picked == null || !mounted) return;
 
     final nameLower = picked.name.toLowerCase();
-    final dot = nameLower.lastIndexOf('.');
-    final ext = dot >= 0 ? nameLower.substring(dot + 1) : '';
-    final isXlsx = ext == 'xlsx' || nameLower.endsWith('.xlsx');
-    if (!isXlsx) {
-      setState(() => _error = l10n.bulkImportNeedXlsx);
+    if (nameLower.endsWith('.xlsm')) {
+      setState(() => _error = l10n.bulkImportNoMacros);
       return;
     }
-    if (ext == 'xlsm' || nameLower.endsWith('.xlsm')) {
-      setState(() => _error = l10n.bulkImportNoMacros);
+    final isCsv = isCsvFileName(picked.name);
+    if (!isCsv && !nameLower.endsWith('.xlsx')) {
+      setState(() => _error = l10n.bulkImportNeedXlsx);
       return;
     }
 
@@ -811,43 +1033,136 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       _parsing = true;
     });
     try {
-      final parsed = parseBulkImportWorkbook(picked.bytes);
-      if (parsed.rows.isEmpty && parsed.fileIssues.isNotEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _fileIssues = parsed.fileIssues;
-          _parsing = false;
-        });
-        return;
-      }
-      if (parsed.rows.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _error = l10n.bulkImportNoRows;
-          _fileIssues = parsed.fileIssues;
-          _parsing = false;
-        });
-        return;
-      }
-      if (!mounted) return;
-      setState(() {
-        _fileName = picked.name;
-        _fileBytes = picked.bytes;
-        _rawRows = parsed.rows;
-        _fileIssues = parsed.fileIssues;
-        _resolved = null;
-        _result = null;
-        _duplicateAcknowledgedSheetRows.clear();
-        _parsing = false;
-      });
-      await _loadPartnersAndResolve();
-      await _persistSession();
+      final grid = isCsv
+          ? parseCsvGrid(utf8.decode(picked.bytes, allowMalformed: true))
+          : readFirstXlsxSheet(picked.bytes);
+      _adoptGrid(grid, fileName: picked.name, bytes: picked.bytes);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = '${l10n.bulkImportParseError}: $e';
         _parsing = false;
       });
+    }
+  }
+
+  /// Takes a freshly read sheet and moves to the column step.
+  ///
+  /// Parsing is deliberately deferred until the user has confirmed the column
+  /// mapping — that is the whole point of the step. Guessing first and asking
+  /// afterwards is what produced sheets full of empty amounts.
+  void _adoptGrid(
+    List<List<String?>> grid, {
+    required String fileName,
+    Uint8List? bytes,
+  }) {
+    final detection = detectBulkImportHeaders(grid);
+    if (!mounted) return;
+    setState(() {
+      _grid = grid;
+      _detection = detection;
+      _mapping = Map<BulkImportColumn, int>.from(detection.mapping);
+      _fileName = fileName;
+      _fileBytes = bytes;
+      _rawRows = null;
+      _resolved = null;
+      _result = null;
+      _fileIssues = const [];
+      _duplicateAcknowledgedSheetRows.clear();
+      _parsing = false;
+      _step = _Step.columns;
+    });
+  }
+
+  /// Applies the confirmed mapping and resolves, then moves to Resolve.
+  Future<void> _applyMappingAndResolve() async {
+    final grid = _grid;
+    final detection = _detection;
+    if (grid == null || detection == null) return;
+
+    setState(() {
+      _error = null;
+      _parsing = true;
+    });
+    final parsed = parseBulkImportGridWithMapping(
+      grid,
+      headerRowIndex: detection.headerRowIndex,
+      mapping: _mapping,
+    );
+    if (!mounted) return;
+    if (parsed.rows.isEmpty) {
+      setState(() {
+        _error = AppLocalizations.of(context).bulkImportNoRows;
+        _fileIssues = parsed.fileIssues;
+        _parsing = false;
+      });
+      return;
+    }
+    setState(() {
+      _rawRows = parsed.rows;
+      _fileIssues = parsed.fileIssues;
+      _resolved = null;
+      _parsing = false;
+      _step = _Step.resolve;
+    });
+    await _loadPartnersAndResolve();
+    await _persistSession();
+  }
+
+  /// Paste path: a block of cells copied straight out of a spreadsheet.
+  Future<void> _pasteRows(BuildContext context) async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => SelDialog(
+        title: 'Paste from a spreadsheet',
+        subtitle:
+            'Select the rows in Excel or Google Sheets, including the header '
+            'row, copy them, and paste here.',
+        width: 620,
+        scrollable: false,
+        actions: [
+          SelButton(
+            label: 'Cancel',
+            kind: SelButtonKind.quiet,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          SelButton.cyan(
+            label: 'Use these rows',
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+        child: SelField(
+          controller: controller,
+          hint: 'DATE\tNAME\tAMOUNT\n2026-03-04\tAma Boateng\t500',
+          maxLines: 10,
+          autofocus: true,
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    final grid = parsePastedGrid(text);
+    if (grid.length < 2) {
+      setState(() => _error =
+          'Paste at least a header row and one row of data.');
+      return;
+    }
+    _adoptGrid(grid, fileName: 'Pasted rows');
+  }
+
+  /// Downloads a starter sheet listing this church's own arms.
+  Future<void> _downloadTemplate() async {
+    final arms = ref.read(armsStreamProvider).valueOrNull ?? const [];
+    final churchName = ref.read(churchNameProvider);
+    try {
+      await saveTextFile(
+        fileName: importTemplateFileName(churchName),
+        contents: buildImportTemplateCsv(arms: arms),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not save the template: $e');
     }
   }
 
@@ -1826,4 +2141,156 @@ class _SpellingCluster {
 
   /// Total affected rows across all [variants].
   int rows;
+}
+
+/// Progress across the four stages.
+///
+/// Shows where you are and what is left, which the old single-page layout
+/// could not — there was no finish line, only a long scroll ending in a
+/// disabled button.
+class _StepBar extends StatelessWidget {
+  const _StepBar({required this.current});
+
+  final _Step current;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final compact = c.maxWidth < 620;
+        return Row(
+          children: [
+            for (final s in _Step.ordered) ...[
+              if (s.index > 0) const SizedBox(width: SelSpace.x2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: s.index <= current.index ? Sel.soot : Sel.border,
+                        borderRadius: BorderRadius.circular(SelRadius.pill),
+                      ),
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: SelSpace.x2),
+                      Text(
+                        '${s.index + 1}. ${s.label}',
+                        style: SelType.small.copyWith(
+                          color: s == current ? Sel.ink : Sel.warm,
+                          fontWeight:
+                              s == current ? FontWeight.w500 : FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One column from the sheet, and the field it feeds.
+class _ColumnRow extends StatelessWidget {
+  const _ColumnRow({
+    required this.header,
+    required this.sample,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String header;
+
+  /// A real value from the sheet, so the reader can identify the column
+  /// without switching back to the spreadsheet.
+  final String sample;
+
+  final BulkImportColumn? value;
+  final ValueChanged<BulkImportColumn?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.cardPad,
+        vertical: SelSpace.x3,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(header, style: SelType.bodyMedium),
+                Text('e.g. $sample', style: SelType.small),
+              ],
+            ),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          const Icon(LucideIcons.arrowRight, size: 14, color: Sel.ash),
+          const SizedBox(width: SelSpace.x4),
+          SizedBox(
+            width: 200,
+            child: SelSelect<BulkImportColumn?>(
+              value: value,
+              hint: Text('Ignore this column', style: SelType.bodyMuted),
+              onChanged: onChanged,
+              items: [
+                DropdownMenuItem(
+                  value: null,
+                  child: Text('Ignore', style: SelType.bodyMuted),
+                ),
+                for (final f in bulkImportMappableFields)
+                  DropdownMenuItem(value: f, child: Text(bulkImportFieldLabel(f))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A file-level message. Uses the semantic state colours so a blocking
+/// problem is distinguishable from a warning at a glance.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.message, required this.status});
+
+  final String message;
+  final SelStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x3,
+      ),
+      decoration: BoxDecoration(
+        color: status.wash,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: Border.all(color: status.color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(status.icon, size: 14, color: status.color),
+          ),
+          const SizedBox(width: SelSpace.x3),
+          Expanded(child: Text(message, style: SelType.bodySm.copyWith(color: Sel.ink))),
+        ],
+      ),
+    );
+  }
 }
