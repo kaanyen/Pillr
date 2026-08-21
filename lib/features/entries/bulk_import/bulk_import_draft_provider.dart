@@ -9,12 +9,12 @@ import 'bulk_import_session_store.dart';
 /// remember — an import abandoned halfway is money not yet recorded.
 final bulkImportDraftProvider =
     FutureProvider.autoDispose<BulkImportPersistedSession?>((ref) async {
-  final idx = await ref.watch(userChurchIndexProvider.future);
-  if (idx == null) return null;
-  final saved = await BulkImportSessionStore.load(
-    uid: idx.uid,
-    churchId: idx.churchId,
-  );
-  if (saved == null || saved.rawRows.isEmpty) return null;
-  return saved;
-});
+      final idx = await ref.watch(userChurchIndexProvider.future);
+      if (idx == null) return null;
+      final saved = await BulkImportSessionStore.load(
+        uid: idx.uid,
+        churchId: idx.churchId,
+      );
+      if (saved == null || saved.rawRows.isEmpty) return null;
+      return saved;
+    });

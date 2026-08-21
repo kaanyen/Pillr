@@ -7,11 +7,15 @@ import '../core/extensions/async_value_ext.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
+import '../features/arms/domain/partnership_arm.dart';
+import '../features/arms/providers/arms_providers.dart';
 import '../features/entries/providers/entries_providers.dart';
+import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_models.dart';
 import '../features/partners/presentation/partner_form_dialog.dart';
 import '../features/partners/providers/partners_providers.dart';
 import 'export_actions.dart';
+import 'record_filter_bar.dart';
 import '../features/periods/providers/periods_providers.dart';
 
 enum _View { directory, ranked }
@@ -33,8 +37,9 @@ class PartnersScreen extends ConsumerStatefulWidget {
 }
 
 class _PartnersScreenState extends ConsumerState<PartnersScreen> {
-  late _View _view =
-      widget.initialView == 'ranked' ? _View.ranked : _View.directory;
+  late _View _view = widget.initialView == 'ranked'
+      ? _View.ranked
+      : _View.directory;
   bool _includeInactive = false;
   String _query = '';
 
@@ -70,12 +75,12 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
               onPressed: idx == null
                   ? null
                   : () => showDialog(
-                        context: context,
-                        builder: (_) => PartnerFormDialog(
-                          churchId: idx.churchId,
-                          uid: idx.uid,
-                        ),
+                      context: context,
+                      builder: (_) => PartnerFormDialog(
+                        churchId: idx.churchId,
+                        uid: idx.uid,
                       ),
+                    ),
             ),
           ],
         ),
@@ -97,7 +102,8 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
                 child: SelField(
                   hint: 'Search name or member ID',
                   prefixIcon: LucideIcons.search,
-                  onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                  onChanged: (v) =>
+                      setState(() => _query = v.trim().toLowerCase()),
                 ),
               ),
               const SizedBox(width: SelSpace.x3),
@@ -180,44 +186,69 @@ class _RankedView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entries = ref.watch(entriesListProvider).valueOrNull ?? [];
+    final all = ref.watch(entriesListProvider).valueOrNull ?? [];
     final period = ref.watch(activePeriodProvider);
+    final arms =
+        ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
+    // The same filters Records uses. A ranking of a filtered set is a
+    // different question from a ranking of everything, and answering the
+    // first while showing the second is how the wrong partner gets thanked.
+    final filters = ref.watch(recordFiltersProvider);
+    final entries = applyRecordFilters(all, filters, now: DateTime.now());
     final rows = LeaderboardRow.fromEntries(entries, periodId: period?.id);
 
     if (rows.isEmpty) {
-      return const SelCard(
-        child: SelEmpty(
-          title: 'Nothing ranked yet',
-          message: 'Rankings appear once entries are approved in this period.',
-          icon: LucideIcons.trophy,
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RecordFilterBar(entries: all, arms: arms),
+          const SizedBox(height: SelSpace.x4),
+          SelCard(
+            child: SelEmpty(
+              title: filters.isEmpty ? 'Nothing ranked yet' : 'Nothing matches',
+              message: filters.isEmpty
+                  ? 'Rankings appear once entries are approved in this period.'
+                  : 'No approved giving matches these filters.',
+              icon: LucideIcons.trophy,
+            ),
+          ),
+        ],
       );
     }
 
-    return SelLedger(
-      minWidth: 520,
-      columns: const [
-        SelColumn('Rank', fit: SelColFit.fixed, width: 70),
-        SelColumn('Partner', flex: 3),
-        SelColumn.numeric('Approved giving', width: 170),
-      ],
-      rows: [
-        for (final r in rows)
-          SelRow(
-            onTap: () => context.go('/partners/${r.partnerId}'),
-            cells: [
-              Text(
-                '${r.rank}',
-                style: SelType.body.copyWith(
-                  color: r.rank <= 3 ? Sel.ink : Sel.ash,
-                  fontWeight: r.rank <= 3 ? FontWeight.w500 : FontWeight.w400,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RecordFilterBar(entries: all, arms: arms),
+        const SizedBox(height: SelSpace.x4),
+        SelLedger(
+          minWidth: 520,
+          columns: const [
+            SelColumn('Rank', fit: SelColFit.fixed, width: 70),
+            SelColumn('Partner', flex: 3),
+            SelColumn.numeric('Approved giving', width: 170),
+          ],
+          rows: [
+            for (final r in rows)
+              SelRow(
+                onTap: () => context.go('/partners/${r.partnerId}'),
+                cells: [
+                  Text(
+                    '${r.rank}',
+                    style: SelType.body.copyWith(
+                      color: r.rank <= 3 ? Sel.ink : Sel.ash,
+                      fontWeight: r.rank <= 3
+                          ? FontWeight.w500
+                          : FontWeight.w400,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  SelCell.primary(r.partnerName),
+                  SelCell.numeric(money(r.totalCedis)),
+                ],
               ),
-              SelCell.primary(r.partnerName),
-              SelCell.numeric(money(r.totalCedis)),
-            ],
-          ),
+          ],
+        ),
       ],
     );
   }

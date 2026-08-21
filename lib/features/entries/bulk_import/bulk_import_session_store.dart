@@ -65,9 +65,10 @@ abstract final class BulkImportSessionStore {
         fileIssues: (m['fileIssues'] as List<dynamic>? ?? [])
             .map((e) => _issueFromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
-        duplicateAcknowledgedSheetRows: (m['duplicateAcknowledged'] as List<dynamic>? ?? [])
-            .map((e) => (e as num).toInt())
-            .toSet(),
+        duplicateAcknowledgedSheetRows:
+            (m['duplicateAcknowledged'] as List<dynamic>? ?? [])
+                .map((e) => (e as num).toInt())
+                .toSet(),
         mapping: {
           for (final e in (m['mapping'] as Map<String, dynamic>? ?? {}).entries)
             BulkImportColumn.values.byName(e.key): (e.value as num).toInt(),
@@ -89,9 +90,9 @@ abstract final class BulkImportSessionStore {
   }
 
   static Map<String, dynamic> _rawRowToJson(BulkRawRow r) => {
-        'sheetRowNumber': r.sheetRowNumber,
-        'values': r.valuesByColumn.map((k, v) => MapEntry(k.name, v)),
-      };
+    'sheetRowNumber': r.sheetRowNumber,
+    'values': r.valuesByColumn.map((k, v) => MapEntry(k.name, v)),
+  };
 
   static BulkRawRow _rawRowFromJson(Map<String, dynamic> m) {
     final values = <BulkImportColumn, String>{};
@@ -107,12 +108,13 @@ abstract final class BulkImportSessionStore {
   }
 
   static Map<String, dynamic> _issueToJson(BulkImportIssue i) => {
-        'code': i.code.name,
-        'severity': i.severity.name,
-        'message': i.message,
-      };
+    'code': i.code.name,
+    'severity': i.severity.name,
+    'message': i.message,
+  };
 
-  static BulkImportIssue _issueFromJson(Map<String, dynamic> m) => BulkImportIssue(
+  static BulkImportIssue _issueFromJson(Map<String, dynamic> m) =>
+      BulkImportIssue(
         code: BulkImportIssueCode.values.byName(m['code'] as String),
         severity: BulkImportSeverity.values.byName(m['severity'] as String),
         message: m['message'] as String?,

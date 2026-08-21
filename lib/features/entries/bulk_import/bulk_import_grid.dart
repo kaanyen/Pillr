@@ -14,47 +14,39 @@ import 'bulk_import_models.dart';
 /// Which column an issue belongs to, so the grid can put the highlight on the
 /// cell that is actually wrong rather than colouring the whole row.
 BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
-      BulkImportIssueCode.missingName ||
-      BulkImportIssueCode.nameMismatch =>
-        BulkImportColumn.name,
-      BulkImportIssueCode.missingFellowship ||
-      BulkImportIssueCode.fellowshipMismatch =>
-        BulkImportColumn.fellowship,
-      BulkImportIssueCode.missingAmount ||
-      BulkImportIssueCode.invalidAmount =>
-        BulkImportColumn.amount,
-      BulkImportIssueCode.missingDate ||
-      BulkImportIssueCode.invalidDate =>
-        BulkImportColumn.date,
-      BulkImportIssueCode.missingArm ||
-      BulkImportIssueCode.armNotFound =>
-        BulkImportColumn.category,
-      BulkImportIssueCode.ambiguousPhone => BulkImportColumn.contact,
-      BulkImportIssueCode.memberIdNotFound ||
-      BulkImportIssueCode.memberIdConflict =>
-        BulkImportColumn.memberId,
-      BulkImportIssueCode.staffPastorYesPending =>
-        BulkImportColumn.pastorConfirmed,
-      // Row-level: a duplicate is about the whole row, and a missing period is
-      // about church settings, not any cell in the sheet.
-      BulkImportIssueCode.duplicateInFile ||
-      BulkImportIssueCode.duplicateInDatabase ||
-      BulkImportIssueCode.periodNotFound =>
-        null,
-    };
+  BulkImportIssueCode.missingName ||
+  BulkImportIssueCode.nameMismatch => BulkImportColumn.name,
+  BulkImportIssueCode.missingFellowship ||
+  BulkImportIssueCode.fellowshipMismatch => BulkImportColumn.fellowship,
+  BulkImportIssueCode.missingAmount ||
+  BulkImportIssueCode.invalidAmount => BulkImportColumn.amount,
+  BulkImportIssueCode.missingDate ||
+  BulkImportIssueCode.invalidDate => BulkImportColumn.date,
+  BulkImportIssueCode.missingArm ||
+  BulkImportIssueCode.armNotFound => BulkImportColumn.category,
+  BulkImportIssueCode.ambiguousPhone => BulkImportColumn.contact,
+  BulkImportIssueCode.memberIdNotFound ||
+  BulkImportIssueCode.memberIdConflict => BulkImportColumn.memberId,
+  BulkImportIssueCode.staffPastorYesPending => BulkImportColumn.pastorConfirmed,
+  // Row-level: a duplicate is about the whole row, and a missing period is
+  // about church settings, not any cell in the sheet.
+  BulkImportIssueCode.duplicateInFile ||
+  BulkImportIssueCode.duplicateInDatabase ||
+  BulkImportIssueCode.periodNotFound => null,
+};
 
 double _columnWidth(BulkImportColumn c) => switch (c) {
-      BulkImportColumn.date => 118,
-      BulkImportColumn.name => 190,
-      BulkImportColumn.memberId => 110,
-      BulkImportColumn.contact => 132,
-      BulkImportColumn.fellowship => 150,
-      BulkImportColumn.email => 200,
-      BulkImportColumn.amount => 110,
-      BulkImportColumn.category => 170,
-      BulkImportColumn.givenToNotes => 200,
-      BulkImportColumn.pastorConfirmed => 130,
-    };
+  BulkImportColumn.date => 118,
+  BulkImportColumn.name => 190,
+  BulkImportColumn.memberId => 110,
+  BulkImportColumn.contact => 132,
+  BulkImportColumn.fellowship => 150,
+  BulkImportColumn.email => 200,
+  BulkImportColumn.amount => 110,
+  BulkImportColumn.category => 170,
+  BulkImportColumn.givenToNotes => 200,
+  BulkImportColumn.pastorConfirmed => 130,
+};
 
 const double _rowHeight = 38;
 const double _gutterWidth = 52;
@@ -98,7 +90,8 @@ class BulkImportGrid extends ConsumerStatefulWidget {
   final bool busy;
   final String Function(BulkImportIssueCode) issueLabel;
 
-  final void Function(int rowIndex, BulkImportColumn column, String value) onEditCell;
+  final void Function(int rowIndex, BulkImportColumn column, String value)
+  onEditCell;
   final void Function(List<AutoFixProposal> proposals) onApplyFixes;
   final void Function(bool dayFirst) onDayFirstChanged;
   final void Function(int rowIndex) onRemoveRow;
@@ -110,7 +103,8 @@ class BulkImportGrid extends ConsumerStatefulWidget {
   final void Function(int sheetRow) onAcknowledgeDuplicate;
 
   /// Maps every row whose arm text is [sourceTexts] onto one arm at once.
-  final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)? onBulkMapArm;
+  final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)?
+  onBulkMapArm;
 
   @override
   ConsumerState<BulkImportGrid> createState() => _BulkImportGridState();
@@ -160,8 +154,10 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   }
 
   void _jumpToRow(int rowIndex) {
-    final target = (rowIndex * _rowHeight)
-        .clamp(0.0, _vertical.position.maxScrollExtent);
+    final target = (rowIndex * _rowHeight).clamp(
+      0.0,
+      _vertical.position.maxScrollExtent,
+    );
     _vertical.animateTo(
       target,
       duration: const Duration(milliseconds: 220),
@@ -232,7 +228,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   @override
   Widget build(BuildContext context) {
     final cellIssues = _cellIssues;
-    final gridWidth = _gutterWidth +
+    final gridWidth =
+        _gutterWidth +
         widget.columns.fold<double>(0, (a, c) => a + _columnWidth(c)) +
         _gutterWidth;
 
@@ -285,7 +282,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
                             controller: _vertical,
                             itemExtent: _rowHeight,
                             itemCount: widget.rawRows.length,
-                            itemBuilder: (context, i) => _row(i, cellIssues[i] ?? const {}),
+                            itemBuilder: (context, i) =>
+                                _row(i, cellIssues[i] ?? const {}),
                           ),
                         ),
                       ],
@@ -407,33 +405,33 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
             child: _EscapeToCancel(
               onCancel: _cancelEdit,
               child: TextField(
-              controller: _editor,
-              focusNode: _editorFocus,
-              style: SelType.small.copyWith(color: Sel.ink),
-              decoration: const InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: Sel.card,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: SelSpace.x2,
-                  vertical: SelSpace.x2,
+                controller: _editor,
+                focusNode: _editorFocus,
+                style: SelType.small.copyWith(color: Sel.ink),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: Sel.card,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: SelSpace.x2,
+                    vertical: SelSpace.x2,
+                  ),
+                  border: OutlineInputBorder(
+                    borderSide: BorderSide(color: Sel.cyan),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Sel.cyan),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Sel.cyan, width: 1.5),
+                  ),
                 ),
-                border: OutlineInputBorder(
-                  borderSide: BorderSide(color: Sel.cyan),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Sel.cyan),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Sel.cyan, width: 1.5),
-                ),
+                onSubmitted: (_) => _commitEdit(),
+                onTapOutside: (_) => _commitEdit(),
+                // Escape backs out without writing, so a mistyped cell can be
+                // abandoned rather than saved by clicking away.
+                onEditingComplete: _commitEdit,
               ),
-              onSubmitted: (_) => _commitEdit(),
-              onTapOutside: (_) => _commitEdit(),
-              // Escape backs out without writing, so a mistyped cell can be
-              // abandoned rather than saved by clicking away.
-              onEditingComplete: _commitEdit,
-            ),
             ),
           ),
         ),
@@ -473,8 +471,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
           onTap: widget.busy
               ? null
               : () => picker
-                  ? _openPicker(rowIndex, column)
-                  : _beginEdit(rowIndex, column),
+                    ? _openPicker(rowIndex, column)
+                    : _beginEdit(rowIndex, column),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: SelSpace.x3),
             alignment: Alignment.centerLeft,
@@ -503,7 +501,9 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   }
 
   bool _isPickerColumn(BulkImportColumn c) =>
-      (c == BulkImportColumn.category && _hasArmColumn && widget.arms.isNotEmpty) ||
+      (c == BulkImportColumn.category &&
+          _hasArmColumn &&
+          widget.arms.isNotEmpty) ||
       c == BulkImportColumn.pastorConfirmed;
 
   Future<void> _openPicker(int rowIndex, BulkImportColumn column) async {
@@ -650,8 +650,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
   bool _isOpen(String key) => !_collapsed.contains(key);
   void _toggle(String key) => setState(() {
-        if (!_collapsed.remove(key)) _collapsed.add(key);
-      });
+    if (!_collapsed.remove(key)) _collapsed.add(key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -688,7 +688,9 @@ class _IssuesPanelState extends State<_IssuesPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  blocking == 0 ? 'Nothing blocking' : '$blocking rows need attention',
+                  blocking == 0
+                      ? 'Nothing blocking'
+                      : '$blocking rows need attention',
                   style: SelType.subtitle,
                 ),
                 const SizedBox(height: SelSpace.x1),
@@ -741,11 +743,16 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           trailing: SelButton(
             label: 'Fix all',
             kind: SelButtonKind.quiet,
-            onPressed: widget.busy ? null : () => widget.onApplyFixes(g.proposals),
+            onPressed: widget.busy
+                ? null
+                : () => widget.onApplyFixes(g.proposals),
           ),
           children: [
             for (final p in g.proposals.take(6))
-              _FixPreview(proposal: p, onTap: () => widget.onJumpToRow(p.rowIndex)),
+              _FixPreview(
+                proposal: p,
+                onTap: () => widget.onJumpToRow(p.rowIndex),
+              ),
             if (g.count > 6)
               Padding(
                 padding: const EdgeInsets.only(
@@ -760,7 +767,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       if (hasDates)
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            SelSpace.x4, 0, SelSpace.x4, SelSpace.x3),
+            SelSpace.x4,
+            0,
+            SelSpace.x4,
+            SelSpace.x3,
+          ),
           child: Row(
             children: [
               Expanded(
@@ -768,7 +779,9 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                   // 4/3/2026 is 4 March or 3 April depending on who typed it;
                   // the sheet cannot say which, so this is a question, not a
                   // guess the importer makes quietly.
-                  widget.dayFirst ? 'Reading dates day first' : 'Reading dates month first',
+                  widget.dayFirst
+                      ? 'Reading dates day first'
+                      : 'Reading dates month first',
                   style: SelType.small,
                 ),
               ),
@@ -794,7 +807,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       byValue.putIfAbsent(v, () => []).add(i);
     }
 
-    final canBulkMapArm = column == BulkImportColumn.category &&
+    final canBulkMapArm =
+        column == BulkImportColumn.category &&
         widget.onBulkMapArm != null &&
         widget.arms.isNotEmpty;
 
@@ -808,7 +822,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         for (final entry in byValue.entries)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              SelSpace.x4, SelSpace.x1, SelSpace.x4, SelSpace.x2),
+              SelSpace.x4,
+              SelSpace.x1,
+              SelSpace.x4,
+              SelSpace.x2,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -860,7 +878,9 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   Widget _rowLevelGroup(Map<int, BulkImportIssue> rowLevel) {
     final unanswered = [
       for (final i in rowLevel.keys)
-        if (!widget.acknowledgedSheetRows.contains(widget.rawRows[i].sheetRowNumber))
+        if (!widget.acknowledgedSheetRows.contains(
+          widget.rawRows[i].sheetRowNumber,
+        ))
           widget.rawRows[i].sheetRowNumber,
     ];
 
@@ -890,12 +910,14 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           _DuplicateRow(
             sheetRow: widget.rawRows[entry.key].sheetRowNumber,
             message: entry.value.message ?? widget.issueLabel(entry.value.code),
-            acknowledged: widget.acknowledgedSheetRows
-                .contains(widget.rawRows[entry.key].sheetRowNumber),
+            acknowledged: widget.acknowledgedSheetRows.contains(
+              widget.rawRows[entry.key].sheetRowNumber,
+            ),
             busy: widget.busy,
             onTap: () => widget.onJumpToRow(entry.key),
             onKeep: () => widget.onAcknowledgeDuplicate(
-                widget.rawRows[entry.key].sheetRowNumber),
+              widget.rawRows[entry.key].sheetRowNumber,
+            ),
             onRemove: () => widget.onRemoveRow(entry.key),
           ),
       ],
@@ -945,7 +967,10 @@ class _Group extends StatelessWidget {
                 Container(
                   height: 6,
                   width: 6,
-                  decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: tone,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: SelSpace.x2),
                 Expanded(
@@ -1035,7 +1060,10 @@ class _RowChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: SelSpace.x2, vertical: 2),
+        padding: const EdgeInsets.symmetric(
+          horizontal: SelSpace.x2,
+          vertical: 2,
+        ),
         decoration: BoxDecoration(
           border: Border.all(color: Sel.border),
           borderRadius: BorderRadius.circular(999),

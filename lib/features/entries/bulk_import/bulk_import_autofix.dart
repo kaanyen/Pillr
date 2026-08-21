@@ -20,18 +20,18 @@ enum AutoFixKind {
 
 extension AutoFixKindLabel on AutoFixKind {
   String get label => switch (this) {
-        AutoFixKind.nameCasing => 'Name formatting',
-        AutoFixKind.amount => 'Amount formatting',
-        AutoFixKind.date => 'Date formatting',
-        AutoFixKind.phone => 'Phone formatting',
-      };
+    AutoFixKind.nameCasing => 'Name formatting',
+    AutoFixKind.amount => 'Amount formatting',
+    AutoFixKind.date => 'Date formatting',
+    AutoFixKind.phone => 'Phone formatting',
+  };
 
   BulkImportColumn get column => switch (this) {
-        AutoFixKind.nameCasing => BulkImportColumn.name,
-        AutoFixKind.amount => BulkImportColumn.amount,
-        AutoFixKind.date => BulkImportColumn.date,
-        AutoFixKind.phone => BulkImportColumn.contact,
-      };
+    AutoFixKind.nameCasing => BulkImportColumn.name,
+    AutoFixKind.amount => BulkImportColumn.amount,
+    AutoFixKind.date => BulkImportColumn.date,
+    AutoFixKind.phone => BulkImportColumn.contact,
+  };
 }
 
 /// One proposed change to one cell.
@@ -88,9 +88,7 @@ String? fixAmount(String raw) {
   if (trimmed.isEmpty) return null;
   if (double.tryParse(trimmed) != null) return null;
 
-  var s = trimmed
-      .replaceAll(RegExp(r'[A-Za-z₵€£$\s]'), '')
-      .replaceAll(',', '');
+  var s = trimmed.replaceAll(RegExp(r'[A-Za-z₵€£$\s]'), '').replaceAll(',', '');
   // A trailing '.00' is fine; a lone trailing '.' is not.
   s = s.replaceAll(RegExp(r'\.$'), '');
   if (s.isEmpty) return null;
@@ -126,7 +124,9 @@ String? fixDate(String raw, {required bool dayFirst}) {
   }
 
   // d/m/y, m/d/y, d-m-y, d.m.y
-  final numeric = RegExp(r'^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$').firstMatch(s);
+  final numeric = RegExp(
+    r'^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})$',
+  ).firstMatch(s);
   if (numeric != null) {
     final a = int.parse(numeric.group(1)!);
     final b = int.parse(numeric.group(2)!);
@@ -156,11 +156,22 @@ String? fixDate(String raw, {required bool dayFirst}) {
 
   // 04-Mar-26, 4 March 2026
   const months = {
-    'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-    'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+    'jan': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4,
+    'may': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12,
   };
-  final named = RegExp(r'^(\d{1,2})[\s\-]+([A-Za-z]{3,})[\s\-]+(\d{2,4})$')
-      .firstMatch(s);
+  final named = RegExp(
+    r'^(\d{1,2})[\s\-]+([A-Za-z]{3,})[\s\-]+(\d{2,4})$',
+  ).firstMatch(s);
   if (named != null) {
     final day = int.parse(named.group(1)!);
     final month = months[named.group(2)!.toLowerCase().substring(0, 3)];
@@ -214,7 +225,9 @@ List<AutoFixGroup> detectAutoFixes(
     if (before == null || before.trim().isEmpty) return;
     final after = rule(before);
     if (after == null || after == before) return;
-    byKind.putIfAbsent(kind, () => []).add(
+    byKind
+        .putIfAbsent(kind, () => [])
+        .add(
           AutoFixProposal(
             rowIndex: rowIndex,
             sheetRow: row.sheetRowNumber,

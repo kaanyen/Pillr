@@ -11,6 +11,8 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
+import '../features/entries/providers/record_filters.dart';
+import 'record_filter_bar.dart';
 import 'arm_palette.dart';
 import 'approval_playback.dart';
 import 'export_actions.dart';
@@ -81,7 +83,16 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     final isPastor = idx?.isPastor ?? false;
 
     final all = entriesAsync.valueOrNull ?? [];
-    final rows = all.where((e) {
+    // Records and the ranked view share one filter set, so a window narrowed
+    // in one is narrowed in the other.
+    final scoped = widget.mode == QueueMode.records
+        ? applyRecordFilters(
+            all,
+            ref.watch(recordFiltersProvider),
+            now: DateTime.now(),
+          )
+        : all;
+    final rows = scoped.where((e) {
       final byStatus = switch (_filter) {
         _Filter.all => true,
         _Filter.pending => e.status == 'pending',
@@ -141,7 +152,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     _selected.clear();
                   }),
                   options: [
-                    (_Filter.all, 'All ${all.isEmpty ? "" : "(${all.length})"}'.trim()),
+                    (
+                      _Filter.all,
+                      'All ${all.isEmpty ? "" : "(${all.length})"}'.trim(),
+                    ),
                     (_Filter.pending, 'Pending'),
                     (_Filter.approved, 'Approved'),
                     (_Filter.declined, 'Declined'),
@@ -150,7 +164,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               )
             else
               const Spacer(),
-            if (arms.isNotEmpty) ...[
+            // Records gets the full filter bar below; the queue is a short
+            // work list where one arm dropdown is the whole need.
+            if (widget.mode == QueueMode.queue && arms.isNotEmpty) ...[
               const SizedBox(width: SelSpace.x4),
               SizedBox(
                 width: 190,
@@ -158,7 +174,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                   value: _armId,
                   onChanged: (v) => setState(() => _armId = v),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text('All arms')),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All arms'),
+                    ),
                     for (final a in arms)
                       DropdownMenuItem(value: a.id, child: Text(a.name)),
                   ],
@@ -167,6 +186,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ],
           ],
         ),
+
+        if (widget.mode == QueueMode.records) ...[
+          const SizedBox(height: SelSpace.x3),
+          RecordFilterBar(entries: all, arms: arms),
+        ],
 
         if (canBulk) ...[
           const SizedBox(height: SelSpace.x4),
@@ -217,7 +241,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               message: _filter == _Filter.all
                   ? 'Partnership entries will appear as your team records them.'
                   : 'No entries match this filter.',
-              actionLabel: _filter == _Filter.all ? 'Record the first entry' : null,
+              actionLabel: _filter == _Filter.all
+                  ? 'Record the first entry'
+                  : null,
               onAction: _filter == _Filter.all
                   ? () => context.go('/entries/new')
                   : null,
@@ -232,7 +258,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                           value: _selected.contains(e.id),
                           visualDensity: VisualDensity.compact,
                           onChanged: (v) => setState(() {
-                            v == true ? _selected.add(e.id) : _selected.remove(e.id);
+                            v == true
+                                ? _selected.add(e.id)
+                                : _selected.remove(e.id);
                           }),
                         )
                       : const SizedBox.shrink(),
@@ -264,7 +292,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         onDecline: () => _decline(e),
                       )
                     else
-                      SelCell.secondary(formatFirestoreDate(e.createdAt, pattern: 'd MMM')),
+                      SelCell.secondary(
+                        formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
+                      ),
                   ],
                 ),
             ],
@@ -293,10 +323,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   }
 
   String _statusLabel(String s) => switch (s) {
-        'approved' => 'Approved',
-        'declined' => 'Declined',
-        _ => 'Pending',
-      };
+    'approved' => 'Approved',
+    'declined' => 'Declined',
+    _ => 'Pending',
+  };
 
   Future<void> _approve(List<PartnershipEntry> entries) async {
     if (entries.isEmpty || _busy) return;
@@ -317,7 +347,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
     setState(() => _busy = true);
     try {
-      await ref.read(entriesRepositoryProvider).approveEntries(
+      await ref
+          .read(entriesRepositoryProvider)
+          .approveEntries(
             churchId: idx.churchId,
             entries: entries,
             pastor: pastor,
@@ -347,7 +379,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
     setState(() => _busy = true);
     try {
-      await ref.read(entriesRepositoryProvider).declineEntry(
+      await ref
+          .read(entriesRepositoryProvider)
+          .declineEntry(
             churchId: idx.churchId,
             entry: entry,
             pastor: pastor,
