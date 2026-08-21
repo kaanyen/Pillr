@@ -167,7 +167,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
       await ref.read(churchSettingsRepositoryProvider).completeSetup(churchId);
       ChurchTenantGateCache.clear();
       ref.invalidate(churchSettingsProvider);
-      if (mounted) context.go('/dashboard');
+      if (mounted) context.go('/overview');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -219,7 +219,7 @@ class _OnboardingWizardScreenState extends ConsumerState<OnboardingWizardScreen>
 
     if (idx == null || !(idx.isAdmin || idx.isPastor)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/dashboard');
+        if (mounted) context.go('/overview');
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

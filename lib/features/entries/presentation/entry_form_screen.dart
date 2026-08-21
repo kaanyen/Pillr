@@ -167,7 +167,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           if (entry == null) {
             return Center(
               child: TextButton(
-                onPressed: () => context.go('/entries'),
+                onPressed: () => context.go('/queue'),
                 child: const Text('Back to entries'),
               ),
             );

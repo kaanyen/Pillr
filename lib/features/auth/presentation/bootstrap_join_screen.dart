@@ -187,7 +187,7 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
     final user = ref.watch(authStateProvider).valueOrNull;
     if (user != null && idx != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) context.go('/dashboard');
+        if (context.mounted) context.go('/overview');
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

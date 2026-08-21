@@ -50,7 +50,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
                     PillrButton(
                       label: l10n.entryBackToEntries,
-                      onPressed: () => context.go('/entries'),
+                      onPressed: () => context.go('/queue'),
                       variant: PillrButtonVariant.secondary,
                     ),
                   ],
@@ -128,7 +128,7 @@ class EntryCreatedSuccessScreen extends ConsumerWidget {
                   ).animate().fadeIn(duration: ms(200), delay: ms(300)).slideY(begin: 0.05, end: 0),
                   const SizedBox(height: AppSpacing.sm),
                   TextButton(
-                    onPressed: () => context.go('/entries'),
+                    onPressed: () => context.go('/queue'),
                     child: Text(l10n.entryBackToEntries),
                   ).animate().fadeIn(duration: ms(180), delay: ms(340)),
                 ],

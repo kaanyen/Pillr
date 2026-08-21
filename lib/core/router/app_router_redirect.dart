@@ -60,7 +60,7 @@ FutureOr<String?> appRouterRedirect(BuildContext context, GoRouterState state) a
   }
 
   if (loc.startsWith('/platform') && !isPlatform) {
-    return '/dashboard';
+    return '/overview';
   }
 
   if (loc == '/' || loc == '/sign-in' || loc == '/login') {
@@ -68,7 +68,7 @@ FutureOr<String?> appRouterRedirect(BuildContext context, GoRouterState state) a
     if (last != null && !isPathForbiddenForRole(last, idx.role)) {
       return last;
     }
-    return '/dashboard';
+    return '/overview';
   }
 
   if (isPlatform && loc.startsWith('/platform')) {
@@ -76,7 +76,7 @@ FutureOr<String?> appRouterRedirect(BuildContext context, GoRouterState state) a
   }
 
   if (isPathForbiddenForRole(loc, idx.role)) {
-    return '/dashboard';
+    return '/overview';
   }
 
   return null;

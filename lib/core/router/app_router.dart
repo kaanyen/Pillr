@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app_router_redirect.dart';
-import '../../features/arms/presentation/arms_screen.dart';
 import '../../features/auth/presentation/bootstrap_join_screen.dart';
 import '../../features/auth/presentation/join_screen.dart';
 import '../../features/auth/presentation/landing_screen.dart';
@@ -11,27 +10,23 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/workspace_suspended_screen.dart';
 import '../../features/onboarding/presentation/onboarding_wizard_screen.dart';
 import '../../features/platform/presentation/platform_churches_screen.dart';
-import '../../features/dashboard/presentation/role_dashboard_screen.dart';
 import '../../features/entries/bulk_import/bulk_import_screen.dart';
-import '../../features/entries/presentation/entries_list_screen.dart';
 import '../../features/entries/presentation/entry_detail_screen.dart';
 import '../../features/entries/presentation/entry_created_success_screen.dart';
 import '../../features/entries/presentation/entry_form_screen.dart';
-import '../../features/entries/presentation/pending_approvals_screen.dart';
-import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/help/presentation/help_screen.dart';
-import '../../features/leaderboard/presentation/leaderboard_screen.dart';
-import '../../features/logs/presentation/activity_logs_screen.dart';
 import '../../features/partners/presentation/partner_profile_screen.dart';
-import '../../features/partners/presentation/partners_list_screen.dart';
-import '../../features/periods/presentation/periods_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/search/presentation/global_search_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
-import '../../features/users/presentation/invitations_screen.dart';
-import '../../features/users/presentation/users_list_screen.dart';
 import '../../shell/sel_shell.dart';
+import '../../screens/activity_screen.dart';
+import '../../screens/configuration_screen.dart';
+import '../../screens/goals_screen.dart';
 import '../../screens/overview_screen.dart';
+import '../../screens/partners_screen.dart';
+import '../../screens/people_screen.dart';
+import '../../screens/queue_screen.dart';
 import 'route_guards.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -94,21 +89,60 @@ GoRouter createRouter() {
       ShellRoute(
         builder: (context, state, child) => SelShell(child: child),
         routes: [
+          // ---- The seven destinations -------------------------------------
           GoRoute(
             path: '/overview',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: OverviewScreen()),
           ),
           GoRoute(
-            path: '/dashboard',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: RoleDashboardScreen()),
+            path: '/queue',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: QueueScreen(
+                initialFilter: state.uri.queryParameters['filter'],
+              ),
+            ),
           ),
           GoRoute(
-            path: '/approvals',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: PendingApprovalsScreen()),
+            path: '/partners',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: PartnersScreen(
+                initialView: state.uri.queryParameters['view'],
+              ),
+            ),
           ),
+          GoRoute(
+            path: '/partners/:id',
+            pageBuilder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return NoTransitionPage(child: PartnerProfileScreen(partnerId: id));
+            },
+          ),
+          GoRoute(
+            path: '/goals',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GoalsScreen()),
+          ),
+          GoRoute(
+            path: '/configuration',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ConfigurationScreen()),
+          ),
+          GoRoute(
+            path: '/people',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: PeopleScreen(
+                initialSection: state.uri.queryParameters['section'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/activity',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ActivityScreen()),
+          ),
+
+          // ---- Entry flows -------------------------------------------------
           GoRoute(
             path: '/entries/new',
             pageBuilder: (context, state) =>
@@ -130,13 +164,10 @@ GoRouter createRouter() {
             path: '/entries/success/:entryId',
             pageBuilder: (context, state) {
               final entryId = state.pathParameters['entryId']!;
-              return NoTransitionPage(child: EntryCreatedSuccessScreen(entryId: entryId));
+              return NoTransitionPage(
+                child: EntryCreatedSuccessScreen(entryId: entryId),
+              );
             },
-          ),
-          GoRoute(
-            path: '/entries',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: EntriesListScreen()),
           ),
           GoRoute(
             path: '/entries/:id',
@@ -145,51 +176,8 @@ GoRouter createRouter() {
               return NoTransitionPage(child: EntryDetailScreen(entryId: id));
             },
           ),
-          GoRoute(
-            path: '/partners/:id',
-            pageBuilder: (context, state) {
-              final id = state.pathParameters['id']!;
-              return NoTransitionPage(child: PartnerProfileScreen(partnerId: id));
-            },
-          ),
-          GoRoute(
-            path: '/partners',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: PartnersListScreen()),
-          ),
-          GoRoute(
-            path: '/leaderboard',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: LeaderboardScreen()),
-          ),
-          GoRoute(
-            path: '/goals',
-            pageBuilder: (context, state) => const NoTransitionPage(child: GoalsScreen()),
-          ),
-          GoRoute(
-            path: '/arms',
-            pageBuilder: (context, state) => const NoTransitionPage(child: ArmsScreen()),
-          ),
-          GoRoute(
-            path: '/periods',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: PeriodsScreen()),
-          ),
-          GoRoute(
-            path: '/users',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: UsersListScreen()),
-          ),
-          GoRoute(
-            path: '/invitations',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: InvitationsScreen()),
-          ),
-          GoRoute(
-            path: '/logs',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ActivityLogsScreen()),
-          ),
+
+          // ---- Utility -----------------------------------------------------
           GoRoute(
             path: '/settings',
             pageBuilder: (context, state) =>
@@ -207,8 +195,24 @@ GoRouter createRouter() {
           ),
           GoRoute(
             path: '/help',
-            pageBuilder: (context, state) => const NoTransitionPage(child: HelpScreen()),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HelpScreen()),
           ),
+
+          // ---- Legacy paths ------------------------------------------------
+          // The IA consolidated twelve destinations into seven. These keep old
+          // bookmarks, push notification deep links and the route-persistence
+          // cache working by landing on the merged screen, pre-filtered where
+          // the old path implied a filter.
+          GoRoute(path: '/dashboard', redirect: (_, _) => '/overview'),
+          GoRoute(path: '/entries', redirect: (_, _) => '/queue'),
+          GoRoute(path: '/approvals', redirect: (_, _) => '/queue?filter=pending'),
+          GoRoute(path: '/leaderboard', redirect: (_, _) => '/partners?view=ranked'),
+          GoRoute(path: '/arms', redirect: (_, _) => '/configuration'),
+          GoRoute(path: '/periods', redirect: (_, _) => '/configuration'),
+          GoRoute(path: '/users', redirect: (_, _) => '/people'),
+          GoRoute(path: '/invitations', redirect: (_, _) => '/people?section=invites'),
+          GoRoute(path: '/logs', redirect: (_, _) => '/activity'),
         ],
       ),
     ],

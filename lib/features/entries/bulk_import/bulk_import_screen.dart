@@ -825,7 +825,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
             ],
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: () => context.go('/entries'),
+              onPressed: () => context.go('/queue'),
               child: Text(l10n.bulkImportBack),
             ),
           ],

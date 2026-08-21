@@ -54,7 +54,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             email: _email.text,
             password: _password.text,
           );
-      if (mounted) context.go('/dashboard');
+      if (mounted) context.go('/overview');
     } catch (e) {
       setState(() => _error = humanizeAuthException(e));
     } finally {

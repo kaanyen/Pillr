@@ -132,7 +132,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       if (mounted) {
         UserChurchIndexCache.clear();
         ChurchTenantGateCache.clear();
-        context.go('/dashboard');
+        context.go('/overview');
       }
     } catch (e) {
       setState(() => _error = humanizeAuthException(e));
@@ -158,7 +158,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     final user = ref.watch(authStateProvider).valueOrNull;
     if (user != null && idx != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) context.go('/dashboard');
+        if (context.mounted) context.go('/overview');
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }

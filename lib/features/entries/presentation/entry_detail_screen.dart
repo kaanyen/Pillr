@@ -40,7 +40,7 @@ class EntryDetailScreen extends ConsumerWidget {
       data: (entry) {
         if (entry == null) {
           return Center(
-            child: TextButton(onPressed: () => context.go('/entries'), child: const Text('Back')),
+            child: TextButton(onPressed: () => context.go('/queue'), child: const Text('Back')),
           );
         }
         return SingleChildScrollView(
@@ -64,7 +64,7 @@ class EntryDetailScreen extends ConsumerWidget {
                       IconButton(
                         tooltip: 'Close',
                         icon: const Icon(LucideIcons.x, size: 22),
-                        onPressed: () => context.go('/entries'),
+                        onPressed: () => context.go('/queue'),
                       ),
                     ],
                   ),
@@ -130,7 +130,7 @@ class EntryDetailScreen extends ConsumerWidget {
                   },
                 },
               );
-              if (context.mounted) context.go('/approvals');
+              if (context.mounted) context.go('/queue?filter=pending');
             },
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -163,7 +163,7 @@ class EntryDetailScreen extends ConsumerWidget {
                   },
                 },
               );
-              if (context.mounted) context.go('/approvals');
+              if (context.mounted) context.go('/queue?filter=pending');
             },
           ),
         ],
@@ -183,7 +183,7 @@ class EntryDetailScreen extends ConsumerWidget {
           );
           if (ok != true || !context.mounted) return;
           await repo.deleteEntry(churchId: churchId, entryId: entry.id);
-          if (context.mounted) context.go('/entries');
+          if (context.mounted) context.go('/queue');
         },
       );
     }

@@ -148,7 +148,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () => context.go('/overview'),
         ),
         title: const Text('Platform · Churches'),
       ),

@@ -66,7 +66,7 @@ class GettingStartedBanner extends ConsumerWidget {
                 _CheckRow(
                   done: false,
                   label: 'Invite staff from Invitations and record your first entry',
-                  onTap: () => context.go('/invitations'),
+                  onTap: () => context.go('/people'),
                 ),
               ],
             ),

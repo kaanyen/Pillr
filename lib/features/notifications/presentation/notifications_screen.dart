@@ -38,7 +38,7 @@ class NotificationsScreen extends ConsumerWidget {
                 title: Text('$pending pending entr${pending == 1 ? 'y' : 'ies'}'),
                 subtitle: const Text('Awaiting your approval'),
                 trailing: const Icon(LucideIcons.chevronRight),
-                onTap: () => context.go('/approvals'),
+                onTap: () => context.go('/queue?filter=pending'),
               ),
             ),
           if (idx?.isStaff == true)
@@ -48,7 +48,7 @@ class NotificationsScreen extends ConsumerWidget {
                 title: const Text('Your entries'),
                 subtitle: const Text('Track pending and declined items'),
                 trailing: const Icon(LucideIcons.chevronRight),
-                onTap: () => context.go('/entries'),
+                onTap: () => context.go('/queue'),
               ),
             ),
           const SizedBox(height: AppSpacing.md),

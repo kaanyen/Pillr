@@ -257,7 +257,7 @@ class _TopBar extends ConsumerWidget {
 
   void _handleBack(BuildContext context) {
     if (currentPath == '/entries/bulk-import') {
-      context.go('/entries');
+      context.go('/queue');
       return;
     }
     if (context.canPop()) context.pop();
