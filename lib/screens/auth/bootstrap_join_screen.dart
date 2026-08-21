@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/errors/error_handler.dart';
+import '../../core/extensions/async_value_ext.dart';
 import '../../core/router/church_tenant_gate_cache.dart';
 import '../../core/router/user_church_index_cache.dart';
 import '../../core/utils/validation_utils.dart';
@@ -39,6 +40,27 @@ class BootstrapJoinScreen extends ConsumerStatefulWidget {
 }
 
 class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
+  /// True when there is a signed-in account that has no church yet.
+  ///
+  /// The router forces this account to /join and refuses every other route,
+  /// so navigating away is not an option — the only real exit is to sign out.
+  bool get _signedIn => ref.watch(authStateProvider).valueOrNull != null;
+
+  /// Leaves the screen for good.
+  ///
+  /// Plain navigation cannot escape: the redirect sees an account with no
+  /// church membership and sends it straight back here, which is why Back
+  /// appeared to do nothing. Signing out first clears that condition.
+  Future<void> _leave() async {
+    if (_signedIn) {
+      await ref.read(authRepositoryProvider).signOut();
+      UserChurchIndexCache.clear();
+      ChurchTenantGateCache.clear();
+    }
+    if (mounted) context.go('/');
+  }
+
+
   final _email = TextEditingController();
   final _code = TextEditingController();
   final _name = TextEditingController();
@@ -166,7 +188,9 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
           ? 'Enter the email your setup code was sent to.'
           : 'This is what your team will see when they sign in.',
       footer: SelLink(
-        label: _step == 2 ? 'Back to the code step' : 'Back',
+        label: _step == 2
+            ? 'Back to the code step'
+            : (_signedIn ? 'Sign out' : 'Back'),
         onTap: () {
           if (_step == 2) {
             setState(() {
@@ -174,7 +198,7 @@ class _BootstrapJoinScreenState extends ConsumerState<BootstrapJoinScreen> {
               _error = null;
             });
           } else {
-            context.go('/');
+            _leave();
           }
         },
       ),

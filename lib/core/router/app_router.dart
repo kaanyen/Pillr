@@ -104,6 +104,15 @@ GoRouter createRouter() {
             ),
           ),
           GoRoute(
+            path: '/records',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: QueueScreen(
+                mode: QueueMode.records,
+                initialFilter: state.uri.queryParameters['filter'],
+              ),
+            ),
+          ),
+          GoRoute(
             path: '/partners',
             pageBuilder: (context, state) => NoTransitionPage(
               child: PartnersScreen(
@@ -205,7 +214,7 @@ GoRouter createRouter() {
           // cache working by landing on the merged screen, pre-filtered where
           // the old path implied a filter.
           GoRoute(path: '/dashboard', redirect: (_, _) => '/overview'),
-          GoRoute(path: '/entries', redirect: (_, _) => '/queue'),
+          GoRoute(path: '/entries', redirect: (_, _) => '/records'),
           GoRoute(path: '/approvals', redirect: (_, _) => '/queue?filter=pending'),
           GoRoute(path: '/leaderboard', redirect: (_, _) => '/partners?view=ranked'),
           GoRoute(path: '/arms', redirect: (_, _) => '/configuration'),

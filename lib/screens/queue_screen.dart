@@ -26,11 +26,30 @@ enum _Filter { all, pending, approved, declined }
 /// Now it is one list with a status filter. When the filter includes pending
 /// rows and the viewer is a pastor, the review actions appear inline on those
 /// rows — so approving never costs a navigation.
+/// Which job this screen is doing.
+///
+/// Same records, two purposes. A work queue opens on what still needs a
+/// decision; an archive opens on everything. Splitting them into separate
+/// destinations means neither has to be reached through the other.
+enum QueueMode {
+  /// Things awaiting action. Opens filtered to pending.
+  queue,
+
+  /// Every entry ever recorded. Opens unfiltered.
+  records,
+}
+
 class QueueScreen extends ConsumerStatefulWidget {
-  const QueueScreen({super.key, this.initialFilter});
+  const QueueScreen({
+    super.key,
+    this.initialFilter,
+    this.mode = QueueMode.queue,
+  });
 
   /// Lets `/approvals` land here pre-filtered instead of 404ing.
   final String? initialFilter;
+
+  final QueueMode mode;
 
   @override
   ConsumerState<QueueScreen> createState() => _QueueScreenState();
@@ -41,7 +60,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     'pending' => _Filter.pending,
     'approved' => _Filter.approved,
     'declined' => _Filter.declined,
-    _ => _Filter.all,
+    'all' => _Filter.all,
+    // No explicit filter: the queue opens on what needs a decision, records
+    // opens on everything.
+    _ => widget.mode == QueueMode.queue ? _Filter.pending : _Filter.all,
   };
 
   String? _armId;
@@ -75,8 +97,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       onRefresh: () async => ref.invalidate(entriesListProvider),
       children: [
         SelPageTitle(
-          title: 'Queue',
-          subtitle: 'Every partnership entry for your church, newest first.',
+          title: widget.mode == QueueMode.queue ? 'Queue' : 'Records',
+          subtitle: widget.mode == QueueMode.queue
+              ? 'Entries waiting on a decision.'
+              : 'Every partnership entry for your church, newest first.',
           actions: [
             if (idx?.isStaff == true || isPastor)
               SelButton.cyan(

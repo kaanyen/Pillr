@@ -68,6 +68,7 @@ List<SelNavGroup> navGroupsFor(UserChurchIndex? idx, {bool platformAdmin = false
       SelNavGroup(null, [
         SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
         SelNavItem('/queue', 'Queue', LucideIcons.inbox, badgeKey: 'pending'),
+        SelNavItem('/records', 'Records', LucideIcons.fileText),
       ]),
       SelNavGroup('Partnership', [
         SelNavItem('/partners', 'Partners', LucideIcons.users),
@@ -83,6 +84,7 @@ List<SelNavGroup> navGroupsFor(UserChurchIndex? idx, {bool platformAdmin = false
       SelNavGroup(null, [
         SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
         SelNavItem('/queue', 'Queue', LucideIcons.inbox),
+        SelNavItem('/records', 'Records', LucideIcons.fileText),
         SelNavItem('/partners', 'Partners', LucideIcons.users),
       ]),
     ]);
@@ -112,14 +114,15 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx) {
     return const [
       SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
       SelNavItem('/queue', 'Queue', LucideIcons.inbox, badgeKey: 'pending'),
+      SelNavItem('/records', 'Records', LucideIcons.fileText),
       SelNavItem('/partners', 'Partners', LucideIcons.users),
-      SelNavItem('/goals', 'Goals', LucideIcons.target),
       SelNavItem('/settings', 'Settings', LucideIcons.settings),
     ];
   }
   return const [
     SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
     SelNavItem('/queue', 'Queue', LucideIcons.inbox),
+    SelNavItem('/records', 'Records', LucideIcons.fileText),
     SelNavItem('/partners', 'Partners', LucideIcons.users),
     SelNavItem('/settings', 'Settings', LucideIcons.settings),
   ];

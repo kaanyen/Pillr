@@ -18,6 +18,7 @@ bool isPathForbiddenForRole(String location, String role) {
     // Admin runs the workspace but has no access to financial records.
     case 'admin':
       if (starts('/queue')) return true;
+      if (starts('/records')) return true;
       if (starts('/entries')) return true;
       if (starts('/partners')) return true;
       if (starts('/goals')) return true;
