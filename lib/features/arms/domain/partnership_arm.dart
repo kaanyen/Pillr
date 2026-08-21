@@ -12,6 +12,7 @@ class PartnershipArm {
     required this.isActive,
     this.colorHex,
     required this.sortOrder,
+    this.aliases = const [],
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
@@ -24,6 +25,14 @@ class PartnershipArm {
   final bool isActive;
   final String? colorHex;
   final int sortOrder;
+
+  /// Spreadsheet spellings a church has already mapped to this arm.
+  ///
+  /// Bulk import writes here when someone resolves an unmatched value, so the
+  /// same wording resolves by itself next month. Stored normalised (lowercase,
+  /// collapsed whitespace) because that is how they are compared.
+  final List<String> aliases;
+
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -38,6 +47,10 @@ class PartnershipArm {
       isActive: m['isActive'] as bool? ?? true,
       colorHex: m['colorHex'] as String?,
       sortOrder: (m['sortOrder'] as num?)?.toInt() ?? 0,
+      aliases: ((m['aliases'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .where((e) => e.trim().isNotEmpty)
+          .toList(),
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),

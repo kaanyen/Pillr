@@ -86,6 +86,24 @@ class ArmsRepository {
     });
   }
 
+  /// Records a spreadsheet spelling that resolves to [armId].
+  ///
+  /// Uses [FieldValue.arrayUnion] so concurrent imports cannot clobber each
+  /// other's mappings, and stores the normalised form because that is what the
+  /// matcher compares against.
+  Future<void> rememberArmAlias({
+    required String churchId,
+    required String armId,
+    required String alias,
+  }) async {
+    final normalized = alias.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) return;
+    await _arms(churchId).doc(armId).update({
+      'aliases': FieldValue.arrayUnion([normalized]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> deleteArm({
     required String churchId,
     required String armId,
