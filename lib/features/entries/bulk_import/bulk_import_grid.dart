@@ -433,17 +433,37 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       widget.keptSheetRows.contains(sheetRow) ||
       widget.droppedSheetRows.contains(sheetRow);
 
+  /// Brings a row into view and marks it.
+  ///
+  /// Scrolling to `index * rowHeight` puts the row at the top of the viewport,
+  /// which is impossible for anything near the end of the sheet — every one of
+  /// those clamps to the same maximum offset, so clicking row 50, 75 and 76 in
+  /// the panel all landed in exactly the same place. This scrolls the minimum
+  /// distance needed instead, and leaves the row alone if it is already on
+  /// screen.
   void _jumpToRow(int rowIndex) {
     if (_vertical.hasClients) {
-      final target = (rowIndex * _rowHeight).clamp(
-        0.0,
-        _vertical.position.maxScrollExtent,
-      );
-      _vertical.animateTo(
-        target,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      const margin = _rowHeight * 2;
+      final position = _vertical.position;
+      final rowTop = rowIndex * _rowHeight;
+      final rowBottom = rowTop + _rowHeight;
+      final viewTop = _vertical.offset;
+      final viewBottom = viewTop + position.viewportDimension;
+
+      double? target;
+      if (rowTop < viewTop + margin) {
+        target = rowTop - margin;
+      } else if (rowBottom > viewBottom - margin) {
+        target = rowBottom - position.viewportDimension + margin;
+      }
+
+      if (target != null) {
+        _vertical.animateTo(
+          target.clamp(0.0, position.maxScrollExtent),
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOut,
+        );
+      }
     }
     setState(() => _flashRow = rowIndex);
   }
@@ -1218,7 +1238,9 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InkWell(
+          _HoverRow(
+            tint: g.color,
+            strength: 0.08,
             onTap: () => _toggle(g.id),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -1320,7 +1342,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
   List<Widget> _fixBody(_Group g) => [
     for (final p in g.proposals.take(6))
-      _FixPreview(proposal: p, onTap: () => widget.onJumpToRow(p.rowIndex)),
+      _FixPreview(
+        proposal: p,
+        tint: g.color,
+        onTap: () => widget.onJumpToRow(p.rowIndex),
+      ),
     if (g.proposals.length > 6)
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1372,7 +1398,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     if (g.proposals.isNotEmpty && !canBulkMapArm) {
       return [
         for (final p in g.proposals.take(8))
-          _FixPreview(proposal: p, onTap: () => widget.onJumpToRow(p.rowIndex)),
+          _FixPreview(
+            proposal: p,
+            tint: g.color,
+            onTap: () => widget.onJumpToRow(p.rowIndex),
+          ),
         if (g.proposals.length > 8)
           Padding(
             padding: const EdgeInsets.fromLTRB(
@@ -1471,6 +1501,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   List<Widget> _duplicateBody(_Group g) => [
     for (final i in g.rows)
       _DuplicateRow(
+        tint: g.color,
         sheetRow: widget.rawRows[i].sheetRowNumber,
         summary: _rowSummary(i),
         message: _duplicateMessage(i),
@@ -1518,7 +1549,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   }
 
   Widget _rowLine(int i, Color color) {
-    return InkWell(
+    return _HoverRow(
+      tint: color,
       onTap: () => widget.onJumpToRow(i),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: SelSpace.x1),
@@ -1561,14 +1593,20 @@ String _monthName(int m) => const [
 ][(m - 1).clamp(0, 11)];
 
 class _FixPreview extends StatelessWidget {
-  const _FixPreview({required this.proposal, required this.onTap});
+  const _FixPreview({
+    required this.proposal,
+    required this.onTap,
+    required this.tint,
+  });
 
   final AutoFixProposal proposal;
   final VoidCallback onTap;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return _HoverRow(
+      tint: tint,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1617,6 +1655,7 @@ class _FixPreview extends StatelessWidget {
 /// A suspected duplicate: keep it or drop it — and change your mind after.
 class _DuplicateRow extends StatelessWidget {
   const _DuplicateRow({
+    required this.tint,
     required this.sheetRow,
     required this.summary,
     required this.message,
@@ -1629,6 +1668,7 @@ class _DuplicateRow extends StatelessWidget {
     required this.onUndo,
   });
 
+  final Color tint;
   final int sheetRow;
   final String summary;
   final String message;
@@ -1643,7 +1683,8 @@ class _DuplicateRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final decided = kept || dropped;
-    return InkWell(
+    return _HoverRow(
+      tint: tint,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -1771,6 +1812,57 @@ class _ArmAssign extends StatelessWidget {
               const Icon(LucideIcons.chevronDown, size: 12, color: Sel.ash),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A clickable line in the issues panel that says so on hover.
+///
+/// [InkWell] cannot do this here: ink paints on the nearest [Material], which
+/// is behind the opaque panel card, so the tint never reaches the surface you
+/// are actually looking at. This paints its own background instead — the same
+/// hue as the problem the row belongs to, so hovering also says which group it
+/// came from.
+class _HoverRow extends StatefulWidget {
+  const _HoverRow({
+    required this.tint,
+    required this.onTap,
+    required this.child,
+    this.strength = 0.13,
+  });
+
+  final Color tint;
+  final VoidCallback onTap;
+  final Widget child;
+  final double strength;
+
+  @override
+  State<_HoverRow> createState() => _HoverRowState();
+}
+
+class _HoverRowState extends State<_HoverRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          decoration: BoxDecoration(
+            color: _hovering
+                ? widget.tint.withValues(alpha: widget.strength)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(SelRadius.card),
+          ),
+          child: widget.child,
         ),
       ),
     );
