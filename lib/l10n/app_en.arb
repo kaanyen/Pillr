@@ -148,7 +148,7 @@
   },
   "bulkImportStaffPastorNote": "Rows marked YES will stay pending until a pastor approves them.",
   "bulkImportPreview": "Rows",
-  "bulkImportBlocking": "Fix blocking errors before importing (see row chips).",
+  "bulkImportBlocking": "Resolve the problems above before importing.",
   "bulkImportNoActivePeriod": "No active partnership period. A pastor must activate a period first.",
   "bulkImportRowNum": "Row {n}",
   "@bulkImportRowNum": {

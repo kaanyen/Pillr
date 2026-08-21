@@ -311,7 +311,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bulkImportBlocking =>
-      'Corrigez les erreurs bloquantes avant l\'import (voir les pastilles par ligne).';
+      'Résolvez les problèmes ci-dessus avant d’importer.';
 
   @override
   String get bulkImportNoActivePeriod =>

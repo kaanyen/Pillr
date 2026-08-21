@@ -319,7 +319,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportBlocking =>
-      'Fix blocking errors before importing (see row chips).';
+      'Resolve the problems above before importing.';
 
   @override
   String get bulkImportNoActivePeriod =>

@@ -629,7 +629,7 @@ abstract class AppLocalizations {
   /// No description provided for @bulkImportBlocking.
   ///
   /// In en, this message translates to:
-  /// **'Fix blocking errors before importing (see row chips).'**
+  /// **'Resolve the problems above before importing.'**
   String get bulkImportBlocking;
 
   /// No description provided for @bulkImportNoActivePeriod.

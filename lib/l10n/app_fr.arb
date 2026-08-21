@@ -87,7 +87,7 @@
   "bulkImportStatPastorYes": "Lignes marquées OUI (confirmées pasteur) : {count}",
   "bulkImportStaffPastorNote": "Les lignes marquées OUI restent en attente jusqu'à approbation par un pasteur.",
   "bulkImportPreview": "Lignes",
-  "bulkImportBlocking": "Corrigez les erreurs bloquantes avant l'import (voir les pastilles par ligne).",
+  "bulkImportBlocking": "Résolvez les problèmes ci-dessus avant d’importer.",
   "bulkImportNoActivePeriod": "Aucune période de partenariat active. Un pasteur doit activer une période d'abord.",
   "bulkImportRowNum": "Ligne {n}",
   "bulkImportFieldPartner": "Partenaire",
