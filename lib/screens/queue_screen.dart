@@ -60,15 +60,17 @@ class QueueScreen extends ConsumerStatefulWidget {
 }
 
 class _QueueScreenState extends ConsumerState<QueueScreen> {
-  late _Filter _filter = switch (widget.initialFilter) {
-    'pending' => _Filter.pending,
-    'approved' => _Filter.approved,
-    'declined' => _Filter.declined,
-    'all' => _Filter.all,
-    // No explicit filter: the queue opens on what needs a decision, records
-    // opens on everything.
-    _ => widget.mode == QueueMode.queue ? _Filter.pending : _Filter.all,
-  };
+  // The queue is only ever what still needs a decision — not even a ?filter=
+  // in the URL can widen it, because "the queue" that sometimes shows settled
+  // entries is a queue nobody trusts to be empty when it says it is empty.
+  late _Filter _filter = widget.mode == QueueMode.queue
+      ? _Filter.pending
+      : switch (widget.initialFilter) {
+          'pending' => _Filter.pending,
+          'approved' => _Filter.approved,
+          'declined' => _Filter.declined,
+          _ => _Filter.all,
+        };
 
   String? _armId;
   final Set<String> _selected = {};
@@ -237,16 +239,26 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               ),
             ],
             emptyState: SelEmpty(
-              title: _filter == _Filter.all ? 'No entries yet' : 'Nothing here',
-              message: _filter == _Filter.all
-                  ? 'Partnership entries will appear as your team records them.'
-                  : 'No entries match this filter.',
-              actionLabel: _filter == _Filter.all
-                  ? 'Record the first entry'
-                  : null,
-              onAction: _filter == _Filter.all
-                  ? () => context.go('/entries/new')
-                  : null,
+              // An empty queue is good news, not a failed search — say so.
+              title: switch (widget.mode) {
+                QueueMode.queue => 'All caught up',
+                QueueMode.records =>
+                  _filter == _Filter.all ? 'No entries yet' : 'Nothing here',
+              },
+              message: switch (widget.mode) {
+                QueueMode.queue => 'Nothing is waiting on a decision.',
+                QueueMode.records => _filter == _Filter.all
+                    ? 'Partnership entries will appear as your team records them.'
+                    : 'Nothing matches what you picked above.',
+              },
+              actionLabel:
+                  widget.mode == QueueMode.records && _filter == _Filter.all
+                      ? 'Record the first entry'
+                      : null,
+              onAction:
+                  widget.mode == QueueMode.records && _filter == _Filter.all
+                      ? () => context.go('/entries/new')
+                      : null,
             ),
             rows: [
               for (final e in rows)

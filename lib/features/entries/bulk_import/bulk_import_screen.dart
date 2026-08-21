@@ -83,8 +83,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   bool _restoringSession = false;
   String? _error;
 
-  /// Sheet row numbers the user has confirmed are intentional (not a duplicate).
+  /// Sheet rows confirmed as intentional (not an accidental double-entry).
   final Set<int> _duplicateAcknowledgedSheetRows = {};
+
+  /// Sheet rows set aside. Kept in the grid, greyed out and struck through,
+  /// rather than deleted — a decision you cannot take back is one people
+  /// hesitate over.
+  final Set<int> _droppedSheetRows = {};
 
   String? _fileName;
   Uint8List? _fileBytes;
@@ -169,6 +174,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       fileIssues: _fileIssues,
       duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
       mapping: _mapping,
+      droppedSheetRows: _droppedSheetRows,
     );
   }
 
@@ -206,6 +212,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _duplicateAcknowledgedSheetRows
         ..clear()
         ..addAll(saved.duplicateAcknowledgedSheetRows);
+      _droppedSheetRows
+        ..clear()
+        ..addAll(saved.droppedSheetRows);
       _result = null;
       _resolved = null;
       _step = _Step.resolve;
@@ -279,9 +288,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     );
   }
 
+  /// The rows that will be imported — everything not set aside.
+  List<BulkResolvedRow> get _liveRows => [
+        for (final r in _resolved ?? const <BulkResolvedRow>[])
+          if (!_droppedSheetRows.contains(r.sheetRowNumber)) r,
+      ];
+
+  /// A suspected duplicate holds up the import until someone says which it
+  /// is. Importing money twice is not a warning-level mistake.
   bool _duplicatesFullyAcknowledged() {
     if (_resolved == null) return false;
-    for (final r in _resolved!) {
+    for (final r in _liveRows) {
       if (_rowHasDuplicateIssue(r) &&
           !_duplicateAcknowledgedSheetRows.contains(r.sheetRowNumber)) {
         return false;
@@ -289,6 +306,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     }
     return true;
   }
+
+  void _keepRow(int sheetRow) => setState(() {
+        _droppedSheetRows.remove(sheetRow);
+        _duplicateAcknowledgedSheetRows.add(sheetRow);
+      });
+
+  void _dropRow(int sheetRow) => setState(() {
+        _duplicateAcknowledgedSheetRows.remove(sheetRow);
+        _droppedSheetRows.add(sheetRow);
+      });
+
+  void _undoRowDecision(int sheetRow) => setState(() {
+        _droppedSheetRows.remove(sheetRow);
+        _duplicateAcknowledgedSheetRows.remove(sheetRow);
+      });
 
   int _countNonDuplicateWarnings(List<BulkResolvedRow> rows) {
     var n = 0;
@@ -395,6 +427,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _fileBytes = null;
       _error = null;
       _duplicateAcknowledgedSheetRows.clear();
+      _droppedSheetRows.clear();
       _pendingDraft = null;
       _step = _Step.upload;
     });
@@ -579,8 +612,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final columns = _mapping.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
 
-    final blocking = resolved.any((r) => r.isBlocking);
+    final live = _liveRows;
+    final blocking = live.any((r) => r.isBlocking);
     final duplicatesPending = !_duplicatesFullyAcknowledged();
+    final money = ref.watch(churchMoneyFormatProvider);
 
     return Padding(
       // The shell's utility cluster floats over the top-right of the canvas,
@@ -604,8 +639,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     Text('Check the sheet', style: SelType.title),
                     const SizedBox(height: SelSpace.x1),
                     Text(
-                      '${resolved.length} rows from ${_fileName ?? "your file"} '
-                      '— click any cell to change it.',
+                      live.length == resolved.length
+                          ? '${resolved.length} rows from '
+                              '${_fileName ?? "your file"} — click any cell '
+                              'to change it.'
+                          : '${live.length} of ${resolved.length} rows will be '
+                              'imported — click any cell to change it.',
                       style: SelType.bodyMuted,
                     ),
                   ],
@@ -640,14 +679,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               arms: arms,
               dayFirst: _dayFirst,
               busy: _loadingPartners || _committing,
-              issueLabel: (code) => _issueLabel(l10n, code),
-              acknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
-              onAcknowledgeDuplicate: (sheetRow) =>
-                  setState(() => _duplicateAcknowledgedSheetRows.add(sheetRow)),
+              money: (v) => v == v.roundToDouble()
+                  ? money(v).replaceAll(RegExp(r'\.00$'), '')
+                  : money(v),
+              keptSheetRows: _duplicateAcknowledgedSheetRows,
+              droppedSheetRows: _droppedSheetRows,
               onEditCell: _editRawCell,
               onApplyFixes: _applyFixes,
               onDayFirstChanged: (v) => setState(() => _dayFirst = v),
-              onRemoveRow: (i) => _confirmRemoveRow(context, l10n, i),
+              onKeepRow: _keepRow,
+              onDropRow: _dropRow,
+              onUndoDecision: _undoRowDecision,
               onBulkMapArm: _bulkMapArm,
             ),
           ),
@@ -669,15 +711,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 Padding(
                   padding: const EdgeInsets.only(right: SelSpace.x3),
                   child: Text(
-                    'Say whether the possible duplicates should be kept.',
+                    'Say keep or drop for the rows that might already exist.',
                     style: SelType.small,
                   ),
+                )
+              else if (live.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text('Every row was left out.', style: SelType.small),
                 ),
               SelButton.cyan(
                 label: 'Continue',
-                onPressed: blocking || duplicatesPending || _loadingPartners
-                    ? null
-                    : () => setState(() => _step = _Step.confirm),
+                onPressed:
+                    blocking || duplicatesPending || _loadingPartners || live.isEmpty
+                        ? null
+                        : () => setState(() => _step = _Step.confirm),
               ),
             ],
           ),
@@ -707,8 +755,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           sheetRowNumber: row.sheetRowNumber,
           valuesByColumn: values,
         );
-      // An edited row is a different row: whatever was forgiven about the old
-      // one no longer applies.
+      // An edited row is a different row, so a "keep" given to the old one no
+      // longer means anything. A drop is a decision about the row itself and
+      // survives.
       _duplicateAcknowledgedSheetRows.remove(row.sheetRowNumber);
     });
     await _reResolve();
@@ -752,7 +801,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       );
     }
 
-    final blocking = resolved.any((r) => r.isBlocking);
+    final live = _liveRows;
+    final blocking = live.any((r) => r.isBlocking);
     final duplicatesPending = !_duplicatesFullyAcknowledged();
     final otherWarnings = _countNonDuplicateWarnings(resolved);
     return Column(
@@ -808,8 +858,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     AppLocalizations l10n,
     UserChurchIndex idx,
   ) {
-    final resolved = _resolved;
-    if (resolved == null) return const SizedBox.shrink();
+    if (_resolved == null) return const SizedBox.shrink();
+    final resolved = _liveRows;
     final period = ref.watch(activePeriodProvider);
 
     return Column(
@@ -1905,8 +1955,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final profile = ref.read(churchUserProfileProvider).valueOrNull;
-    final resolved = _resolved;
-    if (profile == null || resolved == null) return;
+    if (profile == null || _resolved == null) return;
+    // Rows the user set aside never reach Firestore.
+    final resolved = _liveRows;
 
     final progressNotifier = ref.read(
       bulkImportCommitProgressProvider.notifier,
