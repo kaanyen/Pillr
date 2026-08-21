@@ -67,6 +67,12 @@ abstract final class SelTheme {
       textTheme: SelType.textTheme(),
       fontFamily: SelType.text,
       splashFactory: NoSplash.splashFactory,
+      // Material's defaults are a 4%-black wash, which is off-palette in a
+      // warm-neutral system — it renders #F5F5F5 rather than a stone tone.
+      // Components declare their own hover treatment explicitly.
+      hoverColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
     );
 
     return base.copyWith(

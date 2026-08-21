@@ -70,6 +70,12 @@ class SelField extends StatelessWidget {
       cursorColor: Sel.ink,
       cursorWidth: 1.5,
       decoration: InputDecoration(
+        // Set explicitly rather than inheriting: a Material fallback fill
+        // (grey.shade100) leaks through on some field configurations, which
+        // showed up as one input in a form rendering grey while its
+        // neighbours rendered white.
+        filled: true,
+        fillColor: enabled ? Sel.card : Sel.canvas,
         hintText: hint,
         errorText: errorText,
         helperText: helper,
