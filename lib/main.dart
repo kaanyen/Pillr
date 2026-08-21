@@ -2,6 +2,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -12,6 +13,11 @@ import 'services/firebase_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Real paths (/queue) rather than hash routes (/#/queue). The Firebase
+  // Hosting config already rewrites ** to index.html, which is what this
+  // needs; without it the address bar does not track in-app navigation, so
+  // browser back/forward and copied links behave unpredictably.
+  usePathUrlStrategy();
   await Hive.initFlutter();
   await ensureFirebaseInitialized();
   if (!kIsWeb) {
