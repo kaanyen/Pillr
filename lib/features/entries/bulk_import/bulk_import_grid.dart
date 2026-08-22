@@ -1580,14 +1580,15 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            // A resting hint that the line leads somewhere. Hover alone is not
-            // an affordance: you have to already know to hover.
+            // A resting hint that the line leads somewhere. Hover alone is
+            // not an affordance: you have to already know to hover. At the
+            // hairline colour it was invisible, which is the same as absent.
             Padding(
               padding: const EdgeInsets.only(left: SelSpace.x2),
               child: Icon(
                 LucideIcons.chevronRight,
-                size: 12,
-                color: hovering ? color : Sel.border,
+                size: 13,
+                color: hovering ? color : Sel.ash,
               ),
             ),
           ],
