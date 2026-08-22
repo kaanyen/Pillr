@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -272,6 +274,13 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   /// Problem the pointer is over, so its rows stand out in the sheet.
   String? _hoverGroup;
 
+  /// The cell the user last opened for editing, and a serial that changes on
+  /// every open. The panel watches this to bring the matching problem into
+  /// view — clicking a cell and hunting for its explanation in a panel that
+  /// did not move is the same as having no explanation.
+  (int, BulkImportColumn)? _focusCell;
+  int _focusSerial = 0;
+
   bool _panelOpen = true;
 
   @override
@@ -494,6 +503,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       _editingColumn = column;
       _editor = editor;
       _editorFocus = focus;
+      _focusCell = (rowIndex, column);
+      _focusSerial++;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => focus.requestFocus());
   }
@@ -585,6 +596,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
               onBulkMapArm: widget.onBulkMapArm,
               onHoverGroup: (id) => setState(() => _hoverGroup = id),
               onCollapse: () => setState(() => _panelOpen = false),
+              focusCell: _focusCell,
+              focusSerial: _focusSerial,
             ),
           )
         else
@@ -1092,6 +1105,8 @@ class _IssuesPanel extends StatefulWidget {
     required this.onBulkMapArm,
     required this.onHoverGroup,
     required this.onCollapse,
+    required this.focusCell,
+    required this.focusSerial,
   });
 
   final List<_Group> groups;
@@ -1113,12 +1128,29 @@ class _IssuesPanel extends StatefulWidget {
   final void Function(String?) onHoverGroup;
   final VoidCallback onCollapse;
 
+  /// The cell just opened for editing in the sheet, and a serial that changes
+  /// on every open so clicking the same cell twice still brings its card back.
+  final (int, BulkImportColumn)? focusCell;
+  final int focusSerial;
+
   @override
   State<_IssuesPanel> createState() => _IssuesPanelState();
 }
 
 class _IssuesPanelState extends State<_IssuesPanel> {
   final Set<String> _collapsed = {};
+  final ScrollController _list = ScrollController();
+
+  /// One key per group card, so a card can be scrolled to by id.
+  final Map<String, GlobalKey> _cardKeys = {};
+
+  /// The card and line lit after a jump from the sheet. Held for a moment and
+  /// then let go: a highlight that never fades stops meaning "this one".
+  String? _flashGroup;
+  int? _flashRow;
+  Timer? _flashTimer;
+
+  GlobalKey _cardKey(String id) => _cardKeys.putIfAbsent(id, () => GlobalKey());
 
   bool _isOpen(String key) => !_collapsed.contains(key);
   void _toggle(String key) => setState(() {
@@ -1126,13 +1158,78 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   });
 
   @override
+  void dispose() {
+    _flashTimer?.cancel();
+    _list.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_IssuesPanel old) {
+    super.didUpdateWidget(old);
+    if (widget.focusSerial != old.focusSerial) _revealFocusedCell();
+  }
+
+  /// Opens the problem that named the cell being edited, scrolls its card into
+  /// view and lights the line for that row.
+  ///
+  /// A cell can be named by more than one group — a bad amount is both a
+  /// problem and, often, something we can repair. The blocking problem wins:
+  /// it is the one that stops the import.
+  void _revealFocusedCell() {
+    final focus = widget.focusCell;
+    if (focus == null) return;
+    final (row, column) = focus;
+
+    _Group? target;
+    for (final g in widget.groups) {
+      if (g.column != column || !g.rows.contains(row)) continue;
+      if (target == null ||
+          (g.kind != _GroupKind.fix && target.kind == _GroupKind.fix)) {
+        target = g;
+      }
+    }
+    if (target == null) return;
+
+    final id = target.id;
+    setState(() {
+      _collapsed.remove(id);
+      _flashGroup = id;
+      _flashRow = row;
+    });
+
+    // After the frame, so a card that was collapsed has its open height.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _cardKeys[id]?.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.05,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOut,
+      );
+    });
+
+    _flashTimer?.cancel();
+    _flashTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (!mounted) return;
+      setState(() {
+        _flashGroup = null;
+        _flashRow = null;
+      });
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final blocking = widget.groups.where((g) => g.blocking).toList();
     final undecided = _undecidedDuplicates();
 
+    // The panel sits on the warm canvas rather than on white, so that each
+    // problem below can be its own white card. White on white is not a card.
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Sel.card,
+        color: Sel.canvas,
         border: Border.all(color: Sel.border),
         borderRadius: BorderRadius.circular(SelRadius.card),
       ),
@@ -1170,12 +1267,17 @@ class _IssuesPanelState extends State<_IssuesPanel> {
               ],
             ),
           ),
-          const Divider(height: 1, color: Sel.borderMuted),
+          const Divider(height: 1, color: Sel.border),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: SelSpace.x2),
+              controller: _list,
+              padding: const EdgeInsets.all(SelSpace.x3),
               children: [
-                for (final g in widget.groups) _group(g),
+                for (final g in widget.groups)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: SelSpace.x3),
+                    child: _group(g),
+                  ),
                 if (widget.groups.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(SelSpace.x4),
@@ -1239,115 +1341,143 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
   Widget _group(_Group g) {
     final open = _isOpen(g.id);
+    final flashing = _flashGroup == g.id;
+    // Each problem is its own card: one thing to read, one thing to open, and
+    // a shape the panel can scroll to when you click the cell it belongs to.
     return MouseRegion(
       onEnter: (_) => widget.onHoverGroup(g.id),
       onExit: (_) => widget.onHoverGroup(null),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _HoverRow(
-            tint: g.color,
-            strength: 0.08,
-            onTap: () => _toggle(g.id),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                SelSpace.x4,
-                SelSpace.x3,
-                SelSpace.x3,
-                SelSpace.x3,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Icon(
-                      open ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                      size: 13,
-                      color: Sel.ash,
-                    ),
-                  ),
-                  const SizedBox(width: SelSpace.x2),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Container(
-                      height: 7,
-                      width: 7,
-                      decoration: BoxDecoration(
-                        color: g.color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: SelSpace.x2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          g.title,
-                          style: SelType.small.copyWith(color: Sel.ink),
-                        ),
-                        Text(
-                          '${g.rows.length} ${g.rows.length == 1 ? "row" : "rows"}',
-                          style: SelType.small,
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (g.proposals.isNotEmpty)
-                    SelButton(
-                      label: g.kind == _GroupKind.fix
-                          ? 'Fix all'
-                          : 'Fix ${g.proposals.length}',
-                      // Ghost, not quiet: these are the actions the panel
-                      // exists to offer, and as bare text they read as
-                      // captions rather than buttons.
-                      kind: SelButtonKind.ghost,
-                      dense: true,
-                      onPressed: widget.busy
-                          ? null
-                          : () => widget.onApplyFixes(g.proposals),
-                    )
-                  else if (g.kind == _GroupKind.duplicate &&
-                      _undecidedDuplicates().isNotEmpty)
-                    SelButton(
-                      label: 'Keep all',
-                      kind: SelButtonKind.ghost,
-                      dense: true,
-                      onPressed: widget.busy
-                          ? null
-                          : () {
-                              for (final i in _undecidedDuplicates()) {
-                                widget.onKeepRow(
-                                  widget.rawRows[i].sheetRowNumber,
-                                );
-                              }
-                            },
-                    ),
-                ],
-              ),
-            ),
+      child: AnimatedContainer(
+        key: _cardKey(g.id),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Sel.card,
+          border: Border.all(
+            color: flashing ? g.color : Sel.border,
+            width: flashing ? 1.5 : 1,
           ),
-          if (open) ...[
-            if (g.help.isNotEmpty)
-              Padding(
+          borderRadius: BorderRadius.circular(SelRadius.card),
+          boxShadow: flashing
+              ? [
+                  BoxShadow(
+                    color: g.color.withValues(alpha: 0.16),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : SelShadow.hairline,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _HoverRow(
+              tint: g.color,
+              strength: 0.08,
+              onTap: () => _toggle(g.id),
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(
-                  SelSpace.x10,
-                  0,
                   SelSpace.x4,
                   SelSpace.x3,
+                  SelSpace.x3,
+                  SelSpace.x3,
                 ),
-                child: Text(g.help, style: SelType.small),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Icon(
+                        open
+                            ? LucideIcons.chevronDown
+                            : LucideIcons.chevronRight,
+                        size: 13,
+                        color: Sel.ash,
+                      ),
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(
+                        height: 7,
+                        width: 7,
+                        decoration: BoxDecoration(
+                          color: g.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            g.title,
+                            style: SelType.small.copyWith(color: Sel.ink),
+                          ),
+                          Text(
+                            '${g.rows.length} ${g.rows.length == 1 ? "row" : "rows"}',
+                            style: SelType.small,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (g.proposals.isNotEmpty)
+                      SelButton(
+                        label: g.kind == _GroupKind.fix
+                            ? 'Fix all'
+                            : 'Fix ${g.proposals.length}',
+                        // Ghost, not quiet: these are the actions the panel
+                        // exists to offer, and as bare text they read as
+                        // captions rather than buttons.
+                        kind: SelButtonKind.ghost,
+                        dense: true,
+                        onPressed: widget.busy
+                            ? null
+                            : () => widget.onApplyFixes(g.proposals),
+                      )
+                    else if (g.kind == _GroupKind.duplicate &&
+                        _undecidedDuplicates().isNotEmpty)
+                      SelButton(
+                        label: 'Keep all',
+                        kind: SelButtonKind.ghost,
+                        dense: true,
+                        onPressed: widget.busy
+                            ? null
+                            : () {
+                                for (final i in _undecidedDuplicates()) {
+                                  widget.onKeepRow(
+                                    widget.rawRows[i].sheetRowNumber,
+                                  );
+                                }
+                              },
+                      ),
+                  ],
+                ),
               ),
-            ...switch (g.kind) {
-              _GroupKind.fix => _fixBody(g),
-              _GroupKind.duplicate => _duplicateBody(g),
-              _GroupKind.problem => _problemBody(g),
-            },
+            ),
+            if (open) ...[
+              if (g.help.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    SelSpace.x8,
+                    0,
+                    SelSpace.x4,
+                    SelSpace.x3,
+                  ),
+                  child: Text(g.help, style: SelType.small),
+                ),
+              ...switch (g.kind) {
+                _GroupKind.fix => _fixBody(g),
+                _GroupKind.duplicate => _duplicateBody(g),
+                _GroupKind.problem => _problemBody(g),
+              },
+              const SizedBox(height: SelSpace.x1),
+            ],
           ],
-          const Divider(height: 1, color: Sel.borderMuted),
-        ],
+        ),
       ),
     );
   }
@@ -1357,12 +1487,13 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       _FixPreview(
         proposal: p,
         tint: g.color,
+        highlighted: _flashRow == p.rowIndex && _flashGroup == g.id,
         onTap: () => widget.onJumpToRow(p.rowIndex),
       ),
     if (g.proposals.length > 6)
       Padding(
         padding: const EdgeInsets.fromLTRB(
-          SelSpace.x10,
+          SelSpace.x8,
           SelSpace.x1,
           SelSpace.x4,
           SelSpace.x2,
@@ -1372,7 +1503,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     if (g.column == BulkImportColumn.date)
       Padding(
         padding: const EdgeInsets.fromLTRB(
-          SelSpace.x10,
+          SelSpace.x8,
           SelSpace.x2,
           SelSpace.x4,
           SelSpace.x3,
@@ -1411,12 +1542,13 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           _FixPreview(
             proposal: p,
             tint: g.color,
+            highlighted: _flashRow == p.rowIndex && _flashGroup == g.id,
             onTap: () => widget.onJumpToRow(p.rowIndex),
           ),
         if (g.proposals.length > 8)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              SelSpace.x10,
+              SelSpace.x8,
               SelSpace.x1,
               SelSpace.x4,
               SelSpace.x2,
@@ -1429,7 +1561,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         if (g.rows.length > g.proposals.length)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              SelSpace.x10,
+              SelSpace.x8,
               SelSpace.x1,
               SelSpace.x4,
               SelSpace.x2,
@@ -1451,7 +1583,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         for (final entry in g.byValue.entries)
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              SelSpace.x10,
+              SelSpace.x8,
               0,
               SelSpace.x4,
               SelSpace.x3,
@@ -1465,7 +1597,12 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: SelSpace.x1),
-                for (final i in entry.value.take(6)) _rowLine(i, g.color),
+                for (final i in entry.value.take(6))
+                  _rowLine(
+                    i,
+                    g.color,
+                    highlighted: _flashGroup == g.id && _flashRow == i,
+                  ),
                 if (entry.value.length > 6)
                   Text(
                     'and ${entry.value.length - 6} more',
@@ -1488,16 +1625,17 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     return [
       for (final i in g.rows.take(12))
         Padding(
-          padding: const EdgeInsets.only(
-            left: SelSpace.x10,
-            right: SelSpace.x4,
+          padding: const EdgeInsets.only(left: SelSpace.x8, right: SelSpace.x4),
+          child: _rowLine(
+            i,
+            g.color,
+            highlighted: _flashGroup == g.id && _flashRow == i,
           ),
-          child: _rowLine(i, g.color),
         ),
       if (g.rows.length > 12)
         Padding(
           padding: const EdgeInsets.fromLTRB(
-            SelSpace.x10,
+            SelSpace.x8,
             0,
             SelSpace.x4,
             SelSpace.x2,
@@ -1520,6 +1658,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           widget.rawRows[i].sheetRowNumber,
         ),
         busy: widget.busy,
+        highlighted: _flashGroup == g.id && _flashRow == i,
         onTap: () => widget.onJumpToRow(i),
         onKeep: () => widget.onKeepRow(widget.rawRows[i].sheetRowNumber),
         onDrop: () => widget.onDropRow(widget.rawRows[i].sheetRowNumber),
@@ -1558,21 +1697,17 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     return '$name · $amount · $date';
   }
 
-  Widget _rowLine(int i, Color color) {
+  Widget _rowLine(int i, Color color, {bool highlighted = false}) {
     return _HoverRow(
       tint: color,
       onTap: () => widget.onJumpToRow(i),
+      highlighted: highlighted,
       builder: (hovering) => Padding(
         padding: const EdgeInsets.symmetric(vertical: SelSpace.x1),
         child: Row(
           children: [
-            SizedBox(
-              width: 26,
-              child: Text(
-                '${widget.rawRows[i].sheetRowNumber}',
-                style: SelType.small.copyWith(color: color),
-              ),
-            ),
+            _RowChip(sheetRow: widget.rawRows[i].sheetRowNumber, tint: color),
+            const SizedBox(width: SelSpace.x2),
             Expanded(
               child: Text(
                 _rowSummary(i),
@@ -1588,7 +1723,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
               child: Icon(
                 LucideIcons.chevronRight,
                 size: 13,
-                color: hovering ? color : Sel.ash,
+                color: hovering || highlighted ? color : Sel.ash,
               ),
             ),
           ],
@@ -1613,38 +1748,64 @@ String _monthName(int m) => const [
   'Dec',
 ][(m - 1).clamp(0, 11)];
 
+/// A row number in the colour of its problem, on a tinted chip.
+///
+/// The bare grey numeral read as a table gutter — something printed beside the
+/// content rather than a way into it. The chip gives the line a starting point
+/// the eye can land on and the hand can aim at.
+class _RowChip extends StatelessWidget {
+  const _RowChip({required this.sheetRow, required this.tint});
+
+  final int sheetRow;
+  final Color tint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: tint.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(SelRadius.icon),
+      ),
+      child: Text('$sheetRow', style: SelType.small.copyWith(color: tint)),
+    );
+  }
+}
+
 class _FixPreview extends StatelessWidget {
   const _FixPreview({
     required this.proposal,
     required this.onTap,
     required this.tint,
+    this.highlighted = false,
   });
 
   final AutoFixProposal proposal;
   final VoidCallback onTap;
   final Color tint;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
+    // Before this, the line was four pieces of plain text: only the pointer
+    // could tell you it led anywhere. It now carries the same resting
+    // affordances as every other line in the panel — a numbered chip in the
+    // problem's colour to start it, and a chevron to say it goes somewhere.
     return _HoverRow(
       tint: tint,
       onTap: onTap,
-      child: Padding(
+      highlighted: highlighted,
+      builder: (hovering) => Padding(
         padding: const EdgeInsets.fromLTRB(
-          SelSpace.x10,
+          SelSpace.x8,
           SelSpace.x1,
-          SelSpace.x4,
+          SelSpace.x3,
           SelSpace.x1,
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 26,
-              child: Text(
-                '${proposal.sheetRow}',
-                style: SelType.small.copyWith(color: Sel.ash),
-              ),
-            ),
+            _RowChip(sheetRow: proposal.sheetRow, tint: tint),
+            const SizedBox(width: SelSpace.x2),
             Expanded(
               child: Text(
                 proposal.before,
@@ -1664,6 +1825,14 @@ class _FixPreview extends StatelessWidget {
                 proposal.after,
                 style: SelType.small.copyWith(color: Sel.ink),
                 overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: SelSpace.x1),
+              child: Icon(
+                LucideIcons.chevronRight,
+                size: 13,
+                color: hovering || highlighted ? tint : Sel.ash,
               ),
             ),
           ],
@@ -1687,6 +1856,7 @@ class _DuplicateRow extends StatelessWidget {
     required this.onKeep,
     required this.onDrop,
     required this.onUndo,
+    this.highlighted = false,
   });
 
   final Color tint;
@@ -1700,6 +1870,7 @@ class _DuplicateRow extends StatelessWidget {
   final VoidCallback onKeep;
   final VoidCallback onDrop;
   final VoidCallback onUndo;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -1707,9 +1878,10 @@ class _DuplicateRow extends StatelessWidget {
     return _HoverRow(
       tint: tint,
       onTap: onTap,
+      highlighted: highlighted,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          SelSpace.x10,
+          SelSpace.x8,
           SelSpace.x2,
           SelSpace.x4,
           SelSpace.x2,
@@ -1719,13 +1891,8 @@ class _DuplicateRow extends StatelessWidget {
           children: [
             Row(
               children: [
-                SizedBox(
-                  width: 26,
-                  child: Text(
-                    '$sheetRow',
-                    style: SelType.small.copyWith(color: Sel.ash),
-                  ),
-                ),
+                _RowChip(sheetRow: sheetRow, tint: tint),
+                const SizedBox(width: SelSpace.x2),
                 Expanded(
                   child: Text(
                     summary,
@@ -1857,6 +2024,7 @@ class _HoverRow extends StatefulWidget {
     this.child,
     this.builder,
     this.strength = 0.13,
+    this.highlighted = false,
   }) : assert(child != null || builder != null);
 
   final Color tint;
@@ -1867,6 +2035,10 @@ class _HoverRow extends StatefulWidget {
   final Widget Function(bool hovering)? builder;
 
   final double strength;
+
+  /// Lit without the pointer — the panel pointing back at the row you just
+  /// clicked in the sheet.
+  final bool highlighted;
 
   @override
   State<_HoverRow> createState() => _HoverRowState();
@@ -1885,11 +2057,17 @@ class _HoverRowState extends State<_HoverRow> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 90),
+          duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
-            color: _hovering
+            color: _hovering || widget.highlighted
                 ? widget.tint.withValues(alpha: widget.strength)
                 : Colors.transparent,
+            border: Border(
+              left: BorderSide(
+                color: widget.highlighted ? widget.tint : Colors.transparent,
+                width: 2,
+              ),
+            ),
             borderRadius: BorderRadius.circular(SelRadius.card),
           ),
           child: widget.child ?? widget.builder!(_hovering),
