@@ -1293,7 +1293,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                       label: g.kind == _GroupKind.fix
                           ? 'Fix all'
                           : 'Fix ${g.proposals.length}',
-                      kind: SelButtonKind.quiet,
+                      // Ghost, not quiet: these are the actions the panel
+                      // exists to offer, and as bare text they read as
+                      // captions rather than buttons.
+                      kind: SelButtonKind.ghost,
+                      dense: true,
                       onPressed: widget.busy
                           ? null
                           : () => widget.onApplyFixes(g.proposals),
@@ -1302,7 +1306,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                       _undecidedDuplicates().isNotEmpty)
                     SelButton(
                       label: 'Keep all',
-                      kind: SelButtonKind.quiet,
+                      kind: SelButtonKind.ghost,
+                      dense: true,
                       onPressed: widget.busy
                           ? null
                           : () {
@@ -1365,22 +1370,20 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           SelSpace.x4,
           SelSpace.x3,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                // 4/3/2026 is 4 March or 3 April depending on who typed
-                // it; the sheet cannot say which.
-                widget.dayFirst
-                    ? 'Reading 4/3 as 4 March'
-                    : 'Reading 4/3 as 3 April',
-                style: SelType.small,
-              ),
-            ),
-            Switch(
-              value: widget.dayFirst,
-              activeThumbColor: Sel.cyan,
-              onChanged: widget.busy ? null : widget.onDayFirstChanged,
+            // 4/3/2026 is 4 March or 3 April depending on who typed it, and
+            // the sheet cannot say which. A switch could not express that —
+            // it has an on and an off, and neither of those is a reading.
+            // Naming both, and redoing the dates above when you pick, lets
+            // you see the answer before applying it.
+            Text('How should 4/3/2026 be read?', style: SelType.small),
+            const SizedBox(height: SelSpace.x2),
+            SelPillGroup<bool>(
+              selected: widget.dayFirst,
+              onChanged: widget.busy ? (_) {} : widget.onDayFirstChanged,
+              options: const [(true, '4 March'), (false, '3 April')],
             ),
           ],
         ),
@@ -1552,7 +1555,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     return _HoverRow(
       tint: color,
       onTap: () => widget.onJumpToRow(i),
-      child: Padding(
+      builder: (hovering) => Padding(
         padding: const EdgeInsets.symmetric(vertical: SelSpace.x1),
         child: Row(
           children: [
@@ -1568,6 +1571,16 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                 _rowSummary(i),
                 style: SelType.small.copyWith(color: Sel.ink),
                 overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // A resting hint that the line leads somewhere. Hover alone is not
+            // an affordance: you have to already know to hover.
+            Padding(
+              padding: const EdgeInsets.only(left: SelSpace.x2),
+              child: Icon(
+                LucideIcons.chevronRight,
+                size: 12,
+                color: hovering ? color : Sel.border,
               ),
             ),
           ],
@@ -1740,7 +1753,8 @@ class _DuplicateRow extends StatelessWidget {
                         const Spacer(),
                         SelButton(
                           label: 'Undo',
-                          kind: SelButtonKind.quiet,
+                          kind: SelButtonKind.ghost,
+                          dense: true,
                           onPressed: busy ? null : onUndo,
                         ),
                       ],
@@ -1749,12 +1763,15 @@ class _DuplicateRow extends StatelessWidget {
                       children: [
                         SelButton(
                           label: 'Keep',
-                          kind: SelButtonKind.quiet,
+                          kind: SelButtonKind.ghost,
+                          dense: true,
                           onPressed: busy ? null : onKeep,
                         ),
+                        const SizedBox(width: SelSpace.x2),
                         SelButton(
                           label: 'Drop',
-                          kind: SelButtonKind.quiet,
+                          kind: SelButtonKind.ghost,
+                          dense: true,
                           onPressed: busy ? null : onDrop,
                         ),
                       ],
@@ -1829,13 +1846,18 @@ class _HoverRow extends StatefulWidget {
   const _HoverRow({
     required this.tint,
     required this.onTap,
-    required this.child,
+    this.child,
+    this.builder,
     this.strength = 0.13,
-  });
+  }) : assert(child != null || builder != null);
 
   final Color tint;
   final VoidCallback onTap;
-  final Widget child;
+  final Widget? child;
+
+  /// Alternative to [child] for rows whose contents change on hover.
+  final Widget Function(bool hovering)? builder;
+
   final double strength;
 
   @override
@@ -1862,7 +1884,7 @@ class _HoverRowState extends State<_HoverRow> {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(SelRadius.card),
           ),
-          child: widget.child,
+          child: widget.child ?? widget.builder!(_hovering),
         ),
       ),
     );
