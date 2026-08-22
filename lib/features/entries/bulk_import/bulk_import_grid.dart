@@ -1321,24 +1321,32 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           ),
           const Divider(height: 1, color: Sel.border),
           Expanded(
-            child: ListView(
+            // A [ListView] here would build only the cards on screen, and a
+            // card that has never been built has no context to scroll to — so
+            // clicking a cell whose problem was further down the panel moved
+            // nothing at all. There are a handful of problems, never a feed,
+            // so they are all laid out and every card can be scrolled to.
+            child: SingleChildScrollView(
               controller: _list,
               padding: const EdgeInsets.all(SelSpace.x3),
-              children: [
-                for (final g in widget.groups)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: SelSpace.x3),
-                    child: _group(g),
-                  ),
-                if (widget.groups.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(SelSpace.x4),
-                    child: Text(
-                      'Nothing to fix. Every row is ready to import.',
-                      style: SelType.small,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final g in widget.groups)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: SelSpace.x3),
+                      child: _group(g),
                     ),
-                  ),
-              ],
+                  if (widget.groups.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(SelSpace.x4),
+                      child: Text(
+                        'Nothing to fix. Every row is ready to import.',
+                        style: SelType.small,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
