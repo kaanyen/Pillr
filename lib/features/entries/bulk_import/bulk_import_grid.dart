@@ -505,6 +505,15 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       _editorFocus = focus;
       _focusCell = (rowIndex, column);
       _focusSerial++;
+      // A hidden panel cannot explain the cell you just opened. If the cell
+      // belongs to a problem, the panel comes back to show it — hiding it was
+      // a wish for room, not a refusal to be told what is wrong.
+      if (!_panelOpen &&
+          _buildGroups().any(
+            (g) => g.column == column && g.rows.contains(rowIndex),
+          )) {
+        _panelOpen = true;
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => focus.requestFocus());
   }
@@ -595,7 +604,10 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
               onUndoDecision: widget.onUndoDecision,
               onBulkMapArm: widget.onBulkMapArm,
               onHoverGroup: (id) => setState(() => _hoverGroup = id),
-              onCollapse: () => setState(() => _panelOpen = false),
+              onCollapse: () => setState(() {
+                _panelOpen = false;
+                _focusCell = null;
+              }),
               focusCell: _focusCell,
               focusSerial: _focusSerial,
             ),
@@ -603,7 +615,10 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
         else
           _CollapsedPanel(
             groups: groups,
-            onExpand: () => setState(() => _panelOpen = true),
+            onExpand: () => setState(() {
+              _panelOpen = true;
+              _focusCell = null;
+            }),
           ),
         const SizedBox(width: SelSpace.x4),
         Expanded(
@@ -1162,6 +1177,16 @@ class _IssuesPanelState extends State<_IssuesPanel> {
     _flashTimer?.cancel();
     _list.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.focusCell != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => mounted ? _revealFocusedCell() : null,
+      );
+    }
   }
 
   @override
