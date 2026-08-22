@@ -30,7 +30,8 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
   BulkImportIssueCode.staffPastorYesPending => BulkImportColumn.pastorConfirmed,
   BulkImportIssueCode.duplicateInFile ||
   BulkImportIssueCode.duplicateInDatabase ||
-  BulkImportIssueCode.periodNotFound => null,
+  BulkImportIssueCode.periodNotFound ||
+  BulkImportIssueCode.ignoredNonDataRow => null,
 };
 
 /// Plain-English name and explanation for a problem.
@@ -117,6 +118,12 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         help:
             'These will still go to a pastor for review — staff cannot '
             'confirm on the pastor\'s behalf.',
+      ),
+      BulkImportIssueCode.ignoredNonDataRow => (
+        title: 'Left out of the import',
+        help:
+            'These lines are part of the sheet rather than gifts — a total at '
+            'the bottom, or a note typed under the table.',
       ),
       BulkImportIssueCode.duplicateInFile ||
       BulkImportIssueCode.duplicateInDatabase => (

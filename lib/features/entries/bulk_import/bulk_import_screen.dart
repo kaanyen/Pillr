@@ -671,6 +671,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             _Notice(message: _error!, status: SelStatus.blocked),
             const SizedBox(height: SelSpace.x4),
           ],
+          // Anything the parser decided about the file itself — rows it left
+          // out, headers it could not place. Leaving a row out silently is
+          // how an importer loses someone's giving without anyone noticing.
+          for (final i in _fileIssues) ...[
+            _Notice(
+              message: i.message ?? _issueLabel(l10n, i.code),
+              status: i.severity == BulkImportSeverity.error
+                  ? SelStatus.blocked
+                  : SelStatus.pending,
+            ),
+            const SizedBox(height: SelSpace.x4),
+          ],
           Expanded(
             child: BulkImportGrid(
               rawRows: _rawRows ?? const [],
@@ -2044,6 +2056,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
   String _issueLabel(AppLocalizations l10n, BulkImportIssueCode c) {
     return switch (c) {
+      BulkImportIssueCode.ignoredNonDataRow => 'Left out — not a gift',
       BulkImportIssueCode.missingName => l10n.bulkImportIssueMissingName,
       BulkImportIssueCode.missingFellowship =>
         l10n.bulkImportIssueMissingFellowship,

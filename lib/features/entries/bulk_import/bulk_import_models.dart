@@ -23,6 +23,10 @@ enum BulkImportIssueCode {
   duplicateInFile,
   duplicateInDatabase,
   staffPastorYesPending,
+
+  /// A line that is part of the sheet's furniture rather than a gift — the
+  /// TOTAL at the bottom, or a note typed under the table.
+  ignoredNonDataRow,
 }
 
 class BulkImportIssue extends Equatable {

@@ -130,7 +130,88 @@ BulkImportHeaderDetection detectBulkImportHeaders(List<List<String?>> grid) {
     rows.add(BulkRawRow(sheetRowNumber: r + 1, valuesByColumn: values));
   }
 
+  final ignored = <BulkRawRow>[];
+
+  // A total line is not a gift. Every church sheet ends with one, and it
+  // carries a very large amount, so importing it silently doubles the month.
+  rows.removeWhere((row) {
+    if (!_looksLikeTotalRow(row)) return false;
+    ignored.add(row);
+    return true;
+  });
+
+  // Notes typed under the table — "Prepared by Sis. Cindy". Only trailing
+  // rows are considered: a row in the middle with no date and no amount is a
+  // real row somebody left incomplete, and dropping it would hide the mistake.
+  while (rows.isNotEmpty && _looksLikeTrailingNote(rows.last)) {
+    ignored.add(rows.removeLast());
+  }
+
+  if (ignored.isNotEmpty) {
+    ignored.sort((a, b) => a.sheetRowNumber.compareTo(b.sheetRowNumber));
+    final numbers = ignored.map((r) => r.sheetRowNumber).join(', ');
+    fileIssues.add(
+      BulkImportIssue(
+        code: BulkImportIssueCode.ignoredNonDataRow,
+        severity: BulkImportSeverity.warning,
+        message: ignored.length == 1
+            ? 'Row $numbers looks like a total or a note rather than a gift, '
+                  'so it was left out.'
+            : 'Rows $numbers look like totals or notes rather than gifts, so '
+                  'they were left out.',
+      ),
+    );
+  }
+
   return (rows: rows, fileIssues: fileIssues);
+}
+
+const _totalWords = {
+  'total',
+  'totals',
+  'grand total',
+  'sub total',
+  'subtotal',
+  'sum',
+  'overall total',
+  'total amount',
+};
+
+String _norm(String? s) =>
+    (s ?? '').toLowerCase().replaceAll(RegExp(r'[^a-z ]'), '').trim().replaceAll(RegExp(r'\s+'), ' ');
+
+/// A summary line: the name cell says TOTAL and none of the things that
+/// identify a person are filled in.
+bool _looksLikeTotalRow(BulkRawRow row) {
+  final name = _norm(row.valuesByColumn[BulkImportColumn.name]);
+  if (!_totalWords.contains(name)) return false;
+  // Guard against a real partner whose row happens to be sparse: if there is
+  // any way to identify a person, treat it as data.
+  for (final c in const [
+    BulkImportColumn.contact,
+    BulkImportColumn.email,
+    BulkImportColumn.fellowship,
+    BulkImportColumn.memberId,
+    BulkImportColumn.date,
+  ]) {
+    if ((row.valuesByColumn[c] ?? '').trim().isNotEmpty) return false;
+  }
+  return true;
+}
+
+/// A line with nothing that makes it a gift — no date, no amount, and nothing
+/// that identifies a person. Only meaningful at the end of a sheet.
+bool _looksLikeTrailingNote(BulkRawRow row) {
+  for (final c in const [
+    BulkImportColumn.date,
+    BulkImportColumn.amount,
+    BulkImportColumn.contact,
+    BulkImportColumn.email,
+    BulkImportColumn.memberId,
+  ]) {
+    if ((row.valuesByColumn[c] ?? '').trim().isNotEmpty) return false;
+  }
+  return true;
 }
 
 /// Human label for a field, used by the mapping UI.
