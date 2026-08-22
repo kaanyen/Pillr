@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -274,6 +272,11 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   /// Problem the pointer is over, so its rows stand out in the sheet.
   String? _hoverGroup;
 
+  /// Sheet row the pointer is over, so the problems that named it stand out in
+  /// the panel. The mirror of [_hoverGroup]: the tie between a problem and its
+  /// rows has to be findable from either end.
+  int? _hoverRow;
+
   /// The cell the user last opened for editing, and a serial that changes on
   /// every open. The panel watches this to bring the matching problem into
   /// view — clicking a cell and hunting for its explanation in a panel that
@@ -532,6 +535,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     _editorFocus = null;
     _editingRow = null;
     _editingColumn = null;
+    _focusCell = null;
     editor.dispose();
 
     if (after != before) widget.onEditCell(row, column, after);
@@ -546,6 +550,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       _editorFocus = null;
       _editingRow = null;
       _editingColumn = null;
+      _focusCell = null;
     });
   }
 
@@ -610,6 +615,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
               }),
               focusCell: _focusCell,
               focusSerial: _focusSerial,
+              hoverRow: _hoverRow,
             ),
           )
         else
@@ -726,84 +732,101 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     final resolved = i < widget.resolved.length ? widget.resolved[i] : null;
     final dropped = widget.droppedSheetRows.contains(raw.sheetRowNumber);
     final flashed = _flashRow == i;
-    final highlighted =
+    // The whole group lights faintly when the pointer is on its card. One row
+    // picked out of that group has to beat it, or clicking a single row looks
+    // exactly like hovering all of them.
+    final inHoveredGroup =
         _hoverGroup != null &&
         groups.any((g) => g.id == _hoverGroup && g.rows.contains(i));
 
-    return Opacity(
-      opacity: dropped ? 0.4 : 1,
-      child: Container(
-        decoration: BoxDecoration(
-          color: highlighted
-              ? (rowColor ?? Sel.cyan).withValues(alpha: 0.08)
-              : (flashed ? Sel.skyWash : null),
-          border: const Border(bottom: BorderSide(color: Sel.borderMuted)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: _gutterWidth,
-              child: Row(
-                children: [
-                  // The colour bar is the link back to the panel: same hue,
-                  // same problem.
-                  Container(
-                    width: 3,
-                    height: _rowHeight,
-                    color: rowColor ?? Colors.transparent,
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        '${raw.sheetRowNumber}',
-                        style: SelType.small.copyWith(color: Sel.ash),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoverRow = i),
+      onExit: (_) {
+        if (_hoverRow == i) setState(() => _hoverRow = null);
+      },
+      child: Opacity(
+        opacity: dropped ? 0.4 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: flashed
+                ? Sel.skyWash
+                : inHoveredGroup
+                ? (rowColor ?? Sel.cyan).withValues(alpha: 0.08)
+                : null,
+            border: Border(
+              bottom: const BorderSide(color: Sel.borderMuted),
+              left: BorderSide(
+                color: flashed ? Sel.cyanEdge : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: _gutterWidth,
+                child: Row(
+                  children: [
+                    // The colour bar is the link back to the panel: same hue,
+                    // same problem.
+                    Container(
+                      width: 3,
+                      height: _rowHeight,
+                      color: rowColor ?? Colors.transparent,
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          '${raw.sheetRowNumber}',
+                          style: SelType.small.copyWith(color: Sel.ash),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            for (final c in widget.columns)
-              _cell(
-                i,
-                c,
-                raw.valuesByColumn[c] ?? '',
-                cellColor[c],
-                problemColumns.contains(c),
-                resolved,
-                dropped,
-              ),
-            SizedBox(
-              width: _gutterWidth,
-              child: Center(
-                child: dropped
-                    ? IconButton(
-                        icon: const Icon(
-                          LucideIcons.undo2,
-                          size: 14,
-                          color: Sel.ash,
+              for (final c in widget.columns)
+                _cell(
+                  i,
+                  c,
+                  raw.valuesByColumn[c] ?? '',
+                  cellColor[c],
+                  problemColumns.contains(c),
+                  resolved,
+                  dropped,
+                ),
+              SizedBox(
+                width: _gutterWidth,
+                child: Center(
+                  child: dropped
+                      ? IconButton(
+                          icon: const Icon(
+                            LucideIcons.undo2,
+                            size: 14,
+                            color: Sel.ash,
+                          ),
+                          tooltip: 'Put row ${raw.sheetRowNumber} back',
+                          splashRadius: 14,
+                          onPressed: widget.busy
+                              ? null
+                              : () => widget.onUndoDecision(raw.sheetRowNumber),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            LucideIcons.x,
+                            size: 14,
+                            color: Sel.ash,
+                          ),
+                          tooltip: 'Leave row ${raw.sheetRowNumber} out',
+                          splashRadius: 14,
+                          onPressed: widget.busy
+                              ? null
+                              : () => widget.onDropRow(raw.sheetRowNumber),
                         ),
-                        tooltip: 'Put row ${raw.sheetRowNumber} back',
-                        splashRadius: 14,
-                        onPressed: widget.busy
-                            ? null
-                            : () => widget.onUndoDecision(raw.sheetRowNumber),
-                      )
-                    : IconButton(
-                        icon: const Icon(
-                          LucideIcons.x,
-                          size: 14,
-                          color: Sel.ash,
-                        ),
-                        tooltip: 'Leave row ${raw.sheetRowNumber} out',
-                        splashRadius: 14,
-                        onPressed: widget.busy
-                            ? null
-                            : () => widget.onDropRow(raw.sheetRowNumber),
-                      ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1122,6 +1145,7 @@ class _IssuesPanel extends StatefulWidget {
     required this.onCollapse,
     required this.focusCell,
     required this.focusSerial,
+    required this.hoverRow,
   });
 
   final List<_Group> groups;
@@ -1148,6 +1172,9 @@ class _IssuesPanel extends StatefulWidget {
   final (int, BulkImportColumn)? focusCell;
   final int focusSerial;
 
+  /// Sheet row the pointer is over, so its problems light up here.
+  final int? hoverRow;
+
   @override
   State<_IssuesPanel> createState() => _IssuesPanelState();
 }
@@ -1159,11 +1186,11 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   /// One key per group card, so a card can be scrolled to by id.
   final Map<String, GlobalKey> _cardKeys = {};
 
-  /// The card and line lit after a jump from the sheet. Held for a moment and
-  /// then let go: a highlight that never fades stops meaning "this one".
+  /// The card and line pointed at from the sheet. Held for as long as that
+  /// cell is open for editing — a highlight that faded on a timer left people
+  /// looking at a panel that had already forgotten the question.
   String? _flashGroup;
   int? _flashRow;
-  Timer? _flashTimer;
 
   GlobalKey _cardKey(String id) => _cardKeys.putIfAbsent(id, () => GlobalKey());
 
@@ -1174,7 +1201,6 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
   @override
   void dispose() {
-    _flashTimer?.cancel();
     _list.dispose();
     super.dispose();
   }
@@ -1192,7 +1218,15 @@ class _IssuesPanelState extends State<_IssuesPanel> {
   @override
   void didUpdateWidget(_IssuesPanel old) {
     super.didUpdateWidget(old);
-    if (widget.focusSerial != old.focusSerial) _revealFocusedCell();
+    if (widget.focusSerial != old.focusSerial) {
+      _revealFocusedCell();
+    } else if (widget.focusCell == null && _flashGroup != null) {
+      // The edit is over; stop pointing at it.
+      setState(() {
+        _flashGroup = null;
+        _flashRow = null;
+      });
+    }
   }
 
   /// Opens the problem that named the cell being edited, scrolls its card into
@@ -1229,19 +1263,12 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       if (ctx == null || !mounted) return;
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.05,
+        // To the top of the panel, not merely on screen: the card has to be
+        // seen to move, or clicking a cell looks like it did nothing.
+        alignment: 0,
         duration: const Duration(milliseconds: 240),
         curve: Curves.easeOut,
       );
-    });
-
-    _flashTimer?.cancel();
-    _flashTimer = Timer(const Duration(milliseconds: 2600), () {
-      if (!mounted) return;
-      setState(() {
-        _flashGroup = null;
-        _flashRow = null;
-      });
     });
   }
 
@@ -1364,9 +1391,20 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
   // ------------------------------------------------------------------ groups
 
+  /// True when a line in [g] should be lit: either it is the cell being
+  /// edited, or the pointer is on that row over in the sheet.
+  bool _lineLit(_Group g, int rowIndex) =>
+      (_flashGroup == g.id && _flashRow == rowIndex) ||
+      widget.hoverRow == rowIndex;
+
   Widget _group(_Group g) {
     final open = _isOpen(g.id);
     final flashing = _flashGroup == g.id;
+    // The other half of the tie: hovering a row in the sheet lights every
+    // problem that named it, so you can find out what is wrong with a row
+    // without hunting the panel for it.
+    final hovered = widget.hoverRow;
+    final lit = hovered != null && g.rows.contains(hovered);
     // Each problem is its own card: one thing to read, one thing to open, and
     // a shape the panel can scroll to when you click the cell it belongs to.
     return MouseRegion(
@@ -1378,9 +1416,18 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         curve: Curves.easeOut,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: Sel.card,
+          color: flashing || lit
+              ? Color.alphaBlend(
+                  g.color.withValues(alpha: flashing ? 0.05 : 0.03),
+                  Sel.card,
+                )
+              : Sel.card,
           border: Border.all(
-            color: flashing ? g.color : Sel.border,
+            color: flashing
+                ? g.color
+                : lit
+                ? g.color.withValues(alpha: 0.55)
+                : Sel.border,
             width: flashing ? 1.5 : 1,
           ),
           borderRadius: BorderRadius.circular(SelRadius.card),
@@ -1512,7 +1559,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       _FixPreview(
         proposal: p,
         tint: g.color,
-        highlighted: _flashRow == p.rowIndex && _flashGroup == g.id,
+        highlighted: _lineLit(g, p.rowIndex),
         onTap: () => widget.onJumpToRow(p.rowIndex),
       ),
     if (g.proposals.length > 6)
@@ -1567,7 +1614,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           _FixPreview(
             proposal: p,
             tint: g.color,
-            highlighted: _flashRow == p.rowIndex && _flashGroup == g.id,
+            highlighted: _lineLit(g, p.rowIndex),
             onTap: () => widget.onJumpToRow(p.rowIndex),
           ),
         if (g.proposals.length > 8)
@@ -1623,11 +1670,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                 ),
                 const SizedBox(height: SelSpace.x1),
                 for (final i in entry.value.take(6))
-                  _rowLine(
-                    i,
-                    g.color,
-                    highlighted: _flashGroup == g.id && _flashRow == i,
-                  ),
+                  _rowLine(i, g.color, highlighted: _lineLit(g, i)),
                 if (entry.value.length > 6)
                   Text(
                     'and ${entry.value.length - 6} more',
@@ -1651,11 +1694,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       for (final i in g.rows.take(12))
         Padding(
           padding: const EdgeInsets.only(left: SelSpace.x8, right: SelSpace.x4),
-          child: _rowLine(
-            i,
-            g.color,
-            highlighted: _flashGroup == g.id && _flashRow == i,
-          ),
+          child: _rowLine(i, g.color, highlighted: _lineLit(g, i)),
         ),
       if (g.rows.length > 12)
         Padding(
@@ -1683,7 +1722,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           widget.rawRows[i].sheetRowNumber,
         ),
         busy: widget.busy,
-        highlighted: _flashGroup == g.id && _flashRow == i,
+        highlighted: _lineLit(g, i),
         onTap: () => widget.onJumpToRow(i),
         onKeep: () => widget.onKeepRow(widget.rawRows[i].sheetRowNumber),
         onDrop: () => widget.onDropRow(widget.rawRows[i].sheetRowNumber),
