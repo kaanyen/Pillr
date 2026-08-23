@@ -15,10 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Keep this in step with ci.yml. 3.27.0 ships Dart 3.6.0, below the
+      # ^3.11.4 the pubspec asks for, so every tag died at `flutter pub get`
+      # and no APK ever reached a tester.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.27.0'
+          flutter-version: '3.41.6'
       - run: flutter pub get
       - run: flutter build apk --release
       - name: Install Firebase CLI
