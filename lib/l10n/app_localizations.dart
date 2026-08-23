@@ -1813,6 +1813,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Decided'**
   String get queueColDecided;
+
+  /// No description provided for @pdfTableHeaderAmountIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount ({code})'**
+  String pdfTableHeaderAmountIn(String code);
 }
 
 class _AppLocalizationsDelegate

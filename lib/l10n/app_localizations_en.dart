@@ -970,4 +970,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get queueColDecided => 'Decided';
+
+  @override
+  String pdfTableHeaderAmountIn(String code) {
+    return 'Amount ($code)';
+  }
 }

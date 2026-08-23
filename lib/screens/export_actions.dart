@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:intl/intl.dart';
 
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/entry_export.dart';
+import '../core/utils/export_naming.dart';
+import '../l10n/app_localizations.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
@@ -24,6 +27,7 @@ class EntryExportButtons extends ConsumerStatefulWidget {
     required this.entries,
     required this.title,
     this.subtitle,
+    this.scope,
     this.dense = true,
   });
 
@@ -32,6 +36,10 @@ class EntryExportButtons extends ConsumerStatefulWidget {
 
   /// Describes the current filter, so an exported PDF says what it contains.
   final String? subtitle;
+
+  /// Narrows the filename — usually the period the export covers. Without it
+  /// the name carries the report and the date alone.
+  final String? scope;
 
   final bool dense;
 
@@ -49,21 +57,47 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
       await action();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  /// The period every entry in this export belongs to, when they share one.
+  /// A mixed export has no period in its name rather than a misleading one.
+  String? get _periodScope {
+    if (widget.scope != null) return widget.scope;
+    final names = widget.entries
+        .map((e) => e.periodSnapshot['name']?.toString() ?? '')
+        .where((n) => n.isNotEmpty)
+        .toSet();
+    return names.length == 1 ? names.first : null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final money = ref.watch(churchMoneyFormatProvider);
-    final church = ref.watch(churchNameProvider);
+    final l10n = AppLocalizations.of(context);
+    // The PDF is drawn in Helvetica, which has no ₵ — the symbol was being
+    // dropped without a word, leaving a giving report full of bare numbers.
+    // The code goes in the column heading instead, where it is said once and
+    // cannot be mistaken.
+    final currency =
+        (ref.watch(churchSettingsProvider).valueOrNull?.currency ?? 'GHS')
+            .toUpperCase();
+    final plainMoney = NumberFormat.decimalPatternDigits(
+      decimalDigits: 2,
+    ).format;
+    final church = ref.watch(churchNameProvider) ?? 'Church';
+    final logoUrl = ref.watch(churchSettingsProvider).valueOrNull?.logoUrl;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final empty = widget.entries.isEmpty;
+    final now = DateTime.now();
+    final when = DateFormat.yMMMd(
+      Localizations.localeOf(context).toString(),
+    ).add_Hm().format(now);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -74,20 +108,39 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
           dense: widget.dense,
           onPressed: empty || _busy
               ? null
-              : () => _run(() => shareEntriesPdf(
+              : () => _run(
+                  () => shareEntriesPdf(
                     title: widget.title,
-                    subtitle: widget.subtitle ??
-                        '${widget.entries.length} entries',
+                    // The church's name belongs on its own report, above the
+                    // description of what has been filtered to.
+                    subtitle: [
+                      church,
+                      widget.subtitle ?? '${widget.entries.length} entries',
+                    ].join(' · '),
                     entries: widget.entries,
-                    columnHeaders: const [
-                      'Partner', 'Amount', 'Status', 'Period', 'Arm', 'Date',
+                    columnHeaders: [
+                      l10n.pdfTableHeaderPartner,
+                      l10n.pdfTableHeaderAmountIn(currency),
+                      l10n.pdfTableHeaderStatus,
+                      l10n.pdfTableHeaderPeriod,
+                      l10n.pdfTableHeaderArm,
+                      l10n.pdfTableHeaderDateGiven,
                     ],
-                    formatAmount: money,
-                    footerBrand: church,
+                    formatAmount: plainMoney,
+                    logoUrl: logoUrl,
+                    generatedAtLine: l10n.pdfGeneratedAt(when),
                     exporterLine: profile == null
                         ? null
-                        : 'Exported by ${profile.fullName}',
-                  )),
+                        : l10n.pdfExporter(profile.fullName),
+                    footerBrand: l10n.pdfFooterBrand,
+                    filename: pillrExportFileName(
+                      report: widget.title,
+                      scope: _periodScope,
+                      on: now,
+                      extension: 'pdf',
+                    ),
+                  ),
+                ),
         ),
         const SizedBox(width: SelSpace.x2),
         SelButton(
@@ -96,10 +149,18 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
           dense: widget.dense,
           onPressed: empty || _busy
               ? null
-              : () => _run(() => shareEntriesCsv(
+              : () => _run(
+                  () => shareEntriesCsv(
                     entriesToCsv(widget.entries),
-                    subject: '${widget.title} — ${widget.entries.length} entries',
-                  )),
+                    filename: pillrExportFileName(
+                      report: widget.title,
+                      scope: _periodScope,
+                      on: now,
+                      extension: 'csv',
+                    ),
+                    subject: '$church — ${widget.title}',
+                  ),
+                ),
         ),
       ],
     );

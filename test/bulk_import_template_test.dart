@@ -57,8 +57,9 @@ void main() {
   });
 
   test('filename is derived from the church name', () {
+    // Same shape as every other export: pillr_[report]_[scope].[ext].
     expect(importTemplateFileName('Demo Community Church'),
-        'demo-community-church-import-template.csv');
-    expect(importTemplateFileName(null), 'pillr-import-template.csv');
+        'pillr_import-template_demo-community-church.csv');
+    expect(importTemplateFileName(null), 'pillr_import-template.csv');
   });
 }

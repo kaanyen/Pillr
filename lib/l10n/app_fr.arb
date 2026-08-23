@@ -277,5 +277,6 @@
   "queueColStatus": "Statut",
   "queueColReview": "Révision",
   "queueColSubmitted": "Soumise",
-  "queueColDecided": "Décidée"
+  "queueColDecided": "Décidée",
+  "pdfTableHeaderAmountIn": "Montant ({code})"
 }

@@ -1,4 +1,5 @@
 import '../../arms/domain/partnership_arm.dart';
+import '../../../core/utils/export_naming.dart';
 
 /// The columns the importer understands, in the order the template writes
 /// them. Kept beside the template so the two never drift.
@@ -74,10 +75,8 @@ String buildImportTemplateCsv({
 }
 
 /// Filename for the generated template.
-String importTemplateFileName(String? churchName) {
-  final slug = (churchName ?? 'pillr')
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-      .replaceAll(RegExp(r'^-+|-+$'), '');
-  return '${slug.isEmpty ? 'pillr' : slug}-import-template.csv';
-}
+String importTemplateFileName(String? churchName) => pillrExportFileName(
+  report: 'import-template',
+  scope: churchName,
+  extension: 'csv',
+);

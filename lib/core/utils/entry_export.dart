@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -38,10 +41,10 @@ Future<void> shareEntriesPdf({
   doc.addPage(
     pw.MultiPage(
       footer: (ctx) => pdfFooterMeta(
-            generatedAtLine: whenLine,
-            exporterLine: exporterLine,
-            brandLine: footerBrand,
-          ),
+        generatedAtLine: whenLine,
+        exporterLine: exporterLine,
+        brandLine: footerBrand,
+      ),
       build: (ctx) => [
         ...pdfHeaderWidgets(logo: logo, title: title, subtitle: subtitle),
         if (entries.isEmpty)
@@ -68,21 +71,32 @@ Future<void> shareEntriesPdf({
 /// CSV for spreadsheet import.
 String entriesToCsv(List<PartnershipEntry> entries) {
   final b = StringBuffer();
-  b.writeln('partnerName,amountCedis,status,arm,period,dateGiven,createdAt');
+  b.writeln(
+    'partnerName,memberId,amountCedis,status,arm,period,dateGiven,createdAt',
+  );
   for (final e in entries) {
     b.writeln(
       [
         _csv(e.partnerSnapshot['fullName']?.toString() ?? ''),
+        _csv(e.partnerSnapshot['memberId']?.toString() ?? ''),
         e.amountCedis.toString(),
         e.status,
         _csv(e.armSnapshot['name']?.toString() ?? ''),
         _csv(e.periodSnapshot['name']?.toString() ?? ''),
-        e.dateGiven.toIso8601String(),
-        e.createdAt.toIso8601String(),
+        _timestamp(e.dateGiven),
+        _timestamp(e.createdAt),
       ].join(','),
     );
   }
   return b.toString();
+}
+
+/// `YYYY-MM-DD HH:MM:SS` — the spreadsheet-readable end of ISO 8601, which is
+/// what §11 asks for. A `T` in the middle makes Excel treat it as text.
+String _timestamp(DateTime d) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${d.year}-${two(d.month)}-${two(d.day)} '
+      '${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
 }
 
 String _csv(String s) {
@@ -92,6 +106,24 @@ String _csv(String s) {
   return s;
 }
 
-Future<void> shareEntriesCsv(String csv, {String subject = 'Pillr entries export'}) async {
-  await SharePlus.instance.share(ShareParams(text: csv, subject: subject));
+/// Shares the CSV as a named file rather than a wall of text.
+///
+/// Sharing it as `text` meant it arrived as a message body with no name and
+/// no type — you could read it, but not open it in a spreadsheet without
+/// pasting it somewhere first. `fileNameOverrides` is what carries the name on
+/// web, where cross_file ignores XFile.name.
+Future<void> shareEntriesCsv(
+  String csv, {
+  required String filename,
+  String? subject,
+}) async {
+  final bytes = Uint8List.fromList(utf8.encode(csv));
+  await SharePlus.instance.share(
+    ShareParams(
+      files: [XFile.fromData(bytes, mimeType: 'text/csv', name: filename)],
+      fileNameOverrides: [filename],
+      subject: subject,
+      downloadFallbackEnabled: true,
+    ),
+  );
 }

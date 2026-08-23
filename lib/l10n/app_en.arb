@@ -480,5 +480,13 @@
   "queueColStatus": "Status",
   "queueColReview": "Review",
   "queueColSubmitted": "Submitted",
-  "queueColDecided": "Decided"
+  "queueColDecided": "Decided",
+  "pdfTableHeaderAmountIn": "Amount ({code})",
+  "@pdfTableHeaderAmountIn": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  }
 }
