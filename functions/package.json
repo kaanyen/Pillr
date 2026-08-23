@@ -10,6 +10,7 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "lint": "eslint --ext .ts src/",
     "seed-demo": "node scripts/seed-demo.cjs",
+    "seed-pending": "node scripts/seed-pending-entries.cjs",
     "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs",
     "setup-firestore-backup": "node scripts/setup-firestore-backup-bucket.cjs"
   },

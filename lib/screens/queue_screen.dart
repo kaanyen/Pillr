@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -76,6 +78,32 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   final Set<String> _selected = {};
   bool _busy = false;
 
+  /// How long a decided entry stays visible under the queue before it belongs
+  /// to Records alone.
+  static const _decidedWindow = Duration(hours: 24);
+
+  /// The window is a moving edge, so the screen has to re-read the clock.
+  /// Without this an entry approved while the tab sat open would still be
+  /// listed a day later.
+  Timer? _clock;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.mode == QueueMode.queue) {
+      _clock = Timer.periodic(
+        const Duration(minutes: 1),
+        (_) => mounted ? setState(() {}) : null,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
@@ -107,6 +135,20 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
     final pendingInView = rows.where((e) => e.status == 'pending').toList();
     final canBulk = isPastor && pendingInView.isNotEmpty;
+
+    // What was decided in the last day, newest first. The queue proper is
+    // pending only — this sits under it so a pastor can see the batch they
+    // just approved without going to Records, and it empties itself.
+    final now = DateTime.now();
+    final decided = widget.mode != QueueMode.queue
+        ? const <PartnershipEntry>[]
+        : (scoped.where((e) {
+            if (e.status == 'pending') return false;
+            final at = e.reviewedAt;
+            if (at == null) return false;
+            if (now.difference(at) >= _decidedWindow) return false;
+            return _armId == null || e.partnershipArmId == _armId;
+          }).toList()..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!)));
 
     return SelPageBody(
       onRefresh: () async => ref.invalidate(entriesListProvider),
@@ -247,18 +289,19 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               },
               message: switch (widget.mode) {
                 QueueMode.queue => 'Nothing is waiting on a decision.',
-                QueueMode.records => _filter == _Filter.all
-                    ? 'Partnership entries will appear as your team records them.'
-                    : 'Nothing matches what you picked above.',
+                QueueMode.records =>
+                  _filter == _Filter.all
+                      ? 'Partnership entries will appear as your team records them.'
+                      : 'Nothing matches what you picked above.',
               },
               actionLabel:
                   widget.mode == QueueMode.records && _filter == _Filter.all
-                      ? 'Record the first entry'
-                      : null,
+                  ? 'Record the first entry'
+                  : null,
               onAction:
                   widget.mode == QueueMode.records && _filter == _Filter.all
-                      ? () => context.go('/entries/new')
-                      : null,
+                  ? () => context.go('/entries/new')
+                  : null,
             ),
             rows: [
               for (final e in rows)
@@ -312,8 +355,73 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ],
           ),
         ),
+
+        if (decided.isNotEmpty) ...[
+          const SizedBox(height: SelSpace.x8),
+          SelSectionLabel(
+            label: 'Decided in the last 24 hours',
+            trailing: SelCountTag(label: '${decided.length}'),
+          ),
+          Text(
+            'Here so you can check what you just did. These leave on their '
+            'own — Records keeps them for good.',
+            style: SelType.small,
+          ),
+          const SizedBox(height: SelSpace.x3),
+          SelLedger(
+            minWidth: 640,
+            showCaptions: false,
+            columns: const [
+              SelColumn('Partner', flex: 3),
+              SelColumn('Arm', flex: 2),
+              SelColumn.numeric('Amount', width: 130),
+              SelColumn('Status', fit: SelColFit.fixed, width: 120),
+              SelColumn(
+                'Decided',
+                fit: SelColFit.fixed,
+                width: 110,
+                align: TextAlign.right,
+              ),
+            ],
+            rows: [
+              for (final e in decided)
+                SelRow(
+                  onTap: () => context.go('/entries/${e.id}'),
+                  cells: [
+                    SelCell.stacked(
+                      e.partnerSnapshot['fullName']?.toString() ?? '—',
+                      e.reviewedBySnapshot?['fullName']?.toString() ?? '',
+                    ),
+                    ArmLabel(
+                      armId: e.partnershipArmId,
+                      name: e.armSnapshot['name']?.toString() ?? '—',
+                    ),
+                    SelCell.numeric(
+                      money(e.amountCedis),
+                      tone: e.status == 'approved'
+                          ? SelTone.positive
+                          : SelTone.negative,
+                    ),
+                    SelStatusMark.fromString(
+                      status: e.status,
+                      label: _statusLabel(e.status),
+                    ),
+                    SelCell.secondary(_ago(now.difference(e.reviewedAt!))),
+                  ],
+                ),
+            ],
+          ),
+        ],
       ],
     );
+  }
+
+  /// "just now" · "40m ago" · "6h ago". Nothing here is older than a day, so
+  /// the scale stops there.
+  String _ago(Duration d) {
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    return '${d.inHours}h ago';
   }
 
   /// Describes what the export contains, so a PDF is not ambiguous later.
