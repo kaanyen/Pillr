@@ -29,35 +29,45 @@
   "approvalsSelectedCount": "{count} selected",
   "@approvalsSelectedCount": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "approvalsApproveSelected": "Approve selected",
   "approvalsApproveAll": "Approve all ({count})",
   "@approvalsApproveAll": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "approvalsApproveConfirmTitle": "Approve entries?",
   "approvalsApproveConfirmMessage": "Approve {count} pending entr{count, plural, one {y} other {ies}}? Approved entries count toward totals, goals, and the leaderboard.",
   "@approvalsApproveConfirmMessage": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "approvalsApproveConfirmAction": "Approve",
   "approvalsApproveSuccess": "{count} entr{count, plural, one {y} other {ies}} approved.",
   "@approvalsApproveSuccess": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "approvalsReview": "Review",
   "approvalsSubmittedBy": "By {name}",
   "@approvalsSubmittedBy": {
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "titleEntries": "Entries",
@@ -107,43 +117,57 @@
   "bulkImportStatRows": "{count} rows",
   "@bulkImportStatRows": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStatNewPartners": "New partners (to create): {count}",
   "@bulkImportStatNewPartners": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStatExistingPartners": "Existing partners matched: {count}",
   "@bulkImportStatExistingPartners": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStatTotal": "Total amount: {amount}",
   "@bulkImportStatTotal": {
     "placeholders": {
-      "amount": {"type": "String"}
+      "amount": {
+        "type": "String"
+      }
     }
   },
   "bulkImportStatWarnings": "Warning flags: {count}",
   "@bulkImportStatWarnings": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStatErrors": "Blocking errors: {count}",
   "@bulkImportStatErrors": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStatPastorYes": "Rows marked YES (pastor-confirmed): {count}",
   "@bulkImportStatPastorYes": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportStaffPastorNote": "Rows marked YES will stay pending until a pastor approves them.",
@@ -153,7 +177,9 @@
   "bulkImportRowNum": "Row {n}",
   "@bulkImportRowNum": {
     "placeholders": {
-      "n": {"type": "int"}
+      "n": {
+        "type": "int"
+      }
     }
   },
   "bulkImportFieldPartner": "Partner",
@@ -167,7 +193,9 @@
   "bulkImportEditRowTitle": "Edit row {row}",
   "@bulkImportEditRowTitle": {
     "placeholders": {
-      "row": {"type": "int"}
+      "row": {
+        "type": "int"
+      }
     }
   },
   "bulkImportFieldDate": "Date",
@@ -179,14 +207,20 @@
   "bulkImportCommitProgressCount": "{current} of {total}",
   "@bulkImportCommitProgressCount": {
     "placeholders": {
-      "current": {"type": "int"},
-      "total": {"type": "int"}
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "bulkImportCommitSuccessToast": "Bulk import finished: {created} entries created.",
   "@bulkImportCommitSuccessToast": {
     "placeholders": {
-      "created": {"type": "int"}
+      "created": {
+        "type": "int"
+      }
     }
   },
   "bulkImportFieldName": "Name",
@@ -205,25 +239,33 @@
   "bulkImportEntriesCreated": "Entries created: {count}",
   "@bulkImportEntriesCreated": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportPartnersCreated": "Partners created: {count}",
   "@bulkImportPartnersCreated": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportApproved": "Entries approved (YES rows): {count}",
   "@bulkImportApproved": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportSkipped": "Rows skipped: {count}",
   "@bulkImportSkipped": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "bulkImportErrorListHeader": "Messages:",
@@ -289,8 +331,12 @@
   "entriesShowingLoaded": "Showing {count} entries loaded{more}",
   "@entriesShowingLoaded": {
     "placeholders": {
-      "count": {"type": "int"},
-      "more": {"type": "String"}
+      "count": {
+        "type": "int"
+      },
+      "more": {
+        "type": "String"
+      }
     }
   },
   "entriesMoreAvailable": " — more available below",
@@ -341,15 +387,98 @@
   "pdfGeneratedAt": "Generated: {when}",
   "@pdfGeneratedAt": {
     "placeholders": {
-      "when": {"type": "String"}
+      "when": {
+        "type": "String"
+      }
     }
   },
   "pdfExporter": "Exporter: {name}",
   "@pdfExporter": {
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "pdfFooterBrand": "The Pillr",
-  "releaseDocTitle": "Release & App Distribution"
+  "releaseDocTitle": "Release & App Distribution",
+  "navOverview": "Overview",
+  "navQueue": "Queue",
+  "navRecords": "Records",
+  "navPeople": "People",
+  "navConfiguration": "Configuration",
+  "navActivity": "Activity",
+  "navPlatformChurches": "All churches",
+  "navSectionPlatform": "Platform",
+  "navSectionChurch": "Church",
+  "navConfigShort": "Config",
+  "queueTitle": "Queue",
+  "queueSubtitle": "Entries waiting on a decision.",
+  "queueEmptyTitle": "All caught up",
+  "queueEmptyMessage": "Nothing is waiting on a decision.",
+  "queueDecidedTitle": "Decided in the last 24 hours",
+  "queueDecidedNote": "Here so you can check what you just did. These leave on their own — Records keeps them for good.",
+  "queueShortcutHint": "j / k move · x selects · a approves · d sends back · Enter opens",
+  "recordsTitle": "Records",
+  "recordsSubtitle": "Every partnership entry for your church, newest first.",
+  "recordsEmptyTitle": "No entries yet",
+  "recordsEmptyMessage": "Partnership entries will appear as your team records them.",
+  "recordsEmptyAction": "Record the first entry",
+  "statusPending": "Pending",
+  "statusApproved": "Approved",
+  "statusDeclined": "Declined",
+  "actionNewEntry": "New entry",
+  "actionImport": "Import",
+  "searchSubtitle": "Find a partner or an entry across your church.",
+  "searchFieldHint": "Name, member ID or status",
+  "searchIdleTitle": "Search your church",
+  "searchIdleMessage": "Type a name, a member ID or a status. Results appear as you go.",
+  "searchNoPartners": "No partners matched",
+  "searchNoEntries": "No entries matched",
+  "searchTooltip": "Search  ⌘K",
+  "queueAllArms": "All arms",
+  "queueSelectAll": "Select all {count} pending",
+  "@queueSelectAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queueClearSelection": "Clear selection",
+  "queueApproveAll": "Approve all {count}",
+  "@queueApproveAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queueApproveSelected": "Approve selected",
+  "queueSelectedCount": "{count} selected",
+  "@queueSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queueSendBack": "Send back",
+  "queueApprove": "Approve",
+  "queueConfirmApproveTitle": "Approve {count} entries?",
+  "@queueConfirmApproveTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queueConfirmApproveBody": "They will be added to partner totals and period figures immediately.",
+  "queueColPartner": "Partner",
+  "queueColArm": "Arm",
+  "queueColAmount": "Amount",
+  "queueColStatus": "Status",
+  "queueColReview": "Review",
+  "queueColSubmitted": "Submitted",
+  "queueColDecided": "Decided"
 }

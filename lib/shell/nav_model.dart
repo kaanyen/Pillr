@@ -2,6 +2,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/widgets.dart';
 
 import '../features/auth/domain/user_church_index.dart';
+import '../l10n/app_localizations.dart';
 
 /// One destination in the rail.
 @immutable
@@ -41,89 +42,119 @@ class SelNavGroup {
 ///   setup-once structures, and they were never used independently.
 /// * **People** merges Users and Invitations, which are two states of the
 ///   same thing: someone who is in the church, or on their way in.
-List<SelNavGroup> navGroupsFor(UserChurchIndex? idx, {bool platformAdmin = false}) {
+List<SelNavGroup> navGroupsFor(
+  UserChurchIndex? idx,
+  AppLocalizations l10n, {
+  bool platformAdmin = false,
+}) {
   if (idx == null) return const [];
 
   final groups = <SelNavGroup>[];
 
   if (platformAdmin) {
-    groups.add(const SelNavGroup('Platform', [
-      SelNavItem('/platform/churches', 'All churches', LucideIcons.building2),
-    ]));
+    groups.add(
+      SelNavGroup(l10n.navSectionPlatform, [
+        SelNavItem(
+          '/platform/churches',
+          l10n.navPlatformChurches,
+          LucideIcons.building2,
+        ),
+      ]),
+    );
   }
 
   if (idx.isAdmin) {
-    groups.addAll(const [
+    groups.addAll([
       SelNavGroup(null, [
-        SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
+        SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
       ]),
-      SelNavGroup('Church', [
-        SelNavItem('/people', 'People', LucideIcons.users),
-        SelNavItem('/configuration', 'Configuration', LucideIcons.sliders),
-        SelNavItem('/activity', 'Activity', LucideIcons.history),
+      SelNavGroup(l10n.navSectionChurch, [
+        SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+        SelNavItem(
+          '/configuration',
+          l10n.navConfiguration,
+          LucideIcons.sliders,
+        ),
+        SelNavItem('/activity', l10n.navActivity, LucideIcons.history),
       ]),
     ]);
   } else if (idx.isPastor) {
-    groups.addAll(const [
+    groups.addAll([
       SelNavGroup(null, [
-        SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
-        SelNavItem('/queue', 'Queue', LucideIcons.inbox, badgeKey: 'pending'),
-        SelNavItem('/records', 'Records', LucideIcons.fileText),
+        SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+        SelNavItem(
+          '/queue',
+          l10n.navQueue,
+          LucideIcons.inbox,
+          badgeKey: 'pending',
+        ),
+        SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
       ]),
-      SelNavGroup('Partnership', [
-        SelNavItem('/partners', 'Partners', LucideIcons.users),
-        SelNavItem('/goals', 'Goals', LucideIcons.target),
+      SelNavGroup(l10n.navSectionPartnership, [
+        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+        SelNavItem('/goals', l10n.navGoals, LucideIcons.target),
       ]),
-      SelNavGroup('Church', [
-        SelNavItem('/people', 'People', LucideIcons.userPlus),
-        SelNavItem('/configuration', 'Configuration', LucideIcons.sliders),
+      SelNavGroup(l10n.navSectionChurch, [
+        SelNavItem('/people', l10n.navPeople, LucideIcons.userPlus),
+        SelNavItem(
+          '/configuration',
+          l10n.navConfiguration,
+          LucideIcons.sliders,
+        ),
       ]),
     ]);
   } else {
-    groups.addAll(const [
+    groups.addAll([
       SelNavGroup(null, [
-        SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
-        SelNavItem('/queue', 'Queue', LucideIcons.inbox),
-        SelNavItem('/records', 'Records', LucideIcons.fileText),
-        SelNavItem('/partners', 'Partners', LucideIcons.users),
+        SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+        SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
+        SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
+        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
       ]),
     ]);
   }
 
   // Utility group — no title, reads as a footer.
-  groups.add(const SelNavGroup(null, [
-    SelNavItem('/help', 'Help', LucideIcons.helpCircle),
-    SelNavItem('/settings', 'Settings', LucideIcons.settings),
-  ]));
+  groups.add(
+    SelNavGroup(null, [
+      SelNavItem('/help', l10n.navHelp, LucideIcons.helpCircle),
+      SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
+    ]),
+  );
 
   return groups;
 }
 
 /// Compact-width destinations. Caps at five so the bar never wraps.
-List<SelNavItem> mobileNavFor(UserChurchIndex? idx) {
+List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
   if (idx == null) return const [];
   if (idx.isAdmin) {
-    return const [
-      SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
-      SelNavItem('/people', 'People', LucideIcons.users),
-      SelNavItem('/configuration', 'Config', LucideIcons.sliders),
-      SelNavItem('/settings', 'Settings', LucideIcons.settings),
+    return [
+      SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+      SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+      SelNavItem('/configuration', l10n.navConfigShort, LucideIcons.sliders),
+      SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ];
   }
   if (idx.isPastor) {
-    return const [
-      SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
-      SelNavItem('/queue', 'Queue', LucideIcons.inbox, badgeKey: 'pending'),
-      SelNavItem('/records', 'Records', LucideIcons.fileText),
-      SelNavItem('/partners', 'Partners', LucideIcons.users),
-      SelNavItem('/settings', 'Settings', LucideIcons.settings),
+    return [
+      SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+      SelNavItem(
+        '/queue',
+        l10n.navQueue,
+        LucideIcons.inbox,
+        badgeKey: 'pending',
+      ),
+      SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
+      SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+      SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ];
   }
-  return const [
-    SelNavItem('/overview', 'Overview', LucideIcons.layoutDashboard),
-    SelNavItem('/queue', 'Queue', LucideIcons.inbox),
-    SelNavItem('/records', 'Records', LucideIcons.fileText),
-    SelNavItem('/partners', 'Partners', LucideIcons.users),
-    SelNavItem('/settings', 'Settings', LucideIcons.settings),
+  return [
+    SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+    SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
+    SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
+    SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+    SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
   ];
 }

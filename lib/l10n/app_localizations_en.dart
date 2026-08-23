@@ -803,4 +803,171 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get releaseDocTitle => 'Release & App Distribution';
+
+  @override
+  String get navOverview => 'Overview';
+
+  @override
+  String get navQueue => 'Queue';
+
+  @override
+  String get navRecords => 'Records';
+
+  @override
+  String get navPeople => 'People';
+
+  @override
+  String get navConfiguration => 'Configuration';
+
+  @override
+  String get navActivity => 'Activity';
+
+  @override
+  String get navPlatformChurches => 'All churches';
+
+  @override
+  String get navSectionPlatform => 'Platform';
+
+  @override
+  String get navSectionChurch => 'Church';
+
+  @override
+  String get navConfigShort => 'Config';
+
+  @override
+  String get queueTitle => 'Queue';
+
+  @override
+  String get queueSubtitle => 'Entries waiting on a decision.';
+
+  @override
+  String get queueEmptyTitle => 'All caught up';
+
+  @override
+  String get queueEmptyMessage => 'Nothing is waiting on a decision.';
+
+  @override
+  String get queueDecidedTitle => 'Decided in the last 24 hours';
+
+  @override
+  String get queueDecidedNote =>
+      'Here so you can check what you just did. These leave on their own — Records keeps them for good.';
+
+  @override
+  String get queueShortcutHint =>
+      'j / k move · x selects · a approves · d sends back · Enter opens';
+
+  @override
+  String get recordsTitle => 'Records';
+
+  @override
+  String get recordsSubtitle =>
+      'Every partnership entry for your church, newest first.';
+
+  @override
+  String get recordsEmptyTitle => 'No entries yet';
+
+  @override
+  String get recordsEmptyMessage =>
+      'Partnership entries will appear as your team records them.';
+
+  @override
+  String get recordsEmptyAction => 'Record the first entry';
+
+  @override
+  String get statusPending => 'Pending';
+
+  @override
+  String get statusApproved => 'Approved';
+
+  @override
+  String get statusDeclined => 'Declined';
+
+  @override
+  String get actionNewEntry => 'New entry';
+
+  @override
+  String get actionImport => 'Import';
+
+  @override
+  String get searchSubtitle => 'Find a partner or an entry across your church.';
+
+  @override
+  String get searchFieldHint => 'Name, member ID or status';
+
+  @override
+  String get searchIdleTitle => 'Search your church';
+
+  @override
+  String get searchIdleMessage =>
+      'Type a name, a member ID or a status. Results appear as you go.';
+
+  @override
+  String get searchNoPartners => 'No partners matched';
+
+  @override
+  String get searchNoEntries => 'No entries matched';
+
+  @override
+  String get searchTooltip => 'Search  ⌘K';
+
+  @override
+  String get queueAllArms => 'All arms';
+
+  @override
+  String queueSelectAll(int count) {
+    return 'Select all $count pending';
+  }
+
+  @override
+  String get queueClearSelection => 'Clear selection';
+
+  @override
+  String queueApproveAll(int count) {
+    return 'Approve all $count';
+  }
+
+  @override
+  String get queueApproveSelected => 'Approve selected';
+
+  @override
+  String queueSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get queueSendBack => 'Send back';
+
+  @override
+  String get queueApprove => 'Approve';
+
+  @override
+  String queueConfirmApproveTitle(int count) {
+    return 'Approve $count entries?';
+  }
+
+  @override
+  String get queueConfirmApproveBody =>
+      'They will be added to partner totals and period figures immediately.';
+
+  @override
+  String get queueColPartner => 'Partner';
+
+  @override
+  String get queueColArm => 'Arm';
+
+  @override
+  String get queueColAmount => 'Amount';
+
+  @override
+  String get queueColStatus => 'Status';
+
+  @override
+  String get queueColReview => 'Review';
+
+  @override
+  String get queueColSubmitted => 'Submitted';
+
+  @override
+  String get queueColDecided => 'Decided';
 }

@@ -51,6 +51,30 @@ flutter run -d chrome
 
 Firebase **Crashlytics** is skipped on **web** in `main.dart` (the plugin has no web implementation).
 
+## Languages
+
+English and French. The switch is in **Settings → Language**; it is stored per
+device (`pillr_locale`) and falls back to the system locale.
+
+Translated today: the navigation, Queue and Records, Search, Settings, Help and
+the bulk importer. The rest of the interface is still hardcoded English — the
+ARB files carry the keys, the screens do not use them yet. `flutter gen-l10n`
+regenerates `lib/l10n/app_localizations*.dart` after editing an `.arb`.
+
+## Tests
+
+```bash
+flutter analyze && flutter test              # app: 124 tests
+
+firebase emulators:start --only firestore,functions
+npm test --prefix functions                  # rules + the money path, 23 tests
+```
+
+The Cloud Functions tests need the emulator suite running, and refuse to touch
+anything else. `npm run reconcile --prefix functions` recomputes every partner,
+period and goal total from the entries and reports what has drifted; `--fix`
+repairs it.
+
 ## Firebase
 
 - Rules: `firestore.rules`

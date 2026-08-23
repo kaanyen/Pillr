@@ -1507,6 +1507,312 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Release & App Distribution'**
   String get releaseDocTitle;
+
+  /// No description provided for @navOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Overview'**
+  String get navOverview;
+
+  /// No description provided for @navQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get navQueue;
+
+  /// No description provided for @navRecords.
+  ///
+  /// In en, this message translates to:
+  /// **'Records'**
+  String get navRecords;
+
+  /// No description provided for @navPeople.
+  ///
+  /// In en, this message translates to:
+  /// **'People'**
+  String get navPeople;
+
+  /// No description provided for @navConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration'**
+  String get navConfiguration;
+
+  /// No description provided for @navActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get navActivity;
+
+  /// No description provided for @navPlatformChurches.
+  ///
+  /// In en, this message translates to:
+  /// **'All churches'**
+  String get navPlatformChurches;
+
+  /// No description provided for @navSectionPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform'**
+  String get navSectionPlatform;
+
+  /// No description provided for @navSectionChurch.
+  ///
+  /// In en, this message translates to:
+  /// **'Church'**
+  String get navSectionChurch;
+
+  /// No description provided for @navConfigShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Config'**
+  String get navConfigShort;
+
+  /// No description provided for @queueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Queue'**
+  String get queueTitle;
+
+  /// No description provided for @queueSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Entries waiting on a decision.'**
+  String get queueSubtitle;
+
+  /// No description provided for @queueEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All caught up'**
+  String get queueEmptyTitle;
+
+  /// No description provided for @queueEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing is waiting on a decision.'**
+  String get queueEmptyMessage;
+
+  /// No description provided for @queueDecidedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Decided in the last 24 hours'**
+  String get queueDecidedTitle;
+
+  /// No description provided for @queueDecidedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Here so you can check what you just did. These leave on their own — Records keeps them for good.'**
+  String get queueDecidedNote;
+
+  /// No description provided for @queueShortcutHint.
+  ///
+  /// In en, this message translates to:
+  /// **'j / k move · x selects · a approves · d sends back · Enter opens'**
+  String get queueShortcutHint;
+
+  /// No description provided for @recordsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Records'**
+  String get recordsTitle;
+
+  /// No description provided for @recordsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Every partnership entry for your church, newest first.'**
+  String get recordsSubtitle;
+
+  /// No description provided for @recordsEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No entries yet'**
+  String get recordsEmptyTitle;
+
+  /// No description provided for @recordsEmptyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Partnership entries will appear as your team records them.'**
+  String get recordsEmptyMessage;
+
+  /// No description provided for @recordsEmptyAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Record the first entry'**
+  String get recordsEmptyAction;
+
+  /// No description provided for @statusPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get statusPending;
+
+  /// No description provided for @statusApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved'**
+  String get statusApproved;
+
+  /// No description provided for @statusDeclined.
+  ///
+  /// In en, this message translates to:
+  /// **'Declined'**
+  String get statusDeclined;
+
+  /// No description provided for @actionNewEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'New entry'**
+  String get actionNewEntry;
+
+  /// No description provided for @actionImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get actionImport;
+
+  /// No description provided for @searchSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find a partner or an entry across your church.'**
+  String get searchSubtitle;
+
+  /// No description provided for @searchFieldHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name, member ID or status'**
+  String get searchFieldHint;
+
+  /// No description provided for @searchIdleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search your church'**
+  String get searchIdleTitle;
+
+  /// No description provided for @searchIdleMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Type a name, a member ID or a status. Results appear as you go.'**
+  String get searchIdleMessage;
+
+  /// No description provided for @searchNoPartners.
+  ///
+  /// In en, this message translates to:
+  /// **'No partners matched'**
+  String get searchNoPartners;
+
+  /// No description provided for @searchNoEntries.
+  ///
+  /// In en, this message translates to:
+  /// **'No entries matched'**
+  String get searchNoEntries;
+
+  /// No description provided for @searchTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Search  ⌘K'**
+  String get searchTooltip;
+
+  /// No description provided for @queueAllArms.
+  ///
+  /// In en, this message translates to:
+  /// **'All arms'**
+  String get queueAllArms;
+
+  /// No description provided for @queueSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all {count} pending'**
+  String queueSelectAll(int count);
+
+  /// No description provided for @queueClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get queueClearSelection;
+
+  /// No description provided for @queueApproveAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve all {count}'**
+  String queueApproveAll(int count);
+
+  /// No description provided for @queueApproveSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve selected'**
+  String get queueApproveSelected;
+
+  /// No description provided for @queueSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String queueSelectedCount(int count);
+
+  /// No description provided for @queueSendBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Send back'**
+  String get queueSendBack;
+
+  /// No description provided for @queueApprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get queueApprove;
+
+  /// No description provided for @queueConfirmApproveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve {count} entries?'**
+  String queueConfirmApproveTitle(int count);
+
+  /// No description provided for @queueConfirmApproveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'They will be added to partner totals and period figures immediately.'**
+  String get queueConfirmApproveBody;
+
+  /// No description provided for @queueColPartner.
+  ///
+  /// In en, this message translates to:
+  /// **'Partner'**
+  String get queueColPartner;
+
+  /// No description provided for @queueColArm.
+  ///
+  /// In en, this message translates to:
+  /// **'Arm'**
+  String get queueColArm;
+
+  /// No description provided for @queueColAmount.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get queueColAmount;
+
+  /// No description provided for @queueColStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get queueColStatus;
+
+  /// No description provided for @queueColReview.
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get queueColReview;
+
+  /// No description provided for @queueColSubmitted.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted'**
+  String get queueColSubmitted;
+
+  /// No description provided for @queueColDecided.
+  ///
+  /// In en, this message translates to:
+  /// **'Decided'**
+  String get queueColDecided;
 }
 
 class _AppLocalizationsDelegate

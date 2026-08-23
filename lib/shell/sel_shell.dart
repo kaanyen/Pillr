@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -7,6 +8,7 @@ import '../core/extensions/async_value_ext.dart';
 import '../core/navigation/route_persistence_listener.dart';
 import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
+import '../l10n/app_localizations.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/goals/presentation/goal_milestone_listener.dart';
@@ -33,10 +35,9 @@ class SelShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final path = GoRouterState.of(context).uri.path;
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final offline = ref.watch(connectivityProvider).maybeWhen(
-          data: listIndicatesOffline,
-          orElse: () => false,
-        );
+    final offline = ref
+        .watch(connectivityProvider)
+        .maybeWhen(data: listIndicatesOffline, orElse: () => false);
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -67,23 +68,55 @@ class SelShell extends ConsumerWidget {
           ],
         );
 
-        return GoalMilestoneListener(
-          child: RoutePersistenceListener(
-            child: Scaffold(
-              backgroundColor: Sel.canvas,
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (offline) const _OfflineStrip(),
-                  Expanded(child: SafeArea(child: body)),
-                ],
+        final canSearch = idx?.isPastor == true || idx?.isStaff == true;
+
+        return _AppShortcuts(
+          onSearch: canSearch ? () => context.push('/search') : null,
+          child: GoalMilestoneListener(
+            child: RoutePersistenceListener(
+              child: Scaffold(
+                backgroundColor: Sel.canvas,
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (offline) const _OfflineStrip(),
+                    Expanded(child: SafeArea(child: body)),
+                  ],
+                ),
+                bottomNavigationBar: compact
+                    ? _BottomBar(path: path, idx: idx)
+                    : null,
               ),
-              bottomNavigationBar:
-                  compact ? _BottomBar(path: path, idx: idx) : null,
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// App-wide keys. There were none at all before this.
+///
+/// ⌘K / Ctrl+K opens search from wherever you are, which is the point of a
+/// search that is meant to be reached mid-task. Shortcuts sit above the
+/// content rather than inside a screen so every route inherits them, and
+/// Flutter's own text-editing shortcuts still win inside a field.
+class _AppShortcuts extends StatelessWidget {
+  const _AppShortcuts({required this.child, this.onSearch});
+
+  final Widget child;
+  final VoidCallback? onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onSearch == null) return child;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): onSearch!,
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            onSearch!,
+      },
+      child: Focus(autofocus: true, child: child),
     );
   }
 }
@@ -110,10 +143,11 @@ class _UtilityCluster extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (idx?.isPastor == true)
+        // Staff hunt for partners more than anyone; they had no way in.
+        if (idx?.isPastor == true || idx?.isStaff == true)
           SelIconButton(
             icon: LucideIcons.search,
-            tooltip: 'Search',
+            tooltip: AppLocalizations.of(context).searchTooltip,
             onPressed: () => context.push('/search'),
           ),
         SelIconButton(
@@ -226,7 +260,7 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = mobileNavFor(idx);
+    final items = mobileNavFor(idx, AppLocalizations.of(context));
     if (items.isEmpty) return const SizedBox.shrink();
 
     final current = items.indexWhere(

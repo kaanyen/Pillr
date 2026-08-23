@@ -11,6 +11,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/platform/providers/platform_providers.dart';
+import '../l10n/app_localizations.dart';
 import 'nav_model.dart';
 
 /// The bare canvas rail.
@@ -43,8 +44,14 @@ class SelRail extends ConsumerWidget {
     final pending = ref.watch(pendingApprovalCountProvider);
     final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
 
-    final groups = navGroupsFor(idx, platformAdmin: isPlatform);
-    final accent = SelTheme.tenantMark(parseHexColor(branding?.primaryColorHex));
+    final groups = navGroupsFor(
+      idx,
+      AppLocalizations.of(context),
+      platformAdmin: isPlatform,
+    );
+    final accent = SelTheme.tenantMark(
+      parseHexColor(branding?.primaryColorHex),
+    );
 
     return SizedBox(
       width: SelLayout.railWidth,
@@ -102,7 +109,10 @@ class SelRail extends ConsumerWidget {
                         SelSpace.x3,
                         SelSpace.x2,
                       ),
-                      child: Text(g.title!.toUpperCase(), style: SelType.caption),
+                      child: Text(
+                        g.title!.toUpperCase(),
+                        style: SelType.caption,
+                      ),
                     )
                   else
                     const SizedBox(height: SelSpace.x2),
@@ -164,7 +174,8 @@ class SelRail extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          profile.role[0].toUpperCase() + profile.role.substring(1),
+                          profile.role[0].toUpperCase() +
+                              profile.role.substring(1),
                           style: SelType.small.copyWith(fontSize: 11),
                           maxLines: 1,
                         ),
@@ -237,51 +248,55 @@ class _RailLinkState extends State<_RailLink> {
     final active = widget.active;
     final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.warm);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(
-              horizontal: SelSpace.x3,
-              vertical: SelSpace.x2,
-            ),
-            decoration: BoxDecoration(
-              color: active
-                  ? Sel.card
-                  : _hover
-                      ? Sel.card.withValues(alpha: 0.6)
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(SelRadius.input),
-              border: Border.all(
-                color: active ? Sel.border : Colors.transparent,
+    return Semantics(
+      link: true,
+      selected: active,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 1),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.symmetric(
+                horizontal: SelSpace.x3,
+                vertical: SelSpace.x2,
               ),
-              boxShadow: active ? SelShadow.hairline : null,
-            ),
-            child: Row(
-              children: [
-                Icon(widget.item.icon, size: 15, color: fg),
-                const SizedBox(width: SelSpace.x2 + 2),
-                Expanded(
-                  child: Text(
-                    widget.item.label,
-                    style: SelType.body.copyWith(
-                      color: fg,
-                      fontWeight: active ? FontWeight.w500 : FontWeight.w400,
-                      height: 1.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+              decoration: BoxDecoration(
+                color: active
+                    ? Sel.card
+                    : _hover
+                    ? Sel.card.withValues(alpha: 0.6)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(SelRadius.input),
+                border: Border.all(
+                  color: active ? Sel.border : Colors.transparent,
                 ),
-                if (widget.badge != null && widget.badge! > 0)
-                  SelCountTag(label: '${widget.badge}', emphasised: active),
-              ],
+                boxShadow: active ? SelShadow.hairline : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.item.icon, size: 15, color: fg),
+                  const SizedBox(width: SelSpace.x2 + 2),
+                  Expanded(
+                    child: Text(
+                      widget.item.label,
+                      style: SelType.body.copyWith(
+                        color: fg,
+                        fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (widget.badge != null && widget.badge! > 0)
+                    SelCountTag(label: '${widget.badge}', emphasised: active),
+                ],
+              ),
             ),
           ),
         ),

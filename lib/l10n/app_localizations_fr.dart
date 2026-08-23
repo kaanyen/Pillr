@@ -801,4 +801,172 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get releaseDocTitle => 'Publication et distribution d\'application';
+
+  @override
+  String get navOverview => 'Vue d\'ensemble';
+
+  @override
+  String get navQueue => 'File d\'attente';
+
+  @override
+  String get navRecords => 'Registres';
+
+  @override
+  String get navPeople => 'Personnes';
+
+  @override
+  String get navConfiguration => 'Configuration';
+
+  @override
+  String get navActivity => 'Activité';
+
+  @override
+  String get navPlatformChurches => 'Toutes les églises';
+
+  @override
+  String get navSectionPlatform => 'Plateforme';
+
+  @override
+  String get navSectionChurch => 'Église';
+
+  @override
+  String get navConfigShort => 'Config';
+
+  @override
+  String get queueTitle => 'File d\'attente';
+
+  @override
+  String get queueSubtitle => 'Écritures en attente d\'une décision.';
+
+  @override
+  String get queueEmptyTitle => 'Tout est traité';
+
+  @override
+  String get queueEmptyMessage => 'Rien n\'attend de décision.';
+
+  @override
+  String get queueDecidedTitle => 'Décidé au cours des 24 dernières heures';
+
+  @override
+  String get queueDecidedNote =>
+      'Ici pour vérifier ce que vous venez de faire. Ces lignes disparaissent d\'elles-mêmes — les Registres les conservent.';
+
+  @override
+  String get queueShortcutHint =>
+      'j / k déplacent · x sélectionne · a approuve · d renvoie · Entrée ouvre';
+
+  @override
+  String get recordsTitle => 'Registres';
+
+  @override
+  String get recordsSubtitle =>
+      'Toutes les écritures de partenariat de votre église, les plus récentes d\'abord.';
+
+  @override
+  String get recordsEmptyTitle => 'Aucune écriture';
+
+  @override
+  String get recordsEmptyMessage =>
+      'Les écritures apparaîtront à mesure que votre équipe les enregistre.';
+
+  @override
+  String get recordsEmptyAction => 'Enregistrer la première écriture';
+
+  @override
+  String get statusPending => 'En attente';
+
+  @override
+  String get statusApproved => 'Approuvée';
+
+  @override
+  String get statusDeclined => 'Refusée';
+
+  @override
+  String get actionNewEntry => 'Nouvelle écriture';
+
+  @override
+  String get actionImport => 'Importer';
+
+  @override
+  String get searchSubtitle =>
+      'Trouver un partenaire ou une écriture dans votre église.';
+
+  @override
+  String get searchFieldHint => 'Nom, identifiant de membre ou statut';
+
+  @override
+  String get searchIdleTitle => 'Rechercher dans votre église';
+
+  @override
+  String get searchIdleMessage =>
+      'Saisissez un nom, un identifiant ou un statut. Les résultats s\'affichent au fur et à mesure.';
+
+  @override
+  String get searchNoPartners => 'Aucun partenaire trouvé';
+
+  @override
+  String get searchNoEntries => 'Aucune écriture trouvée';
+
+  @override
+  String get searchTooltip => 'Rechercher  ⌘K';
+
+  @override
+  String get queueAllArms => 'Tous les axes';
+
+  @override
+  String queueSelectAll(int count) {
+    return 'Tout sélectionner ($count en attente)';
+  }
+
+  @override
+  String get queueClearSelection => 'Effacer la sélection';
+
+  @override
+  String queueApproveAll(int count) {
+    return 'Tout approuver ($count)';
+  }
+
+  @override
+  String get queueApproveSelected => 'Approuver la sélection';
+
+  @override
+  String queueSelectedCount(int count) {
+    return '$count sélectionnées';
+  }
+
+  @override
+  String get queueSendBack => 'Renvoyer';
+
+  @override
+  String get queueApprove => 'Approuver';
+
+  @override
+  String queueConfirmApproveTitle(int count) {
+    return 'Approuver $count écritures ?';
+  }
+
+  @override
+  String get queueConfirmApproveBody =>
+      'Elles seront ajoutées aux totaux des partenaires et aux chiffres de la période immédiatement.';
+
+  @override
+  String get queueColPartner => 'Partenaire';
+
+  @override
+  String get queueColArm => 'Axe';
+
+  @override
+  String get queueColAmount => 'Montant';
+
+  @override
+  String get queueColStatus => 'Statut';
+
+  @override
+  String get queueColReview => 'Révision';
+
+  @override
+  String get queueColSubmitted => 'Soumise';
+
+  @override
+  String get queueColDecided => 'Décidée';
 }
