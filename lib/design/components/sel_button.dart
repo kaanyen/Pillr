@@ -76,8 +76,14 @@ class SelButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pad = dense
-        ? const EdgeInsets.symmetric(horizontal: SelSpace.x3, vertical: SelSpace.x1)
-        : const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2);
+        ? const EdgeInsets.symmetric(
+            horizontal: SelSpace.x3,
+            vertical: SelSpace.x1,
+          )
+        : const EdgeInsets.symmetric(
+            horizontal: SelSpace.x4,
+            vertical: SelSpace.x2,
+          );
     final minH = dense ? 28.0 : 34.0;
 
     final body = loading
@@ -132,6 +138,7 @@ class _SelPill extends StatefulWidget {
     required this.minHeight,
     required this.onTap,
     required this.child,
+    this.semanticLabel,
   });
 
   final SelButtonKind kind;
@@ -140,6 +147,10 @@ class _SelPill extends StatefulWidget {
   final double minHeight;
   final VoidCallback? onTap;
   final Widget child;
+
+  /// Spoken name for controls whose child carries no text — an icon button.
+  /// Where the child is a label, that label is the name and this stays null.
+  final String? semanticLabel;
 
   @override
   State<_SelPill> createState() => _SelPillState();
@@ -153,33 +164,45 @@ class _SelPillState extends State<_SelPill> {
     final h = _hover && !widget.disabled;
 
     final (Color bg, Color? bd) = switch (widget.kind) {
-      SelButtonKind.cyan => widget.disabled
-          ? (Sel.borderMuted, null)
-          : (h ? Sel.cyanEdge : Sel.cyan, Sel.cyanEdge),
+      SelButtonKind.cyan =>
+        widget.disabled
+            ? (Sel.borderMuted, null)
+            : (h ? Sel.cyanEdge : Sel.cyan, Sel.cyanEdge),
       SelButtonKind.ghost => (h ? Sel.card : Colors.transparent, Sel.border),
       SelButtonKind.quiet => (h ? Sel.card : Colors.transparent, null),
-      SelButtonKind.edge => (h ? Sel.skyWash : Colors.transparent, Sel.cyanEdge),
+      SelButtonKind.edge => (
+        h ? Sel.skyWash : Colors.transparent,
+        Sel.cyanEdge,
+      ),
     };
 
-    return MouseRegion(
-      cursor: widget.disabled
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOut,
-          constraints: BoxConstraints(minHeight: widget.minHeight),
-          padding: widget.padding,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(SelRadius.pill),
-            border: bd == null ? null : Border.all(color: bd),
+    // A GestureDetector is nothing to a screen reader: every button in the
+    // app was an unnamed, unreachable shape until this said otherwise.
+    return Semantics(
+      button: true,
+      enabled: !widget.disabled,
+      label: widget.semanticLabel,
+      excludeSemantics: widget.semanticLabel != null,
+      child: MouseRegion(
+        cursor: widget.disabled
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            constraints: BoxConstraints(minHeight: widget.minHeight),
+            padding: widget.padding,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              border: bd == null ? null : Border.all(color: bd),
+            ),
+            child: Center(widthFactor: 1, child: widget.child),
           ),
-          child: Center(widthFactor: 1, child: widget.child),
         ),
       ),
     );
@@ -246,6 +269,11 @@ class SelIconButton extends StatelessWidget {
       padding: const EdgeInsets.all(SelSpace.x2),
       minHeight: 32,
       onTap: onPressed,
+      // The tooltip is the only name this control has; a pointer gets it on
+      // hover and, now, a screen reader gets it too.
+      semanticLabel: badge != null && badge! > 0 && tooltip != null
+          ? '$tooltip, $badge'
+          : tooltip,
       child: child,
     );
 
@@ -287,7 +315,8 @@ class _SelLinkState extends State<SelLink> {
 
   @override
   Widget build(BuildContext context) {
-    final base = widget.style ??
+    final base =
+        widget.style ??
         SelType.small.copyWith(
           color: Sel.cyanEdge,
           fontWeight: FontWeight.w500,

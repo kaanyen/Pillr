@@ -32,54 +32,56 @@ class SelStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SelCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(SelSpace.x6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Expanded(
+    return MergeSemantics(
+      child: SelCard(
+        onTap: onTap,
+        padding: const EdgeInsets.all(SelSpace.x6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label.toUpperCase(),
+                    style: SelType.caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (icon != null) Icon(icon, size: 14, color: Sel.ash),
+              ],
+            ),
+            const SizedBox(height: SelSpace.x2),
+            // Scale down before truncating. An ellipsised total tells you
+            // neither the amount nor its size.
+            Tooltip(
+              message: exactValue ?? '',
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  label.toUpperCase(),
-                  style: SelType.caption,
+                  value,
+                  style: SelType.title.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
                 ),
               ),
-              if (icon != null) Icon(icon, size: 14, color: Sel.ash),
-            ],
-          ),
-          const SizedBox(height: SelSpace.x2),
-          // Scale down before truncating. An ellipsised total tells you
-          // neither the amount nor its size.
-          Tooltip(
-            message: exactValue ?? '',
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: SelType.title.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+            ),
+            if (footnote != null) ...[
+              const SizedBox(height: SelSpace.x1),
+              Text(
+                footnote!,
+                style: SelType.small,
                 maxLines: 1,
-                softWrap: false,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ),
-          if (footnote != null) ...[
-            const SizedBox(height: SelSpace.x1),
-            Text(
-              footnote!,
-              style: SelType.small,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -98,8 +100,8 @@ class SelStatRow extends StatelessWidget {
         final perRow = c.maxWidth >= 900
             ? stats.length.clamp(1, 4)
             : c.maxWidth >= 520
-                ? 2
-                : 1;
+            ? 2
+            : 1;
         const gap = SelSpace.x4;
         final w = (c.maxWidth - gap * (perRow - 1)) / perRow;
         return Wrap(

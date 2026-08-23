@@ -1774,6 +1774,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
       tint: color,
       onTap: () => widget.onJumpToRow(i),
       highlighted: highlighted,
+      semanticLabel:
+          'Row ${widget.rawRows[i].sheetRowNumber}: ${_rowSummary(i)}',
       builder: (hovering) => Padding(
         padding: const EdgeInsets.symmetric(vertical: SelSpace.x1),
         child: Row(
@@ -1867,6 +1869,9 @@ class _FixPreview extends StatelessWidget {
       tint: tint,
       onTap: onTap,
       highlighted: highlighted,
+      semanticLabel:
+          'Row ${proposal.sheetRow}: change ${proposal.before} to '
+          '${proposal.after}',
       builder: (hovering) => Padding(
         padding: const EdgeInsets.fromLTRB(
           SelSpace.x8,
@@ -2097,6 +2102,7 @@ class _HoverRow extends StatefulWidget {
     this.builder,
     this.strength = 0.13,
     this.highlighted = false,
+    this.semanticLabel,
   }) : assert(child != null || builder != null);
 
   final Color tint;
@@ -2112,6 +2118,10 @@ class _HoverRow extends StatefulWidget {
   /// clicked in the sheet.
   final bool highlighted;
 
+  /// What this line is, spoken. The contents are struck-through text and
+  /// arrows, which read as nonsense without it.
+  final String? semanticLabel;
+
   @override
   State<_HoverRow> createState() => _HoverRowState();
 }
@@ -2121,28 +2131,32 @@ class _HoverRowState extends State<_HoverRow> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          decoration: BoxDecoration(
-            color: _hovering || widget.highlighted
-                ? widget.tint.withValues(alpha: widget.strength)
-                : Colors.transparent,
-            border: Border(
-              left: BorderSide(
-                color: widget.highlighted ? widget.tint : Colors.transparent,
-                width: 2,
+    return Semantics(
+      button: true,
+      label: widget.semanticLabel,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              color: _hovering || widget.highlighted
+                  ? widget.tint.withValues(alpha: widget.strength)
+                  : Colors.transparent,
+              border: Border(
+                left: BorderSide(
+                  color: widget.highlighted ? widget.tint : Colors.transparent,
+                  width: 2,
+                ),
               ),
+              borderRadius: BorderRadius.circular(SelRadius.card),
             ),
-            borderRadius: BorderRadius.circular(SelRadius.card),
+            child: widget.child ?? widget.builder!(_hovering),
           ),
-          child: widget.child ?? widget.builder!(_hovering),
         ),
       ),
     );
