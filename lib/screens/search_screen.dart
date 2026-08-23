@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
+import '../l10n/app_localizations.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
@@ -31,41 +34,74 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _q.dispose();
     super.dispose();
   }
 
+  Timer? _debounce;
+  int _seq = 0;
+
+  void _onChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 220), _run);
+  }
+
+  /// Runs the current query.
+  ///
+  /// Every run carries a sequence number and a slow answer to an old query is
+  /// dropped: typing "Kwe" then "Kweku" must not end with the results for
+  /// "Kwe" landing last.
   Future<void> _run() async {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
-    if (idx == null || !idx.isPastor) return;
+    if (idx == null) return;
     final query = _q.text.trim();
+    final seq = ++_seq;
+
     if (query.length < 2) {
+      if (!mounted) return;
       setState(() {
-        _error = 'Enter at least 2 characters.';
+        _error = null;
         _partners = [];
         _entries = [];
+        _busy = false;
+        _ran = query.isNotEmpty;
       });
       return;
     }
+
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final partners = await ref
+      // Staff see the entries they recorded; a pastor sees the church's.
+      final partnersFuture = ref
           .read(partnersRepositoryProvider)
           .searchPartners(idx.churchId, query);
-      final page = await ref.read(entriesRepositoryProvider).fetchEntriesPage(
+      final pageFuture = ref
+          .read(entriesRepositoryProvider)
+          .fetchEntriesPage(
             idx.churchId,
-            allChurchEntries: true,
+            allChurchEntries: idx.isPastor,
+            createdByUid: idx.isPastor ? null : idx.uid,
             pageSize: 80,
           );
+      final partners = await partnersFuture;
+      final page = await pageFuture;
+      if (!mounted || seq != _seq) return;
+
       final lower = query.toLowerCase();
       final entries = page.items.where((e) {
-        final name = e.partnerSnapshot['fullName']?.toString().toLowerCase() ?? '';
-        return name.contains(lower) || e.status.toLowerCase().contains(lower);
+        final name =
+            e.partnerSnapshot['fullName']?.toString().toLowerCase() ?? '';
+        final memberId =
+            e.partnerSnapshot['memberId']?.toString().toLowerCase() ?? '';
+        return name.contains(lower) ||
+            memberId.contains(lower) ||
+            e.status.toLowerCase().contains(lower);
       }).toList();
-      if (!mounted) return;
+
       setState(() {
         _partners = partners;
         _entries = entries;
@@ -73,7 +109,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         _ran = true;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || seq != _seq) return;
       setState(() {
         _error = '$e';
         _busy = false;
@@ -83,28 +119,44 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final money = ref.watch(churchMoneyFormatProvider);
 
     return SelPageBody(
       maxWidth: 900,
       children: [
-        const SelPageTitle(
-          title: 'Search',
-          subtitle: 'Find a partner or an entry across your church.',
-        ),
+        SelPageTitle(title: l10n.titleSearch, subtitle: l10n.searchSubtitle),
+        // No Search button: a button is a second thing to do after typing,
+        // and results that arrive as you type tell you whether to keep going.
         Row(
           children: [
             Expanded(
               child: SelField(
                 controller: _q,
-                hint: 'Name, member ID or status',
+                hint: l10n.searchFieldHint,
                 prefixIcon: LucideIcons.search,
                 autofocus: true,
+                onChanged: _onChanged,
                 onSubmitted: (_) => _run(),
               ),
             ),
-            const SizedBox(width: SelSpace.x3),
-            SelButton.cyan(label: 'Search', loading: _busy, onPressed: _run),
+            // A quiet sign that the answer is still coming, where a button
+            // used to sit.
+            SizedBox(
+              width: SelSpace.x8,
+              child: Center(
+                child: _busy
+                    ? const SizedBox(
+                        height: 14,
+                        width: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Sel.ash,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
           ],
         ),
         if (_error != null) ...[
@@ -114,10 +166,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         const SizedBox(height: SelSpace.x8),
 
         if (!_ran)
-          const SelCard(
+          SelCard(
             child: SelEmpty(
-              title: 'Search your church',
-              message: 'Results appear here once you search.',
+              title: l10n.searchIdleTitle,
+              message:
+                  'Type a name, a member ID or a status. '
+                  'Results appear as you go.',
               icon: LucideIcons.search,
             ),
           )
@@ -133,8 +187,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               SelColumn('Name', flex: 2),
               SelColumn.numeric('Total given', width: 140),
             ],
-            emptyState: const SelEmpty(
-              title: 'No partners matched',
+            emptyState: SelEmpty(
+              title: l10n.searchNoPartners,
               message: 'Try a different spelling or a member ID.',
             ),
             rows: [
@@ -162,8 +216,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               SelColumn('Status', fit: SelColFit.fixed, width: 120),
               SelColumn('Date', fit: SelColFit.fixed, width: 110),
             ],
-            emptyState: const SelEmpty(
-              title: 'No entries matched',
+            emptyState: SelEmpty(
+              title: l10n.searchNoEntries,
               message: 'Search covers the most recent 80 entries.',
             ),
             rows: [

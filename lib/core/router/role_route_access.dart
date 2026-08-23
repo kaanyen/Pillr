@@ -32,7 +32,8 @@ bool isPathForbiddenForRole(String location, String role) {
       if (starts('/configuration')) return true;
       if (starts('/people')) return true;
       if (starts('/activity')) return true;
-      if (starts('/search')) return true;
+      // Search is open to staff: they are the ones hunting for a partner
+      // mid-service. What it returns is scoped to what they may see.
       return false;
 
     // Pastor sees everything except the admin audit trail.
