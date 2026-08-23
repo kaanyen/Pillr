@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
+import {FieldValue} from "firebase-admin/firestore";
 import {getStorage} from "firebase-admin/storage";
 import PDFDocument from "pdfkit";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -96,7 +97,7 @@ async function appendPlatformAudit(action: string, actorUid: string, payload: Re
     action,
     actorUid,
     payload,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 }
 
@@ -288,7 +289,7 @@ export const redeemBootstrapInvite = onCall({region: REGION}, async (request) =>
   const churchId = churchRef.id;
   const churchName = toTitleCase(churchNameRaw);
   const slug = slugFromName(churchNameRaw);
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   let redeemedRole = "";
 
   await db.runTransaction(async (tx) => {
@@ -423,7 +424,7 @@ export const setChurchActive = onCall({region: REGION}, async (request) => {
   }
   await db.doc(`churches/${churchId}`).update({
     isActive,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   await appendPlatformAudit("church_active_toggled", uid, {churchId, isActive});
   return {success: true};
@@ -503,7 +504,7 @@ export const completeRegistration = onCall({region: REGION}, async (request) => 
   const role = inv.role as string;
   const batch = db.batch();
   const userChurchRef = db.doc(`user_church_index/${uid}`);
-  batch.set(userChurchRef, {churchId, role, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+  batch.set(userChurchRef, {churchId, role, updatedAt: FieldValue.serverTimestamp()});
   const userRef = db.doc(`churches/${churchId}/users/${uid}`);
   batch.set(userRef, {
     uid,
@@ -516,14 +517,14 @@ export const completeRegistration = onCall({region: REGION}, async (request) => 
     isActive: true,
     fcmToken: null,
     inviteCodeId: codeId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     lastLoginAt: null,
   });
   batch.update(inviteRef, {
     status: "accepted",
     acceptedBy: uid,
-    acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+    acceptedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
   const createdBy = inv.createdBy as string | undefined;
@@ -651,7 +652,7 @@ export const activatePeriod = onCall({region: REGION}, async (request) => {
     throw new HttpsError("failed-precondition", "No periods defined.");
   }
   const batch = db.batch();
-  const ts = admin.firestore.FieldValue.serverTimestamp();
+  const ts = FieldValue.serverTimestamp();
   for (const doc of snap.docs) {
     batch.update(doc.ref, {
       isActive: doc.id === periodId,
@@ -669,14 +670,14 @@ async function applyApprovalDeltas(churchId: string, entry: admin.firestore.Docu
   const periodRef = db.doc(`churches/${churchId}/partnership_periods/${entry.partnershipPeriodId}`);
   const batch = db.batch();
   batch.update(partnerRef, {
-    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
-    entryCount: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    totalApprovedAmount: FieldValue.increment(amount),
+    entryCount: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   batch.update(periodRef, {
-    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
-    entryCount: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    totalApprovedAmount: FieldValue.increment(amount),
+    entryCount: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   const goals = await db
     .collection(`churches/${churchId}/goals`)
@@ -686,8 +687,8 @@ async function applyApprovalDeltas(churchId: string, entry: admin.firestore.Docu
     .get();
   if (!goals.empty) {
     batch.update(goals.docs[0].ref, {
-      currentAmountCedis: admin.firestore.FieldValue.increment(amount),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      currentAmountCedis: FieldValue.increment(amount),
+      updatedAt: FieldValue.serverTimestamp(),
     });
   }
   await batch.commit();
@@ -837,7 +838,7 @@ export const updateChurchMember = onCall({region: REGION}, async (request) => {
   const batch = db.batch();
   const userRef = db.doc(`churches/${churchId}/users/${targetUid}`);
   const targetIndexRef = db.doc(`user_church_index/${targetUid}`);
-  const ts = admin.firestore.FieldValue.serverTimestamp();
+  const ts = FieldValue.serverTimestamp();
   if (isActive !== undefined) {
     batch.update(userRef, {isActive, updatedAt: ts});
   }
@@ -952,7 +953,7 @@ async function generatePeriodSummaryPdf(churchId: string, periodId: string): Pro
   await periodSnap.ref.update({
     summaryPdfUrl: url,
     summaryPdfStoragePath: path,
-    summaryGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+    summaryGeneratedAt: FieldValue.serverTimestamp(),
   });
 }
 

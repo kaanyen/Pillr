@@ -62,15 +62,25 @@ class _ApprovalPlaybackState extends State<ApprovalPlayback> {
   Timer? _timer;
   final _scroll = ScrollController();
 
+  /// The comfortable pace for one entry, when there is time for it.
+  static const _perEntry = 520;
+
   /// Per-entry interval, bounded so five entries are not over instantly and
   /// two hundred do not take three minutes.
+  ///
+  /// Work it out from the run, not the entry. The previous version clamped a
+  /// per-entry figure between `_minTotal / n` and 520ms, and for any batch of
+  /// eleven or fewer the lower bound climbs above the upper one — `clamp`
+  /// throws on that, mid-build, and the playback painted a blank screen. Only
+  /// large batches got through, which is why it looked like it worked.
   Duration get _tick {
     final n = widget.entries.length;
-    final ms = (_maxTotal.inMilliseconds / n).clamp(
-      _minTotal.inMilliseconds / n,
-      520.0,
+    if (n == 0) return _maxTotal;
+    final total = (n * _perEntry).clamp(
+      _minTotal.inMilliseconds,
+      _maxTotal.inMilliseconds,
     );
-    return Duration(milliseconds: ms.round());
+    return Duration(milliseconds: (total / n).round());
   }
 
   @override
@@ -80,10 +90,11 @@ class _ApprovalPlaybackState extends State<ApprovalPlayback> {
       if (!mounted) return;
       if (_index >= widget.entries.length) {
         t.cancel();
-        // Hold on the finished total for a beat before closing.
-        Timer(const Duration(milliseconds: 1400), () {
-          if (mounted) Navigator.of(context).maybePop();
-        });
+        // Stop here and wait to be dismissed. This used to close itself 1.4
+        // seconds after the last entry, which put a Done button on screen and
+        // took it away before it could be read, let alone pressed — and the
+        // final total is the one number in the whole sequence worth reading.
+        setState(() {});
         return;
       }
       setState(() {
@@ -280,7 +291,10 @@ class _Line extends StatelessWidget {
       curve: Curves.easeOutCubic,
       builder: (context, t, child) => Opacity(
         opacity: t,
-        child: Transform.translate(offset: Offset(0, 14 * (1 - t)), child: child),
+        child: Transform.translate(
+          offset: Offset(0, 14 * (1 - t)),
+          child: child,
+        ),
       ),
       child: row,
     );
