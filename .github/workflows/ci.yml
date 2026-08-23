@@ -19,10 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned, not floating. An unpinned `channel: stable` takes whatever
+      # Flutter shipped that morning, so CI can break without a commit. It did:
+      # newer Flutter makes IconData a final class, which lucide_icons 0.257.0
+      # extends, and five test files stop compiling. Raise this deliberately.
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.41.6'
           cache: true
 
       - name: Install dependencies
