@@ -150,6 +150,7 @@ class EntriesRepository {
     required double amountCedis,
     required DateTime dateGiven,
     String? notes,
+    String? importBatchId,
   }) async {
     final docRef = _entries(churchId).doc();
     final now = FieldValue.serverTimestamp();
@@ -166,6 +167,8 @@ class EntriesRepository {
       'amountCedis': amountCedis,
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
+      // Which import put this row here, if any. Manual entries carry null.
+      'importBatchId': importBatchId,
       'status': pastorCreates ? 'approved' : 'pending',
       'createdBy': staff.uid,
       'createdBySnapshot': TextCaseUtils.normalizePersonSnapshot({

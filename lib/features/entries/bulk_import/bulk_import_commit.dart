@@ -11,6 +11,7 @@ import '../../partners/providers/partners_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../domain/partnership_entry.dart';
 import '../providers/entries_providers.dart';
+import 'bulk_import_batches.dart';
 import 'bulk_import_models.dart';
 import 'bulk_import_phone.dart';
 
@@ -21,6 +22,8 @@ class BulkImportCommitResult {
     required this.entriesApproved,
     required this.rowsSkipped,
     required this.errors,
+    required this.batchId,
+    required this.totalCedis,
   });
 
   final int entriesCreated;
@@ -28,23 +31,28 @@ class BulkImportCommitResult {
   final int entriesApproved;
   final int rowsSkipped;
   final List<String> errors;
+
+  /// Stamped on every entry this run created, so the import can be found —
+  /// and undone — afterwards.
+  final String batchId;
+  final double totalCedis;
 }
 
 Map<String, dynamic> _partnerSnapshot(Partner p) => {
-      'memberId': p.memberId,
-      'fullName': p.fullName,
-      'fellowship': p.fellowship,
-      'email': p.email,
-      'phone': p.phone,
-    };
+  'memberId': p.memberId,
+  'fullName': p.fullName,
+  'fellowship': p.fellowship,
+  'email': p.email,
+  'phone': p.phone,
+};
 
 Map<String, dynamic> _armSnapshot(PartnershipArm a) => {'name': a.name};
 
 Map<String, dynamic> _periodSnapshot(PartnershipPeriod p) => {
-      'name': p.name,
-      'startDate': Timestamp.fromDate(p.startDate),
-      'endDate': Timestamp.fromDate(p.endDate),
-    };
+  'name': p.name,
+  'startDate': Timestamp.fromDate(p.startDate),
+  'endDate': Timestamp.fromDate(p.endDate),
+};
 
 Map<String, dynamic> _afterEntryValues({
   required Partner partner,
@@ -54,25 +62,25 @@ Map<String, dynamic> _afterEntryValues({
   required DateTime dateGiven,
   required String? notes,
   required String status,
-}) =>
-    {
-      'partnerId': partner.id,
-      'partnerName': partner.fullName,
-      'memberId': partner.memberId,
-      'amountCedis': amount,
-      'partnershipArmId': arm.id,
-      'armName': arm.name,
-      'partnershipPeriodId': period.id,
-      'periodName': period.name,
-      'status': status,
-      'notes': notes,
-      'dateGiven': dateGiven.toIso8601String(),
-    };
+}) => {
+  'partnerId': partner.id,
+  'partnerName': partner.fullName,
+  'memberId': partner.memberId,
+  'amountCedis': amount,
+  'partnershipArmId': arm.id,
+  'armName': arm.name,
+  'partnershipPeriodId': period.id,
+  'periodName': period.name,
+  'status': status,
+  'notes': notes,
+  'dateGiven': dateGiven.toIso8601String(),
+};
 
 String _partnerCreateKey(BulkResolvedRow r) =>
     '${normalizePhoneDigits(r.phone)}|${r.fullName.toLowerCase().trim()}|${r.fellowship.toLowerCase().trim()}';
 
-typedef BulkImportCommitProgressCallback = void Function(int current, int total, String message);
+typedef BulkImportCommitProgressCallback =
+    void Function(int current, int total, String message);
 
 Future<BulkImportCommitResult> commitBulkImport({
   required WidgetRef ref,
@@ -85,10 +93,14 @@ Future<BulkImportCommitResult> commitBulkImport({
   required bool allChurchEntries,
   required bool viewerIsPastor,
   required Set<int> duplicateAcknowledgedSheetRows,
+  required String fileName,
   BulkImportCommitProgressCallback? onProgress,
 }) async {
   final partnersRepo = ref.read(partnersRepositoryProvider);
   final entriesRepo = ref.read(entriesRepositoryProvider);
+  final batchesRepo = ref.read(bulkImportBatchRepositoryProvider);
+  final batchId = batchesRepo.newBatchId(churchId);
+  var totalCedis = 0.0;
 
   final createdPartners = <String, Partner>{};
   final batchEntries = <PartnershipEntry>[];
@@ -151,9 +163,17 @@ Future<BulkImportCommitResult> commitBulkImport({
     return p;
   }
 
-  final processable = rows.where((r) => !r.isBlocking && r.resolution != PartnerResolutionKind.ambiguous).length;
+  final processable = rows
+      .where(
+        (r) => !r.isBlocking && r.resolution != PartnerResolutionKind.ambiguous,
+      )
+      .length;
   var processed = 0;
-  onProgress?.call(0, processable > 0 ? processable : rows.length, 'Starting import…');
+  onProgress?.call(
+    0,
+    processable > 0 ? processable : rows.length,
+    'Starting import…',
+  );
 
   for (final r in rows) {
     if (r.isBlocking) {
@@ -239,11 +259,40 @@ Future<BulkImportCommitResult> commitBulkImport({
         amountCedis: r.amountCedis,
         dateGiven: r.dateGiven,
         notes: r.notes,
+        importBatchId: batchId,
       );
       entriesCreated++;
+      totalCedis += r.amountCedis;
 
-      final entry = await entriesRepo.getEntry(churchId, entryId);
-      if (entry != null) {
+      // Built here rather than read back. The row it would fetch is the row we
+      // just wrote, and on an eight-hundred-row sheet that read-after-write is
+      // eight hundred round trips for information we already hold.
+      final entry = PartnershipEntry(
+        id: entryId,
+        churchId: churchId,
+        partnerId: partner.id,
+        partnerSnapshot: _partnerSnapshot(partner),
+        partnershipArmId: arm.id,
+        armSnapshot: _armSnapshot(arm),
+        partnershipPeriodId: period.id,
+        periodSnapshot: _periodSnapshot(period),
+        amountCedis: r.amountCedis,
+        dateGiven: r.dateGiven,
+        notes: r.notes,
+        status: viewerIsPastor ? 'approved' : 'pending',
+        createdBy: staff.uid,
+        createdBySnapshot: {'fullName': staff.fullName, 'role': staff.role},
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        reviewedBy: viewerIsPastor ? staff.uid : null,
+        reviewedBySnapshot: viewerIsPastor
+            ? {'fullName': staff.fullName}
+            : null,
+        reviewedAt: viewerIsPastor ? DateTime.now() : null,
+        declineReason: null,
+        editHistory: const [],
+      );
+      {
         batchEntries.add(entry);
         await logPillrActivity(
           ref,
@@ -279,6 +328,19 @@ Future<BulkImportCommitResult> commitBulkImport({
     );
   }
 
+  if (entriesCreated > 0) {
+    await batchesRepo.record(
+      churchId: churchId,
+      batchId: batchId,
+      fileName: fileName,
+      periodName: period.name,
+      entryCount: entriesCreated,
+      partnersCreated: partnersCreated,
+      totalCedis: totalCedis,
+      staff: staff,
+    );
+  }
+
   ref.invalidate(entriesListProvider);
 
   return BulkImportCommitResult(
@@ -287,5 +349,7 @@ Future<BulkImportCommitResult> commitBulkImport({
     entriesApproved: entriesApproved,
     rowsSkipped: skipped,
     errors: errors,
+    batchId: batchId,
+    totalCedis: totalCedis,
   );
 }

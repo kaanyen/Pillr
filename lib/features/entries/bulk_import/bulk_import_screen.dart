@@ -23,6 +23,7 @@ import '../../partners/providers/partners_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
 import 'bulk_import_autofix.dart';
+import 'bulk_import_batches.dart';
 import 'bulk_import_columns.dart';
 import 'bulk_import_grid.dart';
 import 'bulk_import_mapping.dart';
@@ -290,9 +291,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
   /// The rows that will be imported — everything not set aside.
   List<BulkResolvedRow> get _liveRows => [
-        for (final r in _resolved ?? const <BulkResolvedRow>[])
-          if (!_droppedSheetRows.contains(r.sheetRowNumber)) r,
-      ];
+    for (final r in _resolved ?? const <BulkResolvedRow>[])
+      if (!_droppedSheetRows.contains(r.sheetRowNumber)) r,
+  ];
 
   /// A suspected duplicate holds up the import until someone says which it
   /// is. Importing money twice is not a warning-level mistake.
@@ -308,19 +309,19 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   void _keepRow(int sheetRow) => setState(() {
-        _droppedSheetRows.remove(sheetRow);
-        _duplicateAcknowledgedSheetRows.add(sheetRow);
-      });
+    _droppedSheetRows.remove(sheetRow);
+    _duplicateAcknowledgedSheetRows.add(sheetRow);
+  });
 
   void _dropRow(int sheetRow) => setState(() {
-        _duplicateAcknowledgedSheetRows.remove(sheetRow);
-        _droppedSheetRows.add(sheetRow);
-      });
+    _duplicateAcknowledgedSheetRows.remove(sheetRow);
+    _droppedSheetRows.add(sheetRow);
+  });
 
   void _undoRowDecision(int sheetRow) => setState(() {
-        _droppedSheetRows.remove(sheetRow);
-        _duplicateAcknowledgedSheetRows.remove(sheetRow);
-      });
+    _droppedSheetRows.remove(sheetRow);
+    _duplicateAcknowledgedSheetRows.remove(sheetRow);
+  });
 
   int _countNonDuplicateWarnings(List<BulkResolvedRow> rows) {
     var n = 0;
@@ -492,6 +493,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           '.xlsx or .csv. The active giving period is applied to every row.',
           style: SelType.small,
         ),
+        const _RecentImports(),
       ],
     );
   }
@@ -641,10 +643,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     Text(
                       live.length == resolved.length
                           ? '${resolved.length} rows from '
-                              '${_fileName ?? "your file"} — click any cell '
-                              'to change it.'
+                                '${_fileName ?? "your file"} — click any cell '
+                                'to change it.'
                           : '${live.length} of ${resolved.length} rows will be '
-                              'imported — click any cell to change it.',
+                                'imported — click any cell to change it.',
                       style: SelType.bodyMuted,
                     ),
                   ],
@@ -735,9 +737,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               SelButton.cyan(
                 label: 'Continue',
                 onPressed:
-                    blocking || duplicatesPending || _loadingPartners || live.isEmpty
-                        ? null
-                        : () => setState(() => _step = _Step.confirm),
+                    blocking ||
+                        duplicatesPending ||
+                        _loadingPartners ||
+                        live.isEmpty
+                    ? null
+                    : () => setState(() => _step = _Step.confirm),
               ),
             ],
           ),
@@ -2015,6 +2020,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         allChurchEntries: true,
         viewerIsPastor: viewerIsPastor,
         duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+        fileName: _fileName ?? 'Pasted rows',
         onProgress: (current, total, message) {
           progressNotifier.update(current, message);
         },
@@ -2793,4 +2799,146 @@ String describeWhen(DateTime when) {
   if (diff.inDays == 1) return 'yesterday';
   if (diff.inDays < 7) return '${diff.inDays} days ago';
   return DateFormat('d MMM').format(when);
+}
+
+/// The last few imports, and a way back out of one.
+///
+/// An import is the only thing in Pillr that writes dozens of records at once,
+/// and until now it left no record of itself: the wrong period picked on a
+/// sixty-seven row sheet meant finding those rows by eye among eight hundred.
+class _RecentImports extends ConsumerWidget {
+  const _RecentImports();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final batches =
+        ref.watch(recentImportBatchesProvider).valueOrNull ?? const [];
+    if (batches.isEmpty) return const SizedBox.shrink();
+    final money = ref.watch(churchMoneyFormatProvider);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: SelSpace.x8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SelSectionLabel(label: 'Recent imports'),
+          SelCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var i = 0; i < batches.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Sel.borderMuted),
+                  _ImportRow(batch: batches[i], money: money),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImportRow extends ConsumerStatefulWidget {
+  const _ImportRow({required this.batch, required this.money});
+
+  final BulkImportBatch batch;
+  final String Function(num) money;
+
+  @override
+  ConsumerState<_ImportRow> createState() => _ImportRowState();
+}
+
+class _ImportRowState extends ConsumerState<_ImportRow> {
+  bool _busy = false;
+
+  Future<void> _undo() async {
+    final b = widget.batch;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+
+    final ok = await selConfirm(
+      context,
+      title: 'Undo this import?',
+      message:
+          'Removes the entries from ${b.fileName} that are still waiting on a '
+          'decision. Anything already approved stays — that money has been '
+          'counted, and taking it back out quietly would be a second mistake.',
+      confirmLabel: 'Undo import',
+      destructive: true,
+    );
+    if (!ok) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await ref
+          .read(bulkImportBatchRepositoryProvider)
+          .undo(churchId: idx.churchId, batchId: b.id, byUid: idx.uid);
+      ref.invalidate(entriesListProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.kept == 0
+                ? 'Removed ${result.removed} '
+                      '${result.removed == 1 ? "entry" : "entries"} from '
+                      '${b.fileName}.'
+                : 'Removed ${result.removed}; kept ${result.kept} already '
+                      'approved.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = widget.batch;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x3,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  b.fileName.isEmpty ? 'A spreadsheet' : b.fileName,
+                  style: SelType.bodyMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${b.entryCount} ${b.entryCount == 1 ? "entry" : "entries"} · '
+                  '${widget.money(b.totalCedis)} · ${b.periodName} · '
+                  '${describeWhen(b.createdAt)} by ${b.createdByName}',
+                  style: SelType.small,
+                ),
+                if (b.isUndone)
+                  Text(
+                    'Undone — ${b.removedCount} removed'
+                    '${b.keptCount > 0 ? ", ${b.keptCount} kept" : ""}',
+                    style: SelType.small.copyWith(color: Sel.warm),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          if (!b.isUndone)
+            SelButton(
+              label: _busy ? 'Undoing…' : 'Undo',
+              kind: SelButtonKind.ghost,
+              dense: true,
+              onPressed: _busy ? null : _undo,
+            ),
+        ],
+      ),
+    );
+  }
 }
