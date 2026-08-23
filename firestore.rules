@@ -61,7 +61,22 @@ service cloud.firestore {
 
     match /churches/{churchId} {
       allow read: if isPlatformAdmin() || belongsToChurch(churchId);
-      allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
+
+      // A church may edit how it looks and how it is set up. It may not edit
+      // whether it is allowed to exist: `isActive` is the platform's switch,
+      // and until this was field-restricted a suspended church's own pastor
+      // could turn it back on. Suspension runs through the setChurchActive
+      // callable, which uses the admin SDK and does not pass through rules.
+      //
+      // Creation and deletion of a church stay with the platform for the same
+      // reason.
+      allow create, delete: if false;
+      allow update: if belongsToChurch(churchId) && isPastorOrAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['name', 'primaryColorHex', 'logoUrl',
+                                   'logoStoragePath', 'currency',
+                                   'currencySymbol', 'settings',
+                                   'churchSetupCompletedAt', 'updatedAt']);
 
       match /users/{uidField} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
@@ -129,6 +144,18 @@ service cloud.firestore {
         allow create: if belongsToChurch(churchId) && isPastorOrAdmin();
         allow update: if false;
         allow delete: if belongsToChurch(churchId) && isPastorOrAdmin();
+      }
+
+      match /import_batches/{batchId} {
+        // The record of what an import did. Written once by whoever ran it,
+        // amended only to record an undo, and never deleted — an import you
+        // can erase the trace of is not provenance.
+        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
+        allow create: if belongsToChurch(churchId) && isPastorOrStaff();
+        allow update: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['undoneAt', 'undoneBy', 'removedCount', 'keptCount']);
+        allow delete: if false;
       }
 
       match /activity_logs/{logId} {

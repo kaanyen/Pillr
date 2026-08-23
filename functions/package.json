@@ -9,7 +9,10 @@
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
     "lint": "eslint --ext .ts src/",
+    "test": "node --test --test-concurrency=1 'test/*.test.mjs'",
     "seed-demo": "node scripts/seed-demo.cjs",
+    "seed-pending": "node scripts/seed-pending-entries.cjs",
+    "reconcile": "node scripts/reconcile-aggregates.cjs",
     "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs",
     "setup-firestore-backup": "node scripts/setup-firestore-backup-bucket.cjs"
   },
@@ -22,6 +25,7 @@
     "resend": "^4.0.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "typescript": "^5.6.3"
   }
 }

@@ -21,10 +21,16 @@ class ChurchTenantGateCache {
     required String uid,
     required String churchId,
   }) async {
-    if (_cachedUid == uid && _cachedChurchId == churchId && _isActive != null && _setupComplete != null) {
+    if (_cachedUid == uid &&
+        _cachedChurchId == churchId &&
+        _isActive != null &&
+        _setupComplete != null) {
       return (isActive: _isActive!, setupComplete: _setupComplete!);
     }
-    final snap = await FirebaseFirestore.instance.collection('churches').doc(churchId).get();
+    final snap = await FirebaseFirestore.instance
+        .collection('churches')
+        .doc(churchId)
+        .get();
     final data = snap.data();
     final isActive = data?['isActive'] != false;
     final ts = data?['churchSetupCompletedAt'];

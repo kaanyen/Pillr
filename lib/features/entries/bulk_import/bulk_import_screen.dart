@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -9,17 +9,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
+import '../../../design/seline.dart';
+import '../../../screens/arm_palette.dart';
+
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
-import '../../../core/theme/pillr_layout.dart';
-import '../../../common/widgets/pillr_dropdown_field.dart';
-import '../../../common/widgets/pillr_form_dialog.dart';
-import '../../../common/widgets/pillr_surface_card.dart';
-import '../../../common/widgets/pillr_text_field.dart';
 import '../../arms/domain/partnership_arm.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart' show AppRadius, AppSpacing;
-import '../../../core/theme/app_typography.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/domain/user_church_index.dart' show UserChurchIndex;
 import '../../auth/providers/auth_providers.dart';
@@ -27,7 +22,14 @@ import '../../church/providers/church_settings_providers.dart';
 import '../../partners/providers/partners_providers.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
+import 'bulk_import_autofix.dart';
+import 'bulk_import_batches.dart';
 import 'bulk_import_columns.dart';
+import 'bulk_import_grid.dart';
+import 'bulk_import_mapping.dart';
+import 'bulk_import_save.dart';
+import 'bulk_import_sources.dart';
+import 'bulk_import_template.dart';
 import 'bulk_import_commit.dart';
 import 'bulk_import_drop_zone.dart';
 import 'bulk_import_models.dart';
@@ -39,15 +41,27 @@ import 'bulk_import_xlsx_pick.dart';
 import '../providers/entries_providers.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
-abstract final class _BulkImportRowLayout {
-  static const double chevron = 28;
-  static const double rowNum = 44;
-  /// Space between Amount and Date so they don’t read as one block.
-  static const double gapAfterAmount = 16;
-  static const double amount = 108;
-  static const double date = 118;
-  static const double status = 108;
-  static const double action = 88;
+/// The four stages of an import.
+///
+/// The old screen put uploading, reviewing and importing on one scrolling
+/// page, so there was no sense of progress and no clear finish line. Naming
+/// the stages lets the UI show one decision at a time and say how far in you
+/// are.
+enum _Step {
+  upload('Upload'),
+  columns('Check columns'),
+  resolve('Resolve'),
+  confirm('Import');
+
+  const _Step(this.label);
+  final String label;
+
+  static const ordered = [
+    _Step.upload,
+    _Step.columns,
+    _Step.resolve,
+    _Step.confirm,
+  ];
 }
 
 class BulkImportScreen extends ConsumerStatefulWidget {
@@ -57,7 +71,8 @@ class BulkImportScreen extends ConsumerStatefulWidget {
   ConsumerState<BulkImportScreen> createState() => _BulkImportScreenState();
 }
 
-class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with WidgetsBindingObserver {
+class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
+    with WidgetsBindingObserver {
   List<BulkRawRow>? _rawRows;
   List<BulkImportIssue> _fileIssues = [];
   List<BulkResolvedRow>? _resolved;
@@ -69,11 +84,32 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   bool _restoringSession = false;
   String? _error;
 
-  /// Sheet row numbers the user has confirmed are intentional (not a duplicate).
+  /// Sheet rows confirmed as intentional (not an accidental double-entry).
   final Set<int> _duplicateAcknowledgedSheetRows = {};
+
+  /// Sheet rows set aside. Kept in the grid, greyed out and struck through,
+  /// rather than deleted — a decision you cannot take back is one people
+  /// hesitate over.
+  final Set<int> _droppedSheetRows = {};
 
   String? _fileName;
   Uint8List? _fileBytes;
+
+  /// The sheet exactly as read, before any interpretation. Kept so the column
+  /// mapping step can be revisited without re-uploading.
+  List<List<String?>>? _grid;
+  BulkImportHeaderDetection? _detection;
+  Map<BulkImportColumn, int> _mapping = {};
+  _Step _step = _Step.upload;
+
+  /// How to read an ambiguous numeric date. Ghana writes day first, so that
+  /// is the default, but the sheet cannot prove it — the grid shows the
+  /// reading and lets it be flipped.
+  bool _dayFirst = true;
+
+  /// A saved import found on disk, waiting to be resumed or discarded.
+  BulkImportPersistedSession? _pendingDraft;
+
   bool _sessionRestored = false;
   String? _persistUid;
   String? _persistChurchId;
@@ -83,7 +119,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _restorePersistedSession());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _restorePersistedSession(),
+    );
   }
 
   @override
@@ -96,7 +134,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _persistDebounce?.cancel();
       _persistSession();
     }
@@ -135,6 +174,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       rawRows: rows,
       fileIssues: _fileIssues,
       duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+      mapping: _mapping,
+      droppedSheetRows: _droppedSheetRows,
     );
   }
 
@@ -144,32 +185,101 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     final idx = await _waitForChurchIndex();
     if (idx == null || !mounted) return;
     _cachePersistIds(idx);
-    final saved = await BulkImportSessionStore.load(uid: idx.uid, churchId: idx.churchId);
+    final saved = await BulkImportSessionStore.load(
+      uid: idx.uid,
+      churchId: idx.churchId,
+    );
     if (saved == null || saved.rawRows.isEmpty || !mounted) return;
+    // Offered, not resumed. Silently reopening someone else's half-finished
+    // import is how the wrong file gets committed; the choice is one click
+    // either way.
+    setState(() => _pendingDraft = saved);
+  }
+
+  /// Picks the saved draft back up where it was left.
+  Future<void> _continueDraft() async {
+    final saved = _pendingDraft;
+    if (saved == null) return;
     setState(() {
+      _pendingDraft = null;
       _restoringSession = true;
       _fileName = saved.fileName;
       _fileBytes = saved.fileBytes;
       _rawRows = saved.rawRows;
       _fileIssues = saved.fileIssues;
+      _mapping = saved.mapping.isNotEmpty
+          ? Map<BulkImportColumn, int>.from(saved.mapping)
+          : _mappingFromRows(saved.rawRows);
       _duplicateAcknowledgedSheetRows
         ..clear()
         ..addAll(saved.duplicateAcknowledgedSheetRows);
+      _droppedSheetRows
+        ..clear()
+        ..addAll(saved.droppedSheetRows);
       _result = null;
       _resolved = null;
+      _step = _Step.resolve;
     });
     await _loadPartnersAndResolve();
     if (!mounted) return;
     setState(() => _restoringSession = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppLocalizations.of(context).bulkImportDraftRestored)),
+      SnackBar(
+        content: Text(AppLocalizations.of(context).bulkImportDraftRestored),
+      ),
     );
+  }
+
+  /// A draft saved before the mapping was persisted still has to show its
+  /// columns in a sensible order.
+  Map<BulkImportColumn, int> _mappingFromRows(List<BulkRawRow> rows) {
+    final seen = <BulkImportColumn>{};
+    for (final r in rows) {
+      seen.addAll(r.valuesByColumn.keys);
+    }
+    final ordered = [
+      for (final c in bulkImportMappableFields)
+        if (seen.contains(c)) c,
+    ];
+    return {for (var i = 0; i < ordered.length; i++) ordered[i]: i};
+  }
+
+  Future<void> _clearDraft(BuildContext context, AppLocalizations l10n) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard the saved import?'),
+        content: Text(
+          'The rows from ${_pendingDraft?.fileName ?? "the saved file"} will be '
+          'thrown away. Nothing has been imported yet, so nothing else changes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.bulkImportCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final uid = _persistUid;
+    final churchId = _persistChurchId;
+    if (uid != null && churchId != null) {
+      await BulkImportSessionStore.clear(uid: uid, churchId: churchId);
+    }
+    if (!mounted) return;
+    setState(() => _pendingDraft = null);
   }
 
   bool get _hasDraftRows => _rawRows != null && _rawRows!.isNotEmpty;
 
   bool get _isResolvingDraft =>
-      _restoringSession || (_hasDraftRows && _resolved == null && (_loadingPartners || _parsing));
+      _restoringSession ||
+      (_hasDraftRows && _resolved == null && (_loadingPartners || _parsing));
 
   bool _rowHasDuplicateIssue(BulkResolvedRow r) {
     return r.issues.any(
@@ -179,15 +289,39 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     );
   }
 
+  /// The rows that will be imported — everything not set aside.
+  List<BulkResolvedRow> get _liveRows => [
+    for (final r in _resolved ?? const <BulkResolvedRow>[])
+      if (!_droppedSheetRows.contains(r.sheetRowNumber)) r,
+  ];
+
+  /// A suspected duplicate holds up the import until someone says which it
+  /// is. Importing money twice is not a warning-level mistake.
   bool _duplicatesFullyAcknowledged() {
     if (_resolved == null) return false;
-    for (final r in _resolved!) {
-      if (_rowHasDuplicateIssue(r) && !_duplicateAcknowledgedSheetRows.contains(r.sheetRowNumber)) {
+    for (final r in _liveRows) {
+      if (_rowHasDuplicateIssue(r) &&
+          !_duplicateAcknowledgedSheetRows.contains(r.sheetRowNumber)) {
         return false;
       }
     }
     return true;
   }
+
+  void _keepRow(int sheetRow) => setState(() {
+    _droppedSheetRows.remove(sheetRow);
+    _duplicateAcknowledgedSheetRows.add(sheetRow);
+  });
+
+  void _dropRow(int sheetRow) => setState(() {
+    _duplicateAcknowledgedSheetRows.remove(sheetRow);
+    _droppedSheetRows.add(sheetRow);
+  });
+
+  void _undoRowDecision(int sheetRow) => setState(() {
+    _droppedSheetRows.remove(sheetRow);
+    _duplicateAcknowledgedSheetRows.remove(sheetRow);
+  });
 
   int _countNonDuplicateWarnings(List<BulkResolvedRow> rows) {
     var n = 0;
@@ -208,192 +342,588 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final activePeriod = ref.watch(activePeriodProvider);
 
     if (idx == null || (!idx.isPastor && !idx.isStaff)) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.bulkImportTitle)),
-        body: Center(child: Text(l10n.bulkImportAccessDenied)),
+      return SelPageBody(
+        maxWidth: 640,
+        children: [SelEmpty(title: l10n.bulkImportAccessDenied, message: '')],
       );
     }
     _cachePersistIds(idx);
 
-    final showUploadZone = !_hasDraftRows && !_isResolvingDraft;
+    if (_result != null) {
+      return SelPageBody(
+        maxWidth: 720,
+        children: [_buildResult(context, l10n, _result!)],
+      );
+    }
+    if (_isResolvingDraft) {
+      return SelPageBody(
+        maxWidth: 720,
+        children: [_buildRestoringDraft(context, l10n)],
+      );
+    }
 
-    return Scaffold(
-      backgroundColor: AppColors.surfaceColor,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: PillrLayout.bulkImportMaxWidth),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                  ),
-                if (_fileIssues.isNotEmpty)
-                  ..._fileIssues.map(
-                    (i) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                      child: Text(
-                        i.message ?? _issueLabel(l10n, i.code),
-                        style: AppTypography.caption.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (_result != null) _buildResult(context, l10n, _result!),
-                if (_result == null) ...[
-                  if (_isResolvingDraft) ...[
-                    _buildRestoringDraft(context, l10n),
-                  ] else if (showUploadZone) ...[
+    if (_step == _Step.resolve &&
+        _resolved != null &&
+        _resolved!.isNotEmpty &&
+        !_loadingPartners) {
+      return _buildResolveTakeover(context, l10n, idx);
+    }
+
+    return SelPageBody(
+      maxWidth: 900,
+      children: [
+        SelPageTitle(
+          title: 'Import entries',
+          subtitle: _fileName == null
+              ? 'Bring a spreadsheet of giving into Pillr.'
+              : _fileName!,
+          actions: [
+            if (_step != _Step.upload)
+              SelButton(
+                label: 'Start over',
+                kind: SelButtonKind.quiet,
+                onPressed: _committing ? null : _startOver,
+              ),
+          ],
+        ),
+
+        _StepBar(current: _step),
+        const SizedBox(height: SelSpace.x8),
+
+        if (_error != null) ...[
+          _Notice(message: _error!, status: SelStatus.blocked),
+          const SizedBox(height: SelSpace.x4),
+        ],
+        for (final i in _fileIssues) ...[
+          _Notice(
+            message: i.message ?? _issueLabel(l10n, i.code),
+            status: i.severity == BulkImportSeverity.error
+                ? SelStatus.blocked
+                : SelStatus.pending,
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
+
+        switch (_step) {
+          _Step.upload => _buildUploadStep(context, l10n),
+          _Step.columns => _buildColumnsStep(context, l10n),
+          _Step.resolve => _buildResolveStep(context, l10n, idx),
+          _Step.confirm => _buildConfirmStep(context, l10n, idx),
+        },
+      ],
+    );
+  }
+
+  void _startOver() {
+    setState(() {
+      _grid = null;
+      _detection = null;
+      _mapping = {};
+      _rawRows = null;
+      _resolved = null;
+      _fileIssues = const [];
+      _fileName = null;
+      _fileBytes = null;
+      _error = null;
+      _duplicateAcknowledgedSheetRows.clear();
+      _droppedSheetRows.clear();
+      _pendingDraft = null;
+      _step = _Step.upload;
+    });
+  }
+
+  // ---------------------------------------------------------------- step 1
+  Widget _buildUploadStep(BuildContext context, AppLocalizations l10n) {
+    final draft = _pendingDraft;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (draft != null) ...[
+          _DraftCard(
+            fileName: draft.fileName,
+            rowCount: draft.rawRows.length,
+            savedAt: draft.savedAt,
+            onContinue: _continueDraft,
+            onClear: () => _clearDraft(context, l10n),
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
+        BulkImportDropZone(
+          onPick: () => _pickAndParse(context),
+          loading: _parsing,
+          fileName: _fileName,
+        ),
+        const SizedBox(height: SelSpace.x4),
+        SelCard(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('No spreadsheet handy?', style: SelType.bodyMedium),
                     Text(
-                      l10n.bulkImportUploadTitle,
-                      style: AppTypography.heading3.copyWith(color: AppColors.gray900),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      l10n.bulkImportUploadSubtitle,
-                      style: AppTypography.body.copyWith(
-                        color: AppColors.textSecondary,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    BulkImportDropZone(
-                      onPick: () => _pickAndParse(context),
-                      loading: _parsing || _committing,
-                      fileName: _fileName,
-                    ),
-                  ] else if (_hasDraftRows) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _parsing || _committing ? null : () => _pickAndParse(context),
-                        icon: Icon(LucideIcons.upload, size: 18, color: AppColors.primaryColor),
-                        label: Text(l10n.bulkImportReplaceFile),
-                      ),
+                      'Paste rows straight from Excel or Google Sheets, or '
+                      'start from a template with your own arms already listed.',
+                      style: SelType.bodySm,
                     ),
                   ],
-                  if (_loadingPartners && !_isResolvingDraft)
-                    Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.md),
-                      child: Text(l10n.bulkImportLoadingPartners, style: AppTypography.caption),
-                    ),
-                  if (_resolved != null && _rawRows != null) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    if (_resolved!.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: Text(l10n.bulkImportNoRowsInImport, style: AppTypography.caption),
-                      ),
-                    if (_resolved!.isNotEmpty) ...[
-                      _buildSummary(context, l10n, _resolved!, idx.isStaff),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildRowsTableSection(context, l10n, _resolved!),
-                    ],
-                    const SizedBox(height: AppSpacing.md),
-                    if (_resolved!.any((r) => r.isBlocking))
-                      Material(
-                        color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(LucideIcons.alertTriangle, size: 18, color: Theme.of(context).colorScheme.error),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Text(
-                                  l10n.bulkImportBlocking,
-                                  style: AppTypography.caption.copyWith(
-                                    color: Theme.of(context).colorScheme.error,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (activePeriod == null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.md),
-                        child: Text(
-                          l10n.bulkImportNoActivePeriod,
-                          style: AppTypography.caption.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: AppSpacing.lg),
-                    Builder(
-                      builder: (context) {
-                        final sum = _resolved != null
-                            ? summarize(_resolved!, viewerIsStaff: idx.isStaff)
-                            : null;
-                        final nonDupWarnings =
-                            _resolved != null ? _countNonDuplicateWarnings(_resolved!) : 0;
-                        final allClear = sum != null &&
-                            sum.blockingCount == 0 &&
-                            nonDupWarnings == 0 &&
-                            _duplicatesFullyAcknowledged();
-                        return FilledButton(
-                          style: allClear
-                              ? FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF16A34A),
-                                  foregroundColor: AppColors.white,
-                                )
-                              : null,
-                          onPressed: _committing ||
-                                  activePeriod == null ||
-                                  _resolved == null ||
-                                  _resolved!.isEmpty ||
-                                  _resolved!.any((r) => r.isBlocking) ||
-                                  !_duplicatesFullyAcknowledged()
-                              ? null
-                              : () => _commit(context, idx.churchId, idx.isPastor),
-                          child: _committing
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Text(l10n.bulkImportCommitting),
-                                  ],
-                                )
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (allClear) ...[
-                                      Icon(LucideIcons.clipboardCheck, size: 20, color: AppColors.white),
-                                      const SizedBox(width: AppSpacing.sm),
-                                    ],
-                                    Text(
-                                      allClear ? l10n.bulkImportCompleteImport : l10n.bulkImportConfirm,
-                                    ),
-                                  ],
-                                ),
-                        );
-                      },
-                    ),
-                  ],
-                ],
-              ],
-            ),
+                ),
+              ),
+              const SizedBox(width: SelSpace.x4),
+              SelButton(
+                label: 'Paste rows',
+                icon: LucideIcons.clipboard,
+                onPressed: _parsing ? null : () => _pasteRows(context),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton(
+                label: 'Template',
+                icon: LucideIcons.download,
+                onPressed: _parsing ? null : _downloadTemplate,
+              ),
+            ],
           ),
         ),
+        const SizedBox(height: SelSpace.x4),
+        Text(
+          '.xlsx or .csv. The active giving period is applied to every row.',
+          style: SelType.small,
+        ),
+        const _RecentImports(),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------- step 2
+  Widget _buildColumnsStep(BuildContext context, AppLocalizations l10n) {
+    final detection = _detection;
+    final grid = _grid;
+    if (detection == null || grid == null) return const SizedBox.shrink();
+
+    final missing = BulkImportHeaderDetection.required
+        .where((c) => !_mapping.containsKey(c))
+        .toList();
+
+    // One preview value per column, so the reader can tell which is which
+    // without going back to the spreadsheet.
+    String sample(int col) {
+      for (
+        var r = detection.headerRowIndex + 1;
+        r < grid.length && r < detection.headerRowIndex + 6;
+        r++
+      ) {
+        if (col < grid[r].length) {
+          final v = (grid[r][col] ?? '').trim();
+          if (v.isNotEmpty) return v;
+        }
+      }
+      return '—';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SelPanel(
+          title: 'Check columns',
+          subtitle:
+              'We found ${detection.labels.where((l) => l.isNotEmpty).length} '
+              'columns. Point each one at the right field.',
+          contentPadding: EdgeInsets.zero,
+          child: Column(
+            children: [
+              for (var c = 0; c < detection.labels.length; c++)
+                if (detection.labels[c].isNotEmpty) ...[
+                  if (c > 0) const Divider(height: 1, color: Sel.border),
+                  _ColumnRow(
+                    header: detection.labels[c],
+                    sample: sample(c),
+                    value: _fieldForColumn(c),
+                    onChanged: (field) => _assignColumn(c, field),
+                  ),
+                ],
+            ],
+          ),
+        ),
+        if (missing.isNotEmpty) ...[
+          const SizedBox(height: SelSpace.x4),
+          _Notice(
+            status: SelStatus.blocked,
+            message:
+                'Still needed: '
+                '${missing.map(bulkImportFieldLabel).join(', ')}. '
+                'Pick the column that holds each.',
+          ),
+        ],
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: () => setState(() => _step = _Step.upload),
+            ),
+            const Spacer(),
+            SelButton.cyan(
+              label: 'Continue',
+              loading: _parsing,
+              onPressed: missing.isEmpty ? _applyMappingAndResolve : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  BulkImportColumn? _fieldForColumn(int columnIndex) {
+    for (final e in _mapping.entries) {
+      if (e.value == columnIndex) return e.key;
+    }
+    return null;
+  }
+
+  void _assignColumn(int columnIndex, BulkImportColumn? field) {
+    setState(() {
+      // A field maps to exactly one column, so assigning it here releases it
+      // from wherever it was.
+      _mapping.removeWhere((k, v) => v == columnIndex);
+      if (field != null) _mapping[field] = columnIndex;
+    });
+  }
+
+  // ---------------------------------------------------------------- step 3
+  /// The sheet, full screen.
+  ///
+  /// Reviewing an import inside a 900px column meant scrolling a list of
+  /// problems with no sight of the data they referred to. This is the whole
+  /// sheet at once, with the problems docked beside it, because the fix is
+  /// almost always obvious once you can see the row.
+  Widget _buildResolveTakeover(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    final resolved = _resolved!;
+    final arms =
+        ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
+
+    // Sheet order, so the grid reads like the file it came from.
+    final columns = _mapping.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    final live = _liveRows;
+    final blocking = live.any((r) => r.isBlocking);
+    final duplicatesPending = !_duplicatesFullyAcknowledged();
+    final money = ref.watch(churchMoneyFormatProvider);
+
+    return Padding(
+      // The shell's utility cluster floats over the top-right of the canvas,
+      // so the takeover has to start below it or the title collides with the
+      // account chip.
+      padding: const EdgeInsets.fromLTRB(
+        SelSpace.x8,
+        SelSpace.x16,
+        SelSpace.x8,
+        SelSpace.x6,
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Check the sheet', style: SelType.title),
+                    const SizedBox(height: SelSpace.x1),
+                    Text(
+                      live.length == resolved.length
+                          ? '${resolved.length} rows from '
+                                '${_fileName ?? "your file"} — click any cell '
+                                'to change it.'
+                          : '${live.length} of ${resolved.length} rows will be '
+                                'imported — click any cell to change it.',
+                      style: SelType.bodyMuted,
+                    ),
+                  ],
+                ),
+              ),
+              if (_loadingPartners)
+                const Padding(
+                  padding: EdgeInsets.only(right: SelSpace.x3),
+                  child: SizedBox(
+                    height: 14,
+                    width: 14,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  ),
+                ),
+              SelButton(
+                label: 'Start over',
+                kind: SelButtonKind.quiet,
+                onPressed: _committing ? null : _startOver,
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          if (_error != null) ...[
+            _Notice(message: _error!, status: SelStatus.blocked),
+            const SizedBox(height: SelSpace.x4),
+          ],
+          // Anything the parser decided about the file itself — rows it left
+          // out, headers it could not place. Leaving a row out silently is
+          // how an importer loses someone's giving without anyone noticing.
+          for (final i in _fileIssues) ...[
+            _Notice(
+              message: i.message ?? _issueLabel(l10n, i.code),
+              status: i.severity == BulkImportSeverity.error
+                  ? SelStatus.blocked
+                  : SelStatus.pending,
+            ),
+            const SizedBox(height: SelSpace.x4),
+          ],
+          Expanded(
+            child: BulkImportGrid(
+              rawRows: _rawRows ?? const [],
+              resolved: resolved,
+              columns: [for (final e in columns) e.key],
+              arms: arms,
+              dayFirst: _dayFirst,
+              busy: _loadingPartners || _committing,
+              money: (v) => v == v.roundToDouble()
+                  ? money(v).replaceAll(RegExp(r'\.00$'), '')
+                  : money(v),
+              keptSheetRows: _duplicateAcknowledgedSheetRows,
+              droppedSheetRows: _droppedSheetRows,
+              onEditCell: _editRawCell,
+              onApplyFixes: _applyFixes,
+              onDayFirstChanged: (v) => setState(() => _dayFirst = v),
+              onKeepRow: _keepRow,
+              onDropRow: _dropRow,
+              onUndoDecision: _undoRowDecision,
+              onBulkMapArm: _bulkMapArm,
+            ),
+          ),
+          const SizedBox(height: SelSpace.x4),
+          Row(
+            children: [
+              SelButton(
+                label: 'Back',
+                kind: SelButtonKind.quiet,
+                onPressed: () => setState(() => _step = _Step.columns),
+              ),
+              const Spacer(),
+              if (blocking)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text(l10n.bulkImportBlocking, style: SelType.small),
+                )
+              else if (duplicatesPending)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text(
+                    'Say keep or drop for the rows that might already exist.',
+                    style: SelType.small,
+                  ),
+                )
+              else if (live.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: SelSpace.x3),
+                  child: Text('Every row was left out.', style: SelType.small),
+                ),
+              SelButton.cyan(
+                label: 'Continue',
+                onPressed:
+                    blocking ||
+                        duplicatesPending ||
+                        _loadingPartners ||
+                        live.isEmpty
+                    ? null
+                    : () => setState(() => _step = _Step.confirm),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Writes one cell back to the raw sheet and re-runs resolution.
+  ///
+  /// Everything downstream — arm matching, partner matching, duplicate
+  /// detection — depends on the raw values, so a corrected name has to be
+  /// able to turn a new partner into an existing one.
+  Future<void> _editRawCell(
+    int rowIndex,
+    BulkImportColumn column,
+    String value,
+  ) async {
+    final rows = _rawRows;
+    if (rows == null || rowIndex < 0 || rowIndex >= rows.length) return;
+    final row = rows[rowIndex];
+    final values = Map<BulkImportColumn, String>.from(row.valuesByColumn);
+    values[column] = value;
+    setState(() {
+      _rawRows = List<BulkRawRow>.from(rows)
+        ..[rowIndex] = BulkRawRow(
+          sheetRowNumber: row.sheetRowNumber,
+          valuesByColumn: values,
+        );
+      // An edited row is a different row, so a "keep" given to the old one no
+      // longer means anything. A drop is a decision about the row itself and
+      // survives.
+      _duplicateAcknowledgedSheetRows.remove(row.sheetRowNumber);
+    });
+    await _reResolve();
+    await _persistSession();
+  }
+
+  Future<void> _applyFixes(List<AutoFixProposal> proposals) async {
+    final rows = _rawRows;
+    if (rows == null || proposals.isEmpty) return;
+    setState(() => _rawRows = applyAutoFixes(rows, proposals));
+    await _reResolve();
+    await _persistSession();
+  }
+
+  Widget _buildResolveStep(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    if (_loadingPartners) {
+      return SelCard(
+        child: Column(
+          children: [
+            Text(l10n.bulkImportLoadingPartners, style: SelType.bodyMuted),
+            const SizedBox(height: SelSpace.x4),
+            const SelSkeletonRows(count: 4),
+          ],
+        ),
+      );
+    }
+    final resolved = _resolved;
+    if (resolved == null) return const SizedBox.shrink();
+    if (resolved.isEmpty) {
+      return SelCard(
+        child: SelEmpty(
+          title: l10n.bulkImportNoRowsInImport,
+          message: 'Go back and check the column mapping.',
+          actionLabel: 'Back to columns',
+          onAction: () => setState(() => _step = _Step.columns),
+        ),
+      );
+    }
+
+    final live = _liveRows;
+    final blocking = live.any((r) => r.isBlocking);
+    final duplicatesPending = !_duplicatesFullyAcknowledged();
+    final otherWarnings = _countNonDuplicateWarnings(resolved);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildIssueReview(context, l10n, resolved),
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: () => setState(() => _step = _Step.columns),
+            ),
+            const Spacer(),
+            if (blocking)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(l10n.bulkImportBlocking, style: SelType.small),
+              )
+            else if (duplicatesPending)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(
+                  'Confirm the possible duplicates before continuing.',
+                  style: SelType.small,
+                ),
+              )
+            else if (otherWarnings > 0)
+              Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x3),
+                child: Text(
+                  '$otherWarnings ${otherWarnings == 1 ? "warning" : "warnings"} '
+                  '— you can continue.',
+                  style: SelType.small,
+                ),
+              ),
+            SelButton.cyan(
+              label: 'Continue',
+              onPressed: blocking || duplicatesPending
+                  ? null
+                  : () => setState(() => _step = _Step.confirm),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------- step 4
+  Widget _buildConfirmStep(
+    BuildContext context,
+    AppLocalizations l10n,
+    UserChurchIndex idx,
+  ) {
+    if (_resolved == null) return const SizedBox.shrink();
+    final resolved = _liveRows;
+    final period = ref.watch(activePeriodProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildSummary(context, l10n, resolved, idx.isStaff),
+        const SizedBox(height: SelSpace.x4),
+        SelCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Everything checks out', style: SelType.subtitle),
+              const SizedBox(height: SelSpace.x2),
+              Text(
+                idx.isStaff
+                    ? 'These entries will be submitted for a pastor to review.'
+                    : 'These entries will be recorded against '
+                          '${period?.name ?? "the active period"}.',
+                style: SelType.bodyMuted,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SelSpace.x6),
+        Row(
+          children: [
+            SelButton(
+              label: 'Back',
+              kind: SelButtonKind.quiet,
+              onPressed: _committing
+                  ? null
+                  : () => setState(() => _step = _Step.resolve),
+            ),
+            const Spacer(),
+            SelButton.cyan(
+              label:
+                  'Import ${resolved.length} '
+                  '${resolved.length == 1 ? "entry" : "entries"}',
+              loading: _committing,
+              onPressed: _committing
+                  ? null
+                  : () => _commit(context, idx.churchId, idx.isPastor),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -405,14 +935,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
   ) {
     final s = summarize(rows, viewerIsStaff: viewerIsStaff);
     final fmt = NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2);
-    const totalBg = Color(0xFFEFF6FF);
-    const totalIconCircle = Color(0xFFDBEAFE);
-    const pendingBg = Color(0xFFFFFBEB);
-    const pendingIconCircle = Color(0xFFFDE68A);
-    const partnersBg = Color(0xFFECFDF5);
-    const partnersIconCircle = Color(0xFFD1FAE5);
-    const goalBg = Color(0xFFF5F3FF);
-    const goalIconCircle = Color(0xFFEDE9FE);
+    const totalBg = Sel.card;
+    const totalIconCircle = Sel.canvas;
+    const pendingBg = Sel.card;
+    const pendingIconCircle = Sel.canvas;
+    const partnersBg = Sel.card;
+    const partnersIconCircle = Sel.canvas;
+    const goalBg = Sel.card;
+    const goalIconCircle = Sel.canvas;
 
     Widget compactTile({
       required String label,
@@ -423,11 +953,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       required Color iconColor,
     }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: SelSpace.x2,
+          vertical: SelSpace.x2,
+        ),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.gray200),
+          borderRadius: BorderRadius.circular(SelRadius.card),
+          border: Border.all(color: Sel.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -436,11 +969,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: iconCircle,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(SelRadius.pill),
               ),
               child: Icon(icon, size: 16, color: iconColor),
             ),
-            const SizedBox(width: AppSpacing.sm),
+            const SizedBox(width: SelSpace.x2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,23 +981,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                 children: [
                   Text(
                     label,
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.gray600,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                      height: 1.2,
-                    ),
+                    style: SelType.small.copyWith(fontWeight: FontWeight.w500),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     valueText,
-                    style: AppTypography.body.copyWith(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gray900,
-                    ),
+                    style: SelType.bodyMedium,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -483,7 +1007,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.list,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: Sel.soot,
       ),
       compactTile(
         label: l10n.bulkImportStatNewPartners(0).split(':').first.trim(),
@@ -491,7 +1015,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userPlus,
         bg: partnersBg,
         iconCircle: partnersIconCircle,
-        iconColor: const Color(0xFF059669),
+        iconColor: Sel.warm,
       ),
       compactTile(
         label: l10n.bulkImportStatExistingPartners(0).split(':').first.trim(),
@@ -499,7 +1023,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.userCheck,
         bg: goalBg,
         iconCircle: goalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: Sel.soot,
       ),
       compactTile(
         label: l10n.bulkImportStatTotal('').split(':').first.trim(),
@@ -507,7 +1031,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.wallet,
         bg: totalBg,
         iconCircle: totalIconCircle,
-        iconColor: AppColors.primaryColor,
+        iconColor: Sel.soot,
       ),
     ];
 
@@ -518,24 +1042,24 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         icon: LucideIcons.alertTriangle,
         bg: pendingBg,
         iconCircle: pendingIconCircle,
-        iconColor: const Color(0xFFB45309),
+        iconColor: Sel.warm,
       ),
       compactTile(
         label: l10n.bulkImportStatErrors(0).split(':').first.trim(),
         valueText: '${s.blockingCount}',
         icon: LucideIcons.xCircle,
-        bg: const Color(0xFFFEF2F2),
-        iconCircle: const Color(0xFFFECACA),
-        iconColor: AppColors.dangerColor,
+        bg: Sel.card,
+        iconCircle: Sel.canvas,
+        iconColor: Sel.ink,
       ),
       if (s.pastorYesCount > 0)
         compactTile(
           label: l10n.bulkImportStatPastorYes(0).split(':').first.trim(),
           valueText: '${s.pastorYesCount}',
           icon: LucideIcons.check,
-          bg: const Color(0xFFECFDF5),
-          iconCircle: const Color(0xFFD1FAE5),
-          iconColor: const Color(0xFF059669),
+          bg: Sel.card,
+          iconCircle: Sel.canvas,
+          iconColor: Sel.warm,
         ),
     ];
 
@@ -544,12 +1068,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       children: [
         Text(
           l10n.bulkImportSummary,
-          style: AppTypography.label.copyWith(
-            color: AppColors.gray600,
+          style: SelType.bodyMedium.copyWith(
+            color: Sel.warm,
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
+        const SizedBox(height: SelSpace.x2),
         LayoutBuilder(
           builder: (context, c) {
             if (c.maxWidth < 520) {
@@ -562,19 +1086,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       children: [
                         for (var i = 0; i < row1.length; i++) ...[
                           SizedBox(width: 168, child: row1[i]),
-                          if (i < row1.length - 1) const SizedBox(width: AppSpacing.sm),
+                          if (i < row1.length - 1)
+                            const SizedBox(width: SelSpace.x2),
                         ],
                       ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: SelSpace.x2),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
                         for (var i = 0; i < row2.length; i++) ...[
                           SizedBox(width: 168, child: row2[i]),
-                          if (i < row2.length - 1) const SizedBox(width: AppSpacing.sm),
+                          if (i < row2.length - 1)
+                            const SizedBox(width: SelSpace.x2),
                         ],
                       ],
                     ),
@@ -590,24 +1116,26 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                   children: [
                     for (var i = 0; i < row1.length; i++) ...[
                       Expanded(child: row1[i]),
-                      if (i < row1.length - 1) const SizedBox(width: AppSpacing.sm),
+                      if (i < row1.length - 1)
+                        const SizedBox(width: SelSpace.x2),
                     ],
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: SelSpace.x2),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(child: row2[0]),
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: SelSpace.x2),
                     Expanded(child: row2[1]),
-                    const SizedBox(width: AppSpacing.sm),
+                    const SizedBox(width: SelSpace.x2),
                     if (row2.length > 2) Expanded(child: row2[2]),
-                    if (row2.length > 2) const SizedBox(width: AppSpacing.sm),
-                    if (row2.length > 2) const Expanded(child: SizedBox.shrink()),
+                    if (row2.length > 2) const SizedBox(width: SelSpace.x2),
+                    if (row2.length > 2)
+                      const Expanded(child: SizedBox.shrink()),
                     if (row2.length == 2) ...[
                       const Expanded(child: SizedBox.shrink()),
-                      const SizedBox(width: AppSpacing.sm),
+                      const SizedBox(width: SelSpace.x2),
                       const Expanded(child: SizedBox.shrink()),
                     ],
                   ],
@@ -618,10 +1146,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         ),
         if (viewerIsStaff && s.staffPastorYesCount > 0)
           Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
+            padding: const EdgeInsets.only(top: SelSpace.x4),
             child: Text(
               l10n.bulkImportStaffPastorNote,
-              style: AppTypography.caption.copyWith(
+              style: SelType.small.copyWith(
                 color: Theme.of(context).colorScheme.tertiary,
               ),
             ),
@@ -630,139 +1158,120 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     );
   }
 
-  Widget _buildRowsTableSection(
+  /// Issue-first review.
+  ///
+  /// A bulk importer's failures are bulk failures: one misspelled arm name in
+  /// the source spreadsheet blocks every row that uses it. Listing rows and
+  /// asking someone to expand and fix each one turns a single mistake into
+  /// forty corrections.
+  ///
+  /// So this leads with the *problems*, grouped, each with the fix attached —
+  /// map every unmatched "Super Sunday" to a real arm once, and every row
+  /// carrying it clears at the same time. Rows that are already fine collapse
+  /// into a single line, because they need no attention.
+  Widget _buildIssueReview(
     BuildContext context,
     AppLocalizations l10n,
     List<BulkResolvedRow> rows,
   ) {
-    return PillrSurfaceCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
-            child: Text(
-              l10n.bulkImportPreview,
-              style: AppTypography.label.copyWith(
-                color: AppColors.gray600,
-                fontWeight: FontWeight.w600,
-              ),
+    final byCode = <BulkImportIssueCode, List<int>>{};
+    final severityOf = <BulkImportIssueCode, BulkImportSeverity>{};
+    for (var i = 0; i < rows.length; i++) {
+      for (final issue in rows[i].issues) {
+        byCode.putIfAbsent(issue.code, () => []).add(i);
+        if (severityOf[issue.code] != BulkImportSeverity.error) {
+          severityOf[issue.code] = issue.severity;
+        }
+      }
+    }
+
+    final codes = byCode.keys.toList()
+      ..sort((a, b) {
+        final sa = severityOf[a] == BulkImportSeverity.error ? 0 : 1;
+        final sb = severityOf[b] == BulkImportSeverity.error ? 0 : 1;
+        if (sa != sb) return sa - sb;
+        return byCode[b]!.length.compareTo(byCode[a]!.length);
+      });
+
+    final clean = rows.where((r) => r.issues.isEmpty).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (codes.isNotEmpty) ...[
+          SelPanel(
+            title: 'Needs attention',
+            subtitle: '${rows.length - clean.length} of ${rows.length} rows',
+            contentPadding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var i = 0; i < codes.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Sel.border),
+                  _IssueGroup(
+                    code: codes[i],
+                    severity: severityOf[codes[i]]!,
+                    label: _issueLabel(l10n, codes[i]),
+                    rowIndices: byCode[codes[i]]!,
+                    rows: rows,
+                    fmtAmount: fmtAmount,
+                    busy: _loadingPartners || _committing,
+                    onReviewRow: (idx) => _editRow(context, l10n, idx),
+                    onRemoveRow: (idx) => _confirmRemoveRow(context, l10n, idx),
+                    onBulkMapArm: _bulkMapArm,
+                  ),
+                ],
+              ],
             ),
           ),
-          LayoutBuilder(
-            builder: (context, c) {
-              final tableWidth = math.max(860.0, c.maxWidth);
-              return Scrollbar(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: tableWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _bulkTableHeader(context, l10n),
-                        const Divider(height: 1),
-                        ...List.generate(rows.length, (i) {
-                          final sr = rows[i].sheetRowNumber;
-                          return _BulkImportCollapsibleRow(
-                            key: ValueKey(sr),
-                            row: rows[i],
-                            index: i,
-                            l10n: l10n,
-                            fmtAmount: fmtAmount,
-                            onReview: () => _editRow(context, l10n, i),
-                            onRemove: () => _confirmRemoveRow(context, l10n, i),
-                            loadingLocked: _loadingPartners || _committing,
-                            issueLabel: (code) => _issueLabel(l10n, code),
-                            resolutionLabel: (k) => _resolutionLabel(l10n, k),
-                            duplicateAcknowledged: _duplicateAcknowledgedSheetRows.contains(sr),
-                            onAcknowledgeDuplicate: () {
-                              setState(() => _duplicateAcknowledgedSheetRows.add(sr));
-                              _schedulePersistSession();
-                            },
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          const SizedBox(height: SelSpace.x4),
         ],
-      ),
+        _CleanRowsPanel(rows: clean, fmtAmount: fmtAmount),
+      ],
     );
   }
 
-  Widget _bulkTableHeader(BuildContext context, AppLocalizations l10n) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
-      child: Row(
-        children: [
-          SizedBox(width: _BulkImportRowLayout.chevron),
-          SizedBox(
-            width: _BulkImportRowLayout.rowNum,
-            child: Text(
-              l10n.bulkImportTableHeaderRow,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              l10n.bulkImportTableHeaderPartner,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.amount,
-            child: Text(
-              l10n.bulkImportTableHeaderAmount,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          SizedBox(width: _BulkImportRowLayout.gapAfterAmount),
-          SizedBox(
-            width: _BulkImportRowLayout.date,
-            child: Text(
-              l10n.bulkImportTableHeaderDate,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.right,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.status,
-            child: Text(
-              l10n.bulkImportTableHeaderStatus,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.action,
-            child: Text(
-              l10n.bulkImportTableReview,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          SizedBox(
-            width: _BulkImportRowLayout.action,
-            child: Text(
-              l10n.bulkImportTableRemove,
-              style: AppTypography.caption.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Applies one arm to every row whose arm cell holds any of [sourceTexts],
+  /// then re-resolves so the issue clears everywhere at once.
+  Future<void> _bulkMapArm(List<String> sourceTexts, PartnershipArm arm) async {
+    final raw = _rawRows;
+    if (raw == null) return;
+    final needles = sourceTexts.map((t) => t.trim().toLowerCase()).toSet();
+    var changed = 0;
+    for (var i = 0; i < raw.length; i++) {
+      final v = Map<BulkImportColumn, String>.from(raw[i].valuesByColumn);
+      final current = (v[BulkImportColumn.category] ?? '').trim().toLowerCase();
+      if (!needles.contains(current)) continue;
+      v[BulkImportColumn.category] = arm.name;
+      raw[i] = BulkRawRow(
+        sheetRowNumber: raw[i].sheetRowNumber,
+        valuesByColumn: v,
+      );
+      changed++;
+    }
+    if (changed == 0) return;
+
+    // Remember the decision so the same wording resolves by itself next time.
+    // Best-effort: a failure here must not cost the user the mapping they
+    // just applied, so it is caught and ignored.
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx != null) {
+      for (final spelling in needles) {
+        try {
+          await ref
+              .read(armsRepositoryProvider)
+              .rememberArmAlias(
+                churchId: idx.churchId,
+                armId: arm.id,
+                alias: spelling,
+              );
+        } catch (_) {
+          // Non-fatal: the mapping still applies to this import.
+        }
+      }
+    }
+
+    await _reResolve();
+    _schedulePersistSession();
   }
 
   String fmtAmount(double v) {
@@ -770,19 +1279,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     return v.toStringAsFixed(2);
   }
 
-  String _resolutionLabel(AppLocalizations l10n, PartnerResolutionKind k) {
-    return switch (k) {
-      PartnerResolutionKind.existing => l10n.bulkImportResolutionExisting,
-      PartnerResolutionKind.createNew => l10n.bulkImportResolutionCreate,
-      PartnerResolutionKind.ambiguous => l10n.bulkImportResolutionAmbiguous,
-      PartnerResolutionKind.unresolved => l10n.bulkImportResolutionUnresolved,
-    };
-  }
-
   Widget _buildRestoringDraft(BuildContext context, AppLocalizations l10n) {
-    return PillrSurfaceCard(
+    return SelCard(
+      clip: true,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl, horizontal: AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(
+          vertical: SelSpace.x8,
+          horizontal: SelSpace.x6,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -791,18 +1295,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
               height: 28,
               child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             Text(
               l10n.bulkImportRestoringDraft,
               textAlign: TextAlign.center,
-              style: AppTypography.body.copyWith(fontWeight: FontWeight.w600),
+              style: SelType.body.copyWith(fontWeight: FontWeight.w600),
             ),
             if (_fileName != null && _fileName!.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
+              const SizedBox(height: SelSpace.x2),
               Text(
                 _fileName!,
                 textAlign: TextAlign.center,
-                style: AppTypography.caption.copyWith(color: AppColors.textSecondary),
+                style: SelType.small.copyWith(color: Sel.warm),
               ),
             ],
           ],
@@ -811,28 +1315,32 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     );
   }
 
-  Widget _buildResult(BuildContext context, AppLocalizations l10n, BulkImportCommitResult r) {
+  Widget _buildResult(
+    BuildContext context,
+    AppLocalizations l10n,
+    BulkImportCommitResult r,
+  ) {
     return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
+      color: Sel.canvas,
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(SelSpace.x6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.bulkImportResultTitle, style: AppTypography.label),
-            const SizedBox(height: AppSpacing.sm),
+            Text(l10n.bulkImportResultTitle, style: SelType.bodyMedium),
+            const SizedBox(height: SelSpace.x2),
             Text(l10n.bulkImportEntriesCreated(r.entriesCreated)),
             Text(l10n.bulkImportPartnersCreated(r.partnersCreated)),
             Text(l10n.bulkImportApproved(r.entriesApproved)),
             Text(l10n.bulkImportSkipped(r.rowsSkipped)),
             if (r.errors.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(l10n.bulkImportErrorListHeader, style: AppTypography.caption),
-              ...r.errors.map((e) => Text('• $e', style: AppTypography.caption)),
+              const SizedBox(height: SelSpace.x2),
+              Text(l10n.bulkImportErrorListHeader, style: SelType.small),
+              ...r.errors.map((e) => Text('• $e', style: SelType.small)),
             ],
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: SelSpace.x4),
             FilledButton(
-              onPressed: () => context.go('/entries'),
+              onPressed: () => context.go('/queue'),
               child: Text(l10n.bulkImportBack),
             ),
           ],
@@ -851,7 +1359,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
           title: Text(l10n.bulkImportReplaceConfirmTitle),
           content: Text(l10n.bulkImportReplaceConfirmMessage),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.bulkImportCancel)),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.bulkImportCancel),
+            ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: Text(l10n.bulkImportReplaceConfirmAction),
@@ -866,15 +1377,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     if (picked == null || !mounted) return;
 
     final nameLower = picked.name.toLowerCase();
-    final dot = nameLower.lastIndexOf('.');
-    final ext = dot >= 0 ? nameLower.substring(dot + 1) : '';
-    final isXlsx = ext == 'xlsx' || nameLower.endsWith('.xlsx');
-    if (!isXlsx) {
-      setState(() => _error = l10n.bulkImportNeedXlsx);
+    if (nameLower.endsWith('.xlsm')) {
+      setState(() => _error = l10n.bulkImportNoMacros);
       return;
     }
-    if (ext == 'xlsm' || nameLower.endsWith('.xlsm')) {
-      setState(() => _error = l10n.bulkImportNoMacros);
+    final isCsv = isCsvFileName(picked.name);
+    if (!isCsv && !nameLower.endsWith('.xlsx')) {
+      setState(() => _error = l10n.bulkImportNeedXlsx);
       return;
     }
 
@@ -883,43 +1392,137 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       _parsing = true;
     });
     try {
-      final parsed = parseBulkImportWorkbook(picked.bytes);
-      if (parsed.rows.isEmpty && parsed.fileIssues.isNotEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _fileIssues = parsed.fileIssues;
-          _parsing = false;
-        });
-        return;
-      }
-      if (parsed.rows.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _error = l10n.bulkImportNoRows;
-          _fileIssues = parsed.fileIssues;
-          _parsing = false;
-        });
-        return;
-      }
-      if (!mounted) return;
-      setState(() {
-        _fileName = picked.name;
-        _fileBytes = picked.bytes;
-        _rawRows = parsed.rows;
-        _fileIssues = parsed.fileIssues;
-        _resolved = null;
-        _result = null;
-        _duplicateAcknowledgedSheetRows.clear();
-        _parsing = false;
-      });
-      await _loadPartnersAndResolve();
-      await _persistSession();
+      final grid = isCsv
+          ? parseCsvGrid(utf8.decode(picked.bytes, allowMalformed: true))
+          : readFirstXlsxSheet(picked.bytes);
+      _adoptGrid(grid, fileName: picked.name, bytes: picked.bytes);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _error = '${l10n.bulkImportParseError}: $e';
         _parsing = false;
       });
+    }
+  }
+
+  /// Takes a freshly read sheet and moves to the column step.
+  ///
+  /// Parsing is deliberately deferred until the user has confirmed the column
+  /// mapping — that is the whole point of the step. Guessing first and asking
+  /// afterwards is what produced sheets full of empty amounts.
+  void _adoptGrid(
+    List<List<String?>> grid, {
+    required String fileName,
+    Uint8List? bytes,
+  }) {
+    final detection = detectBulkImportHeaders(grid);
+    if (!mounted) return;
+    setState(() {
+      _grid = grid;
+      _detection = detection;
+      _mapping = Map<BulkImportColumn, int>.from(detection.mapping);
+      _fileName = fileName;
+      _fileBytes = bytes;
+      _rawRows = null;
+      _resolved = null;
+      _result = null;
+      _fileIssues = const [];
+      _duplicateAcknowledgedSheetRows.clear();
+      _parsing = false;
+      _step = _Step.columns;
+    });
+  }
+
+  /// Applies the confirmed mapping and resolves, then moves to Resolve.
+  Future<void> _applyMappingAndResolve() async {
+    final grid = _grid;
+    final detection = _detection;
+    if (grid == null || detection == null) return;
+
+    setState(() {
+      _error = null;
+      _parsing = true;
+    });
+    final parsed = parseBulkImportGridWithMapping(
+      grid,
+      headerRowIndex: detection.headerRowIndex,
+      mapping: _mapping,
+    );
+    if (!mounted) return;
+    if (parsed.rows.isEmpty) {
+      setState(() {
+        _error = AppLocalizations.of(context).bulkImportNoRows;
+        _fileIssues = parsed.fileIssues;
+        _parsing = false;
+      });
+      return;
+    }
+    setState(() {
+      _rawRows = parsed.rows;
+      _fileIssues = parsed.fileIssues;
+      _resolved = null;
+      _parsing = false;
+      _step = _Step.resolve;
+    });
+    await _loadPartnersAndResolve();
+    await _persistSession();
+  }
+
+  /// Paste path: a block of cells copied straight out of a spreadsheet.
+  Future<void> _pasteRows(BuildContext context) async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => SelDialog(
+        title: 'Paste from a spreadsheet',
+        subtitle:
+            'Select the rows in Excel or Google Sheets, including the header '
+            'row, copy them, and paste here.',
+        width: 620,
+        scrollable: false,
+        actions: [
+          SelButton(
+            label: 'Cancel',
+            kind: SelButtonKind.quiet,
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          SelButton.cyan(
+            label: 'Use these rows',
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+        child: SelField(
+          controller: controller,
+          hint: 'DATE\tNAME\tAMOUNT\n2026-03-04\tAma Boateng\t500',
+          maxLines: 10,
+          autofocus: true,
+        ),
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    final grid = parsePastedGrid(text);
+    if (grid.length < 2) {
+      setState(
+        () => _error = 'Paste at least a header row and one row of data.',
+      );
+      return;
+    }
+    _adoptGrid(grid, fileName: 'Pasted rows');
+  }
+
+  /// Downloads a starter sheet listing this church's own arms.
+  Future<void> _downloadTemplate() async {
+    final arms = ref.read(armsStreamProvider).valueOrNull ?? const [];
+    final churchName = ref.read(churchNameProvider);
+    try {
+      await saveTextFile(
+        fileName: importTemplateFileName(churchName),
+        contents: buildImportTemplateCsv(arms: arms),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not save the template: $e');
     }
   }
 
@@ -999,7 +1602,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
           continue;
         }
         final issues = List<BulkImportIssue>.from(r.issues)
-          ..removeWhere((i) => i.code == BulkImportIssueCode.duplicateInDatabase);
+          ..removeWhere(
+            (i) => i.code == BulkImportIssueCode.duplicateInDatabase,
+          );
         final list = await entriesRepo.fetchEntriesForDuplicateCheck(
           idx.churchId,
           partnerId: r.partnerId!,
@@ -1033,7 +1638,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     }
   }
 
-  Future<void> _confirmRemoveRow(BuildContext context, AppLocalizations l10n, int index) async {
+  Future<void> _confirmRemoveRow(
+    BuildContext context,
+    AppLocalizations l10n,
+    int index,
+  ) async {
     final raw = _rawRows;
     if (raw == null || index < 0 || index >= raw.length) return;
     final ok = await showDialog<bool>(
@@ -1042,8 +1651,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         title: Text(l10n.bulkImportRemoveRowTitle),
         content: Text(l10n.bulkImportRemoveRowMessage),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.bulkImportCancel)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(l10n.bulkImportRemoveRowConfirm)),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.bulkImportCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.bulkImportRemoveRowConfirm),
+          ),
         ],
       ),
     );
@@ -1062,7 +1677,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     await _persistSession();
   }
 
-  Future<void> _editRow(BuildContext context, AppLocalizations l10n, int index) async {
+  Future<void> _editRow(
+    BuildContext context,
+    AppLocalizations l10n,
+    int index,
+  ) async {
     final raw = _rawRows;
     if (raw == null || index >= raw.length) return;
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
@@ -1074,14 +1693,30 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     final row = raw[index];
     final v = Map<BulkImportColumn, String>.from(row.valuesByColumn);
 
-    final nameCtrl = TextEditingController(text: v[BulkImportColumn.name] ?? '');
-    final fellowCtrl = TextEditingController(text: v[BulkImportColumn.fellowship] ?? '');
-    final phoneCtrl = TextEditingController(text: v[BulkImportColumn.contact] ?? '');
-    final emailCtrl = TextEditingController(text: v[BulkImportColumn.email] ?? '');
-    final amountCtrl = TextEditingController(text: v[BulkImportColumn.amount] ?? '');
-    final dateCtrl = TextEditingController(text: v[BulkImportColumn.date] ?? '');
-    final armCtrl = TextEditingController(text: v[BulkImportColumn.category] ?? '');
-    final notesCtrl = TextEditingController(text: v[BulkImportColumn.givenToNotes] ?? '');
+    final nameCtrl = TextEditingController(
+      text: v[BulkImportColumn.name] ?? '',
+    );
+    final fellowCtrl = TextEditingController(
+      text: v[BulkImportColumn.fellowship] ?? '',
+    );
+    final phoneCtrl = TextEditingController(
+      text: v[BulkImportColumn.contact] ?? '',
+    );
+    final emailCtrl = TextEditingController(
+      text: v[BulkImportColumn.email] ?? '',
+    );
+    final amountCtrl = TextEditingController(
+      text: v[BulkImportColumn.amount] ?? '',
+    );
+    final dateCtrl = TextEditingController(
+      text: v[BulkImportColumn.date] ?? '',
+    );
+    final armCtrl = TextEditingController(
+      text: v[BulkImportColumn.category] ?? '',
+    );
+    final notesCtrl = TextEditingController(
+      text: v[BulkImportColumn.givenToNotes] ?? '',
+    );
     var pastorYes = _parseYes(v[BulkImportColumn.pastorConfirmed]);
     PartnershipArm? selectedArm;
     for (final a in activeArms) {
@@ -1096,9 +1731,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setLocal) {
-            return PillrFormDialog(
+            return SelDialog(
               title: l10n.bulkImportEditRowTitle(row.sheetRowNumber),
-              leading: PillrFormDialog.leadingIcon(LucideIcons.fileEdit),
               actions: [
                 OutlinedButton(
                   onPressed: () => Navigator.pop(ctx),
@@ -1115,7 +1749,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                     v[BulkImportColumn.category] =
                         (selectedArm?.name ?? armCtrl.text).trim();
                     v[BulkImportColumn.givenToNotes] = notesCtrl.text.trim();
-                    v[BulkImportColumn.pastorConfirmed] = pastorYes ? 'YES' : 'NO';
+                    v[BulkImportColumn.pastorConfirmed] = pastorYes
+                        ? 'YES'
+                        : 'NO';
                     _rawRows![index] = BulkRawRow(
                       sheetRowNumber: row.sheetRowNumber,
                       valuesByColumn: v,
@@ -1135,7 +1771,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           a,
-                          const SizedBox(height: AppSpacing.md),
+                          const SizedBox(height: SelSpace.x4),
                           b,
                         ],
                       );
@@ -1144,7 +1780,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(child: a),
-                        const SizedBox(width: AppSpacing.md),
+                        const SizedBox(width: SelSpace.x4),
                         Expanded(child: b),
                       ],
                     );
@@ -1154,54 +1790,56 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: dateCtrl,
                           label: l10n.bulkImportFieldDate,
                           hint: l10n.bulkImportFieldDateHint,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: nameCtrl,
                           label: l10n.bulkImportFieldName,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: fellowCtrl,
                           label: l10n.bulkImportFieldFellowship,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: phoneCtrl,
                           label: l10n.bulkImportFieldPhone,
                           keyboardType: TextInputType.phone,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       row2(
-                        PillrTextField(
+                        SelField(
                           controller: emailCtrl,
                           label: l10n.bulkImportFieldEmail,
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        PillrTextField(
+                        SelField(
                           controller: amountCtrl,
                           label: l10n.bulkImportFieldAmount,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           l10n.bulkImportFieldArm,
-                          style: AppTypography.caption.copyWith(
+                          style: SelType.small.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.gray600,
+                            color: Sel.warm,
                           ),
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
-                      PillrDropdownButton<String>(
+                      const SizedBox(height: SelSpace.x1),
+                      SelSelect<String>(
                         value: selectedArm?.id,
                         hint: Text(l10n.bulkImportSelectArm),
                         onChanged: activeArms.isEmpty
@@ -1209,7 +1847,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                             : (id) {
                                 if (id == null) return;
                                 setLocal(() {
-                                  selectedArm = activeArms.firstWhere((a) => a.id == id);
+                                  selectedArm = activeArms.firstWhere(
+                                    (a) => a.id == id,
+                                  );
                                   armCtrl.text = selectedArm!.name;
                                 });
                               },
@@ -1218,27 +1858,32 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
                             DropdownMenuItem(value: a.id, child: Text(a.name)),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      PillrTextField(
+                      const SizedBox(height: SelSpace.x4),
+                      SelField(
                         controller: notesCtrl,
                         label: l10n.bulkImportFieldNotes,
                         maxLines: 3,
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: SelSpace.x4),
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          border: Border.all(color: AppColors.gray200),
+                          color: Sel.card,
+                          borderRadius: BorderRadius.circular(SelRadius.card),
+                          border: Border.all(color: Sel.border),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: SelSpace.x4,
+                            vertical: SelSpace.x2,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
                                   l10n.bulkImportFieldPastorYes,
-                                  style: AppTypography.body.copyWith(fontWeight: FontWeight.w500),
+                                  style: SelType.body.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
                               Switch.adaptive(
@@ -1280,15 +1925,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     if (idx == null || _rawRows == null) return;
     setState(() => _loadingPartners = true);
     try {
-      final arms = await ref.read(armsRepositoryProvider).fetchArms(idx.churchId);
-      final periods = await ref.read(periodsRepositoryProvider).fetchPeriods(idx.churchId);
+      final arms = await ref
+          .read(armsRepositoryProvider)
+          .fetchArms(idx.churchId);
+      final periods = await ref
+          .read(periodsRepositoryProvider)
+          .fetchPeriods(idx.churchId);
       PartnershipPeriod? activePeriod;
       try {
         activePeriod = periods.firstWhere((p) => p.isActive);
       } catch (_) {
         activePeriod = null;
       }
-      final partners = await ref.read(partnersRepositoryProvider).fetchAllActivePartners(idx.churchId);
+      final partners = await ref
+          .read(partnersRepositoryProvider)
+          .fetchAllActivePartners(idx.churchId);
       if (!mounted) return;
       final resolved = resolveBulkImportRows(
         rawRows: _rawRows!,
@@ -1321,10 +1972,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final profile = ref.read(churchUserProfileProvider).valueOrNull;
-    final resolved = _resolved;
-    if (profile == null || resolved == null) return;
+    if (profile == null || _resolved == null) return;
+    // Rows the user set aside never reach Firestore.
+    final resolved = _liveRows;
 
-    final progressNotifier = ref.read(bulkImportCommitProgressProvider.notifier);
+    final progressNotifier = ref.read(
+      bulkImportCommitProgressProvider.notifier,
+    );
     final eligible = resolved.where((r) => !r.isBlocking).length;
     progressNotifier.start(
       eligible > 0 ? eligible : resolved.length,
@@ -1337,7 +1991,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
     });
     try {
       final arms = await ref.read(armsRepositoryProvider).fetchArms(churchId);
-      final periods = await ref.read(periodsRepositoryProvider).fetchPeriods(churchId);
+      final periods = await ref
+          .read(periodsRepositoryProvider)
+          .fetchPeriods(churchId);
       PartnershipPeriod? period;
       try {
         period = periods.firstWhere((p) => p.isActive);
@@ -1364,6 +2020,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         allChurchEntries: true,
         viewerIsPastor: viewerIsPastor,
         duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+        fileName: _fileName ?? 'Pasted rows',
         onProgress: (current, total, message) {
           progressNotifier.update(current, message);
         },
@@ -1375,7 +2032,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         await BulkImportSessionStore.clear(uid: uid, churchId: clearChurchId);
       }
       if (!mounted) return;
-      final successMessage = l10n.bulkImportCommitSuccessToast(r.entriesCreated);
+      final successMessage = l10n.bulkImportCommitSuccessToast(
+        r.entriesCreated,
+      );
       setState(() {
         _result = r;
         _committing = false;
@@ -1385,9 +2044,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
         _fileBytes = null;
         _duplicateAcknowledgedSheetRows.clear();
       });
-      messenger.showSnackBar(
-        SnackBar(content: Text(successMessage)),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
       Future<void>.delayed(const Duration(seconds: 4), () {
         if (mounted) {
           ref.read(bulkImportCommitProgressProvider.notifier).reset();
@@ -1405,8 +2062,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
 
   String _issueLabel(AppLocalizations l10n, BulkImportIssueCode c) {
     return switch (c) {
+      BulkImportIssueCode.ignoredNonDataRow => 'Left out — not a gift',
       BulkImportIssueCode.missingName => l10n.bulkImportIssueMissingName,
-      BulkImportIssueCode.missingFellowship => l10n.bulkImportIssueMissingFellowship,
+      BulkImportIssueCode.missingFellowship =>
+        l10n.bulkImportIssueMissingFellowship,
       BulkImportIssueCode.missingAmount => l10n.bulkImportIssueMissingAmount,
       BulkImportIssueCode.invalidAmount => l10n.bulkImportIssueInvalidAmount,
       BulkImportIssueCode.missingDate => l10n.bulkImportIssueMissingDate,
@@ -1415,403 +2074,869 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> with Widget
       BulkImportIssueCode.armNotFound => l10n.bulkImportIssueArmNotFound,
       BulkImportIssueCode.periodNotFound => l10n.bulkImportIssuePeriodNotFound,
       BulkImportIssueCode.ambiguousPhone => l10n.bulkImportIssueAmbiguousPhone,
-      BulkImportIssueCode.memberIdNotFound => l10n.bulkImportIssueMemberIdNotFound,
-      BulkImportIssueCode.memberIdConflict => l10n.bulkImportIssueMemberIdConflict,
-      BulkImportIssueCode.fellowshipMismatch => l10n.bulkImportIssueFellowshipMismatch,
+      BulkImportIssueCode.memberIdNotFound =>
+        l10n.bulkImportIssueMemberIdNotFound,
+      BulkImportIssueCode.memberIdConflict =>
+        l10n.bulkImportIssueMemberIdConflict,
+      BulkImportIssueCode.fellowshipMismatch =>
+        l10n.bulkImportIssueFellowshipMismatch,
       BulkImportIssueCode.nameMismatch => l10n.bulkImportIssueNameMismatch,
-      BulkImportIssueCode.duplicateInFile => l10n.bulkImportIssueDuplicateInFile,
-      BulkImportIssueCode.duplicateInDatabase => l10n.bulkImportIssueDuplicateInDatabase,
-      BulkImportIssueCode.staffPastorYesPending => l10n.bulkImportIssueStaffPastorYes,
+      BulkImportIssueCode.duplicateInFile =>
+        l10n.bulkImportIssueDuplicateInFile,
+      BulkImportIssueCode.duplicateInDatabase =>
+        l10n.bulkImportIssueDuplicateInDatabase,
+      BulkImportIssueCode.staffPastorYesPending =>
+        l10n.bulkImportIssueStaffPastorYes,
     };
   }
 }
 
-class _BulkImportCollapsibleRow extends StatefulWidget {
-  const _BulkImportCollapsibleRow({
-    super.key,
-    required this.row,
-    required this.index,
-    required this.l10n,
+/// One problem, every row it affects, and the fix.
+class _IssueGroup extends ConsumerStatefulWidget {
+  const _IssueGroup({
+    required this.code,
+    required this.severity,
+    required this.label,
+    required this.rowIndices,
+    required this.rows,
     required this.fmtAmount,
-    required this.onReview,
-    required this.onRemove,
-    required this.loadingLocked,
-    required this.issueLabel,
-    required this.resolutionLabel,
-    required this.duplicateAcknowledged,
-    required this.onAcknowledgeDuplicate,
+    required this.busy,
+    required this.onReviewRow,
+    required this.onRemoveRow,
+    required this.onBulkMapArm,
   });
 
-  final BulkResolvedRow row;
-  final int index;
-  final AppLocalizations l10n;
+  final BulkImportIssueCode code;
+  final BulkImportSeverity severity;
+  final String label;
+  final List<int> rowIndices;
+  final List<BulkResolvedRow> rows;
   final String Function(double) fmtAmount;
-  final VoidCallback onReview;
-  final VoidCallback onRemove;
-  final bool loadingLocked;
-  final String Function(BulkImportIssueCode) issueLabel;
-  final String Function(PartnerResolutionKind) resolutionLabel;
-  final bool duplicateAcknowledged;
-  final VoidCallback onAcknowledgeDuplicate;
+  final bool busy;
+  final void Function(int index) onReviewRow;
+  final void Function(int index) onRemoveRow;
+  final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)
+  onBulkMapArm;
 
   @override
-  State<_BulkImportCollapsibleRow> createState() => _BulkImportCollapsibleRowState();
+  ConsumerState<_IssueGroup> createState() => _IssueGroupState();
 }
 
-class _BulkImportCollapsibleRowState extends State<_BulkImportCollapsibleRow> {
-  bool _expanded = false;
+class _IssueGroupState extends ConsumerState<_IssueGroup> {
+  bool _open = false;
+  final Map<String, String?> _armChoice = {};
+  bool _applying = false;
+
+  /// Only unmatched-arm problems have a one-shot bulk fix; the rest need the
+  /// row editor because the correct value differs per row.
+  bool get _fixable =>
+      widget.code == BulkImportIssueCode.armNotFound ||
+      widget.code == BulkImportIssueCode.missingArm;
+
+  /// The distinct spreadsheet values that failed to match, with their counts.
+  Map<String, int> get _unmatched {
+    final counts = <String, int>{};
+    for (final i in widget.rowIndices) {
+      final raw = widget.rows[i].armName.trim();
+      final key = raw.isEmpty ? '(blank)' : raw;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Groups spellings that plainly mean the same thing, so the reader fixes a
+  /// concept once rather than every way it was typed.
+  ///
+  /// The rule is **containment**: "Service" and "SUNDAY SERVICE" group because
+  /// one's words are a subset of the other's. "Super Sunday" does not join
+  /// them — it shares only the word "sunday" with one of them, and neither is
+  /// contained in the other. Merging on any shared word would collapse all
+  /// three, which is worse than not grouping at all.
+  List<_SpellingCluster> get _clusters {
+    Set<String> tokensOf(String v) => v
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .where((t) => t.length >= 3)
+        .toSet();
+
+    final entries = _unmatched.entries.toList()
+      // Shortest first, so the tersest spelling becomes the label.
+      ..sort((a, b) => a.key.length.compareTo(b.key.length));
+
+    final out = <_SpellingCluster>[];
+    for (final e in entries) {
+      final mine = tokensOf(e.key);
+      _SpellingCluster? home;
+      for (final c in out) {
+        final theirs = tokensOf(c.label);
+        if (mine.isEmpty || theirs.isEmpty) continue;
+        if (mine.containsAll(theirs) || theirs.containsAll(mine)) {
+          home = c;
+          break;
+        }
+      }
+      if (home == null) {
+        out.add(
+          _SpellingCluster(label: e.key, variants: [e.key], rows: e.value),
+        );
+      } else {
+        home.variants.add(e.key);
+        home.rows += e.value;
+      }
+    }
+    return out;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final row = widget.row;
-    final l10n = widget.l10n;
-    final dateStr = DateFormat.yMMMd().format(row.dateGiven);
+    final isError = widget.severity == BulkImportSeverity.error;
+    final status = isError ? SelStatus.blocked : SelStatus.pending;
+    final count = widget.rowIndices.length;
+    final arms = (ref.watch(armsStreamProvider).valueOrNull ?? [])
+        .where((a) => a.isActive)
+        .toList();
 
-    return Column(
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+    final sample = widget.rowIndices
+        .take(3)
+        .map((i) => widget.rows[i].fullName)
+        .where((n) => n.trim().isNotEmpty)
+        .join(', ');
+
+    return Container(
+      color: _open ? Sel.canvas : Sel.card,
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.cardPad,
+        vertical: SelSpace.x4,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(status.icon, size: 15, color: status.color),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(widget.label, style: SelType.bodyMedium),
+                    if (sample.isNotEmpty)
+                      Text(
+                        count > 3 ? '$sample and ${count - 3} more' : sample,
+                        style: SelType.small,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              SelCountTag(
+                label: '$count ${count == 1 ? "row" : "rows"}',
+                emphasised: isError,
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton(
+                label: _open ? 'Hide' : 'Show rows',
+                kind: SelButtonKind.quiet,
+                dense: true,
+                onPressed: () => setState(() => _open = !_open),
+              ),
+            ],
+          ),
+          if (_fixable) ...[
+            const SizedBox(height: SelSpace.x4),
+            for (final cluster in _clusters)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SelSpace.x2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 7),
+                            child: Text.rich(
+                              TextSpan(
+                                style: SelType.bodySm,
+                                children: [
+                                  const TextSpan(text: 'Map '),
+                                  TextSpan(
+                                    text: '“${cluster.label}”',
+                                    style: SelType.bodySm.copyWith(
+                                      color: Sel.ink,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text:
+                                        '  ·  ${cluster.rows} '
+                                        '${cluster.rows == 1 ? "row" : "rows"}',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Name the other spellings this will also fix, so
+                          // applying does not silently change more than the
+                          // label suggests.
+                          if (cluster.variants.length > 1)
+                            Text(
+                              'also ${cluster.variants.where((v) => v != cluster.label).map((v) => '“$v”').join(', ')}',
+                              style: SelType.small,
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 190,
+                      child: SelSelect<String>(
+                        value: _armChoice[cluster.label],
+                        hint: Text('Select arm', style: SelType.bodyMuted),
+                        onChanged: widget.busy || _applying
+                            ? null
+                            : (v) =>
+                                  setState(() => _armChoice[cluster.label] = v),
+                        items: [
+                          for (final a in arms)
+                            DropdownMenuItem(value: a.id, child: Text(a.name)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    SelButton(
+                      label: 'Apply',
+                      kind: SelButtonKind.edge,
+                      dense: true,
+                      loading: _applying,
+                      onPressed:
+                          _armChoice[cluster.label] == null || widget.busy
+                          ? null
+                          : () async {
+                              final arm = arms
+                                  .where(
+                                    (a) => a.id == _armChoice[cluster.label],
+                                  )
+                                  .firstOrNull;
+                              if (arm == null) return;
+                              setState(() => _applying = true);
+                              await widget.onBulkMapArm(cluster.variants, arm);
+                              if (mounted) setState(() => _applying = false);
+                            },
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          if (_open) ...[
+            const SizedBox(height: SelSpace.x3),
+            Container(
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.input),
+                border: Border.all(color: Sel.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
                 children: [
-                  SizedBox(
-                    width: _BulkImportRowLayout.chevron,
-                    child: Icon(
-                      _expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                      size: 20,
-                      color: AppColors.textSecondary,
+                  for (var n = 0; n < widget.rowIndices.length; n++) ...[
+                    if (n > 0) const Divider(height: 1, color: Sel.border),
+                    _AffectedRow(
+                      row: widget.rows[widget.rowIndices[n]],
+                      fmtAmount: widget.fmtAmount,
+                      busy: widget.busy,
+                      onReview: () => widget.onReviewRow(widget.rowIndices[n]),
+                      onRemove: () => widget.onRemoveRow(widget.rowIndices[n]),
                     ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.rowNum,
-                    child: Text(
-                      '${row.sheetRowNumber}',
-                      style: AppTypography.label,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
-                      child: Text(
-                        row.fullName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.amount,
-                    child: Text(
-                      widget.fmtAmount(row.amountCedis),
-                      style: AppTypography.body,
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  SizedBox(width: _BulkImportRowLayout.gapAfterAmount),
-                  SizedBox(
-                    width: _BulkImportRowLayout.date,
-                    child: Text(
-                      dateStr,
-                      style: AppTypography.body,
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.status,
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: _BulkImportStatusBadge(
-                          l10n: l10n,
-                          row: row,
-                          duplicateAcknowledged: widget.duplicateAcknowledged,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.action,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: widget.loadingLocked ? null : widget.onReview,
-                      child: Text(
-                        l10n.bulkImportTableReview,
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: _BulkImportRowLayout.action,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: Theme.of(context).colorScheme.error,
-                      ),
-                      onPressed: widget.loadingLocked ? null : widget.onRemove,
-                      child: Text(
-                        l10n.bulkImportTableRemove,
-                        style: const TextStyle(fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
             ),
-          ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeInOut,
-          alignment: Alignment.topLeft,
-          child: _expanded
-              ? Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.sm,
-                    0,
-                    AppSpacing.sm,
-                    AppSpacing.md,
-                  ),
-                  child: _detailsColumn(context),
-                )
-              : const SizedBox.shrink(),
-        ),
-        const Padding(
-          padding: EdgeInsets.only(top: 4),
-          child: Divider(height: 1, thickness: 1),
-        ),
-      ],
+          ],
+        ],
+      ),
     );
   }
+}
 
-  Widget _detailsColumn(BuildContext context) {
-    final row = widget.row;
-    final l10n = widget.l10n;
-    final hasDup = row.issues.any(
-      (i) =>
-          i.code == BulkImportIssueCode.duplicateInFile ||
-          i.code == BulkImportIssueCode.duplicateInDatabase,
-    );
-    final showDupAck = hasDup && !widget.duplicateAcknowledged;
+/// One affected row inside an expanded group. A single line — the group header
+/// already said what is wrong, so the row only has to identify itself.
+class _AffectedRow extends StatelessWidget {
+  const _AffectedRow({
+    required this.row,
+    required this.fmtAmount,
+    required this.busy,
+    required this.onReview,
+    required this.onRemove,
+  });
 
-    final labelStyle = AppTypography.caption.copyWith(
-      color: AppColors.gray600,
-      fontWeight: FontWeight.w600,
-    );
-    final valueStyle = AppTypography.body;
+  final BulkResolvedRow row;
+  final String Function(double) fmtAmount;
+  final bool busy;
+  final VoidCallback onReview;
+  final VoidCallback onRemove;
 
-    TableRow tr(String label, String value) {
-      return TableRow(
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x2 + 2,
+      ),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Text(label, style: labelStyle),
+          SizedBox(
+            width: 34,
+            child: Text('${row.sheetRowNumber}', style: SelType.small),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          Expanded(
+            flex: 3,
             child: Text(
-              value,
-              style: valueStyle,
-              textAlign: TextAlign.left,
+              row.fullName.isEmpty ? '(no name)' : row.fullName,
+              style: SelType.body,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              row.armName,
+              style: SelType.bodyMuted,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          SizedBox(
+            width: 110,
+            child: Text(
+              fmtAmount(row.amountCedis),
+              textAlign: TextAlign.right,
+              style: SelType.body.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(width: SelSpace.x3),
+          SelButton(
+            label: 'Fix',
+            kind: SelButtonKind.quiet,
+            dense: true,
+            onPressed: busy ? null : onReview,
+          ),
+          SelButton(
+            label: 'Remove',
+            kind: SelButtonKind.quiet,
+            dense: true,
+            onPressed: busy ? null : onRemove,
           ),
         ],
-      );
-    }
-
-    final tableRows = <TableRow>[
-      tr(l10n.bulkImportFieldPartner, widget.resolutionLabel(row.resolution)),
-      if (row.partner != null)
-        tr(
-          l10n.bulkImportFieldName,
-          '${row.partner!.memberId} · ${row.partner!.fullName}',
-        ),
-      tr(l10n.bulkImportFieldArm, row.armName),
-      tr(l10n.bulkImportFieldPeriod, row.periodName),
-      if (row.notes != null && row.notes!.isNotEmpty) tr(l10n.bulkImportFieldNotes, row.notes!),
-      tr(
-        l10n.bulkImportFieldPastorYes,
-        row.pastorConfirmed ? l10n.bulkImportYes : l10n.bulkImportNo,
       ),
-    ];
+    );
+  }
+}
 
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (row.issues.isNotEmpty) ...[
-              Wrap(
-                alignment: WrapAlignment.start,
-                crossAxisAlignment: WrapCrossAlignment.start,
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: row.issues
-                    .map(
-                      (i) => Chip(
-                        label: Text(
-                          i.message ?? widget.issueLabel(i.code),
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        backgroundColor: i.severity == BulkImportSeverity.error
-                            ? Theme.of(context).colorScheme.errorContainer
-                            : Theme.of(context).colorScheme.secondaryContainer,
-                      ),
-                    )
-                    .toList(),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            Table(
-              columnWidths: const {
-                0: FlexColumnWidth(1.05),
-                1: FlexColumnWidth(2.15),
-              },
-              border: TableBorder.all(color: AppColors.gray200, width: 1, borderRadius: BorderRadius.circular(AppRadius.md)),
-              children: tableRows,
+/// The rows that need nothing. Collapsed by default — they are the good news.
+class _CleanRowsPanel extends StatefulWidget {
+  const _CleanRowsPanel({required this.rows, required this.fmtAmount});
+
+  final List<BulkResolvedRow> rows;
+  final String Function(double) fmtAmount;
+
+  @override
+  State<_CleanRowsPanel> createState() => _CleanRowsPanelState();
+}
+
+class _CleanRowsPanelState extends State<_CleanRowsPanel> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.rows.length;
+    return SelCard(
+      padding: EdgeInsets.zero,
+      clip: true,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.cardPad,
+              vertical: SelSpace.x4,
             ),
-            if (showDupAck) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: widget.loadingLocked ? null : widget.onAcknowledgeDuplicate,
-                  icon: Icon(LucideIcons.shieldCheck, size: 18, color: AppColors.primaryColor),
-                  label: Text(l10n.bulkImportConfirmNotDuplicate),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.check, size: 15, color: Sel.success),
+                const SizedBox(width: SelSpace.x3),
+                Expanded(
+                  child: Text('Ready to import', style: SelType.bodyMedium),
+                ),
+                SelCountTag(label: '$count ${count == 1 ? "row" : "rows"}'),
+                const SizedBox(width: SelSpace.x2),
+                if (count > 0)
+                  SelButton(
+                    label: _open ? 'Hide' : 'Show rows',
+                    kind: SelButtonKind.quiet,
+                    dense: true,
+                    onPressed: () => setState(() => _open = !_open),
+                  ),
+              ],
+            ),
+          ),
+          if (_open && count > 0) ...[
+            const Divider(height: 1, color: Sel.border),
+            for (var i = 0; i < count; i++) ...[
+              if (i > 0) const Divider(height: 1, color: Sel.border),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SelSpace.cardPad,
+                  vertical: SelSpace.x2 + 2,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 34,
+                      child: Text(
+                        '${widget.rows[i].sheetRowNumber}',
+                        style: SelType.small,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        widget.rows[i].fullName,
+                        style: SelType.body,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Row(
+                        children: [
+                          ArmDot(armId: widget.rows[i].armId ?? ''),
+                          const SizedBox(width: SelSpace.x2),
+                          Flexible(
+                            child: Text(
+                              widget.rows[i].armName,
+                              style: SelType.bodyMuted,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 110,
+                      child: Text(
+                        widget.fmtAmount(widget.rows[i].amountCedis),
+                        textAlign: TextAlign.right,
+                        style: SelType.body.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _BulkImportStatusBadge extends StatelessWidget {
-  const _BulkImportStatusBadge({
-    required this.l10n,
-    required this.row,
-    required this.duplicateAcknowledged,
+/// A set of spreadsheet spellings that mean the same thing.
+class _SpellingCluster {
+  _SpellingCluster({
+    required this.label,
+    required this.variants,
+    required this.rows,
   });
 
-  final AppLocalizations l10n;
-  final BulkResolvedRow row;
-  final bool duplicateAcknowledged;
+  /// The tersest spelling in the group — what the reader is asked to map.
+  final String label;
+
+  /// Every spelling the mapping will be applied to, [label] included.
+  final List<String> variants;
+
+  /// Total affected rows across all [variants].
+  int rows;
+}
+
+/// Progress across the four stages.
+///
+/// Shows where you are and what is left, which the old single-page layout
+/// could not — there was no finish line, only a long scroll ending in a
+/// disabled button.
+class _StepBar extends StatelessWidget {
+  const _StepBar({required this.current});
+
+  final _Step current;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final hasDup = row.issues.any(
-      (i) =>
-          i.code == BulkImportIssueCode.duplicateInFile ||
-          i.code == BulkImportIssueCode.duplicateInDatabase,
+    return LayoutBuilder(
+      builder: (context, c) {
+        final compact = c.maxWidth < 620;
+        return Row(
+          children: [
+            for (final s in _Step.ordered) ...[
+              if (s.index > 0) const SizedBox(width: SelSpace.x2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: s.index <= current.index ? Sel.soot : Sel.border,
+                        borderRadius: BorderRadius.circular(SelRadius.pill),
+                      ),
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: SelSpace.x2),
+                      Text(
+                        '${s.index + 1}. ${s.label}',
+                        style: SelType.small.copyWith(
+                          color: s == current ? Sel.ink : Sel.warm,
+                          fontWeight: s == current
+                              ? FontWeight.w500
+                              : FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
-    final nonDupIssues = row.issues
-        .where(
-          (i) =>
-              i.code != BulkImportIssueCode.duplicateInFile &&
-              i.code != BulkImportIssueCode.duplicateInDatabase,
-        )
-        .toList();
+  }
+}
 
-    if (row.isBlocking) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: scheme.errorContainer,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          l10n.bulkImportRowStatusBlocked,
-          style: AppTypography.caption.copyWith(
-            color: scheme.onErrorContainer,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-    if (hasDup && !duplicateAcknowledged) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3E8FF),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFFB45309).withValues(alpha: 0.35)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.copy, size: 14, color: const Color(0xFF7C3AED)),
-            const SizedBox(width: 4),
-            Text(
-              l10n.bulkImportRowStatusDuplicate,
-              style: AppTypography.caption.copyWith(
-                color: const Color(0xFF5B21B6),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    if (nonDupIssues.isNotEmpty) {
-      return Tooltip(
-        message: l10n.bulkImportTableReview,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.gray400),
-            const SizedBox(width: 4),
-            Text(
-              l10n.bulkImportRowStatusCheck,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.gray600,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFDCFCE7),
-        borderRadius: BorderRadius.circular(6),
+/// One column from the sheet, and the field it feeds.
+class _ColumnRow extends StatelessWidget {
+  const _ColumnRow({
+    required this.header,
+    required this.sample,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String header;
+
+  /// A real value from the sheet, so the reader can identify the column
+  /// without switching back to the spreadsheet.
+  final String sample;
+
+  final BulkImportColumn? value;
+  final ValueChanged<BulkImportColumn?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.cardPad,
+        vertical: SelSpace.x3,
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.check, size: 14, color: const Color(0xFF166534)),
-          const SizedBox(width: 4),
-          Text(
-            l10n.bulkImportRowStatusReady,
-            style: AppTypography.caption.copyWith(
-              color: const Color(0xFF166534),
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(header, style: SelType.bodyMedium),
+                Text('e.g. $sample', style: SelType.small),
+              ],
             ),
           ),
+          const SizedBox(width: SelSpace.x4),
+          const Icon(LucideIcons.arrowRight, size: 14, color: Sel.ash),
+          const SizedBox(width: SelSpace.x4),
+          SizedBox(
+            width: 200,
+            child: SelSelect<BulkImportColumn?>(
+              value: value,
+              hint: Text('Ignore this column', style: SelType.bodyMuted),
+              onChanged: onChanged,
+              items: [
+                DropdownMenuItem(
+                  value: null,
+                  child: Text('Ignore', style: SelType.bodyMuted),
+                ),
+                for (final f in bulkImportMappableFields)
+                  DropdownMenuItem(
+                    value: f,
+                    child: Text(bulkImportFieldLabel(f)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A file-level message. Uses the semantic state colours so a blocking
+/// problem is distinguishable from a warning at a glance.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.message, required this.status});
+
+  final String message;
+  final SelStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x3,
+      ),
+      decoration: BoxDecoration(
+        color: status.wash,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: Border.all(color: status.color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(status.icon, size: 14, color: status.color),
+          ),
+          const SizedBox(width: SelSpace.x3),
+          Expanded(
+            child: Text(
+              message,
+              style: SelType.bodySm.copyWith(color: Sel.ink),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The "you left something half-done" card at the top of the upload step.
+class _DraftCard extends StatelessWidget {
+  const _DraftCard({
+    required this.fileName,
+    required this.rowCount,
+    required this.savedAt,
+    required this.onContinue,
+    required this.onClear,
+  });
+
+  final String? fileName;
+  final int rowCount;
+  final DateTime? savedAt;
+  final VoidCallback onContinue;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return SelCard(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Pick up where you left off', style: SelType.bodyMedium),
+                const SizedBox(height: SelSpace.x1),
+                Text(
+                  '$rowCount ${rowCount == 1 ? "row" : "rows"} from '
+                  '${fileName ?? "a spreadsheet"}'
+                  '${savedAt == null ? "" : ", saved ${describeWhen(savedAt!)}"}. '
+                  'Nothing has been imported yet.',
+                  style: SelType.bodySm,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          SelButton(
+            label: 'Clear',
+            kind: SelButtonKind.quiet,
+            onPressed: onClear,
+          ),
+          const SizedBox(width: SelSpace.x2),
+          SelButton.cyan(label: 'Continue', onPressed: onContinue),
+        ],
+      ),
+    );
+  }
+}
+
+/// "3 minutes ago", "yesterday" — enough to recognise your own draft.
+String describeWhen(DateTime when) {
+  final diff = DateTime.now().difference(when);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) {
+    return '${diff.inMinutes} ${diff.inMinutes == 1 ? "minute" : "minutes"} ago';
+  }
+  if (diff.inHours < 24) {
+    return '${diff.inHours} ${diff.inHours == 1 ? "hour" : "hours"} ago';
+  }
+  if (diff.inDays == 1) return 'yesterday';
+  if (diff.inDays < 7) return '${diff.inDays} days ago';
+  return DateFormat('d MMM').format(when);
+}
+
+/// The last few imports, and a way back out of one.
+///
+/// An import is the only thing in Pillr that writes dozens of records at once,
+/// and until now it left no record of itself: the wrong period picked on a
+/// sixty-seven row sheet meant finding those rows by eye among eight hundred.
+class _RecentImports extends ConsumerWidget {
+  const _RecentImports();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final batches =
+        ref.watch(recentImportBatchesProvider).valueOrNull ?? const [];
+    if (batches.isEmpty) return const SizedBox.shrink();
+    final money = ref.watch(churchMoneyFormatProvider);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: SelSpace.x8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SelSectionLabel(label: 'Recent imports'),
+          SelCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (var i = 0; i < batches.length; i++) ...[
+                  if (i > 0) const Divider(height: 1, color: Sel.borderMuted),
+                  _ImportRow(batch: batches[i], money: money),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImportRow extends ConsumerStatefulWidget {
+  const _ImportRow({required this.batch, required this.money});
+
+  final BulkImportBatch batch;
+  final String Function(num) money;
+
+  @override
+  ConsumerState<_ImportRow> createState() => _ImportRowState();
+}
+
+class _ImportRowState extends ConsumerState<_ImportRow> {
+  bool _busy = false;
+
+  Future<void> _undo() async {
+    final b = widget.batch;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+
+    final ok = await selConfirm(
+      context,
+      title: 'Undo this import?',
+      message:
+          'Removes the entries from ${b.fileName} that are still waiting on a '
+          'decision. Anything already approved stays — that money has been '
+          'counted, and taking it back out quietly would be a second mistake.',
+      confirmLabel: 'Undo import',
+      destructive: true,
+    );
+    if (!ok) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await ref
+          .read(bulkImportBatchRepositoryProvider)
+          .undo(churchId: idx.churchId, batchId: b.id, byUid: idx.uid);
+      ref.invalidate(entriesListProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.kept == 0
+                ? 'Removed ${result.removed} '
+                      '${result.removed == 1 ? "entry" : "entries"} from '
+                      '${b.fileName}.'
+                : 'Removed ${result.removed}; kept ${result.kept} already '
+                      'approved.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = widget.batch;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: SelSpace.x4,
+        vertical: SelSpace.x3,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  b.fileName.isEmpty ? 'A spreadsheet' : b.fileName,
+                  style: SelType.bodyMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${b.entryCount} ${b.entryCount == 1 ? "entry" : "entries"} · '
+                  '${widget.money(b.totalCedis)} · ${b.periodName} · '
+                  '${describeWhen(b.createdAt)} by ${b.createdByName}',
+                  style: SelType.small,
+                ),
+                if (b.isUndone)
+                  Text(
+                    'Undone — ${b.removedCount} removed'
+                    '${b.keptCount > 0 ? ", ${b.keptCount} kept" : ""}',
+                    style: SelType.small.copyWith(color: Sel.warm),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          if (!b.isUndone)
+            SelButton(
+              label: _busy ? 'Undoing…' : 'Undo',
+              kind: SelButtonKind.ghost,
+              dense: true,
+              onPressed: _busy ? null : _undo,
+            ),
         ],
       ),
     );

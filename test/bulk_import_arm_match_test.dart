@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:the_pillr/features/arms/domain/partnership_arm.dart';
 import 'package:the_pillr/features/entries/bulk_import/bulk_import_arm_match.dart';
 
-PartnershipArm _arm(String id, String name) => PartnershipArm(
+PartnershipArm _arm(String id, String name, {List<String> aliases = const []}) =>
+    PartnershipArm(
+      aliases: aliases,
       id: id,
       churchId: 'c',
       name: name,
@@ -53,5 +55,42 @@ void main() {
     final arms = [_arm('s1', 'Service')];
     final m = findArmMatchFromExcelCell('SUNDAY SERVICE', arms);
     expect(m?.id, 's1');
+  });
+
+  group('remembered aliases', () {
+    test('a saved alias resolves a spelling no fuzzy rule would catch', () {
+      // "Super Sunday" shares nothing with "Missions" — only a decision
+      // someone made previously can connect them.
+      final arms = [
+        _arm('a1', 'Missions', aliases: ['super sunday']),
+        _arm('a2', 'Media'),
+      ];
+      expect(findArmMatchFromExcelCell('Super Sunday', arms)?.id, 'a1');
+    });
+
+    test('alias matching ignores case and extra whitespace', () {
+      final arms = [_arm('a1', 'Missions', aliases: ['super sunday'])];
+      expect(findArmMatchFromExcelCell('  SUPER   SUNDAY ', arms)?.id, 'a1');
+    });
+
+    test('an exact arm name still wins over another arm\'s alias', () {
+      final arms = [
+        _arm('a1', 'Missions', aliases: ['media']),
+        _arm('a2', 'Media'),
+      ];
+      expect(findArmMatchFromExcelCell('Media', arms)?.id, 'a2');
+    });
+
+    test('aliases on an inactive arm are ignored', () {
+      final arms = [
+        PartnershipArm(
+          id: 'a1', churchId: 'c', name: 'Retired', description: null,
+          isActive: false, colorHex: null, sortOrder: 0,
+          aliases: const ['super sunday'],
+          createdBy: 'u', createdAt: DateTime(2024), updatedAt: DateTime(2024),
+        ),
+      ];
+      expect(findArmMatchFromExcelCell('Super Sunday', arms), isNull);
+    });
   });
 }

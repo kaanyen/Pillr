@@ -27,6 +27,8 @@ abstract final class BulkImportSessionStore {
     required List<BulkRawRow> rawRows,
     required List<BulkImportIssue> fileIssues,
     required Set<int> duplicateAcknowledgedSheetRows,
+    required Map<BulkImportColumn, int> mapping,
+    required Set<int> droppedSheetRows,
   }) async {
     final box = await _box();
     if (rawRows.isEmpty && fileBytes == null) {
@@ -39,6 +41,8 @@ abstract final class BulkImportSessionStore {
       'rawRows': rawRows.map(_rawRowToJson).toList(),
       'fileIssues': fileIssues.map(_issueToJson).toList(),
       'duplicateAcknowledged': duplicateAcknowledgedSheetRows.toList(),
+      'mapping': mapping.map((k, v) => MapEntry(k.name, v)),
+      'dropped': droppedSheetRows.toList(),
       'savedAt': DateTime.now().toIso8601String(),
     };
     await box.put(_key(uid, churchId), jsonEncode(payload));
@@ -63,9 +67,18 @@ abstract final class BulkImportSessionStore {
         fileIssues: (m['fileIssues'] as List<dynamic>? ?? [])
             .map((e) => _issueFromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
-        duplicateAcknowledgedSheetRows: (m['duplicateAcknowledged'] as List<dynamic>? ?? [])
+        duplicateAcknowledgedSheetRows:
+            (m['duplicateAcknowledged'] as List<dynamic>? ?? [])
+                .map((e) => (e as num).toInt())
+                .toSet(),
+        mapping: {
+          for (final e in (m['mapping'] as Map<String, dynamic>? ?? {}).entries)
+            BulkImportColumn.values.byName(e.key): (e.value as num).toInt(),
+        },
+        droppedSheetRows: (m['dropped'] as List<dynamic>? ?? [])
             .map((e) => (e as num).toInt())
             .toSet(),
+        savedAt: DateTime.tryParse(m['savedAt'] as String? ?? ''),
       );
     } catch (_) {
       await box.delete(_key(uid, churchId));
@@ -82,9 +95,9 @@ abstract final class BulkImportSessionStore {
   }
 
   static Map<String, dynamic> _rawRowToJson(BulkRawRow r) => {
-        'sheetRowNumber': r.sheetRowNumber,
-        'values': r.valuesByColumn.map((k, v) => MapEntry(k.name, v)),
-      };
+    'sheetRowNumber': r.sheetRowNumber,
+    'values': r.valuesByColumn.map((k, v) => MapEntry(k.name, v)),
+  };
 
   static BulkRawRow _rawRowFromJson(Map<String, dynamic> m) {
     final values = <BulkImportColumn, String>{};
@@ -100,12 +113,13 @@ abstract final class BulkImportSessionStore {
   }
 
   static Map<String, dynamic> _issueToJson(BulkImportIssue i) => {
-        'code': i.code.name,
-        'severity': i.severity.name,
-        'message': i.message,
-      };
+    'code': i.code.name,
+    'severity': i.severity.name,
+    'message': i.message,
+  };
 
-  static BulkImportIssue _issueFromJson(Map<String, dynamic> m) => BulkImportIssue(
+  static BulkImportIssue _issueFromJson(Map<String, dynamic> m) =>
+      BulkImportIssue(
         code: BulkImportIssueCode.values.byName(m['code'] as String),
         severity: BulkImportSeverity.values.byName(m['severity'] as String),
         message: m['message'] as String?,
@@ -119,6 +133,9 @@ class BulkImportPersistedSession {
     required this.rawRows,
     required this.fileIssues,
     required this.duplicateAcknowledgedSheetRows,
+    required this.mapping,
+    required this.droppedSheetRows,
+    this.savedAt,
   });
 
   final String? fileName;
@@ -126,4 +143,13 @@ class BulkImportPersistedSession {
   final List<BulkRawRow> rawRows;
   final List<BulkImportIssue> fileIssues;
   final Set<int> duplicateAcknowledgedSheetRows;
+
+  /// Which sheet column each field came from, so a resumed draft reads in the
+  /// same order as the file it started as.
+  final Map<BulkImportColumn, int> mapping;
+
+  /// Rows the user set aside before saving.
+  final Set<int> droppedSheetRows;
+
+  final DateTime? savedAt;
 }

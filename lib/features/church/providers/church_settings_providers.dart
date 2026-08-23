@@ -63,3 +63,35 @@ final churchMoneyFormatProvider = Provider<String Function(num)>((ref) {
   );
   return (n) => fmt.format(n);
 });
+
+/// Money shortened to fit a stat tile: ₵11.1B rather than ₵11,101,126,000.50.
+///
+/// A figure that runs off the end of its card and ellipsises is worse than a
+/// rounded one — you cannot read either the total or the magnitude. The exact
+/// amount stays available on hover.
+final churchCompactMoneyProvider = Provider<String Function(num)>((ref) {
+  final settings = ref.watch(churchSettingsProvider).valueOrNull;
+  final code = (settings?.currency ?? 'GHS').toUpperCase();
+  final symRaw = settings?.currencySymbol?.trim();
+  final symbol =
+      (symRaw != null && symRaw.isNotEmpty) ? symRaw : _fallbackSymbol(code);
+  final exact = ref.watch(churchMoneyFormatProvider);
+
+  return (n) {
+    final v = n.toDouble().abs();
+    // Under a hundred thousand the full figure fits, and the pesewas matter.
+    if (v < 100000) return exact(n);
+    final sign = n < 0 ? '-' : '';
+    final (double scaled, String suffix) = switch (v) {
+      >= 1000000000000 => (v / 1000000000000, 'T'),
+      >= 1000000000 => (v / 1000000000, 'B'),
+      >= 1000000 => (v / 1000000, 'M'),
+      _ => (v / 1000, 'K'),
+    };
+    // One decimal up to 100, none above — 11.1B, but 340B not 340.2B.
+    final text = scaled >= 100
+        ? scaled.round().toString()
+        : scaled.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
+    return '$sign$symbol$text$suffix';
+  };
+});

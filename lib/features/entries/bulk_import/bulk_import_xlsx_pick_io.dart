@@ -5,7 +5,8 @@ import 'package:file_picker/file_picker.dart';
 Future<({String name, Uint8List bytes})?> pickBulkImportXlsx() async {
   final pick = await FilePicker.pickFiles(
     type: FileType.custom,
-    allowedExtensions: const ['xlsx'],
+    // The parser reads both; the dialog must offer both.
+    allowedExtensions: const ['xlsx', 'csv'],
     withData: true,
   );
   if (pick == null || pick.files.isEmpty) return null;

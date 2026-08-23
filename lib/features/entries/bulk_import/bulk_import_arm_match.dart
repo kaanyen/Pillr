@@ -20,6 +20,14 @@ PartnershipArm? findArmMatchFromExcelCell(String raw, List<PartnershipArm> arms)
     if (normalizeArmExcelText(a.name) == excel) return a;
   }
 
+  // A spelling this church has resolved before wins over every fuzzy rule
+  // below: it is a decision someone already made deliberately.
+  for (final a in active) {
+    for (final alias in a.aliases) {
+      if (normalizeArmExcelText(alias) == excel) return a;
+    }
+  }
+
   final segments = excel.split(RegExp(r'[,;/|]')).map(normalizeArmExcelText).where((s) => s.length >= 2);
   for (final piece in segments) {
     for (final a in active) {

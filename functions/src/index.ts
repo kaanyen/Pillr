@@ -1,5 +1,6 @@
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
+import {FieldValue} from "firebase-admin/firestore";
 import {getStorage} from "firebase-admin/storage";
 import PDFDocument from "pdfkit";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -96,7 +97,7 @@ async function appendPlatformAudit(action: string, actorUid: string, payload: Re
     action,
     actorUid,
     payload,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   });
 }
 
@@ -288,7 +289,7 @@ export const redeemBootstrapInvite = onCall({region: REGION}, async (request) =>
   const churchId = churchRef.id;
   const churchName = toTitleCase(churchNameRaw);
   const slug = slugFromName(churchNameRaw);
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   let redeemedRole = "";
 
   await db.runTransaction(async (tx) => {
@@ -423,7 +424,7 @@ export const setChurchActive = onCall({region: REGION}, async (request) => {
   }
   await db.doc(`churches/${churchId}`).update({
     isActive,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   });
   await appendPlatformAudit("church_active_toggled", uid, {churchId, isActive});
   return {success: true};
@@ -503,7 +504,7 @@ export const completeRegistration = onCall({region: REGION}, async (request) => 
   const role = inv.role as string;
   const batch = db.batch();
   const userChurchRef = db.doc(`user_church_index/${uid}`);
-  batch.set(userChurchRef, {churchId, role, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
+  batch.set(userChurchRef, {churchId, role, updatedAt: FieldValue.serverTimestamp()});
   const userRef = db.doc(`churches/${churchId}/users/${uid}`);
   batch.set(userRef, {
     uid,
@@ -516,14 +517,14 @@ export const completeRegistration = onCall({region: REGION}, async (request) => 
     isActive: true,
     fcmToken: null,
     inviteCodeId: codeId,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
     lastLoginAt: null,
   });
   batch.update(inviteRef, {
     status: "accepted",
     acceptedBy: uid,
-    acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+    acceptedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
   const createdBy = inv.createdBy as string | undefined;
@@ -651,7 +652,7 @@ export const activatePeriod = onCall({region: REGION}, async (request) => {
     throw new HttpsError("failed-precondition", "No periods defined.");
   }
   const batch = db.batch();
-  const ts = admin.firestore.FieldValue.serverTimestamp();
+  const ts = FieldValue.serverTimestamp();
   for (const doc of snap.docs) {
     batch.update(doc.ref, {
       isActive: doc.id === periodId,
@@ -662,35 +663,139 @@ export const activatePeriod = onCall({region: REGION}, async (request) => {
   return {success: true};
 });
 
-async function applyApprovalDeltas(churchId: string, entry: admin.firestore.DocumentData) {
-  const amount = Number(entry.amountCedis ?? 0);
-  if (!amount || amount <= 0) return;
-  const partnerRef = db.doc(`churches/${churchId}/partners/${entry.partnerId}`);
-  const periodRef = db.doc(`churches/${churchId}/partnership_periods/${entry.partnershipPeriodId}`);
+/** Money is a double in the documents; do the arithmetic in pesewas so a
+ * hundred approvals do not drift by a pesewa each. */
+function toPesewas(v: unknown): number {
+  return Math.round(Number(v ?? 0) * 100);
+}
+
+interface AggregateStamp {
+  partnerId: string;
+  periodId: string;
+  armId: string;
+  pesewas: number;
+}
+
+/** A move against one document: an amount in pesewas and a count of entries. */
+interface AggregateMove {
+  pesewas: number;
+  count: number;
+}
+
+/**
+ * The one place partner, period and goal totals move.
+ *
+ * Every entry carries a stamp of what it has already contributed. This reads
+ * that stamp, works out what the entry *should* contribute now, and writes
+ * only the difference — so a retried trigger computes zero and does nothing,
+ * un-approving gives the money back, an edited amount adjusts by the change,
+ * and a deleted entry takes its contribution with it.
+ *
+ * The stamp is claimed in a transaction on the entry alone, which nothing else
+ * contends for; the totals then move by increment, which is commutative and
+ * survives a hundred approvals landing on one period document at once. If the
+ * process dies between the two, the entry is stamped and the totals are short
+ * — under-counting, which `reconcile-aggregates` reports and repairs. The
+ * other order would double-count, which nothing can detect.
+ */
+async function syncEntryAggregates(
+  churchId: string,
+  entryId: string,
+  deletedData?: admin.firestore.DocumentData,
+): Promise<void> {
+  const entryRef = db.doc(`churches/${churchId}/entries/${entryId}`);
+
+  const plan = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(entryRef);
+    const data = snap.exists ? snap.data() : deletedData;
+    if (!data) return null;
+
+    const stamp = (data.aggregateApplied ?? null) as AggregateStamp | null;
+    const applied = Number(stamp?.pesewas ?? 0);
+
+    const desired = snap.exists && data.status === "approved" ? toPesewas(data.amountCedis) : 0;
+    const target: AggregateStamp = {
+      partnerId: String(data.partnerId ?? ""),
+      periodId: String(data.partnershipPeriodId ?? ""),
+      armId: String(data.partnershipArmId ?? ""),
+      pesewas: desired,
+    };
+    const sameTarget =
+      stamp !== null &&
+      stamp.partnerId === target.partnerId &&
+      stamp.periodId === target.periodId &&
+      stamp.armId === target.armId;
+
+    if (desired === applied && (applied === 0 || sameTarget)) return null;
+
+    if (snap.exists) {
+      tx.update(entryRef, {
+        aggregateApplied: desired === 0 ? null : {...target, at: FieldValue.serverTimestamp()},
+      });
+    }
+    return {
+      reverse: applied > 0 && stamp ? {...stamp, pesewas: applied} : null,
+      apply: desired > 0 ? target : null,
+    };
+  });
+
+  if (!plan) return;
+  await moveAggregates(churchId, plan.reverse, plan.apply);
+}
+
+/** Applies a reversal and an application as one set of increments. */
+async function moveAggregates(
+  churchId: string,
+  reverse: AggregateStamp | null,
+  apply: AggregateStamp | null,
+): Promise<void> {
+  // Both sides can land on the same partner or period — an amount correction
+  // does exactly that — and Firestore refuses two writes to one document in a
+  // batch, so the moves are netted per document first.
+  const moves = new Map<string, AggregateMove>();
+  const add = (path: string, pesewas: number, count: number) => {
+    const cur = moves.get(path) ?? {pesewas: 0, count: 0};
+    moves.set(path, {pesewas: cur.pesewas + pesewas, count: cur.count + count});
+  };
+
+  for (const [side, sign] of [[reverse, -1], [apply, 1]] as const) {
+    if (!side) continue;
+    if (side.partnerId) add(`churches/${churchId}/partners/${side.partnerId}`, sign * side.pesewas, sign);
+    if (side.periodId) {
+      add(`churches/${churchId}/partnership_periods/${side.periodId}`, sign * side.pesewas, sign);
+      const goalPath = await goalPathFor(churchId, side.periodId, side.armId);
+      if (goalPath) add(goalPath, sign * side.pesewas, 0);
+    }
+  }
+
   const batch = db.batch();
-  batch.update(partnerRef, {
-    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
-    entryCount: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  batch.update(periodRef, {
-    totalApprovedAmount: admin.firestore.FieldValue.increment(amount),
-    entryCount: admin.firestore.FieldValue.increment(1),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  let writes = 0;
+  for (const [path, move] of moves) {
+    if (move.pesewas === 0 && move.count === 0) continue;
+    const isGoal = path.includes("/goals/");
+    const patch: Record<string, unknown> = {updatedAt: FieldValue.serverTimestamp()};
+    if (isGoal) {
+      patch.currentAmountCedis = FieldValue.increment(move.pesewas / 100);
+    } else {
+      patch.totalApprovedAmount = FieldValue.increment(move.pesewas / 100);
+      if (move.count !== 0) patch.entryCount = FieldValue.increment(move.count);
+    }
+    batch.update(db.doc(path), patch);
+    writes++;
+  }
+  if (writes > 0) await batch.commit();
+}
+
+/** The goal for a period and arm, if the church set one. */
+async function goalPathFor(churchId: string, periodId: string, armId: string): Promise<string | null> {
+  if (!periodId || !armId) return null;
   const goals = await db
     .collection(`churches/${churchId}/goals`)
-    .where("partnershipPeriodId", "==", entry.partnershipPeriodId)
-    .where("partnershipArmId", "==", entry.partnershipArmId)
+    .where("partnershipPeriodId", "==", periodId)
+    .where("partnershipArmId", "==", armId)
     .limit(1)
     .get();
-  if (!goals.empty) {
-    batch.update(goals.docs[0].ref, {
-      currentAmountCedis: admin.firestore.FieldValue.increment(amount),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
-  await batch.commit();
+  return goals.empty ? null : goals.docs[0].ref.path;
 }
 
 async function notifyPastorsNewEntry(churchId: string, entry: admin.firestore.DocumentData) {
@@ -740,6 +845,20 @@ async function notifyStaffEntryReviewed(churchId: string, after: admin.firestore
 // Gen-1 Firestore triggers: Gen-2 uses Eventarc; deploy can fail with "Eventarc Service Agent"
 // permission errors on first use. Gen-1 uses the legacy path and avoids that trigger-creation step.
 
+/** The fields that decide what an entry contributes to a total. */
+function affectsAggregates(
+  before: admin.firestore.DocumentData,
+  after: admin.firestore.DocumentData,
+): boolean {
+  return (
+    before.status !== after.status ||
+    Number(before.amountCedis ?? 0) !== Number(after.amountCedis ?? 0) ||
+    before.partnerId !== after.partnerId ||
+    before.partnershipPeriodId !== after.partnershipPeriodId ||
+    before.partnershipArmId !== after.partnershipArmId
+  );
+}
+
 export const onEntryCreated = functionsV1
   .region(REGION)
   .firestore.document("churches/{churchId}/entries/{entryId}")
@@ -748,7 +867,7 @@ export const onEntryCreated = functionsV1
     if (!data) return;
     const churchId = context.params.churchId as string;
     if (data.status === "approved") {
-      await applyApprovalDeltas(churchId, data);
+      await syncEntryAggregates(churchId, snap.id);
       return;
     }
     if (data.status === "pending") {
@@ -764,12 +883,30 @@ export const onEntryUpdated = functionsV1
     const after = change.after.data();
     if (!before || !after) return;
     const churchId = context.params.churchId as string;
-    if (before.status === "pending" && after.status === "approved") {
-      await applyApprovalDeltas(churchId, after);
+    // Most updates are edits to notes or a name and move no money. Checking
+    // first keeps them from costing a transaction each.
+    if (affectsAggregates(before, after)) {
+      await syncEntryAggregates(churchId, change.after.id);
     }
     if (before.status === "pending" && (after.status === "approved" || after.status === "declined")) {
       await notifyStaffEntryReviewed(churchId, after);
     }
+  });
+
+/**
+ * A deleted entry gives back whatever it contributed.
+ *
+ * Without this an approved entry could be removed and its money would stay in
+ * the partner and period totals for good, with nothing in the system aware of
+ * it. The stamp on the deleted document says what to take back.
+ */
+export const onEntryDeleted = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/entries/{entryId}")
+  .onDelete(async (snap, context) => {
+    const data = snap.data();
+    if (!data?.aggregateApplied) return;
+    await syncEntryAggregates(context.params.churchId as string, snap.id, data);
   });
 
 /** Normalizes partner name casing, keeps `fullNameLower` / `fellowshipLower` in sync. */
@@ -837,7 +974,7 @@ export const updateChurchMember = onCall({region: REGION}, async (request) => {
   const batch = db.batch();
   const userRef = db.doc(`churches/${churchId}/users/${targetUid}`);
   const targetIndexRef = db.doc(`user_church_index/${targetUid}`);
-  const ts = admin.firestore.FieldValue.serverTimestamp();
+  const ts = FieldValue.serverTimestamp();
   if (isActive !== undefined) {
     batch.update(userRef, {isActive, updatedAt: ts});
   }
@@ -952,7 +1089,7 @@ async function generatePeriodSummaryPdf(churchId: string, periodId: string): Pro
   await periodSnap.ref.update({
     summaryPdfUrl: url,
     summaryPdfStoragePath: path,
-    summaryGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+    summaryGeneratedAt: FieldValue.serverTimestamp(),
   });
 }
 
