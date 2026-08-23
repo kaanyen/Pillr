@@ -26,9 +26,9 @@ class SelColumn {
 
   /// Fixed-width column, right-aligned — the money/date shape.
   const SelColumn.numeric(this.label, {this.width = 120})
-      : fit = SelColFit.fixed,
-        flex = 1,
-        align = TextAlign.right;
+    : fit = SelColFit.fixed,
+      flex = 1,
+      align = TextAlign.right;
 
   /// Caption text. Rendered small, uppercase and letterspaced — the one place
   /// in this system where caps are correct.
@@ -43,11 +43,22 @@ class SelColumn {
 /// A ledger row's cells, plus optional per-row behaviour.
 @immutable
 class SelRow {
-  const SelRow({required this.cells, this.onTap, this.selected = false, this.leading});
+  const SelRow({
+    required this.cells,
+    this.onTap,
+    this.selected = false,
+    this.leading,
+    this.cursor = false,
+  });
 
   final List<Widget> cells;
   final VoidCallback? onTap;
   final bool selected;
+
+  /// The row the keyboard is on. Distinct from [selected], which is a choice
+  /// the user has made: this only says where the next keystroke will land, so
+  /// it is drawn as an edge rather than a fill.
+  final bool cursor;
 
   /// Optional leading widget (checkbox, avatar) rendered before the first cell.
   final Widget? leading;
@@ -218,10 +229,20 @@ class _LedgerRowState extends State<_LedgerRow> {
 
     final body = AnimatedContainer(
       duration: const Duration(milliseconds: 90),
-      color: bg,
-      padding: const EdgeInsets.symmetric(
-        horizontal: SelSpace.x6,
-        vertical: SelSpace.x3,
+      decoration: BoxDecoration(
+        color: bg,
+        border: Border(
+          left: BorderSide(
+            color: r.cursor ? Sel.cyanEdge : Colors.transparent,
+            width: 2,
+          ),
+        ),
+      ),
+      padding: const EdgeInsets.only(
+        left: SelSpace.x6 - 2,
+        right: SelSpace.x6,
+        top: SelSpace.x3,
+        bottom: SelSpace.x3,
       ),
       child: Row(
         children: [
@@ -239,13 +260,22 @@ class _LedgerRowState extends State<_LedgerRow> {
       ),
     );
 
-    if (r.onTap == null) return body;
+    // Cells are separate widgets but one fact: a screen reader should say
+    // "Yaw Darko, Missions, GHS 300, pending" as a single row, not spell it
+    // out a column at a time.
+    if (r.onTap == null) return MergeSemantics(child: body);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(onTap: r.onTap, child: body),
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        selected: r.selected,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(onTap: r.onTap, child: body),
+        ),
+      ),
     );
   }
 
@@ -277,29 +307,29 @@ enum SelTone {
   neutral;
 
   Color get color => switch (this) {
-        SelTone.positive => Sel.success,
-        SelTone.negative => Sel.danger,
-        SelTone.neutral => Sel.ink,
-      };
+    SelTone.positive => Sel.success,
+    SelTone.negative => Sel.danger,
+    SelTone.neutral => Sel.ink,
+  };
 }
 
 /// Convenience cells so screens do not restate the type ramp on every row.
 abstract final class SelCell {
   /// The row's subject — a person, an arm, a period. Ink at weight 500.
   static Widget primary(String text) => Text(
-        text,
-        style: SelType.bodyMedium,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
+    text,
+    style: SelType.bodyMedium,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
 
   /// Supporting fact. Warm gray at weight 400.
   static Widget secondary(String text) => Text(
-        text,
-        style: SelType.bodyMuted,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
+    text,
+    style: SelType.bodyMuted,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
 
   /// Money and other figures. Tabular so digits align down the column.
   ///
@@ -310,26 +340,35 @@ abstract final class SelCell {
     String text, {
     bool strong = true,
     SelTone tone = SelTone.neutral,
-  }) =>
-      Text(
-        text,
-        textAlign: TextAlign.right,
-        style: (strong ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
-          color: tone.color,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
+  }) => Text(
+    text,
+    textAlign: TextAlign.right,
+    style: (strong ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
+      color: tone.color,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    ),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
 
   /// Two lines in one cell: subject above, detail beneath. For narrow layouts
   /// where two columns must collapse into one.
   static Widget stacked(String top, String bottom) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(top, style: SelType.bodyMedium, maxLines: 1, overflow: TextOverflow.ellipsis),
-          Text(bottom, style: SelType.small, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        top,
+        style: SelType.bodyMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      Text(
+        bottom,
+        style: SelType.small,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ],
+  );
 }
