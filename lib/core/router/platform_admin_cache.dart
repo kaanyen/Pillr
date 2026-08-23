@@ -13,7 +13,10 @@ class PlatformAdminCache {
 
   static Future<bool> isPlatformAdmin(String uid) async {
     if (_uid == uid && _isAdmin != null) return _isAdmin!;
-    final snap = await FirebaseFirestore.instance.collection('platform_admins').doc(uid).get();
+    final snap = await FirebaseFirestore.instance
+        .collection('platform_admins')
+        .doc(uid)
+        .get();
     final v = snap.exists;
     _uid = uid;
     _isAdmin = v;

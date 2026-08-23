@@ -29,10 +29,14 @@ import '../../screens/people_screen.dart';
 import '../../screens/queue_screen.dart';
 import 'route_guards.dart';
 
-final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 
 GoRouter createRouter() {
-  final refresh = GoRouterRefreshStream(FirebaseAuth.instance.authStateChanges());
+  final refresh = GoRouterRefreshStream(
+    FirebaseAuth.instance.authStateChanges(),
+  );
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -43,7 +47,8 @@ GoRouter createRouter() {
       GoRoute(
         path: '/',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: LandingScreen()),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: LandingScreen()),
       ),
       GoRoute(
         path: '/login',
@@ -53,7 +58,8 @@ GoRouter createRouter() {
       GoRoute(
         path: '/sign-in',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: SignInScreen()),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: SignInScreen()),
       ),
       GoRoute(
         path: '/join',
@@ -68,23 +74,28 @@ GoRouter createRouter() {
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
           final code = state.uri.queryParameters['code'];
-          return NoTransitionPage(child: BootstrapJoinScreen(prefilledCode: code));
+          return NoTransitionPage(
+            child: BootstrapJoinScreen(prefilledCode: code),
+          );
         },
       ),
       GoRoute(
         path: '/onboarding',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: OnboardingWizardScreen()),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: OnboardingWizardScreen()),
       ),
       GoRoute(
         path: '/workspace-suspended',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: WorkspaceSuspendedScreen()),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: WorkspaceSuspendedScreen()),
       ),
       GoRoute(
         path: '/platform/churches',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(child: PlatformChurchesScreen()),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: PlatformChurchesScreen()),
       ),
       ShellRoute(
         builder: (context, state, child) => SelShell(child: child),
@@ -124,7 +135,9 @@ GoRouter createRouter() {
             path: '/partners/:id',
             pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return NoTransitionPage(child: PartnerProfileScreen(partnerId: id));
+              return NoTransitionPage(
+                child: PartnerProfileScreen(partnerId: id),
+              );
             },
           ),
           GoRoute(
@@ -215,12 +228,21 @@ GoRouter createRouter() {
           // the old path implied a filter.
           GoRoute(path: '/dashboard', redirect: (_, _) => '/overview'),
           GoRoute(path: '/entries', redirect: (_, _) => '/records'),
-          GoRoute(path: '/approvals', redirect: (_, _) => '/queue?filter=pending'),
-          GoRoute(path: '/leaderboard', redirect: (_, _) => '/partners?view=ranked'),
+          GoRoute(
+            path: '/approvals',
+            redirect: (_, _) => '/queue?filter=pending',
+          ),
+          GoRoute(
+            path: '/leaderboard',
+            redirect: (_, _) => '/partners?view=ranked',
+          ),
           GoRoute(path: '/arms', redirect: (_, _) => '/configuration'),
           GoRoute(path: '/periods', redirect: (_, _) => '/configuration'),
           GoRoute(path: '/users', redirect: (_, _) => '/people'),
-          GoRoute(path: '/invitations', redirect: (_, _) => '/people?section=invites'),
+          GoRoute(
+            path: '/invitations',
+            redirect: (_, _) => '/people?section=invites',
+          ),
           GoRoute(path: '/logs', redirect: (_, _) => '/activity'),
         ],
       ),

@@ -12,7 +12,9 @@ bool isPathForbiddenForRole(String location, String role) {
   bool starts(String p) => path == p || path.startsWith('$p/');
 
   // Overview, Settings and Help adapt to the viewer — always allowed.
-  if (starts('/overview') || starts('/settings') || starts('/help')) return false;
+  if (starts('/overview') || starts('/settings') || starts('/help')) {
+    return false;
+  }
 
   switch (role) {
     // Admin runs the workspace but has no access to financial records.

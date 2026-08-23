@@ -29,7 +29,9 @@ abstract final class AuthBootGate {
   /// Call once, after Firebase is initialised.
   static void start() {
     if (_sub != null) return;
-    _sub = FirebaseAuth.instance.authStateChanges().listen((_) => _markSettled());
+    _sub = FirebaseAuth.instance.authStateChanges().listen(
+      (_) => _markSettled(),
+    );
     // If the SDK never reports for some reason, do not strand the router in a
     // permanently undecided state.
     _failsafe = Timer(const Duration(seconds: 3), _markSettled);
