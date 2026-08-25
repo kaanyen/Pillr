@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/navigation/panel_flows.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
 import '../l10n/app_localizations.dart';
@@ -14,6 +16,7 @@ import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
 import 'record_filter_bar.dart';
@@ -92,6 +95,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   /// listed a day later.
   Timer? _clock;
 
+  static const _recordsPageSize = 80;
+  final ScrollController _recordsScrollController = ScrollController();
+  List<PartnershipEntry> _recordsItems = [];
+  DocumentSnapshot<Map<String, dynamic>>? _recordsCursor;
+  bool _recordsHasMore = true;
+  bool _recordsLoading = false;
+  bool _recordsLoadingMore = false;
+  String? _recordsError;
+
   @override
   void initState() {
     super.initState();
@@ -100,13 +112,75 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         const Duration(minutes: 1),
         (_) => mounted ? setState(() {}) : null,
       );
+    } else {
+      _recordsScrollController.addListener(_onRecordsScroll);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadRecordsPage(reset: true);
+      });
     }
   }
 
   @override
   void dispose() {
     _clock?.cancel();
+    if (widget.mode == QueueMode.records) {
+      _recordsScrollController.removeListener(_onRecordsScroll);
+      _recordsScrollController.dispose();
+    }
     super.dispose();
+  }
+
+  void _onRecordsScroll() {
+    if (!_recordsHasMore || _recordsLoadingMore || _recordsLoading) return;
+    final pos = _recordsScrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 240) {
+      _loadRecordsPage();
+    }
+  }
+
+  Future<void> _loadRecordsPage({bool reset = false}) async {
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx == null) return;
+    if (reset) {
+      setState(() {
+        _recordsLoading = true;
+        _recordsError = null;
+        _recordsItems = [];
+        _recordsCursor = null;
+        _recordsHasMore = true;
+      });
+    } else {
+      if (!_recordsHasMore) return;
+      setState(() => _recordsLoadingMore = true);
+    }
+    try {
+      final page = await ref.read(entriesRepositoryProvider).fetchEntriesPage(
+            idx.churchId,
+            allChurchEntries: idx.isPastor,
+            createdByUid: idx.isPastor ? null : idx.uid,
+            pageSize: _recordsPageSize,
+            startAfter: reset ? null : _recordsCursor,
+          );
+      if (!mounted) return;
+      setState(() {
+        if (reset) {
+          _recordsItems = page.items;
+        } else {
+          _recordsItems = [..._recordsItems, ...page.items];
+        }
+        _recordsCursor = page.lastDoc;
+        _recordsHasMore = page.hasMore;
+        _recordsLoading = false;
+        _recordsLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _recordsError = '$e';
+        _recordsLoading = false;
+        _recordsLoadingMore = false;
+      });
+    }
   }
 
   @override
@@ -115,10 +189,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
     final entriesAsync = ref.watch(entriesListProvider);
+    final armColors = ref.watch(armColorsProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
     final isPastor = idx?.isPastor ?? false;
 
-    final all = entriesAsync.valueOrNull ?? [];
+    final all = widget.mode == QueueMode.records
+        ? _recordsItems
+        : (entriesAsync.valueOrNull ?? []);
     // Records and the ranked view share one filter set, so a window narrowed
     // in one is narrowed in the other.
     final scoped = widget.mode == QueueMode.records
@@ -145,6 +222,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     // every time something is approved.
     final cursor = rows.isEmpty ? -1 : _cursor.clamp(0, rows.length - 1);
     final canReview = isPastor && widget.mode == QueueMode.queue;
+    final compact = SelLayout.isCompact(MediaQuery.sizeOf(context).width);
 
     // What was decided in the last day, newest first. The queue proper is
     // pending only — this sits under it so a pastor can see the batch they
@@ -165,7 +243,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       child: Focus(
         autofocus: true,
         child: SelPageBody(
-          onRefresh: () async => ref.invalidate(entriesListProvider),
+          onRefresh: widget.mode == QueueMode.records
+              ? () => _loadRecordsPage(reset: true)
+              : () async => ref.invalidate(entriesListProvider),
           children: [
             SelPageTitle(
               title: widget.mode == QueueMode.queue
@@ -175,19 +255,36 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                   ? l10n.queueSubtitle
                   : l10n.recordsSubtitle,
               actions: [
-                // Exports follow the current filter: what is on screen is what
-                // lands in the file.
-                EntryExportButtons(
-                  entries: rows,
-                  title: widget.mode == QueueMode.queue ? 'Queue' : 'Records',
-                  subtitle: _filterDescription(rows.length),
-                ),
-                const SizedBox(width: SelSpace.x2),
+                if (widget.mode == QueueMode.records)
+                  EntryExportButtons(
+                    entries: rows,
+                    title: 'Records',
+                    subtitle: _filterDescription(rows.length),
+                  ),
+                if (widget.mode == QueueMode.records && compact) ...[
+                  const SizedBox(width: SelSpace.x2),
+                  SelButton(
+                    label: l10n.navRecordsMonthly,
+                    icon: LucideIcons.calendar,
+                    kind: SelButtonKind.quiet,
+                    onPressed: () => context.go('/records/monthly'),
+                  ),
+                ],
+                if (widget.mode == QueueMode.records)
+                  const SizedBox(width: SelSpace.x2),
+                if (widget.mode == QueueMode.queue)
+                  EntryExportButtons(
+                    entries: rows,
+                    title: 'Queue',
+                    subtitle: _filterDescription(rows.length),
+                  ),
+                if (widget.mode == QueueMode.queue)
+                  const SizedBox(width: SelSpace.x2),
                 if (idx?.isStaff == true || isPastor)
                   SelButton.cyan(
                     label: l10n.actionNewEntry,
                     icon: LucideIcons.plus,
-                    onPressed: () => context.go('/entries/new'),
+                    onPressed: () => showEntryFormPanel(context),
                   ),
                 SelButton(
                   label: l10n.actionImport,
@@ -197,8 +294,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               ],
             ),
 
-            // Filters sit on the canvas above the card, not inside it — the card
-            // holds records, the canvas holds controls.
             Row(
               children: [
                 // Queue is a work list, so it has no status tabs: everything on it
@@ -282,7 +377,105 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
             const SizedBox(height: SelSpace.x6),
 
-            entriesAsync.when(
+            if (widget.mode == QueueMode.records && _recordsLoading)
+              const SelCard(child: SelSkeletonRows())
+            else if (widget.mode == QueueMode.records && _recordsError != null)
+              SelError(
+                message: _recordsError!,
+                onRetry: () => _loadRecordsPage(reset: true),
+              )
+            else if (widget.mode == QueueMode.records)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SelLedger(
+                    virtualized: rows.length > 30,
+                    scrollController: _recordsScrollController,
+                    maxVirtualHeight: 640,
+                    minWidth: 760,
+                    columns: [
+                      SelColumn(l10n.queueColPartner, flex: 3),
+                      SelColumn(l10n.queueColArm, flex: 2),
+                      SelColumn.numeric(l10n.queueColAmount, width: 130),
+                      SelColumn(
+                        l10n.queueColStatus,
+                        fit: SelColFit.fixed,
+                        width: 120,
+                      ),
+                      SelColumn(
+                        isPastor ? l10n.queueColReview : l10n.queueColSubmitted,
+                        fit: SelColFit.fixed,
+                        width: isPastor ? 170 : 110,
+                        align: TextAlign.right,
+                      ),
+                    ],
+                    emptyState: SelEmpty(
+                      title: _filter == _Filter.all
+                          ? l10n.recordsEmptyTitle
+                          : 'Nothing here',
+                      message: _filter == _Filter.all
+                          ? l10n.recordsEmptyMessage
+                          : 'Nothing matches what you picked above.',
+                      actionLabel:
+                          _filter == _Filter.all ? l10n.recordsEmptyAction : null,
+                      onAction: _filter == _Filter.all
+                          ? () => showEntryFormPanel(context)
+                          : null,
+                    ),
+                    rows: [
+                      for (final (i, e) in rows.indexed)
+                        SelRow(
+                          onTap: () {
+                            setState(() => _cursor = i);
+                            context.go('/entries/${e.id}');
+                          },
+                          selected: _selected.contains(e.id),
+                          cursor: i == cursor,
+                          cells: [
+                            SelCell.stacked(
+                              e.partnerSnapshot['fullName']?.toString() ?? '—',
+                              e.createdBySnapshot['fullName']?.toString() ?? '',
+                            ),
+                            ArmLabel(
+                              armId: e.partnershipArmId,
+                              name: e.armSnapshot['name']?.toString() ?? '—',
+                              color: armColors[e.partnershipArmId],
+                            ),
+                            EntryAmountCell(
+                              entry: e,
+                              formattedAmount: money(e.amountCedis),
+                              tone: switch (e.status) {
+                                'approved' => SelTone.positive,
+                                'declined' => SelTone.negative,
+                                _ => SelTone.neutral,
+                              },
+                            ),
+                            SelStatusMark.fromString(
+                              status: e.status,
+                              label: _statusLabel(e.status),
+                            ),
+                            SelCell.secondary(
+                              formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  if (_recordsLoadingMore)
+                    const Padding(
+                      padding: EdgeInsets.only(top: SelSpace.x4),
+                      child: Center(
+                        child: SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                ],
+              )
+            else
+              entriesAsync.when(
               loading: () => const SelCard(child: SelSkeletonRows()),
               error: (e, _) => SelError(
                 message: '$e',
@@ -328,7 +521,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                       : null,
                   onAction:
                       widget.mode == QueueMode.records && _filter == _Filter.all
-                      ? () => context.go('/entries/new')
+                      ? () => showEntryFormPanel(context)
                       : null,
                 ),
                 rows: [
@@ -364,9 +557,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         ArmLabel(
                           armId: e.partnershipArmId,
                           name: e.armSnapshot['name']?.toString() ?? '—',
+                          color: armColors[e.partnershipArmId],
                         ),
-                        SelCell.numeric(
-                          money(e.amountCedis),
+                        EntryAmountCell(
+                          entry: e,
+                          formattedAmount: money(e.amountCedis),
                           tone: switch (e.status) {
                             'approved' => SelTone.positive,
                             'declined' => SelTone.negative,
@@ -432,9 +627,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         ArmLabel(
                           armId: e.partnershipArmId,
                           name: e.armSnapshot['name']?.toString() ?? '—',
+                          color: armColors[e.partnershipArmId],
                         ),
-                        SelCell.numeric(
-                          money(e.amountCedis),
+                        EntryAmountCell(
+                          entry: e,
+                          formattedAmount: money(e.amountCedis),
                           tone: e.status == 'approved'
                               ? SelTone.positive
                               : SelTone.negative,

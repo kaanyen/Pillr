@@ -5,6 +5,8 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/church_settings_repository.dart';
 import '../domain/church_settings.dart';
+import '../domain/exchange_rates.dart';
+import '../domain/monthly_email_report.dart';
 
 String _localeForCurrency(String code) {
   switch (code.toUpperCase()) {
@@ -35,7 +37,10 @@ String _fallbackSymbol(String code) {
 }
 
 final churchSettingsRepositoryProvider = Provider<ChurchSettingsRepository>((ref) {
-  return ChurchSettingsRepository(ref.watch(firestoreProvider));
+  return ChurchSettingsRepository(
+    ref.watch(firestoreProvider),
+    ref.watch(firebaseFunctionsProvider),
+  );
 });
 
 final churchSettingsProvider = StreamProvider<ChurchSettings?>((ref) {
@@ -44,9 +49,23 @@ final churchSettingsProvider = StreamProvider<ChurchSettings?>((ref) {
   return ref.watch(churchSettingsRepositoryProvider).watchChurch(idx.churchId);
 });
 
+final latestMonthlyEmailReportProvider = StreamProvider<MonthlyEmailReport?>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isPastor) return Stream.value(null);
+  return ref
+      .watch(churchSettingsRepositoryProvider)
+      .watchLatestMonthlyEmailReport(idx.churchId);
+});
+
 /// Church display name (convenience for UI).
 final churchNameProvider = Provider<String?>((ref) {
   return ref.watch(churchSettingsProvider).valueOrNull?.name;
+});
+
+/// Configured foreign exchange rates → GHS base.
+final churchExchangeRatesProvider = Provider<ChurchExchangeRates>((ref) {
+  return ref.watch(churchSettingsProvider).valueOrNull?.exchangeRates ??
+      const ChurchExchangeRates();
 });
 
 /// Money formatter from the church document (`currency` / `currencySymbol`).

@@ -78,6 +78,7 @@ dependencies:
   xml: ^6.6.1
   lucide_icons: ^0.257.0
   animations: ^2.1.1
+  flutter_svg: ^2.2.3
 
 dev_dependencies:
   flutter_test:
@@ -111,6 +112,14 @@ flutter:
 
   assets:
     - assets/branding/app_icon.png
+    - assets/branding/pillr_app_logo.png
+    - assets/branding/pillr_app_logo.svg
+    - assets/branding/pillr_logo_main.png
+    - assets/branding/pillr_logo_main.svg
+    - assets/branding/pillr_logo_main_white.svg
+    - assets/branding/pillr_logo_main_white.png
+    - assets/branding/pillr_logo_main_ink.svg
+    - assets/branding/pillr_logo_main_muted.svg
 
   # All type is bundled locally — no runtime CDN fetch, no first-paint reflow.
   # Inter Tight stands in for Roobert (Seline's display face): geometric sans
@@ -175,13 +184,17 @@ flutter_launcher_icons:
   ios: true
   web:
     generate: true
-  image_path: assets/branding/app_icon.png
+    image_path: assets/branding/pillr_app_logo.png
+    background_color: "#3BA6F1"
+    theme_color: "#3BA6F1"
+  image_path: assets/branding/pillr_app_logo.png
   min_sdk_android: 21
 
 flutter_native_splash:
-  color: "#1A56DB"
-  image: assets/branding/app_icon.png
+  color: "#3BA6F1"
+  image: assets/branding/pillr_logo_main_white.png
   android_12:
-    color: "#1A56DB"
-    image: assets/branding/app_icon.png
+    color: "#3BA6F1"
+    image: assets/branding/pillr_logo_main_white.png
   web: true
+  web_image_mode: center

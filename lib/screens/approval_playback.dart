@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../design/seline.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
 
 /// Full-screen playback of a bulk approval.
 ///
@@ -271,11 +272,10 @@ class _Line extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(
-            formatMoney(entry.amountCedis),
-            style: (isNewest ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+          EntryAmountCell(
+            entry: entry,
+            formattedAmount: formatMoney(entry.amountCedis),
+            strong: isNewest,
           ),
         ],
       ),

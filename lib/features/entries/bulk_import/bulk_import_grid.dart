@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../design/seline.dart';
 import '../../../screens/arm_palette.dart';
 import '../../arms/domain/partnership_arm.dart';
+import '../../church/domain/exchange_rates.dart';
 import 'bulk_import_autofix.dart';
 import 'bulk_import_columns.dart';
 import 'bulk_import_mapping.dart';
@@ -142,6 +143,7 @@ double _columnWidth(BulkImportColumn c) => switch (c) {
   BulkImportColumn.fellowship => 150,
   BulkImportColumn.email => 200,
   BulkImportColumn.amount => 110,
+  BulkImportColumn.currency => 72,
   BulkImportColumn.category => 170,
   BulkImportColumn.givenToNotes => 200,
   BulkImportColumn.pastorConfirmed => 130,
@@ -285,6 +287,32 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   int _focusSerial = 0;
 
   bool _panelOpen = true;
+  List<_Group>? _cachedGroups;
+  Map<int, String>? _rowGroupIds;
+
+  @override
+  void didUpdateWidget(covariant BulkImportGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.rawRows, widget.rawRows) ||
+        !identical(oldWidget.resolved, widget.resolved) ||
+        oldWidget.dayFirst != widget.dayFirst ||
+        oldWidget.droppedSheetRows != widget.droppedSheetRows ||
+        oldWidget.keptSheetRows != widget.keptSheetRows) {
+      _cachedGroups = null;
+      _rowGroupIds = null;
+    }
+  }
+
+  List<_Group> _groups() {
+    return _cachedGroups ??= _buildGroups();
+  }
+
+  Map<int, String> _groupIdForRow() {
+    return _rowGroupIds ??= {
+      for (final g in _groups())
+        for (final row in g.rows) row: g.id,
+    };
+  }
 
   @override
   void dispose() {
@@ -512,7 +540,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       // belongs to a problem, the panel comes back to show it — hiding it was
       // a wish for room, not a refusal to be told what is wrong.
       if (!_panelOpen &&
-          _buildGroups().any(
+          _groups().any(
             (g) => g.column == column && g.rows.contains(rowIndex),
           )) {
         _panelOpen = true;
@@ -538,8 +566,11 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     _focusCell = null;
     editor.dispose();
 
-    if (after != before) widget.onEditCell(row, column, after);
-    if (mounted) setState(() {});
+    if (after != before) {
+      widget.onEditCell(row, column, after);
+    } else if (mounted) {
+      setState(() {});
+    }
   }
 
   void _cancelEdit() {
@@ -558,7 +589,7 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = _buildGroups();
+    final groups = _groups();
 
     // A cell is marked by the first problem that names it; a row by the first
     // problem that touches it. Same colour in both places, so a group in the
@@ -583,7 +614,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     final gridWidth =
         _gutterWidth +
         widget.columns.fold<double>(0, (a, c) => a + _columnWidth(c)) +
-        _gutterWidth;
+        _gutterWidth +
+        2;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -736,11 +768,12 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     // picked out of that group has to beat it, or clicking a single row looks
     // exactly like hovering all of them.
     final inHoveredGroup =
-        _hoverGroup != null &&
-        groups.any((g) => g.id == _hoverGroup && g.rows.contains(i));
+        _hoverGroup != null && _groupIdForRow()[i] == _hoverGroup;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoverRow = i),
+      onEnter: (_) {
+        if (_hoverRow != i) setState(() => _hoverRow = i);
+      },
       onExit: (_) {
         if (_hoverRow == i) setState(() => _hoverRow = null);
       },
@@ -890,6 +923,14 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
         name: value.isEmpty ? resolved.armName : value,
         style: SelType.small.copyWith(color: Sel.ink),
       );
+    } else if (column == BulkImportColumn.currency) {
+      final code = parseCurrencyCode(value) ?? BaseCurrency.code;
+      content = Text(
+        code,
+        style: SelType.small.copyWith(color: Sel.ink),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      );
     } else {
       content = Text(
         value.isEmpty ? '—' : value,
@@ -900,6 +941,24 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
         overflow: TextOverflow.ellipsis,
         maxLines: 1,
       );
+      if (column == BulkImportColumn.amount &&
+          resolved != null &&
+          resolved.hasForeignSource) {
+        final source = resolved.sourceAmount ?? 0;
+        final hint =
+            'Recorded as ${source.toStringAsFixed(2)} ${resolved.sourceCurrency} '
+            '→ ${widget.money(resolved.amountCedis)}';
+        content = Tooltip(
+          message: hint,
+          child: Row(
+            children: [
+              Expanded(child: content),
+              const SizedBox(width: 4),
+              const Icon(LucideIcons.globe, size: 11, color: Sel.ash),
+            ],
+          ),
+        );
+      }
     }
 
     final picker = _isPickerColumn(column);
@@ -944,7 +1003,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
 
   bool _isPickerColumn(BulkImportColumn c) =>
       (c == BulkImportColumn.category && widget.arms.isNotEmpty) ||
-      c == BulkImportColumn.pastorConfirmed;
+      c == BulkImportColumn.pastorConfirmed ||
+      c == BulkImportColumn.currency;
 
   Future<void> _openPicker(
     BuildContext cellContext,
@@ -952,15 +1012,22 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
     BulkImportColumn column,
   ) async {
     _commitEdit();
-    final options = column == BulkImportColumn.pastorConfirmed
-        ? const ['Yes', 'No']
-        : [for (final a in widget.arms) a.name];
+    final options = switch (column) {
+      BulkImportColumn.pastorConfirmed => const ['Yes', 'No'],
+      BulkImportColumn.currency => [
+        for (final code in SelectableCurrency.all) code,
+      ],
+      _ => [for (final a in widget.arms) a.name],
+    };
     final current = widget.rawRows[rowIndex].valuesByColumn[column] ?? '';
+    final selected = column == BulkImportColumn.currency
+        ? (parseCurrencyCode(current) ?? BaseCurrency.code)
+        : current;
 
     final picked = await _anchoredMenu<String>(cellContext, [
       for (final o in options) (o, o),
-    ], selected: current);
-    if (picked != null && picked != current) {
+    ], selected: selected);
+    if (picked != null && picked != selected) {
       widget.onEditCell(rowIndex, column, picked);
     }
   }

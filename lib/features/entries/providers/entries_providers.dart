@@ -4,6 +4,8 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/entries_repository.dart';
 import '../domain/partnership_entry.dart';
+import '../monthly_records_index.dart';
+import 'monthly_records_entries_provider.dart';
 
 final entriesRepositoryProvider = Provider<EntriesRepository>((ref) {
   return EntriesRepository(ref.watch(firestoreProvider));
@@ -52,6 +54,12 @@ final staffApprovedTotalForPartnerProvider = Provider.family<double, String>((re
     data: (m) => m[partnerId] ?? 0,
     orElse: () => 0,
   );
+});
+
+final monthlyRecordsIndexProvider =
+    Provider.autoDispose<MonthlyRecordsIndex>((ref) {
+  final entries = ref.watch(monthlyRecordsEntriesProvider).entries;
+  return MonthlyRecordsIndex.build(entries);
 });
 
 final partnerEntriesProvider =

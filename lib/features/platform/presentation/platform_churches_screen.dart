@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/notifications/sel_notice.dart';
 import '../../../design/seline.dart';
 
 import '../../../core/errors/error_handler.dart';
@@ -42,9 +43,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
           );
       if (mounted) {
         _bootstrapEmail.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Bootstrap invite sent.')),
-        );
+        selNotice(context, 'Bootstrap invite sent.', kind: SelNoticeKind.success);
       }
     } catch (e) {
       setState(() => _formError = humanizeAuthException(e));
@@ -62,9 +61,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
       ref.invalidate(platformChurchesListProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(humanizeAuthException(e))),
-        );
+        selNotice(context, humanizeAuthException(e), kind: SelNoticeKind.error);
       }
     }
   }
@@ -231,8 +228,10 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                             tooltip: 'Copy church ID',
                             onPressed: () {
                               Clipboard.setData(ClipboardData(text: row.churchId));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Church ID copied')),
+                              selNotice(
+                                context,
+                                'Church ID copied',
+                                kind: SelNoticeKind.success,
                               );
                             },
                           ),

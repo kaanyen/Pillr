@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,9 +5,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/extensions/async_value_ext.dart';
+import '../../core/navigation/panel_flows.dart';
+import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/utils/entry_duplicate_utils.dart';
 import '../../design/seline.dart';
+import '../../features/church/domain/exchange_rates.dart';
 import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/activity/activity_log_helper.dart';
 import '../../features/arms/domain/partnership_arm.dart';
@@ -18,8 +19,6 @@ import '../../features/auth/domain/church_user.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/partners/domain/partner.dart';
-import '../../features/partners/presentation/partner_form_dialog.dart';
-import '../../features/partners/providers/partners_providers.dart';
 import '../../features/periods/domain/partnership_period.dart';
 import '../../features/periods/providers/periods_providers.dart';
 import '../../features/entries/domain/partnership_entry.dart';
@@ -64,10 +63,17 @@ Map<String, dynamic> _afterEntryValues({
 
 /// Create a new partnership entry, or edit an existing one (`entryId` set).
 class EntryFormScreen extends ConsumerStatefulWidget {
-  const EntryFormScreen({super.key, this.entryId});
+  const EntryFormScreen({
+    super.key,
+    this.entryId,
+    this.embedded = false,
+  });
 
   /// When non-null, loads [entryId] and saves via staff/pastor update.
   final String? entryId;
+
+  /// Rendered inside a side sheet — no page chrome, closes on save.
+  final bool embedded;
 
   @override
   ConsumerState<EntryFormScreen> createState() => _EntryFormScreenState();
@@ -79,6 +85,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   PartnershipPeriod? _period;
   final _amount = TextEditingController();
   final _notes = TextEditingController();
+  String _sourceCurrency = SelectableCurrency.ghs;
   DateTime _dateGiven = DateTime.now();
   bool _loading = false;
   String? _error;
@@ -127,7 +134,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     for (final p in periods) {
       if (p.id == entry.partnershipPeriodId) _period = p;
     }
-    _amount.text = _formatAmount(entry.amountCedis);
+    _amount.text = _formatAmount(entry.displaySourceAmount);
+    _sourceCurrency = entry.displaySourceCurrency;
     _notes.text = entry.notes ?? '';
     _dateGiven = entry.dateGiven;
   }
@@ -233,16 +241,16 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final money = ref.watch(churchMoneyFormatProvider);
 
     return SelPageBody(
-      maxWidth: 640,
+      maxWidth: widget.embedded ? double.infinity : 640,
       children: [
-        SelPageTitle(
-          title: _isEdit ? 'Edit entry' : 'Record a ',
-          highlight: _isEdit ? null : 'partnership',
-          subtitle: _isEdit
-              ? 'Changes are re-recorded in the activity log.'
-              : 'Who gave, how much, and toward what.',
-        ),
-
+        if (!widget.embedded)
+          SelPageTitle(
+            title: _isEdit ? 'Edit entry' : 'Record a ',
+            highlight: _isEdit ? null : 'partnership',
+            subtitle: _isEdit
+                ? 'Changes are re-recorded in the activity log.'
+                : 'Who gave, how much, and toward what.',
+          ),
         if (_error != null) ...[
           SelCard(
             lift: SelLift.flat,
@@ -327,12 +335,32 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   ],
                 ),
               const SizedBox(height: SelSpace.x4),
+              SelSelect<String>(
+                value: _sourceCurrency,
+                label: 'Currency',
+                onChanged: (v) => setState(() {
+                  _sourceCurrency = v ?? SelectableCurrency.ghs;
+                }),
+                items: [
+                  for (final code in SelectableCurrency.all)
+                    DropdownMenuItem(
+                      value: code,
+                      child: Text(SelectableCurrency.label(code)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: SelSpace.x4),
               SelField(
                 controller: _amount,
                 label: 'Amount',
                 hint: '500',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
               ),
+              if (_conversionPreview(money, ref) != null) ...[
+                const SizedBox(height: SelSpace.x2),
+                Text(_conversionPreview(money, ref)!, style: SelType.small),
+              ],
               const SizedBox(height: SelSpace.x4),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,7 +400,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             SelButton(
               label: 'Cancel',
               kind: SelButtonKind.quiet,
-              onPressed: () => context.go('/queue'),
+              onPressed: widget.embedded
+                  ? () => Navigator.of(context).pop()
+                  : () => context.go('/queue'),
             ),
             const Spacer(),
             SelButton.cyan(
@@ -396,7 +426,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         if (_partner != null && _amount.text.isNotEmpty) ...[
           const SizedBox(height: SelSpace.x4),
           Text(
-            'Recording ${money(double.tryParse(_amount.text.replaceAll(',', '')) ?? 0)} '
+            'Recording ${money(_resolveConversion(ref)?.amountBase ?? double.tryParse(_amount.text.replaceAll(',', '')) ?? 0)} '
             'for ${_partner!.fullName}.',
             style: SelType.small,
           ),
@@ -405,28 +435,35 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
   }
 
+  CurrencyConversion? _resolveConversion(WidgetRef ref) {
+    final sourceAmount = double.tryParse(_amount.text.replaceAll(',', ''));
+    if (sourceAmount == null || sourceAmount <= 0) return null;
+    final rates = ref.read(churchExchangeRatesProvider);
+    return rates.convert(
+      sourceAmount: sourceAmount,
+      sourceCurrency: _sourceCurrency,
+    );
+  }
+
+  String? _conversionPreview(String Function(num) money, WidgetRef ref) {
+    final conversion = _resolveConversion(ref);
+    if (conversion == null || conversion.isBaseCurrency) return null;
+    return '≈ ${money(conversion.amountBase)} (rate ${conversion.exchangeRateToBase})';
+  }
+
   Future<void> _pickPartner(BuildContext context, String churchId, String uid) async {
     if (!context.mounted) return;
-    final parentContext = context;
-    final chosen = await showModalBottomSheet<Partner>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Sel.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(SelRadius.card)),
-      ),
-      builder: (ctx) => _PartnerPickerSheet(
-        churchId: churchId,
-        uid: uid,
-        parentContext: parentContext,
-      ),
+    final chosen = await showPartnerPickerPanel(
+      context,
+      churchId: churchId,
+      uid: uid,
     );
     if (chosen != null) setState(() => _partner = chosen);
   }
 
   Future<void> _submit(String churchId, ChurchUser staff, PartnershipEntry? entry) async {
     setState(() => _error = null);
-    final amount = double.tryParse(_amount.text.replaceAll(',', ''));
+    final conversion = _resolveConversion(ref);
     if (_partner == null) {
       setState(() => _error = 'Select a partner.');
       return;
@@ -440,10 +477,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       setState(() => _error = 'No active period.');
       return;
     }
-    if (amount == null || amount <= 0) {
+    if (conversion == null) {
       setState(() => _error = 'Enter a valid amount.');
       return;
     }
+    final amount = conversion.amountBase;
 
     setState(() => _loading = true);
     final repo = ref.read(entriesRepositoryProvider);
@@ -485,6 +523,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             partnershipPeriodId: period.id,
             periodSnapshot: perSnap,
             amountCedis: amount,
+            sourceCurrency: conversion.sourceCurrency,
+            sourceAmount: conversion.sourceAmount,
+            exchangeRateToBase: conversion.exchangeRateToBase,
             dateGiven: _dateGiven,
             notes: _notes.text,
           );
@@ -500,6 +541,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             partnershipPeriodId: period.id,
             periodSnapshot: perSnap,
             amountCedis: amount,
+            sourceCurrency: conversion.sourceCurrency,
+            sourceAmount: conversion.sourceAmount,
+            exchangeRateToBase: conversion.exchangeRateToBase,
             dateGiven: _dateGiven,
             notes: _notes.text,
           );
@@ -526,7 +570,14 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           entitySnapshot: after,
           metadata: {'before': _entryValuesForActivityLog(existing)},
         );
-        if (mounted) context.go('/entries/${widget.entryId}');
+        if (mounted) {
+          if (widget.embedded) {
+            selNotice(context, 'Entry updated.', kind: SelNoticeKind.success);
+            Navigator.of(context).pop();
+          } else {
+            context.go('/entries/${widget.entryId}');
+          }
+        }
       } else {
         final idx = ref.read(userChurchIndexProvider).valueOrNull;
         if (idx != null && (idx.isPastor || idx.isStaff)) {
@@ -576,6 +627,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           partnershipPeriodId: period.id,
           periodSnapshot: perSnap,
           amountCedis: amount,
+          sourceCurrency: conversion.sourceCurrency,
+          sourceAmount: conversion.sourceAmount,
+          exchangeRateToBase: conversion.exchangeRateToBase,
           dateGiven: _dateGiven,
           notes: _notes.text,
         );
@@ -597,7 +651,20 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           ),
         );
         ref.invalidate(entriesListProvider);
-        if (mounted) context.go('/entries/success/$entryId');
+        if (mounted) {
+          if (widget.embedded) {
+            selNotice(
+              context,
+              idxCreate?.isPastor == true
+                  ? 'Entry recorded and approved.'
+                  : 'Entry submitted for review.',
+              kind: SelNoticeKind.success,
+            );
+            Navigator.of(context).pop();
+          } else {
+            context.go('/entries/success/$entryId');
+          }
+        }
       }
     } catch (e) {
       setState(() => _error = e.toString());
@@ -669,156 +736,6 @@ class _PartnerTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PartnerPickerSheet extends ConsumerStatefulWidget {
-  const _PartnerPickerSheet({
-    required this.churchId,
-    required this.uid,
-    required this.parentContext,
-  });
-
-  final String churchId;
-  final String uid;
-  final BuildContext parentContext;
-
-  @override
-  ConsumerState<_PartnerPickerSheet> createState() => _PartnerPickerSheetState();
-}
-
-class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
-  late final TextEditingController _controller;
-  Timer? _debounce;
-  List<Partner> _results = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _load('');
-  }
-
-  Future<void> _load(String q) async {
-    if (!mounted) return;
-    setState(() => _loading = true);
-    final repo = ref.read(partnersRepositoryProvider);
-    final list = await repo.searchPartners(widget.churchId, q);
-    if (!mounted) return;
-    setState(() {
-      _results = list;
-      _loading = false;
-    });
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-        left: SelSpace.x6,
-        right: SelSpace.x6,
-        top: SelSpace.x2,
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 420,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: SelSpace.x4),
-                  decoration: BoxDecoration(
-                    color: Sel.border,
-                    borderRadius: BorderRadius.circular(SelRadius.pill),
-                  ),
-                ),
-              ),
-              Text('Select partner', style: SelType.subtitle),
-              const SizedBox(height: SelSpace.x4),
-              TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  hintText: 'Search by name, member ID, fellowship…',
-                  filled: true,
-                  fillColor: Sel.canvas,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.soot, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: 14),
-                  prefixIcon: const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(LucideIcons.search, color: Sel.ash, size: 20),
-                  ),
-                ),
-              onChanged: (v) {
-                _debounce?.cancel();
-                _debounce = Timer(const Duration(milliseconds: 280), () {
-                  if (mounted) _load(v.trim());
-                });
-              },
-            ),
-            const SizedBox(height: SelSpace.x4),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      itemCount: _results.length + 1,
-                      itemBuilder: (context, i) {
-                        if (i == _results.length) {
-                          return ListTile(
-                            leading: const Icon(LucideIcons.plus),
-                            title: const Text('Create new partner'),
-                            onTap: () {
-                              Navigator.pop(context);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!widget.parentContext.mounted) return;
-                                showDialog<void>(
-                                  context: widget.parentContext,
-                                  builder: (dctx) => PartnerFormDialog(
-                                    churchId: widget.churchId,
-                                    uid: widget.uid,
-                                    existing: null,
-                                  ),
-                                );
-                              });
-                            },
-                          );
-                        }
-                        final p = _results[i];
-                        return ListTile(
-                          title: Text(p.fullName),
-                          subtitle: Text(p.displayLabel),
-                          onTap: () => Navigator.pop(context, p),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
         ),
       ),
     );

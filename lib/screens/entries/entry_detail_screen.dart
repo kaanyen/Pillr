@@ -148,6 +148,14 @@ class EntryDetailScreen extends ConsumerWidget {
                       'Reviewed by',
                       entry.reviewedBySnapshot!['fullName']?.toString() ?? '—',
                     ),
+                  if (entry.hasForeignSource) ...[
+                    _Row(
+                      'Recorded as',
+                      '${entry.displaySourceAmount.toStringAsFixed(2)} '
+                      '${entry.displaySourceCurrency} '
+                      '@ ${entry.displayExchangeRate}',
+                    ),
+                  ],
                   if (entry.notes != null && entry.notes!.isNotEmpty)
                     _Row('Notes', entry.notes!),
                   if (entry.declineReason != null &&

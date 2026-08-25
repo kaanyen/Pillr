@@ -23,6 +23,7 @@ bool isPathForbiddenForRole(String location, String role) {
       if (starts('/records')) return true;
       if (starts('/entries')) return true;
       if (starts('/partners')) return true;
+      if (starts('/fellowships')) return true;
       if (starts('/goals')) return true;
       if (starts('/search')) return true;
       return false;

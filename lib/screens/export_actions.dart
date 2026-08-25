@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/notifications/sel_notice.dart';
 import '../core/utils/entry_export.dart';
 import '../core/utils/export_naming.dart';
 import '../l10n/app_localizations.dart';
@@ -57,9 +58,7 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
       await action();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        selNotice(context, 'Export failed: $e', kind: SelNoticeKind.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -77,6 +76,12 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
     return names.length == 1 ? names.first : null;
   }
 
+  String _filterScopeLabel() {
+    final subtitle = widget.subtitle?.trim();
+    if (subtitle != null && subtitle.isNotEmpty) return subtitle;
+    return 'Giving';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -87,9 +92,6 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
     final currency =
         (ref.watch(churchSettingsProvider).valueOrNull?.currency ?? 'GHS')
             .toUpperCase();
-    final plainMoney = NumberFormat.decimalPatternDigits(
-      decimalDigits: 2,
-    ).format;
     final church = ref.watch(churchNameProvider) ?? 'Church';
     final logoUrl = ref.watch(churchSettingsProvider).valueOrNull?.logoUrl;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
@@ -111,28 +113,19 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
               : () => _run(
                   () => shareEntriesPdf(
                     title: widget.title,
-                    // The church's name belongs on its own report, above the
-                    // description of what has been filtered to.
-                    subtitle: [
-                      church,
-                      widget.subtitle ?? '${widget.entries.length} entries',
-                    ].join(' · '),
+                    subtitle: widget.subtitle ?? _filterScopeLabel(),
                     entries: widget.entries,
-                    columnHeaders: [
-                      l10n.pdfTableHeaderPartner,
-                      l10n.pdfTableHeaderAmountIn(currency),
-                      l10n.pdfTableHeaderStatus,
-                      l10n.pdfTableHeaderPeriod,
-                      l10n.pdfTableHeaderArm,
-                      l10n.pdfTableHeaderDateGiven,
-                    ],
-                    formatAmount: plainMoney,
+                    columnHeaders: const [],
                     logoUrl: logoUrl,
                     generatedAtLine: l10n.pdfGeneratedAt(when),
                     exporterLine: profile == null
                         ? null
                         : l10n.pdfExporter(profile.fullName),
-                    footerBrand: l10n.pdfFooterBrand,
+                    organizationName: church,
+                    ministryYear: _periodScope,
+                    exporterName: profile?.fullName,
+                    currencySymbol: currency,
+                    generatedAt: now,
                     filename: pillrExportFileName(
                       report: widget.title,
                       scope: _periodScope,

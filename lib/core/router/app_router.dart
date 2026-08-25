@@ -22,7 +22,9 @@ import '../../screens/auth/landing_screen.dart';
 import '../../screens/auth/sign_in_screen.dart';
 import '../../screens/auth/workspace_suspended_screen.dart';
 import '../../screens/configuration_screen.dart';
+import '../../screens/fellowships_screen.dart';
 import '../../screens/goals_screen.dart';
+import '../../screens/monthly_records_screen.dart';
 import '../../screens/overview_screen.dart';
 import '../../screens/partners_screen.dart';
 import '../../screens/people_screen.dart';
@@ -124,10 +126,25 @@ GoRouter createRouter() {
             ),
           ),
           GoRoute(
+            path: '/records/monthly',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: MonthlyRecordsScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/partners',
             pageBuilder: (context, state) => NoTransitionPage(
               child: PartnersScreen(
                 initialView: state.uri.queryParameters['view'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/fellowships',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: FellowshipsScreen(
+                initialView: state.uri.queryParameters['view'],
+                initialFellowship: state.uri.queryParameters['fellowship'],
               ),
             ),
           ),

@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Pillr';
+  String get appTitle => 'The Pillr';
 
   @override
   String get navSectionMain => 'Main';
@@ -46,6 +46,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navPartners => 'Partners';
+
+  @override
+  String get navFellowships => 'Fellowships';
 
   @override
   String get navLeaderboard => 'Leaderboard';
@@ -774,6 +777,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pdfTableHeaderPartner => 'Partner';
 
   @override
+  String get pdfTableHeaderMemberId => 'Member ID';
+
+  @override
+  String get pdfTableHeaderFellowship => 'Fellowship';
+
+  @override
+  String get pdfTableHeaderSubmittedBy => 'Submitted by';
+
+  @override
+  String get pdfTableHeaderApprovedBy => 'Approved by';
+
+  @override
   String get pdfTableHeaderAmount => 'Amount';
 
   @override
@@ -812,6 +827,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navRecords => 'Records';
+
+  @override
+  String get navRecordsAll => 'All records';
+
+  @override
+  String get navRecordsMonthly => 'By month';
 
   @override
   String get navPeople => 'People';
@@ -863,6 +884,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get recordsSubtitle =>
       'Every partnership entry for your church, newest first.';
+
+  @override
+  String get recordsMonthlyTitle => 'By month';
+
+  @override
+  String get recordsMonthlySubtitle => 'Browse approved giving month by month.';
 
   @override
   String get recordsEmptyTitle => 'No entries yet';

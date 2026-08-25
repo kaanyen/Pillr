@@ -52,28 +52,8 @@ class AuthShell extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Wordmark, centred, small — it identifies, it does not sell.
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        height: 22,
-                        width: 22,
-                        decoration: BoxDecoration(
-                          color: Sel.card,
-                          borderRadius: BorderRadius.circular(SelRadius.icon),
-                          border: Border.all(color: Sel.border),
-                        ),
-                        child: const Icon(
-                          LucideIcons.church,
-                          size: 12,
-                          color: Sel.cyan,
-                        ),
-                      ),
-                      const SizedBox(width: SelSpace.x2),
-                      Text('Pillr', style: SelType.bodyMedium),
-                    ],
-                  ),
+                  // Wordmark — main pillar mark only.
+                  const Center(child: PillrLogo(height: 44)),
                   SizedBox(height: compact ? SelSpace.x8 : SelSpace.x12),
 
                   if (highlight != null)

@@ -125,12 +125,12 @@ async function sendInviteEmail(
         <p>${inviterName} has invited you to join <strong>${churchName}</strong> as a <strong>${role}</strong>.</p>
         <p>Your invitation code is:</p>
         <div style="background: #F3F4F6; padding: 24px; border-radius: 8px; text-align: center; margin: 24px 0;">
-          <span style="font-size: 32px; font-weight: 700; letter-spacing: 4px; color: #1A56DB;">
+          <span style="font-size: 32px; font-weight: 700; letter-spacing: 4px; color: #3BA6F1;">
             ${inviteCode}
           </span>
         </div>
         <p>This code expires in <strong>4 hours</strong>.</p>
-        <a href="${joinUrl}" style="display: inline-block; background: #1A56DB; color: white;
+        <a href="${joinUrl}" style="display: inline-block; background: #3BA6F1; color: white;
           padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
           Accept Invitation
         </a>
@@ -163,12 +163,12 @@ async function sendBootstrapInviteEmail(
         <p>${inviterLabel} invited you to register <strong>${role}</strong> as the first user for a new church on Pillr.</p>
         <p>Your setup code is:</p>
         <div style="background: #F3F4F6; padding: 24px; border-radius: 8px; text-align: center; margin: 24px 0;">
-          <span style="font-size: 28px; font-weight: 700; letter-spacing: 3px; color: #1A56DB;">
+          <span style="font-size: 28px; font-weight: 700; letter-spacing: 3px; color: #3BA6F1;">
             ${inviteCode}
           </span>
         </div>
         <p>This code expires in <strong>24 hours</strong>.</p>
-        <a href="${joinUrl}" style="display: inline-block; background: #1A56DB; color: white;
+        <a href="${joinUrl}" style="display: inline-block; background: #3BA6F1; color: white;
           padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600;">
           Continue setup
         </a>
@@ -1201,3 +1201,8 @@ export const dailyPendingDigest = onSchedule({schedule: "0 13 * * *", region: RE
 });
 
 export {scheduledFirestoreBackup} from "./firestore_backup";
+export {
+  monthlyPartnerGivingSummary,
+  previewMonthlyPartnerGivingEmail,
+  runMonthlyPartnerGivingSummary,
+} from "./monthly_partner_email";

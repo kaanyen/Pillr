@@ -1,7 +1,7 @@
 class AppConstants {
   AppConstants._();
 
-  static const appName = 'Pillr';
+  static const appName = 'The Pillr';
 
   // Responsive breakpoints (see build doc §2)
   static const double breakpointTablet = 768;

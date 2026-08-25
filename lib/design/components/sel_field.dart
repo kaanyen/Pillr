@@ -193,6 +193,46 @@ class SelPillGroup<T> extends StatelessWidget {
   }
 }
 
+/// A [SelPillGroup] with a leading caption so a secondary control reads as
+/// subordinate to the primary one above it — not as four peers on one line.
+class SelLabeledPillGroup<T> extends StatelessWidget {
+  const SelLabeledPillGroup({
+    super.key,
+    required this.label,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String label;
+  final List<(T value, String label)> options;
+  final T selected;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: SelSpace.x1 + 2),
+          child: SizedBox(
+            width: 72,
+            child: Text(label, style: SelType.caption),
+          ),
+        ),
+        Expanded(
+          child: SelPillGroup<T>(
+            options: options,
+            selected: selected,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Pill extends StatefulWidget {
   const _Pill({required this.label, required this.active, required this.onTap});
 

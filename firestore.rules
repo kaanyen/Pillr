@@ -158,6 +158,16 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      match /monthly_email_reports/{reportId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if false;
+      }
+
+      match /monthly_email_deliveries/{deliveryId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if false;
+      }
+
       match /activity_logs/{logId} {
         // Admin: full audit UI. Pastor: dashboards + transparency (§15).
         allow read: if belongsToChurch(churchId) && (isAdmin() || isPastor());

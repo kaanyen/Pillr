@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'Pillr'**
+  /// **'The Pillr'**
   String get appTitle;
 
   /// No description provided for @navSectionMain.
@@ -175,6 +175,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Partners'**
   String get navPartners;
+
+  /// No description provided for @navFellowships.
+  ///
+  /// In en, this message translates to:
+  /// **'Fellowships'**
+  String get navFellowships;
 
   /// No description provided for @navLeaderboard.
   ///
@@ -1454,6 +1460,30 @@ abstract class AppLocalizations {
   /// **'Partner'**
   String get pdfTableHeaderPartner;
 
+  /// No description provided for @pdfTableHeaderMemberId.
+  ///
+  /// In en, this message translates to:
+  /// **'Member ID'**
+  String get pdfTableHeaderMemberId;
+
+  /// No description provided for @pdfTableHeaderFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'Fellowship'**
+  String get pdfTableHeaderFellowship;
+
+  /// No description provided for @pdfTableHeaderSubmittedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted by'**
+  String get pdfTableHeaderSubmittedBy;
+
+  /// No description provided for @pdfTableHeaderApprovedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved by'**
+  String get pdfTableHeaderApprovedBy;
+
   /// No description provided for @pdfTableHeaderAmount.
   ///
   /// In en, this message translates to:
@@ -1525,6 +1555,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Records'**
   String get navRecords;
+
+  /// No description provided for @navRecordsAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All records'**
+  String get navRecordsAll;
+
+  /// No description provided for @navRecordsMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'By month'**
+  String get navRecordsMonthly;
 
   /// No description provided for @navPeople.
   ///
@@ -1621,6 +1663,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Every partnership entry for your church, newest first.'**
   String get recordsSubtitle;
+
+  /// No description provided for @recordsMonthlyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'By month'**
+  String get recordsMonthlyTitle;
+
+  /// No description provided for @recordsMonthlySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse approved giving month by month.'**
+  String get recordsMonthlySubtitle;
 
   /// No description provided for @recordsEmptyTitle.
   ///

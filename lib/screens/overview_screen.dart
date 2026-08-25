@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/navigation/panel_flows.dart';
 import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
 import '../features/activity/domain/activity_log_row.dart';
@@ -11,6 +12,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/dashboard/providers/dashboard_stats_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/bulk_import/bulk_import_draft_provider.dart';
 import '../features/entries/bulk_import/bulk_import_session_store.dart';
 import '../features/entries/bulk_import/bulk_import_screen.dart' show describeWhen;
@@ -66,7 +68,7 @@ class OverviewScreen extends ConsumerWidget {
               SelButton.cyan(
                 label: 'New entry',
                 icon: LucideIcons.plus,
-                onPressed: () => context.go('/entries/new'),
+                onPressed: () => showEntryFormPanel(context),
               ),
           ],
         ),
@@ -228,7 +230,10 @@ class _PendingPreview extends StatelessWidget {
                         show[i].armSnapshot['name']?.toString() ?? '',
                       ),
                     ),
-                    SelCell.numeric(money(show[i].amountCedis)),
+                    EntryAmountCell(
+                      entry: show[i],
+                      formattedAmount: money(show[i].amountCedis),
+                    ),
                     const SizedBox(width: SelSpace.x6),
                     const SelStatusMark(
                       status: SelStatus.pending,

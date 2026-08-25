@@ -12,4 +12,8 @@ class FirebaseConstants {
   static const generateInviteCode = 'generateInviteCode';
   static const activatePeriod = 'activatePeriod';
   static const updateChurchMember = 'updateChurchMember';
+  static const previewMonthlyPartnerGivingEmail =
+      'previewMonthlyPartnerGivingEmail';
+  static const runMonthlyPartnerGivingSummary =
+      'runMonthlyPartnerGivingSummary';
 }

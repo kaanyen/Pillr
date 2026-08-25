@@ -12,6 +12,7 @@ import '../l10n/app_localizations.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
@@ -228,8 +229,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     SelCell.primary(
                       e.partnerSnapshot['fullName']?.toString() ?? '—',
                     ),
-                    SelCell.numeric(
-                      money(e.amountCedis),
+                    EntryAmountCell(
+                      entry: e,
+                      formattedAmount: money(e.amountCedis),
                       tone: switch (e.status) {
                         'approved' => SelTone.positive,
                         'declined' => SelTone.negative,

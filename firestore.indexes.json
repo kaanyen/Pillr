@@ -117,6 +117,14 @@
       ]
     },
     {
+      "collectionGroup": "entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dateGiven", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "partners",
       "queryScope": "COLLECTION",
       "fields": [

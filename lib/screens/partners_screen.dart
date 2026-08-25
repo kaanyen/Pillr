@@ -4,21 +4,25 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/navigation/panel_flows.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/arms/domain/partnership_arm.dart';
 import '../features/arms/providers/arms_providers.dart';
+import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_models.dart';
-import '../features/partners/presentation/partner_form_dialog.dart';
 import '../features/partners/providers/partners_providers.dart';
 import 'export_actions.dart';
+import 'ranked_views.dart';
 import 'record_filter_bar.dart';
 import '../features/periods/providers/periods_providers.dart';
 
 enum _View { directory, ranked }
+
+enum _RankedScope { overall, byArm }
 
 /// Partners — the directory, with Leaderboard folded in as a second view.
 ///
@@ -40,6 +44,7 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
   late _View _view = widget.initialView == 'ranked'
       ? _View.ranked
       : _View.directory;
+  _RankedScope _rankedScope = _RankedScope.overall;
   bool _includeInactive = false;
   String _query = '';
 
@@ -48,7 +53,6 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
     final partnersAsync = ref.watch(partnersStreamProvider(_includeInactive));
-    final isPastor = idx?.isPastor ?? false;
 
     return SelPageBody(
       onRefresh: () async {
@@ -60,13 +64,24 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
           title: 'Partners',
           subtitle: _view == _View.directory
               ? 'Everyone with a giving record in your church.'
-              : 'Ranked by approved giving in the active period.',
+              : switch (_rankedScope) {
+                  _RankedScope.overall =>
+                    'Ranked by approved giving in the active period.',
+                  _RankedScope.byArm =>
+                    'Ranked by approved giving within each partnership arm.',
+                },
           actions: [
             if (_view == _View.ranked)
               EntryExportButtons(
                 entries: ref.watch(entriesListProvider).valueOrNull ?? [],
-                title: 'Partner ranking',
-                subtitle: 'Ranked by approved giving',
+                title: switch (_rankedScope) {
+                  _RankedScope.overall => 'Partner ranking',
+                  _RankedScope.byArm => 'Partner ranking by arm',
+                },
+                subtitle: switch (_rankedScope) {
+                  _RankedScope.overall => 'Ranked by approved giving',
+                  _RankedScope.byArm => 'Ranked by approved giving per arm',
+                },
               ),
             if (_view == _View.ranked) const SizedBox(width: SelSpace.x2),
             SelButton.cyan(
@@ -74,45 +89,60 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
               icon: LucideIcons.plus,
               onPressed: idx == null
                   ? null
-                  : () => showDialog(
-                      context: context,
-                      builder: (_) => PartnerFormDialog(
-                        churchId: idx.churchId,
-                        uid: idx.uid,
-                      ),
+                  : () => showPartnerFormPanel(
+                      context,
+                      churchId: idx.churchId,
+                      uid: idx.uid,
                     ),
             ),
           ],
         ),
 
-        Row(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SelPillGroup<_View>(
-              selected: _view,
-              onChanged: (v) => setState(() => _view = v),
-              options: const [
-                (_View.directory, 'Directory'),
-                (_View.ranked, 'Ranked'),
+            Row(
+              children: [
+                SelPillGroup<_View>(
+                  selected: _view,
+                  onChanged: (v) => setState(() => _view = v),
+                  options: const [
+                    (_View.directory, 'Directory'),
+                    (_View.ranked, 'Ranked'),
+                  ],
+                ),
+                const Spacer(),
+                if (_view == _View.directory) ...[
+                  SizedBox(
+                    width: 240,
+                    child: SelField(
+                      hint: 'Search name or member ID',
+                      prefixIcon: LucideIcons.search,
+                      onChanged: (v) =>
+                          setState(() => _query = v.trim().toLowerCase()),
+                    ),
+                  ),
+                  const SizedBox(width: SelSpace.x3),
+                  SelButton(
+                    label: _includeInactive ? 'Hide inactive' : 'Show inactive',
+                    kind: SelButtonKind.quiet,
+                    dense: true,
+                    onPressed: () =>
+                        setState(() => _includeInactive = !_includeInactive),
+                  ),
+                ],
               ],
             ),
-            const Spacer(),
-            if (_view == _View.directory) ...[
-              SizedBox(
-                width: 240,
-                child: SelField(
-                  hint: 'Search name or member ID',
-                  prefixIcon: LucideIcons.search,
-                  onChanged: (v) =>
-                      setState(() => _query = v.trim().toLowerCase()),
-                ),
-              ),
-              const SizedBox(width: SelSpace.x3),
-              SelButton(
-                label: _includeInactive ? 'Hide inactive' : 'Show inactive',
-                kind: SelButtonKind.quiet,
-                dense: true,
-                onPressed: () =>
-                    setState(() => _includeInactive = !_includeInactive),
+            if (_view == _View.ranked) ...[
+              const SizedBox(height: SelSpace.x4),
+              SelLabeledPillGroup<_RankedScope>(
+                label: 'Group by',
+                selected: _rankedScope,
+                onChanged: (v) => setState(() => _rankedScope = v),
+                options: const [
+                  (_RankedScope.overall, 'All partners'),
+                  (_RankedScope.byArm, 'Partnership arm'),
+                ],
               ),
             ],
           ],
@@ -169,20 +199,20 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
             },
           )
         else
-          _RankedView(money: money, isPastor: isPastor),
+          _RankedView(
+            money: money,
+            scope: _rankedScope,
+          ),
       ],
     );
   }
 }
 
-/// Ranked view. Rank is a plain figure — no medals, no colour. Position is
-/// already the information; decorating it would spend chromatic budget the
-/// system reserves for actions.
 class _RankedView extends ConsumerWidget {
-  const _RankedView({required this.money, required this.isPastor});
+  const _RankedView({required this.money, required this.scope});
 
   final String Function(num) money;
-  final bool isPastor;
+  final _RankedScope scope;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -190,11 +220,20 @@ class _RankedView extends ConsumerWidget {
     final period = ref.watch(activePeriodProvider);
     final arms =
         ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
-    // The same filters Records uses. A ranking of a filtered set is a
-    // different question from a ranking of everything, and answering the
-    // first while showing the second is how the wrong partner gets thanked.
     final filters = ref.watch(recordFiltersProvider);
     final entries = applyRecordFilters(all, filters, now: DateTime.now());
+
+    if (scope == _RankedScope.byArm) {
+      return _RankedByArmBody(
+        money: money,
+        all: all,
+        arms: arms,
+        filters: filters,
+        entries: entries,
+        periodId: period?.id,
+      );
+    }
+
     final rows = LeaderboardRow.fromEntries(entries, periodId: period?.id);
 
     if (rows.isEmpty) {
@@ -221,35 +260,61 @@ class _RankedView extends ConsumerWidget {
       children: [
         RecordFilterBar(entries: all, arms: arms),
         const SizedBox(height: SelSpace.x4),
-        SelLedger(
-          minWidth: 520,
-          columns: const [
-            SelColumn('Rank', fit: SelColFit.fixed, width: 70),
-            SelColumn('Partner', flex: 3),
-            SelColumn.numeric('Approved giving', width: 170),
-          ],
-          rows: [
-            for (final r in rows)
-              SelRow(
-                onTap: () => context.go('/partners/${r.partnerId}'),
-                cells: [
-                  Text(
-                    '${r.rank}',
-                    style: SelType.body.copyWith(
-                      color: r.rank <= 3 ? Sel.ink : Sel.ash,
-                      fontWeight: r.rank <= 3
-                          ? FontWeight.w500
-                          : FontWeight.w400,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  SelCell.primary(r.partnerName),
-                  SelCell.numeric(money(r.totalCedis)),
-                ],
-              ),
-          ],
-        ),
+        PartnerRankedLedger(rows: rows, money: money),
       ],
+    );
+  }
+}
+
+class _RankedByArmBody extends ConsumerWidget {
+  const _RankedByArmBody({
+    required this.money,
+    required this.all,
+    required this.arms,
+    required this.filters,
+    required this.entries,
+    required this.periodId,
+  });
+
+  final String Function(num) money;
+  final List<PartnershipEntry> all;
+  final List<PartnershipArm> arms;
+  final RecordFilters filters;
+  final List<PartnershipEntry> entries;
+  final String? periodId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeArms = arms.where((a) => a.isActive).toList();
+    final sections = ArmLeaderboard.fromEntriesAndArms(
+      entries,
+      activeArms,
+      periodId: periodId,
+    );
+    final visible = filters.armId == null
+        ? sections
+        : sections.where((s) => s.armId == filters.armId).toList();
+
+    return RankedGroupedBody(
+      money: money,
+      all: all,
+      arms: arms,
+      filters: filters,
+      sections: [
+        for (final section in visible)
+          RankGroupSection(
+            title: section.armName,
+            rows: section.rows,
+            emptyTitle: 'Nothing ranked yet',
+            emptyMessage:
+                'Rankings appear once entries are approved for this arm.',
+            showWhenEmpty: true,
+            trailing: section.rows.isEmpty
+                ? 'No approved giving'
+                : '${section.rows.length} partners · ${money(section.totalCedis)}',
+          ),
+      ],
+      requireAnyRows: visible.any((s) => s.rows.isNotEmpty),
     );
   }
 }

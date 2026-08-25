@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/text_case_utils.dart';
 import '../../auth/domain/church_user.dart';
+import '../../church/domain/exchange_rates.dart';
 import '../domain/partnership_entry.dart';
 
 bool _isPastorRole(ChurchUser staff) => staff.role == 'pastor';
@@ -148,6 +149,9 @@ class EntriesRepository {
     required String partnershipPeriodId,
     required Map<String, dynamic> periodSnapshot,
     required double amountCedis,
+    String sourceCurrency = 'GHS',
+    double? sourceAmount,
+    double? exchangeRateToBase,
     required DateTime dateGiven,
     String? notes,
     String? importBatchId,
@@ -164,7 +168,12 @@ class EntriesRepository {
       'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
       'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
-      'amountCedis': amountCedis,
+      ..._currencyFields(
+        amountCedis: amountCedis,
+        sourceCurrency: sourceCurrency,
+        sourceAmount: sourceAmount ?? amountCedis,
+        exchangeRateToBase: exchangeRateToBase ?? 1.0,
+      ),
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
       // Which import put this row here, if any. Manual entries carry null.
@@ -201,11 +210,17 @@ class EntriesRepository {
     required String partnershipPeriodId,
     required Map<String, dynamic> periodSnapshot,
     required double amountCedis,
+    String sourceCurrency = 'GHS',
+    double? sourceAmount,
+    double? exchangeRateToBase,
     required DateTime dateGiven,
     String? notes,
   }) async {
     final prev = {
       'amountCedis': existing.amountCedis,
+      'sourceCurrency': existing.sourceCurrency,
+      'sourceAmount': existing.sourceAmount,
+      'exchangeRateToBase': existing.exchangeRateToBase,
       'partnershipArmId': existing.partnershipArmId,
       'partnershipPeriodId': existing.partnershipPeriodId,
       'notes': existing.notes,
@@ -224,7 +239,12 @@ class EntriesRepository {
       'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
       'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
-      'amountCedis': amountCedis,
+      ..._currencyFields(
+        amountCedis: amountCedis,
+        sourceCurrency: sourceCurrency,
+        sourceAmount: sourceAmount ?? amountCedis,
+        exchangeRateToBase: exchangeRateToBase ?? 1.0,
+      ),
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
       'status': 'pending',
@@ -310,11 +330,17 @@ class EntriesRepository {
     required String partnershipPeriodId,
     required Map<String, dynamic> periodSnapshot,
     required double amountCedis,
+    String sourceCurrency = 'GHS',
+    double? sourceAmount,
+    double? exchangeRateToBase,
     required DateTime dateGiven,
     String? notes,
   }) async {
     final prev = {
       'amountCedis': existing.amountCedis,
+      'sourceCurrency': existing.sourceCurrency,
+      'sourceAmount': existing.sourceAmount,
+      'exchangeRateToBase': existing.exchangeRateToBase,
       'status': existing.status,
     };
     final history = List<Map<String, dynamic>>.from(existing.editHistory);
@@ -331,7 +357,12 @@ class EntriesRepository {
       'armSnapshot': TextCaseUtils.normalizeNamedSnapshot(armSnapshot),
       'partnershipPeriodId': partnershipPeriodId,
       'periodSnapshot': TextCaseUtils.normalizeNamedSnapshot(periodSnapshot),
-      'amountCedis': amountCedis,
+      ..._currencyFields(
+        amountCedis: amountCedis,
+        sourceCurrency: sourceCurrency,
+        sourceAmount: sourceAmount ?? amountCedis,
+        exchangeRateToBase: exchangeRateToBase ?? 1.0,
+      ),
       'dateGiven': Timestamp.fromDate(dateGiven),
       'notes': notes?.trim().isEmpty ?? true ? null : notes!.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -345,4 +376,93 @@ class EntriesRepository {
   }) async {
     await _entries(churchId).doc(entryId).delete();
   }
+
+  /// Re-applies current [rates] to every entry stored in a foreign currency.
+  /// Uses each row's saved [sourceAmount]; only updates when GHS or rate changes.
+  Future<RecalculateForeignEntriesResult> recalculateForeignEntries({
+    required String churchId,
+    required ChurchExchangeRates rates,
+  }) async {
+    final snap = await _entries(churchId)
+        .where(
+          'sourceCurrency',
+          whereIn: SelectableCurrency.all
+              .where((c) => c != BaseCurrency.code)
+              .toList(),
+        )
+        .get();
+
+    var updated = 0;
+    var unchanged = 0;
+
+    const chunkSize = 450;
+    for (var i = 0; i < snap.docs.length; i += chunkSize) {
+      final batch = _firestore.batch();
+      var batchOps = 0;
+      final end = (i + chunkSize < snap.docs.length) ? i + chunkSize : snap.docs.length;
+      for (var j = i; j < end; j++) {
+        final doc = snap.docs[j];
+        final data = doc.data();
+        final sourceCurrency = data['sourceCurrency'] as String?;
+        final sourceAmount = (data['sourceAmount'] as num?)?.toDouble();
+        if (sourceCurrency == null || sourceAmount == null) continue;
+
+        final conversion = rates.convert(
+          sourceAmount: sourceAmount,
+          sourceCurrency: sourceCurrency,
+        );
+        final prevCedis = (data['amountCedis'] as num?)?.toDouble();
+        final prevRate = (data['exchangeRateToBase'] as num?)?.toDouble();
+        if (prevCedis == conversion.amountBase &&
+            prevRate == conversion.exchangeRateToBase) {
+          unchanged++;
+          continue;
+        }
+
+        batch.update(doc.reference, {
+          ..._currencyFields(
+            amountCedis: conversion.amountBase,
+            sourceCurrency: conversion.sourceCurrency,
+            sourceAmount: conversion.sourceAmount,
+            exchangeRateToBase: conversion.exchangeRateToBase,
+          ),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        batchOps++;
+        updated++;
+      }
+      if (batchOps > 0) await batch.commit();
+    }
+
+    return RecalculateForeignEntriesResult(
+      scanned: snap.docs.length,
+      updated: updated,
+      unchanged: unchanged,
+    );
+  }
 }
+
+class RecalculateForeignEntriesResult {
+  const RecalculateForeignEntriesResult({
+    required this.scanned,
+    required this.updated,
+    required this.unchanged,
+  });
+
+  final int scanned;
+  final int updated;
+  final int unchanged;
+}
+
+Map<String, dynamic> _currencyFields({
+  required double amountCedis,
+  required String sourceCurrency,
+  required double sourceAmount,
+  required double exchangeRateToBase,
+}) =>
+    {
+      'amountCedis': amountCedis,
+      'sourceCurrency': sourceCurrency.toUpperCase(),
+      'sourceAmount': sourceAmount,
+      'exchangeRateToBase': exchangeRateToBase,
+    };

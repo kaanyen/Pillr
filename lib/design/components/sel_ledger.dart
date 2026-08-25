@@ -64,6 +64,9 @@ class SelRow {
   final Widget? leading;
 }
 
+/// Fixed row height for virtualized ledgers (padding + one line of body text).
+const double kSelLedgerRowExtent = 46;
+
 /// The ledger — Seline's answer to a data table.
 ///
 /// One white card holds the whole list. A quiet 10px caption row stands in for
@@ -81,6 +84,9 @@ class SelLedger extends StatelessWidget {
     this.minWidth = 640,
     this.showCaptions = true,
     this.emptyState,
+    this.virtualized = false,
+    this.maxVirtualHeight = 520,
+    this.scrollController,
   });
 
   final List<SelColumn> columns;
@@ -92,6 +98,15 @@ class SelLedger extends StatelessWidget {
 
   /// Shown in place of rows when [rows] is empty.
   final Widget? emptyState;
+
+  /// Build rows with [ListView.builder] instead of materializing every row.
+  final bool virtualized;
+
+  /// Cap height when [virtualized] — the list scrolls inside the card.
+  final double maxVirtualHeight;
+
+  /// Optional scroll controller for the virtualized list body.
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -119,35 +134,78 @@ class SelLedger extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, c) {
           final needsScroll = c.maxWidth < minWidth;
-          final content = SizedBox(
-            width: needsScroll ? minWidth : null,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (showCaptions) ...[
-                  _CaptionRow(columns: columns, hasLeading: _hasLeading),
-                  const Divider(height: 1, color: Sel.border),
-                ],
-                for (var i = 0; i < rows.length; i++) ...[
-                  _LedgerRow(
-                    row: rows[i],
-                    columns: columns,
-                    hasLeading: _hasLeading,
-                  ),
-                  if (i != rows.length - 1)
-                    const Divider(height: 1, color: Sel.border),
-                ],
-              ],
-            ),
-          );
+          final body = virtualized && rows.isNotEmpty
+              ? _virtualizedBody(needsScroll)
+              : _staticBody(needsScroll);
 
-          if (!needsScroll) return content;
+          if (!needsScroll) return body;
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: content,
+            child: body,
           );
         },
+      ),
+    );
+  }
+
+  Widget _staticBody(bool needsScroll) {
+    return SizedBox(
+      width: needsScroll ? minWidth : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCaptions) ...[
+            _CaptionRow(columns: columns, hasLeading: _hasLeading),
+            const Divider(height: 1, color: Sel.border),
+          ],
+          for (var i = 0; i < rows.length; i++) ...[
+            _LedgerRow(
+              row: rows[i],
+              columns: columns,
+              hasLeading: _hasLeading,
+            ),
+            if (i != rows.length - 1)
+              const Divider(height: 1, color: Sel.border),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _virtualizedBody(bool needsScroll) {
+    const captionBlock = 36.0;
+    final listHeight = (rows.length * kSelLedgerRowExtent)
+        .clamp(kSelLedgerRowExtent, maxVirtualHeight);
+    final totalHeight = (showCaptions ? captionBlock + 1 : 0) + listHeight;
+
+    return SizedBox(
+      width: needsScroll ? minWidth : null,
+      height: totalHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCaptions) ...[
+            _CaptionRow(columns: columns, hasLeading: _hasLeading),
+            const Divider(height: 1, color: Sel.border),
+          ],
+          Expanded(
+            child: ListView.separated(
+              controller: scrollController,
+              itemCount: rows.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: Sel.border),
+              itemBuilder: (context, i) => SizedBox(
+                height: kSelLedgerRowExtent,
+                child: _LedgerRow(
+                  row: rows[i],
+                  columns: columns,
+                  hasLeading: _hasLeading,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

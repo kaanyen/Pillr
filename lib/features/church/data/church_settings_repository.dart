@@ -1,12 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/constants/firebase_constants.dart';
+import '../../../core/errors/app_exception.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../domain/church_settings.dart';
+import '../domain/exchange_rates.dart';
+import '../domain/monthly_email_report.dart';
 
 class ChurchSettingsRepository {
-  ChurchSettingsRepository(this._firestore);
+  ChurchSettingsRepository(this._firestore, this._functions);
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   DocumentReference<Map<String, dynamic>> _church(String churchId) {
     return _firestore.collection('churches').doc(churchId);
@@ -50,5 +56,80 @@ class ChurchSettingsRepository {
       'churchSetupCompletedAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  Future<void> updateExchangeRates({
+    required String churchId,
+    required ChurchExchangeRates rates,
+  }) async {
+    await _church(churchId).update({
+      'settings.exchangeRates': rates.toFirestoreMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateMonthlyPartnerEmail({
+    required String churchId,
+    required bool enabled,
+    required String? primaryPastorUid,
+    required String? partnerEmailFrom,
+  }) async {
+    final from = partnerEmailFrom?.trim();
+    await _church(churchId).set({
+      'settings': {
+        'sendMonthlyPartnerEmails': enabled,
+        'primaryPastorUid':
+            (primaryPastorUid == null || primaryPastorUid.isEmpty)
+                ? null
+                : primaryPastorUid,
+        'partnerEmailFrom': (from == null || from.isEmpty) ? null : from,
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Stream<MonthlyEmailReport?> watchLatestMonthlyEmailReport(String churchId) {
+    return _church(churchId)
+        .collection('monthly_email_reports')
+        .orderBy('ranAt', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((s) {
+      if (s.docs.isEmpty) return null;
+      return MonthlyEmailReport.fromDoc(s.docs.first);
+    });
+  }
+
+  Future<String> previewMonthlyPartnerEmail() async {
+    try {
+      final callable = _functions.httpsCallable(
+        FirebaseConstants.previewMonthlyPartnerGivingEmail,
+      );
+      final result = await callable.call(<String, dynamic>{});
+      final data = Map<String, dynamic>.from(result.data as Map? ?? {});
+      return data['to'] as String? ?? '';
+    } on FirebaseFunctionsException catch (e) {
+      throw AppException(e.message ?? 'Could not send preview.', code: e.code);
+    }
+  }
+
+  Future<({int sent, int skipped, int failed, bool dryRun, String yearMonth})>
+      runMonthlyPartnerEmails() async {
+    try {
+      final callable = _functions.httpsCallable(
+        FirebaseConstants.runMonthlyPartnerGivingSummary,
+      );
+      final result = await callable.call(<String, dynamic>{});
+      final data = Map<String, dynamic>.from(result.data as Map? ?? {});
+      return (
+        sent: (data['sent'] as num?)?.toInt() ?? 0,
+        skipped: (data['skippedNoEmail'] as num?)?.toInt() ?? 0,
+        failed: (data['failed'] as num?)?.toInt() ?? 0,
+        dryRun: data['dryRun'] == true,
+        yearMonth: data['yearMonth'] as String? ?? '',
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw AppException(e.message ?? 'Could not send monthly emails.', code: e.code);
+    }
   }
 }

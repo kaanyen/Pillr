@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/text_case_utils.dart';
+import '../../church/domain/exchange_rates.dart';
 
 class PartnershipEntry {
   const PartnershipEntry({
@@ -14,6 +15,9 @@ class PartnershipEntry {
     required this.partnershipPeriodId,
     required this.periodSnapshot,
     required this.amountCedis,
+    this.sourceCurrency,
+    this.sourceAmount,
+    this.exchangeRateToBase,
     required this.dateGiven,
     this.notes,
     required this.status,
@@ -37,6 +41,9 @@ class PartnershipEntry {
   final String partnershipPeriodId;
   final Map<String, dynamic> periodSnapshot;
   final double amountCedis;
+  final String? sourceCurrency;
+  final double? sourceAmount;
+  final double? exchangeRateToBase;
   final DateTime dateGiven;
   final String? notes;
   final String status;
@@ -68,6 +75,9 @@ class PartnershipEntry {
         Map<String, dynamic>.from(m['periodSnapshot'] as Map? ?? {}),
       ),
       amountCedis: (m['amountCedis'] as num?)?.toDouble() ?? 0,
+      sourceCurrency: m['sourceCurrency'] as String?,
+      sourceAmount: (m['sourceAmount'] as num?)?.toDouble(),
+      exchangeRateToBase: (m['exchangeRateToBase'] as num?)?.toDouble(),
       dateGiven: timestampToDateTime(m['dateGiven']) ?? DateTime.now(),
       notes: m['notes'] as String?,
       status: m['status'] as String? ?? 'pending',
@@ -91,4 +101,14 @@ class PartnershipEntry {
           const [],
     );
   }
+
+  String get displaySourceCurrency =>
+      (sourceCurrency ?? BaseCurrency.code).toUpperCase();
+
+  double get displaySourceAmount => sourceAmount ?? amountCedis;
+
+  double get displayExchangeRate => exchangeRateToBase ?? 1.0;
+
+  bool get hasForeignSource =>
+      displaySourceCurrency != BaseCurrency.code;
 }

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../partners/domain/partner.dart';
+import '../../church/domain/exchange_rates.dart';
 import 'bulk_import_columns.dart';
 
 enum BulkImportSeverity { error, warning }
@@ -76,6 +77,9 @@ class BulkResolvedRow extends Equatable {
     required this.email,
     required this.memberIdFromSheet,
     required this.amountCedis,
+    this.sourceCurrency = BaseCurrency.code,
+    this.sourceAmount,
+    this.exchangeRateToBase = 1.0,
     required this.dateGiven,
     required this.armId,
     required this.armName,
@@ -97,6 +101,9 @@ class BulkResolvedRow extends Equatable {
   final String email;
   final String? memberIdFromSheet;
   final double amountCedis;
+  final String sourceCurrency;
+  final double? sourceAmount;
+  final double exchangeRateToBase;
   final DateTime dateGiven;
   final String? armId;
   final String armName;
@@ -112,6 +119,8 @@ class BulkResolvedRow extends Equatable {
   final List<BulkImportIssue> issues;
   final bool isBlocking;
 
+  bool get hasForeignSource => sourceCurrency.toUpperCase() != BaseCurrency.code;
+
   BulkResolvedRow copyWith({
     String? fullName,
     String? fellowship,
@@ -119,6 +128,9 @@ class BulkResolvedRow extends Equatable {
     String? email,
     String? memberIdFromSheet,
     double? amountCedis,
+    String? sourceCurrency,
+    double? sourceAmount,
+    double? exchangeRateToBase,
     DateTime? dateGiven,
     String? armId,
     String? armName,
@@ -140,6 +152,9 @@ class BulkResolvedRow extends Equatable {
       email: email ?? this.email,
       memberIdFromSheet: memberIdFromSheet ?? this.memberIdFromSheet,
       amountCedis: amountCedis ?? this.amountCedis,
+      sourceCurrency: sourceCurrency ?? this.sourceCurrency,
+      sourceAmount: sourceAmount ?? this.sourceAmount,
+      exchangeRateToBase: exchangeRateToBase ?? this.exchangeRateToBase,
       dateGiven: dateGiven ?? this.dateGiven,
       armId: armId ?? this.armId,
       armName: armName ?? this.armName,
@@ -164,6 +179,9 @@ class BulkResolvedRow extends Equatable {
         email,
         memberIdFromSheet,
         amountCedis,
+        sourceCurrency,
+        sourceAmount,
+        exchangeRateToBase,
         dateGiven,
         armId,
         armName,

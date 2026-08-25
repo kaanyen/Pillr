@@ -12,14 +12,18 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 import '../../../design/seline.dart';
 import '../../../screens/arm_palette.dart';
 
+import '../../../core/notifications/sel_notice.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
+import '../../church/domain/exchange_rates.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/domain/user_church_index.dart' show UserChurchIndex;
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
+import '../../partners/domain/partner.dart';
 import '../../partners/providers/partners_providers.dart';
+import '../domain/partnership_entry.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../periods/providers/periods_providers.dart';
 import 'bulk_import_autofix.dart';
@@ -107,6 +111,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   /// reading and lets it be flipped.
   bool _dayFirst = true;
 
+  /// Default currency for sheet amounts unless a row has a Currency column.
+  String _importDefaultCurrency = BaseCurrency.code;
+
   /// A saved import found on disk, waiting to be resumed or discarded.
   BulkImportPersistedSession? _pendingDraft;
 
@@ -114,6 +121,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   String? _persistUid;
   String? _persistChurchId;
   Timer? _persistDebounce;
+  Timer? _resolveDebounce;
+
+  List<PartnershipArm>? _cachedArms;
+  List<Partner>? _cachedPartners;
+  PartnershipPeriod? _cachedActivePeriod;
+  final Map<String, List<PartnershipEntry>> _duplicateEntryCache = {};
 
   @override
   void initState() {
@@ -128,6 +141,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _persistDebounce?.cancel();
+    _resolveDebounce?.cancel();
     _persistSession();
     super.dispose();
   }
@@ -223,10 +237,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     await _loadPartnersAndResolve();
     if (!mounted) return;
     setState(() => _restoringSession = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppLocalizations.of(context).bulkImportDraftRestored),
-      ),
+    selNotice(
+      context,
+      AppLocalizations.of(context).bulkImportDraftRestored,
+      kind: SelNoticeKind.info,
     );
   }
 
@@ -661,6 +675,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     child: CircularProgressIndicator(strokeWidth: 1.5),
                   ),
                 ),
+              _buildCompactSheetCurrencySelector(),
               SelButton(
                 label: 'Start over',
                 kind: SelButtonKind.quiet,
@@ -689,7 +704,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             child: BulkImportGrid(
               rawRows: _rawRows ?? const [],
               resolved: resolved,
-              columns: [for (final e in columns) e.key],
+              columns: _gridColumns(columns),
               arms: arms,
               dayFirst: _dayFirst,
               busy: _loadingPartners || _committing,
@@ -772,21 +787,41 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           sheetRowNumber: row.sheetRowNumber,
           valuesByColumn: values,
         );
-      // An edited row is a different row, so a "keep" given to the old one no
-      // longer means anything. A drop is a decision about the row itself and
-      // survives.
       _duplicateAcknowledgedSheetRows.remove(row.sheetRowNumber);
     });
-    await _reResolve();
-    await _persistSession();
+    _duplicateEntryCache.clear();
+    _scheduleReResolve(
+      checkDuplicates: _columnAffectsDuplicates(column),
+    );
+    _schedulePersistSession();
+  }
+
+  bool _columnAffectsDuplicates(BulkImportColumn column) => switch (column) {
+        BulkImportColumn.amount ||
+        BulkImportColumn.date ||
+        BulkImportColumn.category ||
+        BulkImportColumn.name ||
+        BulkImportColumn.contact ||
+        BulkImportColumn.memberId ||
+        BulkImportColumn.currency =>
+          true,
+        _ => false,
+      };
+
+  void _scheduleReResolve({bool checkDuplicates = true}) {
+    _resolveDebounce?.cancel();
+    _resolveDebounce = Timer(const Duration(milliseconds: 350), () {
+      _reResolve(checkDuplicates: checkDuplicates);
+    });
   }
 
   Future<void> _applyFixes(List<AutoFixProposal> proposals) async {
     final rows = _rawRows;
     if (rows == null || proposals.isEmpty) return;
     setState(() => _rawRows = applyAutoFixes(rows, proposals));
-    await _reResolve();
-    await _persistSession();
+    _duplicateEntryCache.clear();
+    _scheduleReResolve();
+    _schedulePersistSession();
   }
 
   Widget _buildResolveStep(
@@ -870,6 +905,75 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   // ---------------------------------------------------------------- step 4
+  List<BulkImportColumn> _gridColumns(List<MapEntry<BulkImportColumn, int>> mapped) {
+    final cols = mapped.map((e) => e.key).toList();
+    if (cols.contains(BulkImportColumn.currency)) return cols;
+    final amountIdx = cols.indexOf(BulkImportColumn.amount);
+    if (amountIdx >= 0) {
+      return [
+        ...cols.sublist(0, amountIdx + 1),
+        BulkImportColumn.currency,
+        ...cols.sublist(amountIdx + 1),
+      ];
+    }
+    return [...cols, BulkImportColumn.currency];
+  }
+
+  void _syncRowCurrencies() {
+    final rows = _rawRows;
+    if (rows == null) return;
+    _rawRows = [
+      for (final row in rows)
+        () {
+          final v = Map<BulkImportColumn, String>.from(row.valuesByColumn);
+          final amountStr = v[BulkImportColumn.amount]?.trim() ?? '';
+          final fromAmount = parseAmountCell(amountStr).currency;
+          final fromColumn = parseCurrencyCode(v[BulkImportColumn.currency]);
+          final code = fromAmount ?? fromColumn ?? _importDefaultCurrency;
+          v[BulkImportColumn.currency] = code;
+          return BulkRawRow(
+            sheetRowNumber: row.sheetRowNumber,
+            valuesByColumn: v,
+          );
+        }(),
+    ];
+  }
+
+  Widget _buildCompactSheetCurrencySelector() {
+    return Tooltip(
+      message: 'Default for plain amounts without \$ € £ or a currency code',
+      child: Padding(
+        padding: const EdgeInsets.only(right: SelSpace.x3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Default', style: SelType.small.copyWith(color: Sel.ash)),
+            const SizedBox(width: SelSpace.x2),
+            SizedBox(
+              width: 76,
+              child: SelSelect<String>(
+                value: _importDefaultCurrency,
+                expanded: false,
+                onChanged: _committing || _loadingPartners
+                    ? null
+                : (v) async {
+                    if (v == null) return;
+                    setState(() => _importDefaultCurrency = v);
+                    _syncRowCurrencies();
+                    _scheduleReResolve();
+                  },
+                items: [
+                  for (final code in SelectableCurrency.all)
+                    DropdownMenuItem(value: code, child: Text(code)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildConfirmStep(
     BuildContext context,
     AppLocalizations l10n,
@@ -1538,6 +1642,23 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     return ref.read(userChurchIndexProvider).valueOrNull;
   }
 
+  Future<void> _ensureImportContext(UserChurchIndex idx) async {
+    _cachedArms ??=
+        await ref.read(armsRepositoryProvider).fetchArms(idx.churchId);
+    if (_cachedPartners == null || _cachedActivePeriod == null) {
+      final periods =
+          await ref.read(periodsRepositoryProvider).fetchPeriods(idx.churchId);
+      try {
+        _cachedActivePeriod = periods.firstWhere((p) => p.isActive);
+      } catch (_) {
+        _cachedActivePeriod = null;
+      }
+      _cachedPartners = await ref
+          .read(partnersRepositoryProvider)
+          .fetchAllActivePartners(idx.churchId);
+    }
+  }
+
   Future<void> _loadPartnersAndResolve() async {
     if (_rawRows == null) return;
     setState(() => _loadingPartners = true);
@@ -1551,40 +1672,53 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       return;
     }
     _cachePersistIds(idx);
+    _cachedArms = null;
+    _cachedPartners = null;
+    _cachedActivePeriod = null;
+    _duplicateEntryCache.clear();
     try {
-      final armsRepo = ref.read(armsRepositoryProvider);
-      final periodsRepo = ref.read(periodsRepositoryProvider);
-      final arms = await armsRepo.fetchArms(idx.churchId);
-      final periods = await periodsRepo.fetchPeriods(idx.churchId);
-      if (!mounted) return;
-      PartnershipPeriod? activePeriod;
-      try {
-        activePeriod = periods.firstWhere((p) => p.isActive);
-      } catch (_) {
-        activePeriod = null;
-      }
-      final repo = ref.read(partnersRepositoryProvider);
-      final partners = await repo.fetchAllActivePartners(idx.churchId);
-      if (!mounted) return;
-      final resolved = resolveBulkImportRows(
-        rawRows: _rawRows!,
-        arms: arms,
-        activePeriod: activePeriod,
-        partners: partners,
-        viewerIsStaff: idx.isStaff,
-      );
-      setState(() {
-        _resolved = resolved;
-        _loadingPartners = false;
-      });
-      await _applyDatabaseDuplicateFlags(idx);
-      await _persistSession();
+      await _resolveImport(idx, checkDuplicates: true, persist: true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingPartners = false;
         _error = '$e';
       });
+    }
+  }
+
+  Future<void> _resolveImport(
+    UserChurchIndex idx, {
+    required bool checkDuplicates,
+    bool persist = false,
+    bool showLoading = false,
+  }) async {
+    if (_rawRows == null) return;
+    if (showLoading) setState(() => _loadingPartners = true);
+    await _ensureImportContext(idx);
+    if (!mounted) return;
+    setState(_syncRowCurrencies);
+    final resolved = resolveBulkImportRows(
+      rawRows: _rawRows!,
+      arms: _cachedArms ?? const [],
+      activePeriod: _cachedActivePeriod,
+      partners: _cachedPartners ?? const [],
+      viewerIsStaff: idx.isStaff,
+      exchangeRates: ref.read(churchExchangeRatesProvider),
+      defaultImportCurrency: _importDefaultCurrency,
+    );
+    if (!mounted) return;
+    setState(() {
+      _resolved = resolved;
+      _loadingPartners = false;
+    });
+    if (checkDuplicates) {
+      await _applyDatabaseDuplicateFlags(idx);
+    }
+    if (persist) {
+      await _persistSession();
+    } else {
+      _schedulePersistSession();
     }
   }
 
@@ -1605,12 +1739,15 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           ..removeWhere(
             (i) => i.code == BulkImportIssueCode.duplicateInDatabase,
           );
-        final list = await entriesRepo.fetchEntriesForDuplicateCheck(
+        final partnerId = r.partnerId!;
+        var list = _duplicateEntryCache[partnerId];
+        list ??= await entriesRepo.fetchEntriesForDuplicateCheck(
           idx.churchId,
-          partnerId: r.partnerId!,
+          partnerId: partnerId,
           allChurchEntries: true,
           createdByUid: null,
         );
+        _duplicateEntryCache[partnerId] = list;
         if (hasSimilarPartnershipEntryWithSameDate(
           list,
           partnerId: r.partnerId!,
@@ -1631,7 +1768,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       }
       if (!mounted) return;
       setState(() => _resolved = updated);
-      await _persistSession();
+      _schedulePersistSession();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = '$e');
@@ -1726,43 +1863,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       }
     }
 
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setLocal) {
-            return SelDialog(
-              title: l10n.bulkImportEditRowTitle(row.sheetRowNumber),
-              actions: [
-                OutlinedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(l10n.bulkImportCancel),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    v[BulkImportColumn.date] = dateCtrl.text.trim();
-                    v[BulkImportColumn.name] = nameCtrl.text.trim();
-                    v[BulkImportColumn.fellowship] = fellowCtrl.text.trim();
-                    v[BulkImportColumn.contact] = phoneCtrl.text.trim();
-                    v[BulkImportColumn.email] = emailCtrl.text.trim();
-                    v[BulkImportColumn.amount] = amountCtrl.text.trim();
-                    v[BulkImportColumn.category] =
-                        (selectedArm?.name ?? armCtrl.text).trim();
-                    v[BulkImportColumn.givenToNotes] = notesCtrl.text.trim();
-                    v[BulkImportColumn.pastorConfirmed] = pastorYes
-                        ? 'YES'
-                        : 'NO';
-                    _rawRows![index] = BulkRawRow(
-                      sheetRowNumber: row.sheetRowNumber,
-                      valuesByColumn: v,
-                    );
-                    Navigator.pop(ctx);
-                    _reResolve().then((_) => _schedulePersistSession());
-                  },
-                  child: Text(l10n.bulkImportSave),
-                ),
-              ],
-              child: LayoutBuilder(
+    await showSelSideSheet<void>(
+      context,
+      title: l10n.bulkImportEditRowTitle(row.sheetRowNumber),
+      width: 560,
+      child: StatefulBuilder(
+        builder: (context, setLocal) {
+          return LayoutBuilder(
                 builder: (context, c) {
                   final twoCol = c.maxWidth >= 480;
                   Widget row2(Widget a, Widget b) {
@@ -1894,14 +2001,49 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                           ),
                         ),
                       ),
+                      const SizedBox(height: SelSpace.x6),
+                      Row(
+                        children: [
+                          SelButton(
+                            label: l10n.bulkImportCancel,
+                            kind: SelButtonKind.quiet,
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          const Spacer(),
+                          SelButton.cyan(
+                            label: l10n.bulkImportSave,
+                            onPressed: () {
+                              v[BulkImportColumn.date] = dateCtrl.text.trim();
+                              v[BulkImportColumn.name] = nameCtrl.text.trim();
+                              v[BulkImportColumn.fellowship] =
+                                  fellowCtrl.text.trim();
+                              v[BulkImportColumn.contact] =
+                                  phoneCtrl.text.trim();
+                              v[BulkImportColumn.email] = emailCtrl.text.trim();
+                              v[BulkImportColumn.amount] =
+                                  amountCtrl.text.trim();
+                              v[BulkImportColumn.category] =
+                                  (selectedArm?.name ?? armCtrl.text).trim();
+                              v[BulkImportColumn.givenToNotes] =
+                                  notesCtrl.text.trim();
+                              v[BulkImportColumn.pastorConfirmed] =
+                                  pastorYes ? 'YES' : 'NO';
+                              _rawRows![index] = BulkRawRow(
+                                sheetRowNumber: row.sheetRowNumber,
+                                valuesByColumn: v,
+                              );
+                              Navigator.pop(context);
+                              _reResolve().then((_) => _schedulePersistSession());
+                            },
+                          ),
+                        ],
+                      ),
                     ],
                   );
                 },
-              ),
-            );
-          },
-        );
-      },
+              );
+        },
+      ),
     );
 
     nameCtrl.dispose();
@@ -1920,47 +2062,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     return t == 'yes' || t == 'y' || t == 'true' || t == '1';
   }
 
-  Future<void> _reResolve() async {
+  Future<void> _reResolve({bool checkDuplicates = true}) async {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     if (idx == null || _rawRows == null) return;
-    setState(() => _loadingPartners = true);
     try {
-      final arms = await ref
-          .read(armsRepositoryProvider)
-          .fetchArms(idx.churchId);
-      final periods = await ref
-          .read(periodsRepositoryProvider)
-          .fetchPeriods(idx.churchId);
-      PartnershipPeriod? activePeriod;
-      try {
-        activePeriod = periods.firstWhere((p) => p.isActive);
-      } catch (_) {
-        activePeriod = null;
-      }
-      final partners = await ref
-          .read(partnersRepositoryProvider)
-          .fetchAllActivePartners(idx.churchId);
-      if (!mounted) return;
-      final resolved = resolveBulkImportRows(
-        rawRows: _rawRows!,
-        arms: arms,
-        activePeriod: activePeriod,
-        partners: partners,
-        viewerIsStaff: idx.isStaff,
-      );
-      setState(() {
-        _resolved = resolved;
-        _loadingPartners = false;
-      });
-      await _applyDatabaseDuplicateFlags(idx);
-      await _persistSession();
+      await _resolveImport(idx, checkDuplicates: checkDuplicates);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loadingPartners = false;
-          _error = '$e';
-        });
-      }
+      if (mounted) setState(() => _error = '$e');
     }
   }
 
@@ -1970,7 +2078,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     bool viewerIsPastor,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     final profile = ref.read(churchUserProfileProvider).valueOrNull;
     if (profile == null || _resolved == null) return;
     // Rows the user set aside never reach Firestore.
@@ -2044,7 +2151,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         _fileBytes = null;
         _duplicateAcknowledgedSheetRows.clear();
       });
-      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+      selNotice(context, successMessage, kind: SelNoticeKind.success);
       Future<void>.delayed(const Duration(seconds: 4), () {
         if (mounted) {
           ref.read(bulkImportCommitProgressProvider.notifier).reset();
@@ -2876,17 +2983,15 @@ class _ImportRowState extends ConsumerState<_ImportRow> {
           .undo(churchId: idx.churchId, batchId: b.id, byUid: idx.uid);
       ref.invalidate(entriesListProvider);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.kept == 0
-                ? 'Removed ${result.removed} '
-                      '${result.removed == 1 ? "entry" : "entries"} from '
-                      '${b.fileName}.'
-                : 'Removed ${result.removed}; kept ${result.kept} already '
-                      'approved.',
-          ),
-        ),
+      selNotice(
+        context,
+        result.kept == 0
+            ? 'Removed ${result.removed} '
+                  '${result.removed == 1 ? "entry" : "entries"} from '
+                  '${b.fileName}.'
+            : 'Removed ${result.removed}; kept ${result.kept} already '
+                  'approved.',
+        kind: SelNoticeKind.success,
       );
     } finally {
       if (mounted) setState(() => _busy = false);

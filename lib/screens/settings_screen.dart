@@ -11,6 +11,8 @@ import '../core/providers/locale_provider.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
+import '../features/church/presentation/exchange_rates_settings_panel.dart';
+import '../features/church/presentation/monthly_partner_email_panel.dart';
 
 const _kPrefDigest = 'pillr_notify_daily_digest';
 const _kPrefGoals = 'pillr_notify_goal_milestones';
@@ -114,6 +116,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final digest = ref.watch(notificationDigestProvider);
     final goals = ref.watch(notificationGoalsProvider);
     final canBrand = idx?.isAdmin ?? false;
+    final canPartnerEmail = idx != null && (idx.isPastor || idx.isAdmin);
 
     if (settings != null && !_seeded) {
       _seeded = true;
@@ -199,6 +202,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
+
+        if (canPartnerEmail && settings != null) ...[
+          MonthlyPartnerEmailPanel(idx: idx, settings: settings),
+          const SizedBox(height: SelSpace.x4),
+        ],
+
+        if (canPartnerEmail && settings != null) ...[
+          ExchangeRatesSettingsPanel(
+            churchId: settings.churchId,
+            initialRates: settings.exchangeRates,
           ),
           const SizedBox(height: SelSpace.x4),
         ],

@@ -21,14 +21,25 @@
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Pillr">
+  <meta name="apple-mobile-web-app-title" content="The Pillr">
+
+  <!-- Favicon (main mark — app icon is install/launcher only) -->
+  <link rel="icon" type="image/svg+xml" href="icons/pillr_logo_main.svg">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <!-- Home-screen install icon stays the square app mark -->
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png">
-
-  <title>Pillr</title>
+  <title>The Pillr</title>
   <link rel="manifest" href="manifest.json">
+  
+  
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+  
+  
+  
+  
+  
+  
   <style id="splash-screen-style">
     html {
       height: 100%
@@ -37,7 +48,7 @@
     body {
       margin: 0;
       min-height: 100%;
-      background-color: #1A56DB;
+      background-color: #3BA6F1;
           background-size: 100% 100%;
     }
 
@@ -48,6 +59,11 @@
       left: 50%;
       -ms-transform: translate(-50%, -50%);
       transform: translate(-50%, -50%);
+    }
+
+    #splash img.center {
+      width: min(28vw, 160px);
+      height: auto;
     }
 
     .contain {
@@ -94,7 +110,6 @@
       document.body.style.background = "transparent";
     }
   </script>
-  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
 </head>
 <body>
   <picture id="splash">
@@ -102,6 +117,10 @@
       <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
       <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
   </picture>
+  
+  
+  
+  
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

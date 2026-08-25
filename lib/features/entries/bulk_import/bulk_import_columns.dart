@@ -27,6 +27,7 @@ enum BulkImportColumn {
   fellowship,
   email,
   amount,
+  currency,
   category,
   givenToNotes,
   pastorConfirmed,
@@ -66,6 +67,13 @@ BulkImportColumn? columnForHeader(String normalizedHeader) {
     return BulkImportColumn.amount;
   }
   if (h == 'amount' || h == 'amount (ghc)') return BulkImportColumn.amount;
+
+  if (h == 'currency' ||
+      h == 'curr' ||
+      h == 'amount currency' ||
+      h == 'currency code') {
+    return BulkImportColumn.currency;
+  }
 
   if (h.startsWith('category') || h.contains('church service') && h.contains('category')) {
     return BulkImportColumn.category;

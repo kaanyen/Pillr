@@ -4,14 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/navigation/panel_flows.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
 import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
+import '../features/entries/monthly_records_models.dart';
 import '../features/entries/providers/entries_providers.dart';
-import '../features/partners/presentation/partner_form_dialog.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
@@ -31,6 +33,16 @@ class PartnerProfileScreen extends ConsumerStatefulWidget {
 class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
   String? _periodFilter;
   String? _armFilter;
+  MonthBucket? _monthFilter;
+
+  List<MonthBucket> _monthsIn(Iterable<PartnershipEntry> entries) {
+    final months = <int, MonthBucket>{};
+    for (final entry in entries) {
+      final bucket = MonthBucket.fromDate(entry.dateGiven);
+      months[bucket.sortKey] = bucket;
+    }
+    return months.values.toList()..sort((a, b) => b.compareTo(a));
+  }
 
   /// Given in at least three consecutive periods. Shown as a quiet tag rather
   /// than a badge — it is a fact about the record, not an award.
@@ -85,11 +97,31 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
         }
 
         final all = entriesAsync.valueOrNull ?? [];
+        final monthOptions = _monthsIn(all.where((e) {
+          if (_periodFilter != null && e.partnershipPeriodId != _periodFilter) {
+            return false;
+          }
+          if (_armFilter != null && e.partnershipArmId != _armFilter) return false;
+          return true;
+        }));
+        if (_monthFilter != null &&
+            !monthOptions.any((m) => m == _monthFilter)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _monthFilter = null);
+          });
+        }
+        final monthFilter = _monthFilter != null &&
+                monthOptions.any((m) => m == _monthFilter)
+            ? _monthFilter
+            : null;
         final rows = all.where((e) {
           if (_periodFilter != null && e.partnershipPeriodId != _periodFilter) {
             return false;
           }
           if (_armFilter != null && e.partnershipArmId != _armFilter) return false;
+          if (monthFilter != null && !monthFilter.contains(e.dateGiven)) {
+            return false;
+          }
           return true;
         }).toList();
 
@@ -113,13 +145,11 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                   SelButton(
                     label: 'Edit',
                     icon: LucideIcons.pencil,
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (_) => PartnerFormDialog(
-                        churchId: idx!.churchId,
-                        uid: idx.uid,
-                        existing: partner,
-                      ),
+                    onPressed: () => showPartnerFormPanel(
+                      context,
+                      churchId: idx!.churchId,
+                      uid: idx.uid,
+                      existing: partner,
                     ),
                   ),
                 SelButton(
@@ -179,7 +209,10 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                     width: 170,
                     child: SelSelect<String?>(
                       value: _periodFilter,
-                      onChanged: (v) => setState(() => _periodFilter = v),
+                      onChanged: (v) => setState(() {
+                        _periodFilter = v;
+                        _monthFilter = null;
+                      }),
                       items: [
                         const DropdownMenuItem(
                           value: null,
@@ -191,12 +224,35 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                     ),
                   ),
                 const SizedBox(width: SelSpace.x2),
+                if (monthOptions.isNotEmpty)
+                  SizedBox(
+                    width: 170,
+                    child: SelSelect<MonthBucket?>(
+                      value: monthFilter,
+                      onChanged: (v) => setState(() => _monthFilter = v),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('All months'),
+                        ),
+                        for (final month in monthOptions)
+                          DropdownMenuItem(
+                            value: month,
+                            child: Text(month.label),
+                          ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: SelSpace.x2),
                 if (arms.isNotEmpty)
                   SizedBox(
                     width: 170,
                     child: SelSelect<String?>(
                       value: _armFilter,
-                      onChanged: (v) => setState(() => _armFilter = v),
+                      onChanged: (v) => setState(() {
+                        _armFilter = v;
+                        _monthFilter = null;
+                      }),
                       items: [
                         const DropdownMenuItem(
                           value: null,
@@ -236,8 +292,9 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                         style: SelType.bodyMedium,
                       ),
                       SelCell.secondary(periodName(e.partnershipPeriodId)),
-                      SelCell.numeric(
-                        money(e.amountCedis),
+                      EntryAmountCell(
+                        entry: e,
+                        formattedAmount: money(e.amountCedis),
                         tone: switch (e.status) {
                           'approved' => SelTone.positive,
                           'declined' => SelTone.negative,

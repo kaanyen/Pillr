@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 72" role="img" aria-label="Pillr">
+  <g fill="#78716C">
+    <rect x="4" y="0" width="48" height="8" rx="1.2"/>
+    <rect x="8" y="10" width="40" height="6" rx="1.2"/>
+    <rect x="12" y="18" width="32" height="5" rx="1.2"/>
+    <rect x="6" y="25" width="44" height="8" rx="1.2"/>
+    <path d="M6 29c-5.5 0-6 2.8-6 4.5s.5 4.5 6 4.5V29z"/>
+    <path d="M50 29c5.5 0 6 2.8 6 4.5s-.5 4.5-6 4.5V29z"/>
+    <rect x="14" y="35" width="7" height="37" rx="1.2"/>
+    <rect x="24.5" y="35" width="7" height="37" rx="1.2"/>
+    <rect x="35" y="35" width="7" height="37" rx="1.2"/>
+  </g>
+</svg>

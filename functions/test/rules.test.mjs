@@ -182,3 +182,29 @@ it("membership itself is not client-writable", async () => {
   await assertFails(setDoc(doc(db, "user_church_index", STAFF), {churchId: "c1", role: "pastor"}));
   assert.ok(true);
 });
+
+describe("monthly partner email reports are function-written", () => {
+  it("lets a pastor read a report", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/monthly_email_reports/2026-07"), {
+        sent: 1,
+        skippedNoEmail: [],
+        failed: [],
+      });
+    });
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertSucceeds(getDoc(doc(db, "churches/c1/monthly_email_reports/2026-07")));
+  });
+
+  it("refuses staff reading a report", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(getDoc(doc(db, "churches/c1/monthly_email_reports/2026-07")));
+  });
+
+  it("refuses a pastor writing a report", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertFails(
+      setDoc(doc(db, "churches/c1/monthly_email_reports/2026-07"), {sent: 99}),
+    );
+  });
+});

@@ -65,18 +65,28 @@ class ArmLabel extends ConsumerWidget {
     required this.armId,
     required this.name,
     this.style,
+    this.color,
   });
 
   final String armId;
   final String name;
   final TextStyle? style;
+  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final dotColor = color ?? armColorOf(ref, armId);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ArmDot(armId: armId),
+        Container(
+          height: 6,
+          width: 6,
+          decoration: BoxDecoration(
+            color: dotColor,
+            shape: BoxShape.circle,
+          ),
+        ),
         const SizedBox(width: SelSpace.x2),
         Flexible(
           child: Text(

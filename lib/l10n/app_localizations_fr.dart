@@ -9,7 +9,7 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
-  String get appTitle => 'Pillr';
+  String get appTitle => 'The Pillr';
 
   @override
   String get navSectionMain => 'Principal';
@@ -46,6 +46,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navPartners => 'Partenaires';
+
+  @override
+  String get navFellowships => 'Fraternités';
 
   @override
   String get navLeaderboard => 'Classement';
@@ -772,6 +775,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pdfTableHeaderPartner => 'Partenaire';
 
   @override
+  String get pdfTableHeaderMemberId => 'ID membre';
+
+  @override
+  String get pdfTableHeaderFellowship => 'Fraternité';
+
+  @override
+  String get pdfTableHeaderSubmittedBy => 'Soumis par';
+
+  @override
+  String get pdfTableHeaderApprovedBy => 'Approuvé par';
+
+  @override
   String get pdfTableHeaderAmount => 'Montant';
 
   @override
@@ -810,6 +825,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navRecords => 'Registres';
+
+  @override
+  String get navRecordsAll => 'Tous les registres';
+
+  @override
+  String get navRecordsMonthly => 'Par mois';
 
   @override
   String get navPeople => 'Personnes';
@@ -861,6 +882,13 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get recordsSubtitle =>
       'Toutes les écritures de partenariat de votre église, les plus récentes d\'abord.';
+
+  @override
+  String get recordsMonthlyTitle => 'Par mois';
+
+  @override
+  String get recordsMonthlySubtitle =>
+      'Parcourez les dons approuvés mois par mois.';
 
   @override
   String get recordsEmptyTitle => 'Aucune écriture';

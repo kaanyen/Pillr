@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:the_pillr/features/church/domain/exchange_rates.dart';
 import 'package:the_pillr/features/entries/bulk_import/bulk_import_columns.dart';
 import 'package:the_pillr/features/entries/bulk_import/bulk_import_parser.dart';
 
@@ -44,6 +45,18 @@ void main() {
     final interp = interpretRawValues(row);
     expect(interp.amount, 50.5);
     expect(interp.pastorYes, isTrue);
+    expect(interp.issues, isEmpty);
+  });
+
+  test('interpretRawValues detects currency in amount cell', () {
+    final row = parseBulkImportGrid(<List<String?>>[
+      ['DATE', 'NAME', 'FELLOWSHIP', 'AMOUNT', 'CATEGORY'],
+      ['2024-06-01', 'A', 'F', r'$400', 'Arm'],
+    ]).rows.single;
+
+    final interp = interpretRawValues(row);
+    expect(interp.amount, 400);
+    expect(interp.amountCurrency, SelectableCurrency.usd);
     expect(interp.issues, isEmpty);
   });
 }

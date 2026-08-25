@@ -12,6 +12,8 @@
     "test": "node --test --test-concurrency=1 'test/*.test.mjs'",
     "seed-demo": "node scripts/seed-demo.cjs",
     "seed-pending": "node scripts/seed-pending-entries.cjs",
+    "seed-ranked-demo": "node scripts/seed-ranked-demo.cjs",
+    "seed-realistic-demo": "node scripts/seed-realistic-demo.cjs",
     "reconcile": "node scripts/reconcile-aggregates.cjs",
     "migrate-church-setup": "node scripts/migrate-church-setup-flags.cjs",
     "setup-firestore-backup": "node scripts/setup-firestore-backup-bucket.cjs"
