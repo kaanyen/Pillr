@@ -53,3 +53,6 @@ app.*.map.json
 
 # Local Firebase emulator snapshots — never committed.
 .emulator-data/
+
+# Production audit snapshots — real church data, never commit
+audit/

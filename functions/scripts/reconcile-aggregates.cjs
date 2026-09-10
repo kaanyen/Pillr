@@ -36,8 +36,22 @@ if (!process.env.FIRESTORE_EMULATOR_HOST && !PRODUCTION) {
   );
   process.exit(1);
 }
-if (PRODUCTION && (!CHURCH_ARG || FIX)) {
-  console.error("--production is read-only and needs --church <id>.");
+// Writing to production takes a second, deliberate flag and one church — and
+// a --log file, so every figure it changed is on record with its old value.
+const CONFIRM_PRODUCTION = ARGS.includes("--confirm-production");
+const LOG_ARG = (() => {
+  const i = ARGS.indexOf("--log");
+  return i >= 0 ? ARGS[i + 1] : null;
+})();
+if (PRODUCTION && !CHURCH_ARG) {
+  console.error("--production needs --church <id>.");
+  process.exit(1);
+}
+if (PRODUCTION && FIX && (!CONFIRM_PRODUCTION || !LOG_ARG)) {
+  console.error(
+    "--production is read-only. To repair a live church, pass --fix --confirm-production --log <file>\n" +
+      "and only with the owner's go-ahead for that run."
+  );
   process.exit(1);
 }
 
@@ -92,39 +106,48 @@ async function reconcileChurch(db, churchId) {
   const drift = [];
   const fixes = [];
 
-  const check = async (collection, expectedMap, amountField, countField) => {
-    const snap = await church.collection(collection).select(amountField, countField ?? amountField).get();
-    for (const doc of snap.docs) {
-      const want = expectedMap.get(doc.id) ?? {pesewas: 0, count: 0};
-      const have = {
-        pesewas: pesewas(doc.data()[amountField]),
-        count: countField ? Number(doc.data()[countField] ?? 0) : want.count,
-      };
-      if (have.pesewas !== want.pesewas || have.count !== want.count) {
-        drift.push({
-          what: `${collection}/${doc.id}`,
-          stored: have,
-          actual: want,
-        });
-        const patch = {[amountField]: cedis(want.pesewas)};
-        if (countField) patch[countField] = want.count;
-        fixes.push({ref: doc.ref, patch});
-      }
-    }
+  // Totals are kept twice — an exact pesewa field, which the app reads first,
+  // and the older cedi double. Both must agree with the entries: repairing only
+  // the cedi field left the app showing the stale pesewa figure. A document
+  // with the right cedi figure but no pesewa field yet is a backfill, not a
+  // wrong total, and is reported as such.
+  const compare = (doc, want, {cedisField, pesewasField, countField}) => {
+    const d = doc.data();
+    const exact = typeof d[pesewasField] === "number" ? Math.round(d[pesewasField]) : null;
+    const fromCedis = pesewas(d[cedisField]);
+    const shown = exact ?? fromCedis;
+    const count = countField ? Number(d[countField] ?? 0) : want.count;
+    const agrees = exact === want.pesewas && fromCedis === want.pesewas && count === want.count;
+    if (agrees) return;
+    drift.push({
+      what: `${doc.ref.parent.id}/${doc.id}`,
+      kind: shown === want.pesewas && count === want.count ? "backfill" : "wrong",
+      stored: {pesewas: shown, count: countField ? count : undefined, cedisField: fromCedis},
+      actual: {pesewas: want.pesewas, count: countField ? want.count : undefined},
+    });
+    const patch = {[cedisField]: cedis(want.pesewas), [pesewasField]: want.pesewas};
+    if (countField) patch[countField] = want.count;
+    // What each patched field held before, so the log can undo any one of them.
+    const before = Object.fromEntries(Object.keys(patch).map((k) => [k, d[k] ?? null]));
+    fixes.push({ref: doc.ref, patch, before, kind: shown === want.pesewas && count === want.count ? "backfill" : "wrong"});
   };
 
-  await check("partners", byPartner, "totalApprovedAmount", "entryCount");
-  await check("partnership_periods", byPeriod, "totalApprovedAmount", "entryCount");
+  const check = async (collection, expectedMap) => {
+    const fields = {cedisField: "totalApprovedAmount", pesewasField: "totalApprovedPesewas", countField: "entryCount"};
+    const snap = await church.collection(collection).select(...Object.values(fields)).get();
+    for (const doc of snap.docs) compare(doc, expectedMap.get(doc.id) ?? {pesewas: 0, count: 0}, fields);
+  };
 
-  const goals = await church.collection("goals").select("partnershipPeriodId", "partnershipArmId", "currentAmountCedis").get();
+  await check("partners", byPartner);
+  await check("partnership_periods", byPeriod);
+
+  const goalFields = {cedisField: "currentAmountCedis", pesewasField: "currentAmountPesewas"};
+  const goals = await church.collection("goals")
+    .select("partnershipPeriodId", "partnershipArmId", ...Object.values(goalFields)).get();
   for (const doc of goals.docs) {
     const g = doc.data();
     const want = byGoalKey.get(`${g.partnershipPeriodId}|${g.partnershipArmId}`) ?? 0;
-    const have = pesewas(g.currentAmountCedis);
-    if (have !== want) {
-      drift.push({what: `goals/${doc.id}`, stored: {pesewas: have}, actual: {pesewas: want}});
-      fixes.push({ref: doc.ref, patch: {currentAmountCedis: cedis(want)}});
-    }
+    compare(doc, {pesewas: want, count: undefined}, goalFields);
   }
 
   return {entries: entries.size, drift, fixes, needStamp, staleStamp};
@@ -154,16 +177,27 @@ async function main() {
       console.log("  totals agree with the entries.");
     } else {
       totalDrift += r.drift.length;
-      for (const d of r.drift) {
+      // Wrong figures one by one — these are what a user sees change. Backfills
+      // (right figure, pesewa field not yet written) only as a count, or a
+      // church of 550 partners buries the handful that matter.
+      const wrong = r.drift.filter((d) => d.kind !== "backfill");
+      const backfill = r.drift.filter((d) => d.kind === "backfill");
+      for (const d of wrong) {
         const delta = d.actual.pesewas - d.stored.pesewas;
         const counts =
           d.actual.count !== undefined && d.stored.count !== undefined && d.actual.count !== d.stored.count ?
             `, count ${d.stored.count} → ${d.actual.count}` :
             "";
+        const cedisNote = d.stored.cedisField !== undefined && d.stored.cedisField !== d.stored.pesewas ?
+          ` [cedi field ${money(d.stored.cedisField)}]` :
+          "";
         console.log(
-          `  ${d.what}: stored ${money(d.stored.pesewas)}, actual ${money(d.actual.pesewas)}` +
-            ` (${delta > 0 ? "+" : ""}${money(delta)})${counts}`
+          `  ${d.what}: shown ${money(d.stored.pesewas)}, actual ${money(d.actual.pesewas)}` +
+            ` (${delta > 0 ? "+" : ""}${money(delta)})${counts}${cedisNote}`
         );
+      }
+      if (backfill.length) {
+        console.log(`  ${backfill.length} documents show the right figure but lack the pesewa field (backfill only).`);
       }
     }
     if (r.needStamp.length || r.staleStamp.length) {
@@ -191,6 +225,20 @@ async function main() {
       console.log(
         `  repaired ${r.fixes.length} totals, stamped ${r.needStamp.length}, cleared ${r.staleStamp.length}.`
       );
+      if (LOG_ARG) {
+        const log = {
+          ranAt: new Date().toISOString(),
+          project: process.env.FIREBASE_PROJECT_ID || "thepillr2",
+          emulator: Boolean(process.env.FIRESTORE_EMULATOR_HOST),
+          churchId,
+          entriesRead: r.entries,
+          totals: r.fixes.map((f) => ({path: f.ref.path, kind: f.kind, before: f.before, after: f.patch})),
+          stamped: r.needStamp.map(({ref, amt}) => ({path: ref.path, pesewas: amt})),
+          stampsCleared: r.staleStamp.map(({ref}) => ref.path),
+        };
+        require("fs").writeFileSync(LOG_ARG, JSON.stringify(log, null, 1));
+        console.log(`  change log written to ${LOG_ARG}`);
+      }
     }
   }
 
