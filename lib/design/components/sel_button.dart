@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
+import 'sel_focus.dart';
 
 /// Button hierarchy in Seline.
 ///
@@ -23,6 +24,19 @@ enum SelButtonKind {
   /// stateful actions that need to read as interactive without taking the
   /// primary slot. Still not a fill — never promote cyanEdge to a fill.
   edge,
+}
+
+/// Marks a subtree whose controls keep Seline's original, tighter sizing
+/// rather than the 44px tap-target sizing used across the rest of the app.
+/// The sign-in screens use it so their look stays as it was.
+class SelCompactScope extends InheritedWidget {
+  const SelCompactScope({super.key, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SelCompactScope>() != null;
+
+  @override
+  bool updateShouldNotify(SelCompactScope oldWidget) => false;
 }
 
 class SelButton extends StatelessWidget {
@@ -84,7 +98,11 @@ class SelButton extends StatelessWidget {
             horizontal: SelSpace.x4,
             vertical: SelSpace.x2,
           );
-    final minH = dense ? 28.0 : 34.0;
+    // Inside a [SelCompactScope] (the sign-in screens) buttons keep their
+    // original, tighter height; everywhere else they meet the tap target.
+    final minH = SelCompactScope.of(context)
+        ? (dense ? 28.0 : 34.0)
+        : (dense ? SelLayout.tapTargetDense : SelLayout.tapTarget);
 
     final body = loading
         ? SizedBox(
@@ -158,6 +176,7 @@ class _SelPill extends StatefulWidget {
 
 class _SelPillState extends State<_SelPill> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -183,25 +202,37 @@ class _SelPillState extends State<_SelPill> {
       enabled: !widget.disabled,
       label: widget.semanticLabel,
       excludeSemantics: widget.semanticLabel != null,
-      child: MouseRegion(
-        cursor: widget.disabled
+      child: FocusableActionDetector(
+        enabled: !widget.disabled,
+        mouseCursor: widget.disabled
             ? SystemMouseCursors.basic
             : SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap?.call();
+              return null;
+            },
+          ),
+        },
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            constraints: BoxConstraints(minHeight: widget.minHeight),
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(SelRadius.pill),
-              border: bd == null ? null : Border.all(color: bd),
+          child: SelFocusRing(
+            focused: _focused && !widget.disabled,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              constraints: BoxConstraints(minHeight: widget.minHeight),
+              padding: widget.padding,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+                border: bd == null ? null : Border.all(color: bd),
+              ),
+              child: Center(widthFactor: 1, child: widget.child),
             ),
-            child: Center(widthFactor: 1, child: widget.child),
           ),
         ),
       ),
@@ -267,7 +298,7 @@ class SelIconButton extends StatelessWidget {
       kind: SelButtonKind.quiet,
       disabled: onPressed == null,
       padding: const EdgeInsets.all(SelSpace.x2),
-      minHeight: 32,
+      minHeight: SelLayout.tapTarget,
       onTap: onPressed,
       // The tooltip is the only name this control has; a pointer gets it on
       // hover and, now, a screen reader gets it too.
@@ -277,7 +308,12 @@ class SelIconButton extends StatelessWidget {
       child: child,
     );
 
-    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+    final sized = SizedBox(
+      width: SelLayout.tapTarget,
+      height: SelLayout.tapTarget,
+      child: btn,
+    );
+    return tooltip == null ? sized : Tooltip(message: tooltip!, child: sized);
   }
 }
 
@@ -312,6 +348,7 @@ class SelLink extends StatefulWidget {
 
 class _SelLinkState extends State<SelLink> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -322,26 +359,39 @@ class _SelLinkState extends State<SelLink> {
           fontWeight: FontWeight.w500,
         );
 
-    return MouseRegion(
-      cursor: widget.onTap == null
+    return FocusableActionDetector(
+      enabled: widget.onTap != null,
+      mouseCursor: widget.onTap == null
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onShowHoverHighlight: (v) => setState(() => _hover = v),
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap?.call();
+            return null;
+          },
+        ),
+      },
       child: GestureDetector(
         // Without this the tap never lands — see the class doc.
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: SelSpace.x2,
-            vertical: SelSpace.x2,
-          ),
-          child: Text(
-            widget.label,
-            style: base.copyWith(
-              decoration: _hover ? TextDecoration.underline : null,
-              decorationColor: base.color,
+        child: SelFocusRing(
+          focused: _focused && widget.onTap != null,
+          radius: SelRadius.input,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.x2,
+              vertical: SelSpace.x2,
+            ),
+            child: Text(
+              widget.label,
+              style: base.copyWith(
+                decoration: _hover || _focused ? TextDecoration.underline : null,
+                decorationColor: base.color,
+              ),
             ),
           ),
         ),

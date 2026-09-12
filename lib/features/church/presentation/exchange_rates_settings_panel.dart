@@ -117,7 +117,8 @@ class _ExchangeRatesSettingsPanelState
             churchId: widget.churchId,
             rates: rates,
           );
-      ref.invalidate(entriesListProvider);
+      ref.invalidate(rankingEntriesProvider);
+      invalidateEntryDerivedData(ref);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

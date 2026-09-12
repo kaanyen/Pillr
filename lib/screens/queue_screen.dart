@@ -9,6 +9,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
 import '../core/navigation/panel_flows.dart';
+import '../core/notifications/sel_notice.dart';
+import '../features/activity/activity_log_helper.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
 import '../l10n/app_localizations.dart';
@@ -54,11 +56,15 @@ class QueueScreen extends ConsumerStatefulWidget {
   const QueueScreen({
     super.key,
     this.initialFilter,
+    this.importBatchId,
     this.mode = QueueMode.queue,
   });
 
   /// Lets `/approvals` land here pre-filtered instead of 404ing.
   final String? initialFilter;
+
+  /// Narrows Records to the rows one import created. Set by `?import=`.
+  final String? importBatchId;
 
   final QueueMode mode;
 
@@ -82,6 +88,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   String? _armId;
   final Set<String> _selected = {};
   bool _busy = false;
+  final Set<String> _decidingIds = {};
 
   /// Row the keyboard is on, as an index into the rows on screen.
   int _cursor = 0;
@@ -89,6 +96,17 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
   /// How long a decided entry stays visible under the queue before it belongs
   /// to Records alone.
   static const _decidedWindow = Duration(hours: 24);
+
+  /// The cutoff for the decided strip, floored to the minute.
+  ///
+  /// This keys a provider family, and the screen rebuilds far more often than
+  /// the clock ticks — a raw `DateTime.now()` would spawn a fresh subscription
+  /// on every frame. Flooring it makes the key change once a minute, which is
+  /// exactly how often the timer moves the window.
+  DateTime get _decidedSince {
+    final n = DateTime.now().subtract(_decidedWindow);
+    return DateTime(n.year, n.month, n.day, n.hour, n.minute);
+  }
 
   /// The window is a moving edge, so the screen has to re-read the clock.
   /// Without this an entry approved while the tab sat open would still be
@@ -154,10 +172,13 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       setState(() => _recordsLoadingMore = true);
     }
     try {
-      final page = await ref.read(entriesRepositoryProvider).fetchEntriesPage(
+      final page = await ref
+          .read(entriesRepositoryProvider)
+          .fetchEntriesPage(
             idx.churchId,
             allChurchEntries: idx.isPastor,
             createdByUid: idx.isPastor ? null : idx.uid,
+            importBatchId: widget.importBatchId,
             pageSize: _recordsPageSize,
             startAfter: reset ? null : _recordsCursor,
           );
@@ -185,10 +206,28 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The first page is requested once, right after the first frame, and gives
+    // up if the signed-in user's church is not known yet. On a cold load or a
+    // refresh of /records that is the usual case, and nothing asked again: the
+    // screen sat on "No entries yet" over a church with 1,265 of them. Ask
+    // again the moment the church arrives, and whenever it changes.
+    if (widget.mode == QueueMode.records) {
+      ref.listen(userChurchIndexProvider, (previous, next) {
+        final was = previous?.valueOrNull;
+        final now = next.valueOrNull;
+        if (now == null) return;
+        if (was?.churchId == now.churchId && was?.uid == now.uid) return;
+        _loadRecordsPage(reset: true);
+      });
+    }
     final l10n = AppLocalizations.of(context);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
-    final entriesAsync = ref.watch(entriesListProvider);
+    // The queue is pending work; Records pages its own rows in. Neither needs
+    // the church's whole entry collection.
+    final entriesAsync = widget.mode == QueueMode.queue
+        ? ref.watch(pendingEntriesProvider)
+        : const AsyncValue<List<PartnershipEntry>>.data([]);
     final armColors = ref.watch(armColorsProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
     final isPastor = idx?.isPastor ?? false;
@@ -227,16 +266,17 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     // What was decided in the last day, newest first. The queue proper is
     // pending only — this sits under it so a pastor can see the batch they
     // just approved without going to Records, and it empties itself.
+    //
+    // Its own query now, rather than a sieve over every entry in the church:
+    // the cutoff is a range filter Firestore can serve from the index, and
+    // pending rows carry no `reviewedAt` so they fall out on their own.
     final now = DateTime.now();
     final decided = widget.mode != QueueMode.queue
         ? const <PartnershipEntry>[]
-        : (scoped.where((e) {
-            if (e.status == 'pending') return false;
-            final at = e.reviewedAt;
-            if (at == null) return false;
-            if (now.difference(at) >= _decidedWindow) return false;
-            return _armId == null || e.partnershipArmId == _armId;
-          }).toList()..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!)));
+        : (ref.watch(recentlyDecidedProvider(_decidedSince)).valueOrNull ??
+                  const <PartnershipEntry>[])
+              .where((e) => _armId == null || e.partnershipArmId == _armId)
+              .toList();
 
     return CallbackShortcuts(
       bindings: _shortcuts(rows, canReview),
@@ -245,7 +285,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         child: SelPageBody(
           onRefresh: widget.mode == QueueMode.records
               ? () => _loadRecordsPage(reset: true)
-              : () async => ref.invalidate(entriesListProvider),
+              : () async {
+                  ref.invalidate(pendingEntriesProvider);
+                  invalidateEntryDerivedData(ref);
+                },
           children: [
             SelPageTitle(
               title: widget.mode == QueueMode.queue
@@ -268,6 +311,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     icon: LucideIcons.calendar,
                     kind: SelButtonKind.quiet,
                     onPressed: () => context.go('/records/monthly'),
+                  ),
+                ],
+                if (widget.mode == QueueMode.records) ...[
+                  const SizedBox(width: SelSpace.x2),
+                  SelButton(
+                    label: 'Imports',
+                    icon: LucideIcons.upload,
+                    kind: SelButtonKind.quiet,
+                    onPressed: () => context.go('/records/imports'),
                   ),
                 ],
                 if (widget.mode == QueueMode.records)
@@ -295,26 +347,31 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ),
 
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Queue is a work list, so it has no status tabs: everything on it
                 // is pending by definition. Records is the archive and keeps them.
                 if (widget.mode == QueueMode.records)
                   Expanded(
-                    child: SelPillGroup<_Filter>(
-                      selected: _filter,
-                      onChanged: (f) => setState(() {
-                        _filter = f;
-                        _selected.clear();
-                      }),
-                      options: [
-                        (
-                          _Filter.all,
-                          'All ${all.isEmpty ? "" : "(${all.length})"}'.trim(),
-                        ),
-                        (_Filter.pending, 'Pending'),
-                        (_Filter.approved, 'Approved'),
-                        (_Filter.declined, 'Declined'),
-                      ],
+                    child: _ShowRegion(
+                      child: SelLabeledPillGroup<_Filter>(
+                        label: 'Show',
+                        selected: _filter,
+                        onChanged: (f) => setState(() {
+                          _filter = f;
+                          _selected.clear();
+                        }),
+                        options: [
+                          (
+                            _Filter.all,
+                            'All ${all.isEmpty ? "" : "(${all.length})"}'
+                                .trim(),
+                          ),
+                          (_Filter.pending, 'Pending'),
+                          (_Filter.approved, 'Approved'),
+                          (_Filter.declined, 'Declined'),
+                        ],
+                      ),
                     ),
                   )
                 else
@@ -388,10 +445,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SelLedger(
-                    virtualized: rows.length > 30,
+                  SelLedger.builder(
                     scrollController: _recordsScrollController,
                     maxVirtualHeight: 640,
+                    // Partner cell is two lines (name, who recorded it).
+                    rowExtent: kSelLedgerStackedRowExtent,
                     minWidth: 760,
                     columns: [
                       SelColumn(l10n.queueColPartner, flex: 3),
@@ -416,50 +474,48 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                       message: _filter == _Filter.all
                           ? l10n.recordsEmptyMessage
                           : 'Nothing matches what you picked above.',
-                      actionLabel:
-                          _filter == _Filter.all ? l10n.recordsEmptyAction : null,
+                      actionLabel: _filter == _Filter.all
+                          ? l10n.recordsEmptyAction
+                          : null,
                       onAction: _filter == _Filter.all
                           ? () => showEntryFormPanel(context)
                           : null,
                     ),
-                    rows: [
-                      for (final (i, e) in rows.indexed)
-                        SelRow(
-                          onTap: () {
-                            setState(() => _cursor = i);
-                            context.go('/entries/${e.id}');
-                          },
-                          selected: _selected.contains(e.id),
-                          cursor: i == cursor,
-                          cells: [
-                            SelCell.stacked(
-                              e.partnerSnapshot['fullName']?.toString() ?? '—',
-                              e.createdBySnapshot['fullName']?.toString() ?? '',
-                            ),
-                            ArmLabel(
-                              armId: e.partnershipArmId,
-                              name: e.armSnapshot['name']?.toString() ?? '—',
-                              color: armColors[e.partnershipArmId],
-                            ),
-                            EntryAmountCell(
-                              entry: e,
-                              formattedAmount: money(e.amountCedis),
-                              tone: switch (e.status) {
-                                'approved' => SelTone.positive,
-                                'declined' => SelTone.negative,
-                                _ => SelTone.neutral,
-                              },
-                            ),
-                            SelStatusMark.fromString(
-                              status: e.status,
-                              label: _statusLabel(e.status),
-                            ),
-                            SelCell.secondary(
-                              formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
-                            ),
-                          ],
-                        ),
-                    ],
+                    itemCount: rows.length,
+                    itemBuilder: (context, i) {
+                      final e = rows[i];
+                      return SelRow(
+                        onTap: () {
+                          setState(() => _cursor = i);
+                          context.go('/entries/${e.id}');
+                        },
+                        selected: _selected.contains(e.id),
+                        cursor: i == cursor,
+                        cells: [
+                          SelCell.stacked(
+                            e.partnerSnapshot['fullName']?.toString() ?? '—',
+                            e.createdBySnapshot['fullName']?.toString() ?? '',
+                          ),
+                          ArmLabel(
+                            armId: e.partnershipArmId,
+                            name: e.armSnapshot['name']?.toString() ?? '—',
+                            color: armColors[e.partnershipArmId],
+                          ),
+                          EntryAmountCell(
+                            entry: e,
+                            formattedAmount: money(e.amountCedis),
+                            tone: _amountTone(e.status),
+                          ),
+                          SelStatusMark.fromString(
+                            status: e.status,
+                            label: _statusLabel(e.status),
+                          ),
+                          SelCell.secondary(
+                            formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   if (_recordsLoadingMore)
                     const Padding(
@@ -476,57 +532,67 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               )
             else
               entriesAsync.when(
-              loading: () => const SelCard(child: SelSkeletonRows()),
-              error: (e, _) => SelError(
-                message: '$e',
-                onRetry: () => ref.invalidate(entriesListProvider),
-              ),
-              data: (_) => SelLedger(
-                minWidth: 760,
-                columns: [
-                  SelColumn(l10n.queueColPartner, flex: 3),
-                  SelColumn(l10n.queueColArm, flex: 2),
-                  SelColumn.numeric(l10n.queueColAmount, width: 130),
-                  SelColumn(
-                    l10n.queueColStatus,
-                    fit: SelColFit.fixed,
-                    width: 120,
-                  ),
-                  SelColumn(
-                    isPastor ? l10n.queueColReview : l10n.queueColSubmitted,
-                    fit: SelColFit.fixed,
-                    width: isPastor ? 170 : 110,
-                    align: TextAlign.right,
-                  ),
-                ],
-                emptyState: SelEmpty(
-                  // An empty queue is good news, not a failed search — say so.
-                  title: switch (widget.mode) {
-                    QueueMode.queue => l10n.queueEmptyTitle,
-                    QueueMode.records =>
-                      _filter == _Filter.all
-                          ? l10n.recordsEmptyTitle
-                          : 'Nothing here',
-                  },
-                  message: switch (widget.mode) {
-                    QueueMode.queue => l10n.queueEmptyMessage,
-                    QueueMode.records =>
-                      _filter == _Filter.all
-                          ? l10n.recordsEmptyMessage
-                          : 'Nothing matches what you picked above.',
-                  },
-                  actionLabel:
-                      widget.mode == QueueMode.records && _filter == _Filter.all
-                      ? l10n.recordsEmptyAction
-                      : null,
-                  onAction:
-                      widget.mode == QueueMode.records && _filter == _Filter.all
-                      ? () => showEntryFormPanel(context)
-                      : null,
+                loading: () => const SelCard(child: SelSkeletonRows()),
+                error: (e, _) => SelError(
+                  message: '$e',
+                  onRetry: () => ref.invalidate(pendingEntriesProvider),
                 ),
-                rows: [
-                  for (final (i, e) in rows.indexed)
-                    SelRow(
+                data: (_) => SelLedger.builder(
+                  minWidth: 760,
+                  maxVirtualHeight: 640,
+                  // Partner cell is two lines (name, who recorded it).
+                  rowExtent: kSelLedgerStackedRowExtent,
+                  // Every row in this ledger carries a leading slot (a checkbox
+                  // when bulk review is on, an empty box otherwise), so the
+                  // leading column exists exactly when there are rows.
+                  hasLeading: rows.isNotEmpty,
+                  columns: [
+                    SelColumn(l10n.queueColPartner, flex: 3),
+                    SelColumn(l10n.queueColArm, flex: 2),
+                    SelColumn.numeric(l10n.queueColAmount, width: 130),
+                    SelColumn(
+                      l10n.queueColStatus,
+                      fit: SelColFit.fixed,
+                      width: 120,
+                    ),
+                    SelColumn(
+                      isPastor ? l10n.queueColReview : l10n.queueColSubmitted,
+                      fit: SelColFit.fixed,
+                      width: isPastor ? 170 : 110,
+                      align: TextAlign.right,
+                    ),
+                  ],
+                  emptyState: SelEmpty(
+                    // An empty queue is good news, not a failed search — say so.
+                    title: switch (widget.mode) {
+                      QueueMode.queue => l10n.queueEmptyTitle,
+                      QueueMode.records =>
+                        _filter == _Filter.all
+                            ? l10n.recordsEmptyTitle
+                            : 'Nothing here',
+                    },
+                    message: switch (widget.mode) {
+                      QueueMode.queue => l10n.queueEmptyMessage,
+                      QueueMode.records =>
+                        _filter == _Filter.all
+                            ? l10n.recordsEmptyMessage
+                            : 'Nothing matches what you picked above.',
+                    },
+                    actionLabel:
+                        widget.mode == QueueMode.records &&
+                            _filter == _Filter.all
+                        ? l10n.recordsEmptyAction
+                        : null,
+                    onAction:
+                        widget.mode == QueueMode.records &&
+                            _filter == _Filter.all
+                        ? () => showEntryFormPanel(context)
+                        : null,
+                  ),
+                  itemCount: rows.length,
+                  itemBuilder: (context, i) {
+                    final e = rows[i];
+                    return SelRow(
                       onTap: () {
                         setState(() => _cursor = i);
                         context.go('/entries/${e.id}');
@@ -562,11 +628,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         EntryAmountCell(
                           entry: e,
                           formattedAmount: money(e.amountCedis),
-                          tone: switch (e.status) {
-                            'approved' => SelTone.positive,
-                            'declined' => SelTone.negative,
-                            _ => SelTone.neutral,
-                          },
+                          tone: _amountTone(e.status),
                         ),
                         SelStatusMark.fromString(
                           status: e.status,
@@ -575,6 +637,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         if (isPastor && e.status == 'pending')
                           _RowActions(
                             busy: _busy,
+                            deciding: _decidingIds.contains(e.id),
                             onApprove: () => _approve([e]),
                             onDecline: () => _decline(e),
                           )
@@ -583,10 +646,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                             formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
                           ),
                       ],
-                    ),
-                ],
+                    );
+                  },
+                ),
               ),
-            ),
 
             if (decided.isNotEmpty) ...[
               const SizedBox(height: SelSpace.x8),
@@ -597,7 +660,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               Text(l10n.queueDecidedNote, style: SelType.small),
               const SizedBox(height: SelSpace.x3),
               SelLedger(
-                minWidth: 640,
+                minWidth: 728,
                 showCaptions: false,
                 columns: [
                   SelColumn(l10n.queueColPartner, flex: 3),
@@ -613,6 +676,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     fit: SelColFit.fixed,
                     width: 110,
                     align: TextAlign.right,
+                  ),
+                  const SelColumn(
+                    '',
+                    fit: SelColFit.fixed,
+                    width: 88,
                   ),
                 ],
                 rows: [
@@ -632,15 +700,19 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         EntryAmountCell(
                           entry: e,
                           formattedAmount: money(e.amountCedis),
-                          tone: e.status == 'approved'
-                              ? SelTone.positive
-                              : SelTone.negative,
+                          tone: _amountTone(e.status),
                         ),
                         SelStatusMark.fromString(
                           status: e.status,
                           label: _statusLabel(e.status),
                         ),
                         SelCell.secondary(_ago(now.difference(e.reviewedAt!))),
+                        SelButton(
+                          label: 'Undo',
+                          kind: SelButtonKind.quiet,
+                          dense: true,
+                          onPressed: _busy ? null : () => _undoDecision(e),
+                        ),
                       ],
                     ),
                 ],
@@ -747,9 +819,16 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     return switch (s) {
       'approved' => l10n.statusApproved,
       'declined' => l10n.statusDeclined,
+      'voided' || 'void' => l10n.statusVoided,
       _ => l10n.statusPending,
     };
   }
+
+  SelTone _amountTone(String status) => switch (status) {
+    'approved' => SelTone.positive,
+    'declined' => SelTone.negative,
+    _ => SelTone.neutral,
+  };
 
   Future<void> _approve(List<PartnershipEntry> entries) async {
     if (entries.isEmpty || _busy) return;
@@ -768,7 +847,12 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       if (!ok) return;
     }
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _decidingIds
+        ..clear()
+        ..addAll(entries.map((e) => e.id));
+    });
     try {
       await ref
           .read(entriesRepositoryProvider)
@@ -777,18 +861,108 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             entries: entries,
             pastor: pastor,
           );
+      for (final e in entries) {
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'entry.approve',
+          entityType: 'entry',
+          entityId: e.id,
+          entitySnapshot: {
+            'amountCedis': e.amountCedis,
+            'partnerName': e.partnerSnapshot['fullName'],
+          },
+        );
+      }
       if (mounted) setState(() => _selected.clear());
-      // A receipt of what just happened. Only worth playing for a batch —
-      // after approving one row you already know what you did.
-      if (mounted && entries.length > 1) {
+      // The queue and the decided strip are live queries and correct already;
+      // the dashboard totals are aggregates and have to be told.
+      invalidateEntryDerivedData(ref);
+      if (!mounted) return;
+      final money = ref.read(churchMoneyFormatProvider);
+      if (entries.length == 1) {
+        final e = entries.first;
+        final name =
+            e.partnerSnapshot['fullName']?.toString() ?? 'this partner';
+        selNotice(
+          context,
+          'Approved ${money(e.amountCedis)} for $name.',
+          kind: SelNoticeKind.success,
+        );
+      } else {
         await ApprovalPlayback.show(
           context,
           entries: entries,
-          formatMoney: ref.read(churchMoneyFormatProvider),
+          formatMoney: money,
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _decidingIds.clear();
+        });
+      }
+    }
+  }
+
+  Future<void> _undoDecision(PartnershipEntry entry) async {
+    if (_busy) return;
+    final idx = ref.read(userChurchIndexProvider).valueOrNull;
+    final pastor = ref.read(churchUserProfileProvider).valueOrNull;
+    if (idx == null || pastor == null) return;
+
+    final ok = await selConfirm(
+      context,
+      title: entry.status == 'approved'
+          ? 'Undo this approval?'
+          : 'Undo this send-back?',
+      message: 'Puts the entry back on the queue as pending.',
+      confirmLabel: 'Undo',
+    );
+    if (!ok) return;
+
+    setState(() {
+      _busy = true;
+      _decidingIds
+        ..clear()
+        ..add(entry.id);
+    });
+    try {
+      final action = entry.status == 'approved'
+          ? 'entry.approve_undo'
+          : 'entry.decline_undo';
+      await ref.read(entriesRepositoryProvider).reopenEntry(
+            churchId: idx.churchId,
+            entry: entry,
+            actor: pastor,
+          );
+      await logPillrActivity(
+        ref,
+        churchId: idx.churchId,
+        action: action,
+        entityType: 'entry',
+        entityId: entry.id,
+        entitySnapshot: {
+          'amountCedis': entry.amountCedis,
+          'partnerName': entry.partnerSnapshot['fullName'],
+        },
+      );
+      invalidateEntryDerivedData(ref);
+      if (mounted) {
+        selNotice(
+          context,
+          'Returned to the queue.',
+          kind: SelNoticeKind.success,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _decidingIds.clear();
+        });
+      }
     }
   }
 
@@ -800,7 +974,12 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     final reason = await _askReason(context);
     if (reason == null || reason.trim().isEmpty) return;
 
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _decidingIds
+        ..clear()
+        ..add(entry.id);
+    });
     try {
       await ref
           .read(entriesRepositoryProvider)
@@ -810,8 +989,26 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             pastor: pastor,
             reason: reason,
           );
+      await logPillrActivity(
+        ref,
+        churchId: idx.churchId,
+        action: 'entry.decline',
+        entityType: 'entry',
+        entityId: entry.id,
+        entitySnapshot: {
+          'amountCedis': entry.amountCedis,
+          'partnerName': entry.partnerSnapshot['fullName'],
+        },
+        metadata: {'reason': reason},
+      );
+      invalidateEntryDerivedData(ref);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _decidingIds.clear();
+        });
+      }
     }
   }
 }
@@ -852,34 +1049,66 @@ Future<String?> _askReason(BuildContext context) {
 class _RowActions extends StatelessWidget {
   const _RowActions({
     required this.busy,
+    required this.deciding,
     required this.onApprove,
     required this.onDecline,
   });
 
   final bool busy;
+  final bool deciding;
   final VoidCallback onApprove;
   final VoidCallback onDecline;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         SelButton(
-          label: AppLocalizations.of(context).queueSendBack,
+          label: l10n.queueSendBack,
           kind: SelButtonKind.quiet,
           dense: true,
           onPressed: busy ? null : onDecline,
         ),
         const SizedBox(width: SelSpace.x1),
         SelButton(
-          label: AppLocalizations.of(context).queueApprove,
+          label: deciding ? 'Approving…' : l10n.queueApprove,
           kind: SelButtonKind.edge,
           dense: true,
+          loading: deciding,
           onPressed: busy ? null : onApprove,
         ),
       ],
+    );
+  }
+}
+
+/// Hairline box around the status pills so they read as a filter, not as
+/// siblings of New entry.
+class _ShowRegion extends StatelessWidget {
+  const _ShowRegion({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Sel.card,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: Border.all(color: Sel.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          SelSpace.x4,
+          SelSpace.x3,
+          SelSpace.x4,
+          SelSpace.x3,
+        ),
+        child: child,
+      ),
     );
   }
 }

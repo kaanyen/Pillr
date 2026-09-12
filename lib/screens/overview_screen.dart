@@ -53,7 +53,8 @@ class OverviewScreen extends ConsumerWidget {
 
     return SelPageBody(
       onRefresh: () async {
-        ref.invalidate(entriesListProvider);
+        ref.invalidate(rankingEntriesProvider);
+        invalidateEntryDerivedData(ref);
         ref.invalidate(goalsListProvider);
         ref.invalidate(partnersStreamProvider(false));
         ref.invalidate(activityLogsPreviewProvider);
@@ -119,12 +120,20 @@ class _PastorBlocks extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SelStatRow(stats: [
-          SelStat(
-            label: 'Approved',
-            value: compactMoney(stats.totalApprovedCedis),
-            exactValue: money(stats.totalApprovedCedis),
-            footnote: '${stats.approvedCount} entries',
-          ),
+          // A failed count is not a zero count: say so rather than print ₵0.
+          if (stats.totalsFailed)
+            const SelStat(
+              label: 'Approved',
+              value: '—',
+              footnote: 'Couldn’t load totals',
+            )
+          else
+            SelStat(
+              label: 'Approved',
+              value: compactMoney(stats.totalApprovedCedis),
+              exactValue: money(stats.totalApprovedCedis),
+              footnote: '${stats.approvedCount} entries',
+            ),
           SelStat(
             label: 'Awaiting review',
             value: '${stats.pendingCount}',
@@ -200,9 +209,14 @@ class _PendingPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final show = entries.take(4).toList();
-    return SelPanel(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: const Border(left: BorderSide(color: Sel.warning, width: 3)),
+      ),
+      child: SelPanel(
       title: 'Waiting on you',
-      subtitle: '${entries.length} ${entries.length == 1 ? "entry" : "entries"} to review',
+      subtitle: '${entries.length} ${entries.length == 1 ? "entry" : "entries"} still open — the queue is waiting',
       trailing: SelButton(
         label: 'Open queue',
         kind: SelButtonKind.quiet,
@@ -247,6 +261,7 @@ class _PendingPreview extends StatelessWidget {
           ],
         ],
       ),
+    ),
     );
   }
 }
@@ -307,6 +322,13 @@ class _StaffBlocks extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mine = ref.watch(staffMyEntryStatsProvider);
     final compactMoney = ref.watch(churchCompactMoneyProvider);
+    if (mine.totalsFailed) {
+      return const SelStatRow(stats: [
+        SelStat(label: 'Approved', value: '—', footnote: 'Couldn’t load totals'),
+        SelStat(label: 'Submitted', value: '—', footnote: 'Couldn’t load totals'),
+        SelStat(label: 'Awaiting review', value: '—', footnote: 'Couldn’t load totals'),
+      ]);
+    }
     return SelStatRow(stats: [
       SelStat(
         label: 'Approved',

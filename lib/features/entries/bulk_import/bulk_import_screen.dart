@@ -13,7 +13,9 @@ import '../../../design/seline.dart';
 import '../../../screens/arm_palette.dart';
 
 import '../../../core/notifications/sel_notice.dart';
+import '../../../core/navigation/panel_flows.dart';
 import '../../../core/extensions/async_value_ext.dart';
+import '../../activity/activity_log_helper.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
 import '../../church/domain/exchange_rates.dart';
 import '../../arms/domain/partnership_arm.dart';
@@ -42,6 +44,7 @@ import 'bulk_import_resolver.dart';
 import 'bulk_import_commit_progress.dart';
 import 'bulk_import_session_store.dart';
 import 'bulk_import_xlsx_pick.dart';
+import '../data/entries_repository.dart';
 import '../providers/entries_providers.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
@@ -123,10 +126,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   Timer? _persistDebounce;
   Timer? _resolveDebounce;
 
+  /// Who put the sheet together. Not a Pillr user and not verifiable — a name
+  /// typed by whoever is importing, so a figure queried months later has
+  /// somebody to ask about it.
+  final _preparedBy = TextEditingController();
+
   List<PartnershipArm>? _cachedArms;
   List<Partner>? _cachedPartners;
+  List<PartnershipPeriod>? _cachedPeriods;
   PartnershipPeriod? _cachedActivePeriod;
+  PartnershipPeriod? _importPeriod;
   final Map<String, List<PartnershipEntry>> _duplicateEntryCache = {};
+  final Map<int, Partner> _partnerOverrides = {};
 
   @override
   void initState() {
@@ -143,6 +154,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     _persistDebounce?.cancel();
     _resolveDebounce?.cancel();
     _persistSession();
+    _preparedBy.dispose();
     super.dispose();
   }
 
@@ -789,7 +801,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         );
       _duplicateAcknowledgedSheetRows.remove(row.sheetRowNumber);
     });
-    _duplicateEntryCache.clear();
+    // The cache is keyed by partner and holds what Firestore already has for
+    // them. Typing in the sheet cannot change that, so there is nothing to
+    // invalidate — and clearing it here cost one query per distinct partner,
+    // sequentially, after every edit.
     _scheduleReResolve(
       checkDuplicates: _columnAffectsDuplicates(column),
     );
@@ -819,7 +834,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final rows = _rawRows;
     if (rows == null || proposals.isEmpty) return;
     setState(() => _rawRows = applyAutoFixes(rows, proposals));
-    _duplicateEntryCache.clear();
+    // Sheet values only — see _editRawCell.
     _scheduleReResolve();
     _schedulePersistSession();
   }
@@ -998,9 +1013,60 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               Text(
                 idx.isStaff
                     ? 'These entries will be submitted for a pastor to review.'
-                    : 'These entries will be recorded against '
-                          '${period?.name ?? "the active period"}.',
+                    : 'These entries will be recorded against the period you pick below.',
                 style: SelType.bodyMuted,
+              ),
+              const SizedBox(height: SelSpace.x4),
+              SelSelect<String>(
+                value: (_importPeriod ?? period)?.id,
+                label: 'Period',
+                onChanged: (id) {
+                  if (id == null) return;
+                  final periods = _cachedPeriods ?? const <PartnershipPeriod>[];
+                  PartnershipPeriod? chosen;
+                  for (final p in periods) {
+                    if (p.id == id) chosen = p;
+                  }
+                  chosen ??= period;
+                  if (chosen == null) return;
+                  setState(() {
+                    _importPeriod = chosen;
+                    _resolved = _resolved
+                        ?.map(
+                          (r) => r.copyWith(
+                            periodId: chosen!.id,
+                            periodName: chosen.name,
+                          ),
+                        )
+                        .toList();
+                  });
+                },
+                items: [
+                  for (final p in _cachedPeriods ?? (period == null ? const <PartnershipPeriod>[] : [period]))
+                    DropdownMenuItem(value: p.id, child: Text(p.name)),
+                ],
+              ),
+              const SizedBox(height: SelSpace.x2),
+              Text(
+                'Every row in this file lands in '
+                '${(_importPeriod ?? period)?.name ?? "the active period"}. '
+                'You can move the whole import afterwards if this is wrong.',
+                style: SelType.small,
+              ),
+              const SizedBox(height: SelSpace.x4),
+              SizedBox(
+                width: 360,
+                child: SelField(
+                  controller: _preparedBy,
+                  label: 'Prepared by (optional)',
+                  hint: 'Who put this sheet together',
+                ),
+              ),
+              const SizedBox(height: SelSpace.x2),
+              Text(
+                'Recorded against the import so it can be traced later. You '
+                'are saved as the person who uploaded it.',
+                style: SelType.small,
               ),
             ],
           ),
@@ -1424,28 +1490,65 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     AppLocalizations l10n,
     BulkImportCommitResult r,
   ) {
-    return Card(
-      color: Sel.canvas,
+    final title = r.incomplete
+        ? 'Import stopped partway'
+        : r.isPartial
+            ? 'Import finished, with rows left out'
+            : l10n.bulkImportResultTitle;
+    final summary = r.incomplete || r.isPartial
+        ? '${r.entriesCreated} of ${r.rowsAttempted} recorded'
+            '${r.rowsSkipped > 0 ? ", ${r.rowsSkipped} skipped" : ""}'
+            '${r.partnersCreated > 0 ? ", ${r.partnersCreated} new partners" : ""}.'
+        : null;
+
+    return SelCard(
       child: Padding(
         padding: const EdgeInsets.all(SelSpace.x6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.bulkImportResultTitle, style: SelType.bodyMedium),
+            Text(title, style: SelType.subtitle),
             const SizedBox(height: SelSpace.x2),
-            Text(l10n.bulkImportEntriesCreated(r.entriesCreated)),
-            Text(l10n.bulkImportPartnersCreated(r.partnersCreated)),
-            Text(l10n.bulkImportApproved(r.entriesApproved)),
-            Text(l10n.bulkImportSkipped(r.rowsSkipped)),
+            if (summary != null)
+              Text(summary, style: SelType.body)
+            else ...[
+              Text(l10n.bulkImportEntriesCreated(r.entriesCreated)),
+              Text(l10n.bulkImportPartnersCreated(r.partnersCreated)),
+              Text(l10n.bulkImportApproved(r.entriesApproved)),
+              Text(l10n.bulkImportSkipped(r.rowsSkipped)),
+            ],
             if (r.errors.isNotEmpty) ...[
+              const SizedBox(height: SelSpace.x4),
+              Text('What was left out', style: SelType.bodyMedium),
               const SizedBox(height: SelSpace.x2),
-              Text(l10n.bulkImportErrorListHeader, style: SelType.small),
               ...r.errors.map((e) => Text('• $e', style: SelType.small)),
             ],
-            const SizedBox(height: SelSpace.x4),
-            FilledButton(
-              onPressed: () => context.go('/queue'),
-              child: Text(l10n.bulkImportBack),
+            const SizedBox(height: SelSpace.x6),
+            Wrap(
+              spacing: SelSpace.x2,
+              runSpacing: SelSpace.x2,
+              children: [
+                SelButton.cyan(
+                  label: 'View this import',
+                  icon: LucideIcons.list,
+                  onPressed: () => context.go('/records?import=${r.batchId}'),
+                ),
+                SelButton(
+                  label: 'Imports',
+                  icon: LucideIcons.upload,
+                  onPressed: () => context.go('/records/imports'),
+                ),
+                SelButton(
+                  label: l10n.bulkImportBack,
+                  kind: SelButtonKind.quiet,
+                  onPressed: () => context.go('/queue'),
+                ),
+              ],
+            ),
+            const SizedBox(height: SelSpace.x3),
+            Text(
+              'Undo pending rows, or clear the whole import, from Imports.',
+              style: SelType.small,
             ),
           ],
         ),
@@ -1648,11 +1751,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     if (_cachedPartners == null || _cachedActivePeriod == null) {
       final periods =
           await ref.read(periodsRepositoryProvider).fetchPeriods(idx.churchId);
+      _cachedPeriods = periods;
       try {
         _cachedActivePeriod = periods.firstWhere((p) => p.isActive);
       } catch (_) {
         _cachedActivePeriod = null;
       }
+      _importPeriod ??= _cachedActivePeriod;
       _cachedPartners = await ref
           .read(partnersRepositoryProvider)
           .fetchAllActivePartners(idx.churchId);
@@ -1674,8 +1779,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     _cachePersistIds(idx);
     _cachedArms = null;
     _cachedPartners = null;
-    _cachedActivePeriod = null;
-    _duplicateEntryCache.clear();
+      _cachedActivePeriod = null;
+      _cachedPeriods = null;
+      _importPeriod = null;
+      _duplicateEntryCache.clear();
+      _partnerOverrides.clear();
     try {
       await _resolveImport(idx, checkDuplicates: true, persist: true);
     } catch (e) {
@@ -1698,14 +1806,16 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     await _ensureImportContext(idx);
     if (!mounted) return;
     setState(_syncRowCurrencies);
-    final resolved = resolveBulkImportRows(
-      rawRows: _rawRows!,
-      arms: _cachedArms ?? const [],
-      activePeriod: _cachedActivePeriod,
-      partners: _cachedPartners ?? const [],
-      viewerIsStaff: idx.isStaff,
-      exchangeRates: ref.read(churchExchangeRatesProvider),
-      defaultImportCurrency: _importDefaultCurrency,
+    final resolved = _applyPartnerOverrides(
+      resolveBulkImportRows(
+        rawRows: _rawRows!,
+        arms: _cachedArms ?? const [],
+        activePeriod: _importPeriod ?? _cachedActivePeriod,
+        partners: _cachedPartners ?? const [],
+        viewerIsStaff: idx.isStaff,
+        exchangeRates: ref.read(churchExchangeRatesProvider),
+        defaultImportCurrency: _importDefaultCurrency,
+      ),
     );
     if (!mounted) return;
     setState(() {
@@ -1723,12 +1833,56 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   /// Flags rows that match an existing entry (same partner, arm, period, date, similar amount).
+  /// Fetches every partner the sheet needs that is not cached yet, together.
+  ///
+  /// The duplicate check below reads one partner's existing entries per row.
+  /// Walking it with an `await` inside the loop made that a round trip per
+  /// distinct partner, one after another — a 300-partner sheet spent minutes
+  /// waiting on serial queries. These are independent reads, so they go out
+  /// concurrently, in bounded waves so a large sheet does not open hundreds of
+  /// connections at once.
+  Future<void> _warmDuplicateCache(
+    UserChurchIndex idx,
+    EntriesRepository entriesRepo,
+  ) async {
+    final resolved = _resolved;
+    if (resolved == null) return;
+
+    final missing = <String>{};
+    for (final r in resolved) {
+      if (r.partnerId == null || r.armId == null || r.periodId == null) continue;
+      if (_duplicateEntryCache.containsKey(r.partnerId)) continue;
+      missing.add(r.partnerId!);
+    }
+    if (missing.isEmpty) return;
+
+    const wave = 20;
+    final ids = missing.toList();
+    for (var i = 0; i < ids.length; i += wave) {
+      final slice = ids.skip(i).take(wave).toList();
+      final lists = await Future.wait([
+        for (final id in slice)
+          entriesRepo.fetchEntriesForDuplicateCheck(
+            idx.churchId,
+            partnerId: id,
+            allChurchEntries: true,
+            createdByUid: null,
+          ),
+      ]);
+      for (var j = 0; j < slice.length; j++) {
+        _duplicateEntryCache[slice[j]] = lists[j];
+      }
+      if (!mounted) return;
+    }
+  }
+
   Future<void> _applyDatabaseDuplicateFlags(UserChurchIndex idx) async {
     if (_resolved == null) return;
     final entriesRepo = ref.read(entriesRepositoryProvider);
     // Always scan ALL church entries — staff can now read all entries and need
     // to detect duplicates created by other staff members too.
     try {
+      await _warmDuplicateCache(idx, entriesRepo);
       final updated = <BulkResolvedRow>[];
       for (final r in _resolved!) {
         if (r.partnerId == null || r.armId == null || r.periodId == null) {
@@ -1966,6 +2120,27 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                         ],
                       ),
                       const SizedBox(height: SelSpace.x4),
+                      SelButton(
+                        label: 'Match to an existing partner',
+                        icon: LucideIcons.users,
+                        kind: SelButtonKind.ghost,
+                        onPressed: () async {
+                          final picked = await showPartnerPickerPanel(
+                            context,
+                            churchId: idx.churchId,
+                            uid: idx.uid,
+                          );
+                          if (picked == null) return;
+                          setLocal(() {
+                            nameCtrl.text = picked.fullName;
+                            fellowCtrl.text = picked.fellowship;
+                            phoneCtrl.text = picked.phone ?? phoneCtrl.text;
+                            emailCtrl.text = picked.email ?? emailCtrl.text;
+                          });
+                          _partnerOverrides[row.sheetRowNumber] = picked;
+                        },
+                      ),
+                      const SizedBox(height: SelSpace.x4),
                       SelField(
                         controller: notesCtrl,
                         label: l10n.bulkImportFieldNotes,
@@ -2062,6 +2237,34 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     return t == 'yes' || t == 'y' || t == 'true' || t == '1';
   }
 
+  List<BulkResolvedRow> _applyPartnerOverrides(List<BulkResolvedRow> rows) {
+    if (_partnerOverrides.isEmpty) return rows;
+    return [
+      for (final r in rows)
+        if (_partnerOverrides[r.sheetRowNumber] case final Partner chosen)
+          r.copyWith(
+            resolution: PartnerResolutionKind.existing,
+            partnerId: chosen.id,
+            partner: chosen,
+            issues: r.issues
+                .where(
+                  (i) =>
+                      i.code != BulkImportIssueCode.ambiguousPhone &&
+                      i.code != BulkImportIssueCode.ambiguousName,
+                )
+                .toList(),
+            isBlocking: r.issues.any(
+              (i) =>
+                  i.severity == BulkImportSeverity.error &&
+                  i.code != BulkImportIssueCode.ambiguousPhone &&
+                  i.code != BulkImportIssueCode.ambiguousName,
+            ),
+          )
+        else
+          r,
+    ];
+  }
+
   Future<void> _reResolve({bool checkDuplicates = true}) async {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     if (idx == null || _rawRows == null) return;
@@ -2098,14 +2301,16 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     });
     try {
       final arms = await ref.read(armsRepositoryProvider).fetchArms(churchId);
-      final periods = await ref
-          .read(periodsRepositoryProvider)
-          .fetchPeriods(churchId);
-      PartnershipPeriod? period;
-      try {
-        period = periods.firstWhere((p) => p.isActive);
-      } catch (_) {
-        period = null;
+      PartnershipPeriod? period = _importPeriod;
+      if (period == null) {
+        final periods = await ref
+            .read(periodsRepositoryProvider)
+            .fetchPeriods(churchId);
+        try {
+          period = periods.firstWhere((p) => p.isActive);
+        } catch (_) {
+          period = null;
+        }
       }
       if (period == null) {
         progressNotifier.fail(l10n.bulkImportIssuePeriodNotFound);
@@ -2128,6 +2333,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         viewerIsPastor: viewerIsPastor,
         duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
         fileName: _fileName ?? 'Pasted rows',
+        preparedBy: _preparedBy.text,
+        duplicateCache: _duplicateEntryCache,
         onProgress: (current, total, message) {
           progressNotifier.update(current, message);
         },
@@ -2181,6 +2388,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       BulkImportIssueCode.armNotFound => l10n.bulkImportIssueArmNotFound,
       BulkImportIssueCode.periodNotFound => l10n.bulkImportIssuePeriodNotFound,
       BulkImportIssueCode.ambiguousPhone => l10n.bulkImportIssueAmbiguousPhone,
+      BulkImportIssueCode.ambiguousName =>
+        'More than one partner has this name and fellowship.',
       BulkImportIssueCode.memberIdNotFound =>
         l10n.bulkImportIssueMemberIdNotFound,
       BulkImportIssueCode.memberIdConflict =>
@@ -2194,6 +2403,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         l10n.bulkImportIssueDuplicateInDatabase,
       BulkImportIssueCode.staffPastorYesPending =>
         l10n.bulkImportIssueStaffPastorYes,
+      BulkImportIssueCode.missingExchangeRate => 'No exchange rate set',
     };
   }
 }
@@ -2981,7 +3191,20 @@ class _ImportRowState extends ConsumerState<_ImportRow> {
       final result = await ref
           .read(bulkImportBatchRepositoryProvider)
           .undo(churchId: idx.churchId, batchId: b.id, byUid: idx.uid);
-      ref.invalidate(entriesListProvider);
+      await logPillrActivity(
+        ref,
+        churchId: idx.churchId,
+        action: 'import.undo',
+        entityType: 'import_batch',
+        entityId: b.id,
+        entitySnapshot: {
+          'fileName': b.fileName,
+          'removed': result.removed,
+          'kept': result.kept,
+        },
+      );
+      ref.invalidate(rankingEntriesProvider);
+      invalidateEntryDerivedData(ref);
       if (!mounted) return;
       selNotice(
         context,

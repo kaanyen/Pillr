@@ -17,6 +17,8 @@ enum BulkImportIssueCode {
   armNotFound,
   periodNotFound,
   ambiguousPhone,
+  /// Two partners share this name and fellowship — creating a third is worse.
+  ambiguousName,
   memberIdNotFound,
   memberIdConflict,
   fellowshipMismatch,
@@ -24,6 +26,10 @@ enum BulkImportIssueCode {
   duplicateInFile,
   duplicateInDatabase,
   staffPastorYesPending,
+
+  /// The row is in a currency the church has set no rate for. Converting it
+  /// would fall back to 1:1 and bank a $100 gift as ₵100.
+  missingExchangeRate,
 
   /// A line that is part of the sheet's furniture rather than a gift — the
   /// TOTAL at the bottom, or a note typed under the table.

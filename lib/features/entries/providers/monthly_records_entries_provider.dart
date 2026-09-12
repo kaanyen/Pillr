@@ -64,14 +64,24 @@ class MonthlyRecordsEntriesNotifier
       if (key == _loadedForKey) return;
       _loadedForKey = key;
       _cursor = null;
-      if (key == null) {
-        state = const MonthlyRecordsEntriesState(
-          hasMore: false,
-          initialized: true,
-        );
-        return;
-      }
-      loadPage(reset: true);
+      // `fireImmediately` runs this inside build(), before the notifier has a
+      // state. loadPage reads `state`, which Riverpod 3 refuses there ("Tried
+      // to read the state of an uninitialized provider"); the throw landed in
+      // an unawaited future, so nothing surfaced it and By month sat on its
+      // loading skeleton for good. Any state set here would also be
+      // overwritten by build()'s own return value. So act once build() has
+      // returned — and not at all if the screen has already gone.
+      Future.microtask(() {
+        if (!ref.mounted || key != _loadedForKey) return;
+        if (key == null) {
+          state = const MonthlyRecordsEntriesState(
+            hasMore: false,
+            initialized: true,
+          );
+          return;
+        }
+        loadPage(reset: true);
+      });
     }, fireImmediately: true);
 
     return const MonthlyRecordsEntriesState(loading: true);

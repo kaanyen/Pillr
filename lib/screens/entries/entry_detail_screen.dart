@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/extensions/async_value_ext.dart';
+import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../design/seline.dart';
 import '../../features/activity/activity_log_helper.dart';
@@ -319,6 +320,140 @@ class _Actions extends ConsumerWidget {
       );
     }
 
+    if (idx.isPastor &&
+        (entry.status == 'approved' || entry.status == 'declined')) {
+      return Wrap(
+        spacing: SelSpace.x2,
+        runSpacing: SelSpace.x2,
+        children: [
+          SelButton(
+            label: entry.status == 'approved'
+                ? 'Undo approval'
+                : 'Undo send-back',
+            icon: LucideIcons.undo2,
+            kind: SelButtonKind.quiet,
+            onPressed: () async {
+              final ok = await selConfirm(
+                context,
+                title: entry.status == 'approved'
+                    ? 'Undo this approval?'
+                    : 'Undo this send-back?',
+                message: 'Puts the entry back on the queue as pending.',
+                confirmLabel: 'Undo',
+              );
+              if (!ok || !context.mounted) return;
+              final action = entry.status == 'approved'
+                  ? 'entry.approve_undo'
+                  : 'entry.decline_undo';
+              await repo.reopenEntry(
+                churchId: churchId,
+                entry: entry,
+                actor: profile,
+              );
+              await logPillrActivity(
+                ref,
+                churchId: churchId,
+                action: action,
+                entityType: 'entry',
+                entityId: entry.id,
+                entitySnapshot: {
+                  'amountCedis': entry.amountCedis,
+                  'partnerName': entry.partnerSnapshot['fullName'],
+                },
+              );
+              invalidateEntryDerivedData(ref);
+              if (context.mounted) context.go('/queue?filter=pending');
+            },
+          ),
+          if (entry.status == 'approved')
+            SelButton(
+              label: 'Void this entry',
+              icon: LucideIcons.ban,
+              kind: SelButtonKind.quiet,
+              onPressed: () async {
+                final reason = await _reasonDialog(
+                  context,
+                  title: 'Void this entry?',
+                  subtitle:
+                      'It stays readable but counts toward nothing. You can '
+                      'restore it later.',
+                  confirmLabel: 'Void',
+                  hint: 'Entered against the wrong partner',
+                );
+                if (reason == null || reason.trim().isEmpty || !context.mounted) {
+                  return;
+                }
+                await repo.voidEntries(
+                  churchId: churchId,
+                  entries: [entry],
+                  actor: profile,
+                  reason: reason,
+                );
+                await logPillrActivity(
+                  ref,
+                  churchId: churchId,
+                  action: 'entry.void',
+                  entityType: 'entry',
+                  entityId: entry.id,
+                  entitySnapshot: {
+                    'amountCedis': entry.amountCedis,
+                    'reason': reason,
+                  },
+                );
+                invalidateEntryDerivedData(ref);
+                if (context.mounted) {
+                  selNotice(
+                    context,
+                    'Entry voided. Restore it from this page if that was a mistake.',
+                  );
+                }
+              },
+            ),
+        ],
+      );
+    }
+
+    if ((idx.isPastor || idx.isAdmin) && entry.isVoided) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: SelButton(
+          label: 'Restore this entry',
+          icon: LucideIcons.rotateCcw,
+          onPressed: () async {
+            final ok = await selConfirm(
+              context,
+              title: 'Restore this entry?',
+              message:
+                  'Puts it back to the status it had before it was voided. '
+                  'Approved gifts return to the totals.',
+              confirmLabel: 'Restore',
+            );
+            if (!ok || !context.mounted) return;
+            await repo.restoreEntries(
+              churchId: churchId,
+              entries: [entry],
+              actor: profile,
+            );
+            await logPillrActivity(
+              ref,
+              churchId: churchId,
+              action: 'entry.restore',
+              entityType: 'entry',
+              entityId: entry.id,
+              entitySnapshot: {
+                'amountCedis': entry.amountCedis,
+                'partnerName': entry.partnerSnapshot['fullName'],
+              },
+            );
+            invalidateEntryDerivedData(ref);
+            if (context.mounted) {
+              selNotice(context, 'Entry restored.', kind: SelNoticeKind.success);
+            }
+          },
+        ),
+      );
+    }
+
     if (idx.isStaff &&
         entry.createdBy == idx.uid &&
         (entry.status == 'pending' || entry.status == 'declined')) {
@@ -331,12 +466,26 @@ class _Actions extends ConsumerWidget {
             final ok = await selConfirm(
               context,
               title: 'Delete this entry?',
-              message: 'This cannot be undone.',
+              message:
+                  'Pending and sent-back drafts can be deleted. This cannot '
+                  'be undone — record it again if you still need it.',
               confirmLabel: 'Delete',
               destructive: true,
             );
             if (!ok || !context.mounted) return;
             await repo.deleteEntry(churchId: churchId, entryId: entry.id);
+            await logPillrActivity(
+              ref,
+              churchId: churchId,
+              action: 'entry.delete',
+              entityType: 'entry',
+              entityId: entry.id,
+              entitySnapshot: {
+                'amountCedis': entry.amountCedis,
+                'status': entry.status,
+                'partnerName': entry.partnerSnapshot['fullName'],
+              },
+            );
             if (context.mounted) context.go('/queue');
           },
         ),
@@ -347,13 +496,19 @@ class _Actions extends ConsumerWidget {
   }
 }
 
-Future<String?> _reasonDialog(BuildContext context) {
+Future<String?> _reasonDialog(
+  BuildContext context, {
+  String title = 'Send this entry back',
+  String subtitle = 'Your note is shown to whoever submitted it.',
+  String confirmLabel = 'Send back',
+  String hint = 'Amount does not match the deposit slip',
+}) {
   final c = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (context) => SelDialog(
-      title: 'Send this entry back',
-      subtitle: 'Your note is shown to whoever submitted it.',
+      title: title,
+      subtitle: subtitle,
       width: 460,
       scrollable: false,
       actions: [
@@ -363,14 +518,14 @@ Future<String?> _reasonDialog(BuildContext context) {
           onPressed: () => Navigator.of(context).pop(),
         ),
         SelButton.cyan(
-          label: 'Send back',
+          label: confirmLabel,
           onPressed: () => Navigator.of(context).pop(c.text),
         ),
       ],
       child: SelField(
         controller: c,
         label: 'Reason',
-        hint: 'Amount does not match the deposit slip',
+        hint: hint,
         maxLines: 3,
         autofocus: true,
       ),

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../periods/providers/periods_providers.dart';
 import '../data/entries_repository.dart';
 import '../domain/partnership_entry.dart';
 import '../monthly_records_index.dart';
@@ -11,19 +12,99 @@ final entriesRepositoryProvider = Provider<EntriesRepository>((ref) {
   return EntriesRepository(ref.watch(firestoreProvider));
 });
 
-/// Pastor: all entries. Staff: own entries only.
-final entriesListProvider = StreamProvider.autoDispose<List<PartnershipEntry>>((ref) {
+/// Approved entries for the active period — the working set for every ranking.
+///
+/// This replaced `entriesListProvider` as the source for rankings. That one
+/// streamed the church's entire `entries` collection, live, to five screens at
+/// once: 800+ documents re-parsed on every write, and re-downloaded on every
+/// navigation because it is `autoDispose` and web keeps no Firestore cache.
+///
+/// Rankings only ever consumed approved entries in one period, so that is what
+/// this asks Firestore for. With no active period it falls back to every
+/// approved entry, which is what the old all-time ranking showed.
+///
+/// The role split is carried over intact: a pastor ranks the whole church, a
+/// staff member ranks what they recorded.
+final rankingEntriesProvider =
+    StreamProvider.autoDispose<List<PartnershipEntry>>((ref) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
   if (idx == null) return Stream.value([]);
-  final repo = ref.watch(entriesRepositoryProvider);
-  if (idx.isPastor) return repo.watchAllEntries(idx.churchId);
-  return repo.watchMyEntries(idx.churchId, idx.uid);
+  final period = ref.watch(activePeriodProvider);
+  return ref.watch(entriesRepositoryProvider).watchApprovedEntriesForRanking(
+        idx.churchId,
+        periodId: period?.id,
+        createdByUid: idx.isPastor ? null : idx.uid,
+      );
 });
+
+/// Status counts and the approved total, from Firestore's aggregate index.
+///
+/// Pastor: the whole church. Staff: their own submissions.
+///
+/// A `Future`, not a stream — aggregates have no snapshot API. The pending
+/// count, the one a pastor watches change, still comes live off
+/// [pendingEntriesProvider]; see `pastorEntryStatsProvider`. Everything else
+/// here is refreshed by [invalidateEntryDerivedData] after the app itself
+/// writes an entry.
+final entryStatusTotalsProvider =
+    FutureProvider.autoDispose<EntryStatusTotals>((ref) async {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null) return EntryStatusTotals.empty;
+  return ref.watch(entriesRepositoryProvider).fetchEntryStatusTotals(
+        idx.churchId,
+        createdByUid: idx.isPastor ? null : idx.uid,
+      );
+});
+
+/// Refreshes everything derived from entries after a write.
+///
+/// The rankings and the pending queue are live and need no help. The aggregate
+/// totals are not, so anything that creates, edits, approves, declines or
+/// deletes an entry has to say so here.
+///
+/// Monthly records are not live either: they are paged in by hand and held in
+/// a notifier, so approving an entry — the write that puts it into that view
+/// in the first place, since the view asks only for approved rows — left the
+/// pastor looking at a list assembled before the approval, and month totals
+/// computed without it. Invalidating drops the pages; the screen reloads from
+/// the first one when it is next built.
+void invalidateEntryDerivedData(WidgetRef ref) {
+  ref.invalidate(entryStatusTotalsProvider);
+  ref.invalidate(monthlyRecordsEntriesProvider);
+}
+
+/// Every entry the signed-in user may export, read a page at a time.
+///
+/// Exports still cover the whole archive. The difference is that the rows are
+/// fetched when someone presses the button rather than streamed and held for
+/// the whole session against the chance that they might.
+Future<List<PartnershipEntry>> loadEntriesForExport(WidgetRef ref) async {
+  final idx = ref.read(userChurchIndexProvider).valueOrNull;
+  if (idx == null) return const [];
+  return ref.read(entriesRepositoryProvider).fetchAllEntriesForExport(
+        idx.churchId,
+        allChurchEntries: idx.isPastor,
+        createdByUid: idx.isPastor ? null : idx.uid,
+      );
+}
 
 final pendingEntriesProvider = StreamProvider.autoDispose<List<PartnershipEntry>>((ref) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
   if (idx == null || !idx.isPastor) return Stream.value([]);
   return ref.watch(entriesRepositoryProvider).watchPendingEntries(idx.churchId);
+});
+
+/// Entries decided in the last day — the strip under the review queue.
+///
+/// [since] is passed in rather than read from the clock here so the screen
+/// controls the moving edge; it already re-reads the clock on a timer.
+final recentlyDecidedProvider = StreamProvider.autoDispose
+    .family<List<PartnershipEntry>, DateTime>((ref, since) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null) return Stream.value([]);
+  return ref
+      .watch(entriesRepositoryProvider)
+      .watchRecentlyDecided(idx.churchId, since);
 });
 
 final pendingApprovalCountProvider = Provider<int>((ref) {

@@ -13,12 +13,11 @@ import '../features/arms/providers/arms_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
-import '../features/leaderboard/leaderboard_models.dart';
+import '../features/leaderboard/leaderboard_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import 'export_actions.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
-import '../features/periods/providers/periods_providers.dart';
 
 enum _View { directory, ranked }
 
@@ -57,7 +56,8 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
     return SelPageBody(
       onRefresh: () async {
         ref.invalidate(partnersStreamProvider(_includeInactive));
-        ref.invalidate(entriesListProvider);
+        ref.invalidate(rankingEntriesProvider);
+        invalidateEntryDerivedData(ref);
       },
       children: [
         SelPageTitle(
@@ -73,7 +73,7 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
           actions: [
             if (_view == _View.ranked)
               EntryExportButtons(
-                entries: ref.watch(entriesListProvider).valueOrNull ?? [],
+                entriesLoader: () => loadEntriesForExport(ref),
                 title: switch (_rankedScope) {
                   _RankedScope.overall => 'Partner ranking',
                   _RankedScope.byArm => 'Partner ranking by arm',
@@ -162,8 +162,9 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
                     p.fellowship.toLowerCase().contains(_query);
               }).toList();
 
-              return SelLedger(
+              return SelLedger.builder(
                 minWidth: 720,
+                maxVirtualHeight: 640,
                 columns: const [
                   SelColumn('Member ID', fit: SelColFit.fixed, width: 120),
                   SelColumn('Name', flex: 3),
@@ -177,24 +178,25 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
                       ? 'Add partners to start recording their giving.'
                       : 'Nothing matches “$_query”.',
                 ),
-                rows: [
-                  for (final p in rows)
-                    SelRow(
-                      onTap: () => context.go('/partners/${p.id}'),
-                      cells: [
-                        SelCell.secondary(p.memberId),
-                        SelCell.primary(p.fullName),
-                        SelCell.secondary(p.fellowship),
-                        SelCell.numeric(money(p.totalApprovedAmount)),
-                        SelStatusMark(
-                          status: p.isActive
-                              ? SelStatus.active
-                              : SelStatus.inactive,
-                          label: p.isActive ? 'Active' : 'Inactive',
-                        ),
-                      ],
-                    ),
-                ],
+                itemCount: rows.length,
+                itemBuilder: (context, i) {
+                  final p = rows[i];
+                  return SelRow(
+                    onTap: () => context.go('/partners/${p.id}'),
+                    cells: [
+                      SelCell.secondary(p.memberId),
+                      SelCell.primary(p.fullName),
+                      SelCell.secondary(p.fellowship),
+                      SelCell.numeric(money(p.totalApprovedAmount)),
+                      SelStatusMark(
+                        status: p.isActive
+                            ? SelStatus.active
+                            : SelStatus.inactive,
+                        label: p.isActive ? 'Active' : 'Inactive',
+                      ),
+                    ],
+                  );
+                },
               );
             },
           )
@@ -216,12 +218,12 @@ class _RankedView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final all = ref.watch(entriesListProvider).valueOrNull ?? [];
-    final period = ref.watch(activePeriodProvider);
+    // The filter bar draws its options from the rows being ranked, so it gets
+    // the same period-scoped set the ranking does.
+    final all = ref.watch(rankingEntriesProvider).valueOrNull ?? const [];
     final arms =
         ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
     final filters = ref.watch(recordFiltersProvider);
-    final entries = applyRecordFilters(all, filters, now: DateTime.now());
 
     if (scope == _RankedScope.byArm) {
       return _RankedByArmBody(
@@ -229,12 +231,11 @@ class _RankedView extends ConsumerWidget {
         all: all,
         arms: arms,
         filters: filters,
-        entries: entries,
-        periodId: period?.id,
       );
     }
 
-    final rows = LeaderboardRow.fromEntries(entries, periodId: period?.id);
+    // Ranked once per data change by the provider, not once per rebuild.
+    final rows = ref.watch(partnerRankingProvider);
 
     if (rows.isEmpty) {
       return Column(
@@ -272,25 +273,18 @@ class _RankedByArmBody extends ConsumerWidget {
     required this.all,
     required this.arms,
     required this.filters,
-    required this.entries,
-    required this.periodId,
   });
 
   final String Function(num) money;
   final List<PartnershipEntry> all;
   final List<PartnershipArm> arms;
   final RecordFilters filters;
-  final List<PartnershipEntry> entries;
-  final String? periodId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeArms = arms.where((a) => a.isActive).toList();
-    final sections = ArmLeaderboard.fromEntriesAndArms(
-      entries,
-      activeArms,
-      periodId: periodId,
-    );
+    // O(arms x entries), so it is worth never running this twice for one
+    // snapshot of the data.
+    final sections = ref.watch(armRankingProvider);
     final visible = filters.armId == null
         ? sections
         : sections.where((s) => s.armId == filters.armId).toList();

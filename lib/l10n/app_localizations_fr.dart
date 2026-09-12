@@ -451,7 +451,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bulkImportNeedXlsx =>
-      'Veuillez choisir un fichier Excel avec l\'extension .xlsx.';
+      'Choisissez un fichier .xlsx ou .csv. Les anciens .xls doivent d\'abord être enregistrés en .xlsx.';
 
   @override
   String get bulkImportNoMacros =>
@@ -656,8 +656,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get entriesNoEntriesTitle => 'Aucune saisie pour l\'instant';
 
   @override
-  String get entriesNoEntriesMessage =>
-      'Enregistrez une nouvelle saisie de partenariat.';
+  String get entriesNoEntriesMessage => 'Enregistrez un don.';
 
   @override
   String get entriesNoMatchesTitle => 'Aucun résultat';
@@ -833,6 +832,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get navRecordsMonthly => 'Par mois';
 
   @override
+  String get navRecordsImports => 'Imports';
+
+  @override
   String get navPeople => 'Personnes';
 
   @override
@@ -898,7 +900,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les écritures apparaîtront à mesure que votre équipe les enregistre.';
 
   @override
-  String get recordsEmptyAction => 'Enregistrer la première écriture';
+  String get recordsEmptyAction => 'Enregistrer le premier don';
 
   @override
   String get statusPending => 'En attente';
@@ -908,6 +910,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get statusDeclined => 'Refusée';
+
+  @override
+  String get statusVoided => 'Annulée';
 
   @override
   String get actionNewEntry => 'Nouvelle écriture';

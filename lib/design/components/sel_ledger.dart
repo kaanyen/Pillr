@@ -67,6 +67,11 @@ class SelRow {
 /// Fixed row height for virtualized ledgers (padding + one line of body text).
 const double kSelLedgerRowExtent = 46;
 
+/// Row height for virtualized ledgers whose rows carry a [SelCell.stacked]
+/// two-line cell. At [kSelLedgerRowExtent] the second line has 22px of a ~39px
+/// need: it overflowed by 17px and was clipped away in release builds.
+const double kSelLedgerStackedRowExtent = 64;
+
 /// The ledger — Seline's answer to a data table.
 ///
 /// One white card holds the whole list. A quiet 10px caption row stands in for
@@ -86,31 +91,82 @@ class SelLedger extends StatelessWidget {
     this.emptyState,
     this.virtualized = false,
     this.maxVirtualHeight = 520,
+    this.rowExtent = kSelLedgerRowExtent,
     this.scrollController,
-  });
+  })  : itemBuilder = null,
+        _itemCount = null,
+        _explicitHasLeading = null;
+
+  /// Rows built on demand rather than handed over as a finished list.
+  ///
+  /// [SelLedger.new] takes `List<SelRow>`, so every row's widgets are
+  /// constructed before the ledger sees them — `virtualized: true` then only
+  /// saves layout and paint, not construction. On a 450-partner directory that
+  /// is thousands of widgets per rebuild. This constructor defers row
+  /// construction to the viewport, which is what makes the saving real.
+  ///
+  /// Always virtualized, so the list scrolls inside the card at up to
+  /// [maxVirtualHeight]. [hasLeading] must be stated up front: with no row list
+  /// to scan, the ledger cannot discover a leading column on its own.
+  const SelLedger.builder({
+    super.key,
+    required this.columns,
+    required int itemCount,
+    required SelRow Function(BuildContext, int) this.itemBuilder,
+    bool hasLeading = false,
+    this.minWidth = 640,
+    this.showCaptions = true,
+    this.emptyState,
+    this.maxVirtualHeight = 520,
+    this.rowExtent = kSelLedgerRowExtent,
+    this.scrollController,
+  })  : rows = const [],
+        virtualized = true,
+        _itemCount = itemCount,
+        _explicitHasLeading = hasLeading;
 
   final List<SelColumn> columns;
+
+  /// The finished rows. Empty in [SelLedger.builder] — use [_rowAt] instead of
+  /// reading this directly.
   final List<SelRow> rows;
   final double minWidth;
 
   /// Hide the caption row for short embedded lists where it is noise.
   final bool showCaptions;
 
-  /// Shown in place of rows when [rows] is empty.
+  /// Shown in place of rows when there are no rows.
   final Widget? emptyState;
 
   /// Build rows with [ListView.builder] instead of materializing every row.
+  /// Always true for [SelLedger.builder].
   final bool virtualized;
 
   /// Cap height when [virtualized] — the list scrolls inside the card.
   final double maxVirtualHeight;
 
+  /// Height of each row when [virtualized]. Every row is laid out at exactly
+  /// this height, so a ledger with two-line cells must pass
+  /// [kSelLedgerStackedRowExtent] or its second lines are clipped.
+  final double rowExtent;
+
   /// Optional scroll controller for the virtualized list body.
   final ScrollController? scrollController;
 
+  /// Set by [SelLedger.builder]; null when rows were passed as a list.
+  final SelRow Function(BuildContext, int)? itemBuilder;
+
+  final int? _itemCount;
+  final bool? _explicitHasLeading;
+
+  int get _rowCount => _itemCount ?? rows.length;
+
+  SelRow _rowAt(BuildContext context, int i) =>
+      itemBuilder?.call(context, i) ?? rows[i];
+
   @override
   Widget build(BuildContext context) {
-    if (rows.isEmpty && emptyState != null) {
+    if (_rowCount == 0 && emptyState != null) {
       return Container(
         decoration: BoxDecoration(
           color: Sel.card,
@@ -134,9 +190,9 @@ class SelLedger extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, c) {
           final needsScroll = c.maxWidth < minWidth;
-          final body = virtualized && rows.isNotEmpty
-              ? _virtualizedBody(needsScroll)
-              : _staticBody(needsScroll);
+          final body = virtualized && _rowCount > 0
+              ? _virtualizedBody(context, needsScroll)
+              : _staticBody(context, needsScroll);
 
           if (!needsScroll) return body;
           return SingleChildScrollView(
@@ -148,7 +204,7 @@ class SelLedger extends StatelessWidget {
     );
   }
 
-  Widget _staticBody(bool needsScroll) {
+  Widget _staticBody(BuildContext context, bool needsScroll) {
     return SizedBox(
       width: needsScroll ? minWidth : null,
       child: Column(
@@ -159,13 +215,13 @@ class SelLedger extends StatelessWidget {
             _CaptionRow(columns: columns, hasLeading: _hasLeading),
             const Divider(height: 1, color: Sel.border),
           ],
-          for (var i = 0; i < rows.length; i++) ...[
+          for (var i = 0; i < _rowCount; i++) ...[
             _LedgerRow(
-              row: rows[i],
+              row: _rowAt(context, i),
               columns: columns,
               hasLeading: _hasLeading,
             ),
-            if (i != rows.length - 1)
+            if (i != _rowCount - 1)
               const Divider(height: 1, color: Sel.border),
           ],
         ],
@@ -173,10 +229,10 @@ class SelLedger extends StatelessWidget {
     );
   }
 
-  Widget _virtualizedBody(bool needsScroll) {
+  Widget _virtualizedBody(BuildContext context, bool needsScroll) {
     const captionBlock = 36.0;
-    final listHeight = (rows.length * kSelLedgerRowExtent)
-        .clamp(kSelLedgerRowExtent, maxVirtualHeight);
+    final listHeight = (_rowCount * rowExtent)
+        .clamp(rowExtent, maxVirtualHeight);
     final totalHeight = (showCaptions ? captionBlock + 1 : 0) + listHeight;
 
     return SizedBox(
@@ -192,13 +248,13 @@ class SelLedger extends StatelessWidget {
           Expanded(
             child: ListView.separated(
               controller: scrollController,
-              itemCount: rows.length,
-              separatorBuilder: (_, __) =>
+              itemCount: _rowCount,
+              separatorBuilder: (_, _) =>
                   const Divider(height: 1, color: Sel.border),
               itemBuilder: (context, i) => SizedBox(
-                height: kSelLedgerRowExtent,
+                height: rowExtent,
                 child: _LedgerRow(
-                  row: rows[i],
+                  row: _rowAt(context, i),
                   columns: columns,
                   hasLeading: _hasLeading,
                 ),
@@ -210,7 +266,8 @@ class SelLedger extends StatelessWidget {
     );
   }
 
-  bool get _hasLeading => rows.any((r) => r.leading != null);
+  bool get _hasLeading =>
+      _explicitHasLeading ?? rows.any((r) => r.leading != null);
 }
 
 const double _leadingWidth = 36;

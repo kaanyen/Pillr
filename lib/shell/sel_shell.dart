@@ -194,17 +194,18 @@ class _AccountChip extends ConsumerWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'settings',
-          height: 38,
+          height: SelLayout.tapTarget,
           child: Text('Settings', style: SelType.body),
         ),
         PopupMenuItem(
           value: 'signout',
-          height: 38,
+          height: SelLayout.tapTarget,
           child: Text('Sign out', style: SelType.body),
         ),
       ],
       child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 4, SelSpace.x3, 4),
+        constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+        padding: const EdgeInsets.fromLTRB(6, 6, SelSpace.x3, 6),
         decoration: BoxDecoration(
           color: Sel.card,
           borderRadius: BorderRadius.circular(SelRadius.pill),
@@ -244,7 +245,7 @@ class _AccountChip extends ConsumerWidget {
               ),
             ],
             const SizedBox(width: SelSpace.x1),
-            const Icon(LucideIcons.chevronDown, size: 13, color: Sel.ash),
+            const Icon(LucideIcons.chevronDown, size: 13, color: Sel.warm),
           ],
         ),
       ),

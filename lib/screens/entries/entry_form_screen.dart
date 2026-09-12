@@ -9,6 +9,7 @@ import '../../core/navigation/panel_flows.dart';
 import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/utils/entry_duplicate_utils.dart';
+import '../../core/utils/money.dart';
 import '../../design/seline.dart';
 import '../../features/church/domain/exchange_rates.dart';
 import '../../features/church/providers/church_settings_providers.dart';
@@ -25,18 +26,18 @@ import '../../features/entries/domain/partnership_entry.dart';
 import '../../features/entries/providers/entries_providers.dart';
 
 Map<String, dynamic> _entryValuesForActivityLog(PartnershipEntry e) => {
-      'partnerId': e.partnerId,
-      'partnerName': e.partnerSnapshot['fullName'],
-      'memberId': e.partnerSnapshot['memberId'],
-      'amountCedis': e.amountCedis,
-      'partnershipArmId': e.partnershipArmId,
-      'armName': e.armSnapshot['name'],
-      'partnershipPeriodId': e.partnershipPeriodId,
-      'periodName': e.periodSnapshot['name'],
-      'status': e.status,
-      'notes': e.notes,
-      'dateGiven': e.dateGiven.toIso8601String(),
-    };
+  'partnerId': e.partnerId,
+  'partnerName': e.partnerSnapshot['fullName'],
+  'memberId': e.partnerSnapshot['memberId'],
+  'amountCedis': e.amountCedis,
+  'partnershipArmId': e.partnershipArmId,
+  'armName': e.armSnapshot['name'],
+  'partnershipPeriodId': e.partnershipPeriodId,
+  'periodName': e.periodSnapshot['name'],
+  'status': e.status,
+  'notes': e.notes,
+  'dateGiven': e.dateGiven.toIso8601String(),
+};
 
 Map<String, dynamic> _afterEntryValues({
   required Partner partner,
@@ -46,28 +47,23 @@ Map<String, dynamic> _afterEntryValues({
   required DateTime dateGiven,
   required String? notes,
   required String status,
-}) =>
-    {
-      'partnerId': partner.id,
-      'partnerName': partner.fullName,
-      'memberId': partner.memberId,
-      'amountCedis': amount,
-      'partnershipArmId': arm.id,
-      'armName': arm.name,
-      'partnershipPeriodId': period.id,
-      'periodName': period.name,
-      'status': status,
-      'notes': notes,
-      'dateGiven': dateGiven.toIso8601String(),
-    };
+}) => {
+  'partnerId': partner.id,
+  'partnerName': partner.fullName,
+  'memberId': partner.memberId,
+  'amountCedis': amount,
+  'partnershipArmId': arm.id,
+  'armName': arm.name,
+  'partnershipPeriodId': period.id,
+  'periodName': period.name,
+  'status': status,
+  'notes': notes,
+  'dateGiven': dateGiven.toIso8601String(),
+};
 
 /// Create a new partnership entry, or edit an existing one (`entryId` set).
 class EntryFormScreen extends ConsumerStatefulWidget {
-  const EntryFormScreen({
-    super.key,
-    this.entryId,
-    this.embedded = false,
-  });
+  const EntryFormScreen({super.key, this.entryId, this.embedded = false});
 
   /// When non-null, loads [entryId] and saves via staff/pastor update.
   final String? entryId;
@@ -90,6 +86,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   bool _loading = false;
   String? _error;
   bool _seeded = false;
+  bool _showMore = false;
 
   bool get _isEdit => widget.entryId != null;
 
@@ -145,11 +142,16 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     return v.toString();
   }
 
-  List<PartnershipArm> _armsForForm(PartnershipEntry? entry, List<PartnershipArm> all) {
+  List<PartnershipArm> _armsForForm(
+    PartnershipEntry? entry,
+    List<PartnershipArm> all,
+  ) {
     if (!_isEdit || entry == null) {
       return all.where((a) => a.isActive).toList();
     }
-    return all.where((a) => a.isActive || a.id == entry.partnershipArmId).toList();
+    return all
+        .where((a) => a.isActive || a.id == entry.partnershipArmId)
+        .toList();
   }
 
   @override
@@ -184,6 +186,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted || _seeded) return;
                     _seedFromEntry(entry, armList, periodList);
+                    _showMore =
+                        _notes.text.trim().isNotEmpty ||
+                        _sourceCurrency != SelectableCurrency.ghs;
                     setState(() => _seeded = true);
                   });
                 }
@@ -246,7 +251,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         if (!widget.embedded)
           SelPageTitle(
             title: _isEdit ? 'Edit entry' : 'Record a ',
-            highlight: _isEdit ? null : 'partnership',
+            highlight: _isEdit ? null : 'gift',
             subtitle: _isEdit
                 ? 'Changes are re-recorded in the activity log.'
                 : 'Who gave, how much, and toward what.',
@@ -276,7 +281,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
         SelPanel(
           title: 'Partner',
-          subtitle: 'Who this partnership is from.',
+          subtitle: 'Who this gift is from.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -335,26 +340,13 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   ],
                 ),
               const SizedBox(height: SelSpace.x4),
-              SelSelect<String>(
-                value: _sourceCurrency,
-                label: 'Currency',
-                onChanged: (v) => setState(() {
-                  _sourceCurrency = v ?? SelectableCurrency.ghs;
-                }),
-                items: [
-                  for (final code in SelectableCurrency.all)
-                    DropdownMenuItem(
-                      value: code,
-                      child: Text(SelectableCurrency.label(code)),
-                    ),
-                ],
-              ),
-              const SizedBox(height: SelSpace.x4),
               SelField(
                 controller: _amount,
                 label: 'Amount',
                 hint: '500',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               if (_conversionPreview(money, ref) != null) ...[
@@ -382,13 +374,43 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: SelSpace.x4),
-              SelField(
-                controller: _notes,
-                label: 'Notes',
-                hint: 'Optional',
-                maxLines: 3,
+              const SizedBox(height: SelSpace.x3),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SelButton(
+                  label: _showMore ? 'Less' : 'More',
+                  kind: SelButtonKind.quiet,
+                  dense: true,
+                  trailingIcon: _showMore
+                      ? LucideIcons.chevronUp
+                      : LucideIcons.chevronDown,
+                  onPressed: () => setState(() => _showMore = !_showMore),
+                ),
               ),
+              if (_showMore) ...[
+                const SizedBox(height: SelSpace.x3),
+                SelSelect<String>(
+                  value: _sourceCurrency,
+                  label: 'Currency',
+                  onChanged: (v) => setState(() {
+                    _sourceCurrency = v ?? SelectableCurrency.ghs;
+                  }),
+                  items: [
+                    for (final code in SelectableCurrency.all)
+                      DropdownMenuItem(
+                        value: code,
+                        child: Text(SelectableCurrency.label(code)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: SelSpace.x4),
+                SelField(
+                  controller: _notes,
+                  label: 'Notes',
+                  hint: 'Optional',
+                  maxLines: 3,
+                ),
+              ],
             ],
           ),
         ),
@@ -406,7 +428,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             ),
             const Spacer(),
             SelButton.cyan(
-              label: _isEdit ? 'Save changes' : 'Record entry',
+              label: _isEdit ? 'Save changes' : 'Record gift',
               loading: _loading,
               onPressed: churchId == null || profile == null
                   ? null
@@ -426,7 +448,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         if (_partner != null && _amount.text.isNotEmpty) ...[
           const SizedBox(height: SelSpace.x4),
           Text(
-            'Recording ${money(_resolveConversion(ref)?.amountBase ?? double.tryParse(_amount.text.replaceAll(',', '')) ?? 0)} '
+            'Recording ${money(_resolveConversion(ref)?.amountBase ?? parseAmountInput(_amount.text) ?? 0)} '
             'for ${_partner!.fullName}.',
             style: SelType.small,
           ),
@@ -436,7 +458,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   }
 
   CurrencyConversion? _resolveConversion(WidgetRef ref) {
-    final sourceAmount = double.tryParse(_amount.text.replaceAll(',', ''));
+    final sourceAmount = parseAmountInput(_amount.text);
     if (sourceAmount == null || sourceAmount <= 0) return null;
     final rates = ref.read(churchExchangeRatesProvider);
     return rates.convert(
@@ -451,7 +473,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     return '≈ ${money(conversion.amountBase)} (rate ${conversion.exchangeRateToBase})';
   }
 
-  Future<void> _pickPartner(BuildContext context, String churchId, String uid) async {
+  Future<void> _pickPartner(
+    BuildContext context,
+    String churchId,
+    String uid,
+  ) async {
     if (!context.mounted) return;
     final chosen = await showPartnerPickerPanel(
       context,
@@ -461,7 +487,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     if (chosen != null) setState(() => _partner = chosen);
   }
 
-  Future<void> _submit(String churchId, ChurchUser staff, PartnershipEntry? entry) async {
+  Future<void> _submit(
+    String churchId,
+    ChurchUser staff,
+    PartnershipEntry? entry,
+  ) async {
     setState(() => _error = null);
     final conversion = _resolveConversion(ref);
     if (_partner == null) {
@@ -479,6 +509,16 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     }
     if (conversion == null) {
       setState(() => _error = 'Enter a valid amount.');
+      return;
+    }
+    if (!conversion.rateAvailable) {
+      // Without a rate the conversion is 1:1, which would bank a $100 gift as
+      // ₵100. Better to stop here than to record a number nobody meant.
+      setState(
+        () => _error =
+            'No exchange rate is set for ${conversion.sourceCurrency}. '
+            'Add one in Settings before recording in this currency.',
+      );
       return;
     }
     final amount = conversion.amountBase;
@@ -501,7 +541,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
     try {
       if (_isEdit) {
-        final existing = ref.read(entryDetailProvider(widget.entryId!)).valueOrNull ?? entry;
+        final existing =
+            ref.read(entryDetailProvider(widget.entryId!)).valueOrNull ?? entry;
         if (existing == null) {
           setState(() => _error = 'Entry not found.');
           return;
@@ -606,8 +647,14 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   'Do you want to record another entry anyway?',
                 ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Continue'),
+                  ),
                 ],
               ),
             );
@@ -650,7 +697,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             status: idxCreate?.isPastor == true ? 'approved' : 'pending',
           ),
         );
-        ref.invalidate(entriesListProvider);
+        ref.invalidate(rankingEntriesProvider);
+        invalidateEntryDerivedData(ref);
         if (mounted) {
           if (widget.embedded) {
             selNotice(
@@ -709,22 +757,25 @@ class _PartnerTile extends StatelessWidget {
               Icon(
                 p == null ? LucideIcons.search : LucideIcons.user,
                 size: 15,
-                color: Sel.ash,
+                color: Sel.warm,
               ),
               const SizedBox(width: SelSpace.x3),
               Expanded(
                 child: p == null
-                    ? Text('Search by name, member ID or fellowship',
-                        style: SelType.bodyMuted)
+                    ? Text(
+                        'Search by name, member ID or fellowship',
+                        style: SelType.bodyMuted,
+                      )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(p.fullName, style: SelType.bodyMedium),
                           Text(
-                            [p.memberId, p.fellowship]
-                                .where((e) => e.isNotEmpty)
-                                .join(' · '),
+                            [
+                              p.memberId,
+                              p.fellowship,
+                            ].where((e) => e.isNotEmpty).join(' · '),
                             style: SelType.small,
                           ),
                         ],

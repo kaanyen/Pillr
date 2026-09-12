@@ -20,12 +20,14 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
   BulkImportIssueCode.missingFellowship ||
   BulkImportIssueCode.fellowshipMismatch => BulkImportColumn.fellowship,
   BulkImportIssueCode.missingAmount ||
-  BulkImportIssueCode.invalidAmount => BulkImportColumn.amount,
+  BulkImportIssueCode.invalidAmount ||
+  BulkImportIssueCode.missingExchangeRate => BulkImportColumn.amount,
   BulkImportIssueCode.missingDate ||
   BulkImportIssueCode.invalidDate => BulkImportColumn.date,
   BulkImportIssueCode.missingArm ||
   BulkImportIssueCode.armNotFound => BulkImportColumn.category,
-  BulkImportIssueCode.ambiguousPhone => BulkImportColumn.contact,
+  BulkImportIssueCode.ambiguousPhone ||
+  BulkImportIssueCode.ambiguousName => BulkImportColumn.contact,
   BulkImportIssueCode.memberIdNotFound ||
   BulkImportIssueCode.memberIdConflict => BulkImportColumn.memberId,
   BulkImportIssueCode.staffPastorYesPending => BulkImportColumn.pastorConfirmed,
@@ -106,6 +108,12 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
             'We cannot tell who gave. Open the row and pick the right '
             'person, or correct the number.',
       ),
+      BulkImportIssueCode.ambiguousName => (
+        title: 'More than one partner has this name and fellowship',
+        help:
+            'Creating another would make three. Open the row and pick the '
+            'right person.',
+      ),
       BulkImportIssueCode.memberIdNotFound => (
         title: 'No partner with this member ID',
         help: 'Check the ID, or clear it and let us match on name and phone.',
@@ -119,6 +127,13 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         help:
             'These will still go to a pastor for review — staff cannot '
             'confirm on the pastor\'s behalf.',
+      ),
+      BulkImportIssueCode.missingExchangeRate => (
+        title: 'No exchange rate for this currency',
+        help:
+            'These rows are in a currency the church has no rate for. '
+            'Importing them would record the figure as cedis — a \$100 gift '
+            'as ₵100. Set the rate in Settings, then import again.',
       ),
       BulkImportIssueCode.ignoredNonDataRow => (
         title: 'Left out of the import',

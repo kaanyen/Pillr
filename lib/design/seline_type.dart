@@ -154,7 +154,7 @@ abstract final class SelType {
     fontWeight: FontWeight.w500,
     height: 2.3,
     letterSpacing: 0.25,
-    color: Sel.ash,
+    color: Sel.warm,
   );
 
   // -------------------------------------------------------------------

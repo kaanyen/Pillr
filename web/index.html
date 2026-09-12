@@ -1,5 +1,21 @@
 <!DOCTYPE html><html><head>
   <!--
+    thepillr.com is the only address the app is used at. Firebase always serves
+    the project's default domains as well, and they cannot be switched off, so
+    send anyone who lands on one to the same path on thepillr.com — before the
+    app loads. /__/ is left alone: Firebase Auth serves its sign-in and
+    email-action pages there on the authDomain (thepillr2.firebaseapp.com).
+  -->
+  <script>
+    (function () {
+      var h = location.hostname;
+      if ((h === "thepillr2.web.app" || h === "thepillr2.firebaseapp.com") &&
+          location.pathname.indexOf("/__/") !== 0) {
+        location.replace("https://thepillr.com" + location.pathname + location.search + location.hash);
+      }
+    })();
+  </script>
+  <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
 

@@ -83,6 +83,10 @@ final churchMoneyFormatProvider = Provider<String Function(num)>((ref) {
   return (n) => fmt.format(n);
 });
 
+/// Trailing `.0` on a scaled figure — hoisted so the returned closure does not
+/// recompile it on every call.
+final RegExp _trailingZeroDecimal = RegExp(r'\.0$');
+
 /// Money shortened to fit a stat tile: ₵11.1B rather than ₵11,101,126,000.50.
 ///
 /// A figure that runs off the end of its card and ellipsises is worse than a
@@ -110,7 +114,7 @@ final churchCompactMoneyProvider = Provider<String Function(num)>((ref) {
     // One decimal up to 100, none above — 11.1B, but 340B not 340.2B.
     final text = scaled >= 100
         ? scaled.round().toString()
-        : scaled.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
+        : scaled.toStringAsFixed(1).replaceAll(_trailingZeroDecimal, '');
     return '$sign$symbol$text$suffix';
   };
 });

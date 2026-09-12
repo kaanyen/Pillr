@@ -459,7 +459,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportNeedXlsx =>
-      'Please choose a spreadsheet saved as .xlsx or .csv.';
+      'Please choose a spreadsheet saved as .xlsx or .csv. Older .xls files need to be saved as .xlsx first.';
 
   @override
   String get bulkImportNoMacros =>
@@ -661,7 +661,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entriesNoEntriesTitle => 'No entries yet';
 
   @override
-  String get entriesNoEntriesMessage => 'Record a new partnership entry.';
+  String get entriesNoEntriesMessage => 'Record a gift.';
 
   @override
   String get entriesNoMatchesTitle => 'No matches';
@@ -835,6 +835,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navRecordsMonthly => 'By month';
 
   @override
+  String get navRecordsImports => 'Imports';
+
+  @override
   String get navPeople => 'People';
 
   @override
@@ -899,7 +902,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Partnership entries will appear as your team records them.';
 
   @override
-  String get recordsEmptyAction => 'Record the first entry';
+  String get recordsEmptyAction => 'Record the first gift';
 
   @override
   String get statusPending => 'Pending';
@@ -909,6 +912,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusDeclined => 'Declined';
+
+  @override
+  String get statusVoided => 'Voided';
 
   @override
   String get actionNewEntry => 'New entry';

@@ -869,7 +869,7 @@ abstract class AppLocalizations {
   /// No description provided for @bulkImportNeedXlsx.
   ///
   /// In en, this message translates to:
-  /// **'Please choose a spreadsheet saved as .xlsx or .csv.'**
+  /// **'Please choose a spreadsheet saved as .xlsx or .csv. Older .xls files need to be saved as .xlsx first.'**
   String get bulkImportNeedXlsx;
 
   /// No description provided for @bulkImportNoMacros.
@@ -1247,7 +1247,7 @@ abstract class AppLocalizations {
   /// No description provided for @entriesNoEntriesMessage.
   ///
   /// In en, this message translates to:
-  /// **'Record a new partnership entry.'**
+  /// **'Record a gift.'**
   String get entriesNoEntriesMessage;
 
   /// No description provided for @entriesNoMatchesTitle.
@@ -1568,6 +1568,12 @@ abstract class AppLocalizations {
   /// **'By month'**
   String get navRecordsMonthly;
 
+  /// No description provided for @navRecordsImports.
+  ///
+  /// In en, this message translates to:
+  /// **'Imports'**
+  String get navRecordsImports;
+
   /// No description provided for @navPeople.
   ///
   /// In en, this message translates to:
@@ -1691,7 +1697,7 @@ abstract class AppLocalizations {
   /// No description provided for @recordsEmptyAction.
   ///
   /// In en, this message translates to:
-  /// **'Record the first entry'**
+  /// **'Record the first gift'**
   String get recordsEmptyAction;
 
   /// No description provided for @statusPending.
@@ -1711,6 +1717,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Declined'**
   String get statusDeclined;
+
+  /// No description provided for @statusVoided.
+  ///
+  /// In en, this message translates to:
+  /// **'Voided'**
+  String get statusVoided;
 
   /// No description provided for @actionNewEntry.
   ///

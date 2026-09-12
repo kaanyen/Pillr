@@ -48,6 +48,7 @@ class PeriodsRepository {
       'endDate': Timestamp.fromDate(endDate),
       'isActive': isActive,
       'totalApprovedAmount': 0,
+      'totalApprovedPesewas': 0,
       'entryCount': 0,
       'createdBy': uid,
       'createdAt': now,

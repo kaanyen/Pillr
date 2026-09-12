@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
+import 'sel_focus.dart';
 
 /// Elevation intent for a [SelCard].
 enum SelLift {
@@ -178,24 +179,37 @@ class _Hoverable extends StatefulWidget {
 
 class _HoverableState extends State<_Hoverable> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+    return FocusableActionDetector(
+      mouseCursor: SystemMouseCursors.click,
+      onShowHoverHighlight: (v) => setState(() => _hover = v),
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap();
+            return null;
+          },
+        ),
+      },
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radius),
-            border: Border.all(
-              color: _hover ? Sel.borderMuted : Colors.transparent,
+        child: SelFocusRing(
+          focused: _focused,
+          radius: widget.radius,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              border: Border.all(
+                color: _hover ? Sel.borderMuted : Colors.transparent,
+              ),
             ),
+            child: widget.child,
           ),
-          child: widget.child,
         ),
       ),
     );

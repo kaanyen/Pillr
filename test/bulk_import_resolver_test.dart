@@ -156,4 +156,78 @@ void main() {
     final dup = resolved.expand((r) => r.issues).where((i) => i.code == BulkImportIssueCode.duplicateInFile);
     expect(dup.length, greaterThanOrEqualTo(2));
   });
+
+  test('two partners with the same name and fellowship are a pick, not a create', () {
+    final grid = <List<String?>>[
+      [
+        'DATE',
+        'NAME',
+        'CONTACT',
+        'FELLOWSHIP',
+        'EMAIL',
+        'AMOUNT (GHC)',
+        'CATEGORY',
+        'NOTES',
+        'CURRENTLY WITH PASTOR (YES OR NO)',
+      ],
+      ['2024-01-10', 'Jane Mensah', '', 'Bethel', '', '25', 'Offerings', '', 'NO'],
+    ];
+    final raw = parseBulkImportGrid(grid).rows;
+    final arm = PartnershipArm(
+      id: 'arm1',
+      churchId: 'c1',
+      name: 'Offerings',
+      description: null,
+      isActive: true,
+      colorHex: null,
+      sortOrder: 0,
+      createdBy: 'u',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024),
+    );
+    final period = PartnershipPeriod(
+      id: 'p1',
+      churchId: 'c1',
+      name: '2024 Q1',
+      description: null,
+      startDate: DateTime(2024, 1, 1),
+      endDate: DateTime(2024, 12, 31),
+      isActive: true,
+      totalApprovedAmount: 0,
+      entryCount: 0,
+      createdBy: 'u',
+      createdAt: DateTime(2024),
+      updatedAt: DateTime(2024),
+    );
+    Partner partner(String id) => Partner(
+          id: id,
+          churchId: 'c1',
+          memberId: id,
+          fullName: 'Jane Mensah',
+          fellowship: 'Bethel',
+          email: null,
+          phone: null,
+          isActive: true,
+          totalApprovedAmount: 0,
+          entryCount: 0,
+          createdBy: 'u',
+          createdAt: DateTime(2024),
+          updatedAt: DateTime(2024),
+        );
+
+    final resolved = resolveBulkImportRows(
+      rawRows: raw,
+      arms: [arm],
+      activePeriod: period,
+      partners: [partner('a'), partner('b')],
+      viewerIsStaff: false,
+    );
+
+    expect(resolved.single.resolution, PartnerResolutionKind.ambiguous);
+    expect(
+      resolved.single.issues.map((i) => i.code),
+      contains(BulkImportIssueCode.ambiguousName),
+    );
+    expect(resolved.single.isBlocking, isTrue);
+  });
 }

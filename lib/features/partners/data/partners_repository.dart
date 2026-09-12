@@ -104,6 +104,7 @@ class PartnersRepository {
       'phone': phone?.trim().isEmpty ?? true ? null : phone!.trim(),
       'isActive': true,
       'totalApprovedAmount': 0,
+      'totalApprovedPesewas': 0,
       'entryCount': 0,
       'createdBy': uid,
       'createdAt': now,

@@ -24,6 +24,9 @@ import '../../screens/auth/workspace_suspended_screen.dart';
 import '../../screens/configuration_screen.dart';
 import '../../screens/fellowships_screen.dart';
 import '../../screens/goals_screen.dart';
+import '../../screens/batch_edit_screen.dart';
+import '../../screens/imports_screen.dart';
+import '../../screens/tools_screen.dart';
 import '../../screens/monthly_records_screen.dart';
 import '../../screens/overview_screen.dart';
 import '../../screens/partners_screen.dart';
@@ -122,6 +125,7 @@ GoRouter createRouter() {
               child: QueueScreen(
                 mode: QueueMode.records,
                 initialFilter: state.uri.queryParameters['filter'],
+                importBatchId: state.uri.queryParameters['import'],
               ),
             ),
           ),
@@ -129,6 +133,26 @@ GoRouter createRouter() {
             path: '/records/monthly',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: MonthlyRecordsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/tools',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ToolsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/records/imports',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ImportsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/records/imports/:batchId/edit',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: BatchEditScreen(
+                batchId: state.pathParameters['batchId']!,
+              ),
             ),
           ),
           GoRoute(

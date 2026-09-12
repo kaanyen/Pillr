@@ -66,6 +66,12 @@ abstract final class SelLayout {
   static const double compact = 600;
   static const double medium = 1024;
 
+  /// WCAG 2.5.5 / Apple HIG — default interactive target.
+  static const double tapTarget = 44;
+
+  /// Toolbar-only escape hatch. Never go below this.
+  static const double tapTargetDense = 36;
+
   static bool isCompact(double w) => w < compact;
   static bool isExpanded(double w) => w >= medium;
 

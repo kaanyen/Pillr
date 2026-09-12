@@ -24,6 +24,8 @@ class BulkImportCommitResult {
     required this.errors,
     required this.batchId,
     required this.totalCedis,
+    required this.rowsAttempted,
+    this.incomplete = false,
   });
 
   final int entriesCreated;
@@ -36,6 +38,11 @@ class BulkImportCommitResult {
   /// and undone — afterwards.
   final String batchId;
   final double totalCedis;
+  final int rowsAttempted;
+  final bool incomplete;
+
+  bool get isPartial =>
+      incomplete || (entriesCreated > 0 && rowsSkipped > 0);
 }
 
 Map<String, dynamic> _partnerSnapshot(Partner p) => {
@@ -94,6 +101,9 @@ Future<BulkImportCommitResult> commitBulkImport({
   required bool viewerIsPastor,
   required Set<int> duplicateAcknowledgedSheetRows,
   required String fileName,
+  /// Who put the sheet together, if the person importing said.
+  String? preparedBy,
+  Map<String, List<PartnershipEntry>>? duplicateCache,
   BulkImportCommitProgressCallback? onProgress,
 }) async {
   final partnersRepo = ref.read(partnersRepositoryProvider);
@@ -104,11 +114,24 @@ Future<BulkImportCommitResult> commitBulkImport({
 
   final createdPartners = <String, Partner>{};
   final batchEntries = <PartnershipEntry>[];
+  final partnerEntryCache = Map<String, List<PartnershipEntry>>.from(
+    duplicateCache ?? const {},
+  );
   var partnersCreated = 0;
   var entriesCreated = 0;
   var entriesApproved = 0;
   var skipped = 0;
+  var incomplete = false;
   final errors = <String>[];
+
+  await batchesRepo.begin(
+    churchId: churchId,
+    batchId: batchId,
+    fileName: fileName,
+    periodName: period.name,
+    staff: staff,
+    preparedBy: preparedBy,
+  );
 
   Partner partnerForRow(BulkResolvedRow r, String partnerId, String memberId) {
     return Partner(
@@ -175,6 +198,7 @@ Future<BulkImportCommitResult> commitBulkImport({
     'Starting import…',
   );
 
+  try {
   for (final r in rows) {
     if (r.isBlocking) {
       skipped++;
@@ -183,15 +207,16 @@ Future<BulkImportCommitResult> commitBulkImport({
     }
     if (r.resolution == PartnerResolutionKind.ambiguous) {
       skipped++;
-      errors.add('Row ${r.sheetRowNumber}: ambiguous partner — fix in sheet.');
+      errors.add(
+        'Row ${r.sheetRowNumber}: ambiguous partner — pick the right person.',
+      );
       continue;
     }
 
     final armId = r.armId;
-    final periodId = r.periodId;
-    if (armId == null || periodId == null) {
+    if (armId == null) {
       skipped++;
-      errors.add('Row ${r.sheetRowNumber}: missing arm or period.');
+      errors.add('Row ${r.sheetRowNumber}: missing arm.');
       continue;
     }
 
@@ -208,12 +233,6 @@ Future<BulkImportCommitResult> commitBulkImport({
       continue;
     }
 
-    if (period.id != periodId) {
-      skipped++;
-      errors.add('Row ${r.sheetRowNumber}: period mismatch.');
-      continue;
-    }
-
     Partner partner;
     try {
       partner = await resolvePartner(r);
@@ -223,12 +242,16 @@ Future<BulkImportCommitResult> commitBulkImport({
       continue;
     }
 
-    final candidates = await entriesRepo.fetchEntriesForDuplicateCheck(
-      churchId,
-      partnerId: partner.id,
-      allChurchEntries: allChurchEntries,
-      createdByUid: allChurchEntries ? null : staff.uid,
-    );
+    var candidates = partnerEntryCache[partner.id];
+    if (candidates == null) {
+      candidates = await entriesRepo.fetchEntriesForDuplicateCheck(
+        churchId,
+        partnerId: partner.id,
+        allChurchEntries: allChurchEntries,
+        createdByUid: allChurchEntries ? null : staff.uid,
+      );
+      partnerEntryCache[partner.id] = candidates;
+    }
     final combined = [...candidates, ...batchEntries];
     final similar = hasSimilarPartnershipEntryWithSameDate(
       combined,
@@ -330,21 +353,48 @@ Future<BulkImportCommitResult> commitBulkImport({
       'Row ${r.sheetRowNumber}',
     );
   }
-
-  if (entriesCreated > 0) {
-    await batchesRepo.record(
-      churchId: churchId,
-      batchId: batchId,
-      fileName: fileName,
-      periodName: period.name,
-      entryCount: entriesCreated,
-      partnersCreated: partnersCreated,
-      totalCedis: totalCedis,
-      staff: staff,
+  } catch (e) {
+    incomplete = true;
+    errors.add(
+      'Stopped after $entriesCreated of ${rows.length} rows: $e',
     );
   }
 
-  ref.invalidate(entriesListProvider);
+  try {
+    await batchesRepo.finish(
+      churchId: churchId,
+      batchId: batchId,
+      entryCount: entriesCreated,
+      partnersCreated: partnersCreated,
+      totalCedis: totalCedis,
+      skippedCount: skipped,
+    );
+  } catch (e) {
+    incomplete = true;
+    errors.add('The import recorded $entriesCreated entries but could not '
+        'close the batch record: $e');
+  }
+
+  if (entriesCreated > 0 || skipped > 0) {
+    await logPillrActivity(
+      ref,
+      churchId: churchId,
+      action: 'import.commit',
+      entityType: 'import_batch',
+      entityId: batchId,
+      entitySnapshot: {
+        'fileName': fileName,
+        'periodName': period.name,
+        'entryCount': entriesCreated,
+        'partnersCreated': partnersCreated,
+        'skippedCount': skipped,
+        'totalCedis': totalCedis,
+      },
+    );
+  }
+
+  ref.invalidate(rankingEntriesProvider);
+  invalidateEntryDerivedData(ref);
 
   return BulkImportCommitResult(
     entriesCreated: entriesCreated,
@@ -354,5 +404,7 @@ Future<BulkImportCommitResult> commitBulkImport({
     errors: errors,
     batchId: batchId,
     totalCedis: totalCedis,
+    rowsAttempted: rows.length,
+    incomplete: incomplete,
   );
 }

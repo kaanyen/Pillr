@@ -11,9 +11,8 @@ import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
-import '../features/leaderboard/leaderboard_models.dart';
+import '../features/leaderboard/leaderboard_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
-import '../features/periods/providers/periods_providers.dart';
 import 'export_actions.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
@@ -78,12 +77,12 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
   Widget build(BuildContext context) {
     final money = ref.watch(churchMoneyFormatProvider);
     final partnersAsync = ref.watch(partnersStreamProvider(false));
-    final allEntries = ref.watch(entriesListProvider).valueOrNull ?? [];
-    final period = ref.watch(activePeriodProvider);
+    // Same period-scoped set the rankings use; the filter bar draws its
+    // options from it.
+    final allEntries = ref.watch(rankingEntriesProvider).valueOrNull ?? const [];
     final arms =
         ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
     final filters = ref.watch(recordFiltersProvider);
-    final entries = applyRecordFilters(allEntries, filters, now: DateTime.now());
     final fellowshipFilter = filters.fellowship?.toLowerCase();
     final showingMembers =
         _view == _View.ranked && fellowshipFilter != null && fellowshipFilter.isNotEmpty;
@@ -91,7 +90,8 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     return SelPageBody(
       onRefresh: () async {
         ref.invalidate(partnersStreamProvider(false));
-        ref.invalidate(entriesListProvider);
+        ref.invalidate(rankingEntriesProvider);
+        invalidateEntryDerivedData(ref);
       },
       children: [
         SelPageTitle(
@@ -104,7 +104,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           actions: [
             if (_view == _View.ranked)
               EntryExportButtons(
-                entries: allEntries,
+                entriesLoader: () => loadEntriesForExport(ref),
                 title: showingMembers
                     ? 'Fellowship member ranking'
                     : 'Fellowship ranking',
@@ -151,15 +151,14 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           partnersAsync.when(
             loading: () => const SelCard(child: SelSkeletonRows()),
             error: (e, _) => SelError(message: '$e'),
-            data: (partners) {
-              final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
-                partners.map((p) => p.fellowship),
-                entries,
-                periodId: period?.id,
-              ).where((row) {
-                if (_query.isEmpty) return true;
-                return row.fellowshipName.toLowerCase().contains(_query);
-              }).toList();
+            data: (_) {
+              final rows = ref
+                  .watch(fellowshipDirectoryProvider(false))
+                  .where((row) {
+                    if (_query.isEmpty) return true;
+                    return row.fellowshipName.toLowerCase().contains(_query);
+                  })
+                  .toList();
 
               return SelLedger(
                 minWidth: 640,
@@ -195,8 +194,6 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
             all: allEntries,
             arms: arms,
             filters: filters,
-            entries: entries,
-            periodId: period?.id,
             onOpenFellowship: _openFellowshipMembers,
             onBackToAll: _backToAllFellowships,
           ),
@@ -211,8 +208,6 @@ class _FellowshipRankedView extends ConsumerWidget {
     required this.all,
     required this.arms,
     required this.filters,
-    required this.entries,
-    required this.periodId,
     required this.onOpenFellowship,
     required this.onBackToAll,
   });
@@ -221,8 +216,6 @@ class _FellowshipRankedView extends ConsumerWidget {
   final List<PartnershipEntry> all;
   final List<PartnershipArm> arms;
   final RecordFilters filters;
-  final List<PartnershipEntry> entries;
-  final String? periodId;
   final ValueChanged<String> onOpenFellowship;
   final VoidCallback onBackToAll;
 
@@ -236,14 +229,12 @@ class _FellowshipRankedView extends ConsumerWidget {
         all: all,
         arms: arms,
         filters: filters,
-        entries: entries,
-        periodId: periodId,
         fellowshipKey: fellowshipFilter,
         onBack: onBackToAll,
       );
     }
 
-    final rows = FellowshipRankRow.fromEntries(entries, periodId: periodId);
+    final rows = ref.watch(fellowshipRankingProvider);
 
     if (rows.isEmpty) {
       return Column(
@@ -309,8 +300,6 @@ class _FellowshipMembersDetail extends ConsumerWidget {
     required this.all,
     required this.arms,
     required this.filters,
-    required this.entries,
-    required this.periodId,
     required this.fellowshipKey,
     required this.onBack,
   });
@@ -319,17 +308,12 @@ class _FellowshipMembersDetail extends ConsumerWidget {
   final List<PartnershipEntry> all;
   final List<PartnershipArm> arms;
   final RecordFilters filters;
-  final List<PartnershipEntry> entries;
-  final String? periodId;
   final String fellowshipKey;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sections = FellowshipLeaderboard.fromEntries(
-      entries,
-      periodId: periodId,
-    );
+    final sections = ref.watch(fellowshipSectionsProvider);
     final section = sections
         .where((s) => s.fellowshipKey == fellowshipKey)
         .firstOrNull;

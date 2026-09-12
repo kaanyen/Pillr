@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/date_utils.dart';
+import '../features/activity/activity_action_label.dart';
 import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
 import '../features/activity/providers/activity_log_providers.dart';
@@ -30,8 +31,11 @@ class ActivityScreen extends ConsumerWidget {
         logs.when(
           loading: () => const SelCard(child: SelSkeletonRows(count: 8)),
           error: (e, _) => SelError(message: '$e'),
-          data: (rows) => SelLedger(
+          data: (rows) => SelLedger.builder(
             minWidth: 680,
+            maxVirtualHeight: 640,
+            // "Who" is two lines (name, role).
+            rowExtent: kSelLedgerStackedRowExtent,
             columns: const [
               SelColumn('Who', flex: 2),
               SelColumn('Did what', flex: 3),
@@ -43,24 +47,25 @@ class ActivityScreen extends ConsumerWidget {
               message: 'Actions your team takes will be recorded here.',
               icon: LucideIcons.history,
             ),
-            rows: [
-              for (final r in rows)
-                SelRow(
-                  cells: [
-                    SelCell.stacked(
-                      TextCaseUtils.toTitleCase(r.actorName),
-                      r.actorRole,
-                    ),
-                    SelCell.secondary(
-                      r.action.replaceAll('.', ' ').replaceAll('_', ' '),
-                    ),
-                    SelCell.secondary(r.entityType),
-                    SelCell.secondary(
-                      formatFirestoreDate(r.createdAt, pattern: 'd MMM, HH:mm'),
-                    ),
-                  ],
-                ),
-            ],
+            itemCount: rows.length,
+            itemBuilder: (context, i) {
+              final r = rows[i];
+              return SelRow(
+                cells: [
+                  SelCell.stacked(
+                    TextCaseUtils.toTitleCase(r.actorName),
+                    r.actorRole,
+                  ),
+                  SelCell.secondary(
+                    activityActionLabel(r.action),
+                  ),
+                  SelCell.secondary(r.entityType),
+                  SelCell.secondary(
+                    formatFirestoreDate(r.createdAt, pattern: 'd MMM, HH:mm'),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ],

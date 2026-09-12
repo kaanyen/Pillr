@@ -29,6 +29,10 @@ class PartnershipEntry {
     this.reviewedBySnapshot,
     this.reviewedAt,
     this.declineReason,
+    this.voidedAt,
+    this.voidedBy,
+    this.voidReason,
+    this.importBatchId,
     this.editHistory = const [],
   });
 
@@ -55,6 +59,22 @@ class PartnershipEntry {
   final Map<String, dynamic>? reviewedBySnapshot;
   final DateTime? reviewedAt;
   final String? declineReason;
+
+  /// When this entry was reversed, and by whom. A voided entry keeps every
+  /// other field it had — the point of voiding rather than deleting is that
+  /// the record, and the reason it stopped counting, both survive.
+  final DateTime? voidedAt;
+  final String? voidedBy;
+  final String? voidReason;
+
+  /// The import run that created this entry, if it came from one.
+  final String? importBatchId;
+
+  /// Voided entries are still readable but count toward nothing.
+  bool get isVoided => status == 'voided';
+
+  /// The only status that moves money.
+  bool get countsTowardTotals => status == 'approved';
   final List<Map<String, dynamic>> editHistory;
 
   factory PartnershipEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
@@ -95,6 +115,10 @@ class PartnershipEntry {
           : null,
       reviewedAt: timestampToDateTime(m['reviewedAt']),
       declineReason: m['declineReason'] as String?,
+      voidedAt: timestampToDateTime(m['voidedAt']),
+      voidedBy: m['voidedBy'] as String?,
+      voidReason: m['voidReason'] as String?,
+      importBatchId: m['importBatchId'] as String?,
       editHistory: (m['editHistory'] as List?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??

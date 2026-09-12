@@ -85,7 +85,23 @@ class AuthShell extends StatelessWidget {
                   ],
 
                   const SizedBox(height: SelSpace.x8),
-                  SelCard(child: child),
+                  // The sign-in screens keep their original, tighter controls:
+                  // 34px buttons and 10px field padding, not the app-wide 44px
+                  // tap targets and 13px padding.
+                  SelCompactScope(
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        inputDecorationTheme:
+                            Theme.of(context).inputDecorationTheme.copyWith(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: SelSpace.x3,
+                                    vertical: 10,
+                                  ),
+                                ),
+                      ),
+                      child: SelCard(child: child),
+                    ),
+                  ),
 
                   if (footer != null) ...[
                     const SizedBox(height: SelSpace.x6),

@@ -26,7 +26,9 @@ abstract final class Sel {
   /// Secondary borders, subtle tints, decorative separators.
   static const Color borderMuted = Color(0xFFD6D3D1);
 
-  /// Muted helper text, icon strokes, disabled states. Recessive but readable.
+  /// Disabled and decorative strokes only. About 2.4:1 on [canvas] — too
+  /// light for captions, chevrons, or any text a person must read. Those
+  /// use [warm] (~4.6:1).
   static const Color ash = Color(0xFFA8A29E);
 
   /// Body text, nav links, secondary copy. Warm neutral that softens body type.

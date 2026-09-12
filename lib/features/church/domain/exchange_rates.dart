@@ -60,6 +60,18 @@ class ChurchExchangeRates {
     return ratesToBase[code] ?? 1.0;
   }
 
+  /// Whether [currencyCode] has a rate the church actually set.
+  ///
+  /// [rateFor] falls back to 1.0 so a conversion always produces a number, but
+  /// for a foreign currency that fallback is a lie: it records a $100 gift as
+  /// ₵100. Callers offering a currency the church has not configured must ask
+  /// this first and refuse, rather than bank the fallback.
+  bool hasRateFor(String currencyCode) {
+    final code = currencyCode.toUpperCase();
+    if (code == BaseCurrency.code) return true;
+    return ratesToBase.containsKey(code);
+  }
+
   bool get hasForeignRates => ratesToBase.isNotEmpty;
 
   CurrencyConversion convert({
@@ -72,10 +84,18 @@ class ChurchExchangeRates {
       sourceCurrency: code,
       sourceAmount: sourceAmount,
       exchangeRateToBase: rate,
-      amountBase: sourceAmount * rate,
+      // Rounded to the pesewa, because that is the smallest amount that can be
+      // banked and the smallest the aggregate trigger will count: it sums
+      // `round(amountCedis * 100)`. An entry holding 416.625 is counted as
+      // 416.63 in the partner's total and as 416.625 by the totals audit's
+      // recount, which reads as drift the repair tool can never settle.
+      amountBase: _toPesewa(sourceAmount * rate),
+      rateAvailable: hasRateFor(code),
     );
   }
 }
+
+double _toPesewa(double cedis) => (cedis * 100).round() / 100;
 
 /// Result of converting an entered amount to the church base currency (GHS).
 class CurrencyConversion {
@@ -84,12 +104,18 @@ class CurrencyConversion {
     required this.sourceAmount,
     required this.exchangeRateToBase,
     required this.amountBase,
+    this.rateAvailable = true,
   });
 
   final String sourceCurrency;
   final double sourceAmount;
   final double exchangeRateToBase;
   final double amountBase;
+
+  /// False when the church has set no rate for [sourceCurrency] and the
+  /// conversion fell back to 1:1. The amount is then not a conversion at all,
+  /// and must not be recorded as one.
+  final bool rateAvailable;
 
   bool get isBaseCurrency => sourceCurrency == BaseCurrency.code;
 

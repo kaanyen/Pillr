@@ -144,31 +144,36 @@ class PartnerRankedLedger extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SelLedger(
+    // Builder rather than a finished list: this renders the whole partner
+    // ranking, and short per-arm sections still lay out at their natural
+    // height because the virtual height clamps to the row count.
+    return SelLedger.builder(
       minWidth: 520,
+      maxVirtualHeight: 640,
       columns: const [
         SelColumn('Rank', fit: SelColFit.fixed, width: 70),
         SelColumn('Partner', flex: 3),
         SelColumn.numeric('Approved giving', width: 170),
       ],
-      rows: [
-        for (final r in rows)
-          SelRow(
-            onTap: () => context.go('/partners/${r.partnerId}'),
-            cells: [
-              Text(
-                '${r.rank}',
-                style: SelType.body.copyWith(
-                  color: r.rank <= 3 ? Sel.ink : Sel.ash,
-                  fontWeight: r.rank <= 3 ? FontWeight.w500 : FontWeight.w400,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+      itemCount: rows.length,
+      itemBuilder: (context, i) {
+        final r = rows[i];
+        return SelRow(
+          onTap: () => context.go('/partners/${r.partnerId}'),
+          cells: [
+            Text(
+              '${r.rank}',
+              style: SelType.body.copyWith(
+                color: r.rank <= 3 ? Sel.ink : Sel.ash,
+                fontWeight: r.rank <= 3 ? FontWeight.w500 : FontWeight.w400,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              SelCell.primary(r.partnerName),
-              SelCell.numeric(money(r.totalCedis)),
-            ],
-          ),
-      ],
+            ),
+            SelCell.primary(r.partnerName),
+            SelCell.numeric(money(r.totalCedis)),
+          ],
+        );
+      },
     );
   }
 }

@@ -14,6 +14,7 @@ export 'components/sel_button.dart';
 export 'components/sel_card.dart';
 export 'components/sel_dialog.dart';
 export 'components/sel_field.dart';
+export 'components/sel_focus.dart';
 export 'components/sel_highlight.dart';
 export 'components/sel_ledger.dart';
 export 'components/sel_page.dart';

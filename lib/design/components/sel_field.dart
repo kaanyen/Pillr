@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
+import 'sel_focus.dart';
 
 /// Text field with the label above the box, never floating.
 ///
@@ -53,40 +54,43 @@ class SelField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final field = TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      autofillHints: autofillHints,
+    final field = _SelFocusField(
       enabled: enabled,
-      maxLines: maxLines,
-      readOnly: readOnly,
-      onTap: onTap,
-      autofocus: autofocus,
-      style: SelType.body,
-      cursorColor: Sel.ink,
-      cursorWidth: 1.5,
-      decoration: InputDecoration(
-        // Set explicitly rather than inheriting: a Material fallback fill
-        // (grey.shade100) leaks through on some field configurations, which
-        // showed up as one input in a form rendering grey while its
-        // neighbours rendered white.
-        filled: true,
-        fillColor: enabled ? Sel.card : Sel.canvas,
-        hintText: hint,
-        errorText: errorText,
-        helperText: helper,
-        prefixIcon: prefixIcon == null
-            ? null
-            : Padding(
-                padding: const EdgeInsets.only(left: SelSpace.x3, right: SelSpace.x2),
-                child: Icon(prefixIcon, size: 15, color: Sel.ash),
-              ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-        suffixIcon: suffixIcon,
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        autofillHints: autofillHints,
+        enabled: enabled,
+        maxLines: maxLines,
+        readOnly: readOnly,
+        onTap: onTap,
+        autofocus: autofocus,
+        style: SelType.body,
+        cursorColor: Sel.ink,
+        cursorWidth: 1.5,
+        decoration: InputDecoration(
+          // Set explicitly rather than inheriting: a Material fallback fill
+          // (grey.shade100) leaks through on some field configurations, which
+          // showed up as one input in a form rendering grey while its
+          // neighbours rendered white.
+          filled: true,
+          fillColor: enabled ? Sel.card : Sel.canvas,
+          hintText: hint,
+          errorText: errorText,
+          helperText: helper,
+          prefixIcon: prefixIcon == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(left: SelSpace.x3, right: SelSpace.x2),
+                  child: Icon(prefixIcon, size: 15, color: Sel.warm),
+                ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          suffixIcon: suffixIcon,
+        ),
       ),
     );
 
@@ -100,6 +104,36 @@ class SelField extends StatelessWidget {
         const SizedBox(height: SelSpace.x2),
         field,
       ],
+    );
+  }
+}
+
+/// Paints the offset ink ring when a descendant [TextField] is focused.
+class _SelFocusField extends StatefulWidget {
+  const _SelFocusField({required this.child, required this.enabled});
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<_SelFocusField> createState() => _SelFocusFieldState();
+}
+
+class _SelFocusFieldState extends State<_SelFocusField> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      canRequestFocus: false,
+      onFocusChange: (v) {
+        if (_focused != v) setState(() => _focused = v);
+      },
+      child: SelFocusRing(
+        focused: _focused && widget.enabled,
+        radius: SelRadius.input,
+        child: widget.child,
+      ),
     );
   }
 }
@@ -126,12 +160,14 @@ class SelSelect<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final box = Container(
+      constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
       padding: const EdgeInsets.symmetric(horizontal: SelSpace.x3),
       decoration: BoxDecoration(
         color: Sel.card,
         borderRadius: BorderRadius.circular(SelRadius.input),
         border: Border.all(color: Sel.borderMuted),
       ),
+      alignment: Alignment.center,
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
           value: value,
@@ -140,11 +176,11 @@ class SelSelect<T> extends StatelessWidget {
           hint: hint,
           isExpanded: expanded,
           isDense: true,
-          padding: const EdgeInsets.symmetric(vertical: 9),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           borderRadius: BorderRadius.circular(SelRadius.card),
           dropdownColor: Sel.card,
           style: SelType.body,
-          icon: const Icon(LucideIcons.chevronDown, size: 14, color: Sel.ash),
+          icon: const Icon(LucideIcons.chevronDown, size: 14, color: Sel.warm),
         ),
       ),
     );
@@ -246,34 +282,47 @@ class _Pill extends StatefulWidget {
 
 class _PillState extends State<_Pill> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+    return FocusableActionDetector(
+      mouseCursor: SystemMouseCursors.click,
+      onShowHoverHighlight: (v) => setState(() => _hover = v),
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap();
+            return null;
+          },
+        ),
+      },
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(
-            horizontal: SelSpace.x3 + 2,
-            vertical: SelSpace.x1 + 2,
-          ),
-          decoration: BoxDecoration(
-            color: active
-                ? Sel.soot
-                : _hover
-                    ? Sel.card
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(SelRadius.pill),
-            border: Border.all(color: active ? Sel.soot : Sel.border),
-          ),
-          child: Text(
-            widget.label,
-            style: SelType.button.copyWith(color: active ? Sel.card : Sel.ink),
+        child: SelFocusRing(
+          focused: _focused,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.x3 + 2,
+              vertical: SelSpace.x2,
+            ),
+            decoration: BoxDecoration(
+              color: active
+                  ? Sel.soot
+                  : _hover
+                      ? Sel.card
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              border: Border.all(color: active ? Sel.soot : Sel.border),
+            ),
+            child: Text(
+              widget.label,
+              style: SelType.button.copyWith(color: active ? Sel.card : Sel.ink),
+            ),
           ),
         ),
       ),

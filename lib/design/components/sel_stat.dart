@@ -50,27 +50,14 @@ class SelStat extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (icon != null) Icon(icon, size: 14, color: Sel.ash),
+                if (icon != null) Icon(icon, size: 14, color: Sel.warm),
               ],
             ),
             const SizedBox(height: SelSpace.x2),
             // Scale down before truncating. An ellipsised total tells you
-            // neither the amount nor its size.
-            Tooltip(
-              message: exactValue ?? '',
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  style: SelType.title.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                  maxLines: 1,
-                  softWrap: false,
-                ),
-              ),
-            ),
+            // neither the amount nor its size. The exact figure is on hover
+            // whenever the tile is showing an abbreviation.
+            _StatValue(value: value, exactValue: exactValue),
             if (footnote != null) ...[
               const SizedBox(height: SelSpace.x1),
               Text(
@@ -84,6 +71,32 @@ class SelStat extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _StatValue extends StatelessWidget {
+  const _StatValue({required this.value, this.exactValue});
+
+  final String value;
+  final String? exactValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final number = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        value,
+        style: SelType.title.copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+        maxLines: 1,
+        softWrap: false,
+      ),
+    );
+    final exact = exactValue?.trim();
+    if (exact == null || exact.isEmpty || exact == value) return number;
+    return Tooltip(message: exact, child: number);
   }
 }
 
@@ -188,9 +201,14 @@ class SelGoalLine extends StatelessWidget {
           ],
         ),
         const SizedBox(height: SelSpace.x2),
-        SelProgress(value: pct, color: color),
+        SelProgress(value: pct, height: 8, color: color),
         const SizedBox(height: SelSpace.x1 + 2),
-        Text('$valueText of $targetText', style: SelType.small),
+        Text(
+          pct >= 1
+              ? '$valueText of $targetText'
+              : '$valueText of $targetText · ${((1 - pct) * 100).round()}% to go',
+          style: SelType.small,
+        ),
       ],
     );
   }

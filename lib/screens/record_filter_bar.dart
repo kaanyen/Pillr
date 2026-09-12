@@ -163,7 +163,7 @@ Future<T?> _menu<T>(BuildContext context, List<(T, String)> options) {
       for (final (value, label) in options)
         PopupMenuItem<T>(
           value: value,
-          height: 36,
+          height: SelLayout.tapTarget,
           child: Text(label, style: SelType.small.copyWith(color: Sel.ink)),
         ),
     ],
@@ -197,7 +197,9 @@ class _FilterChip extends StatelessWidget {
           InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(SelRadius.pill),
-            child: Padding(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 SelSpace.x3,
                 SelSpace.x2,
@@ -210,9 +212,10 @@ class _FilterChip extends StatelessWidget {
                   Text('$label ', style: SelType.small),
                   Text(value, style: SelType.small.copyWith(color: Sel.ink)),
                   const SizedBox(width: SelSpace.x1),
-                  const Icon(LucideIcons.chevronDown, size: 11, color: Sel.ash),
+                  const Icon(LucideIcons.chevronDown, size: 13, color: Sel.warm),
                 ],
               ),
+            ),
             ),
           ),
           InkWell(
@@ -225,7 +228,7 @@ class _FilterChip extends StatelessWidget {
                 SelSpace.x3,
                 SelSpace.x2,
               ),
-              child: Icon(LucideIcons.x, size: 12, color: Sel.ash),
+              child: Icon(LucideIcons.x, size: 14, color: Sel.warm),
             ),
           ),
         ],
@@ -249,7 +252,7 @@ class _AddButton extends StatelessWidget {
         for (final k in kinds)
           PopupMenuItem<RecordFilterKind>(
             value: k,
-            height: 36,
+            height: SelLayout.tapTarget,
             child: Text(switch (k) {
               RecordFilterKind.dateRange => 'When',
               RecordFilterKind.fellowship => 'Fellowship',
@@ -260,6 +263,7 @@ class _AddButton extends StatelessWidget {
           ),
       ],
       child: Container(
+        constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
         padding: const EdgeInsets.symmetric(
           horizontal: SelSpace.x3,
           vertical: SelSpace.x2,
@@ -268,10 +272,11 @@ class _AddButton extends StatelessWidget {
           border: Border.all(color: Sel.border),
           borderRadius: BorderRadius.circular(SelRadius.pill),
         ),
+        alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(LucideIcons.plus, size: 12, color: Sel.ash),
+            const Icon(LucideIcons.plus, size: 14, color: Sel.warm),
             const SizedBox(width: SelSpace.x2),
             Text('Add filter', style: SelType.small.copyWith(color: Sel.ink)),
           ],

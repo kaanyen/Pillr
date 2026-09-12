@@ -268,8 +268,9 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
 
             const SizedBox(height: SelSpace.x3),
 
-            SelLedger(
+            SelLedger.builder(
               minWidth: 620,
+              maxVirtualHeight: 560,
               columns: const [
                 SelColumn('Arm', flex: 2),
                 SelColumn('Period', flex: 2),
@@ -281,36 +282,37 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 title: 'No giving recorded',
                 message: 'Entries for this partner will appear here.',
               ),
-              rows: [
-                for (final e in rows)
-                  SelRow(
-                    onTap: () => context.go('/entries/${e.id}'),
-                    cells: [
-                      ArmLabel(
-                        armId: e.partnershipArmId,
-                        name: armName(e.partnershipArmId),
-                        style: SelType.bodyMedium,
-                      ),
-                      SelCell.secondary(periodName(e.partnershipPeriodId)),
-                      EntryAmountCell(
-                        entry: e,
-                        formattedAmount: money(e.amountCedis),
-                        tone: switch (e.status) {
-                          'approved' => SelTone.positive,
-                          'declined' => SelTone.negative,
-                          _ => SelTone.neutral,
-                        },
-                      ),
-                      SelStatusMark.fromString(
-                        status: e.status,
-                        label: e.status[0].toUpperCase() + e.status.substring(1),
-                      ),
-                      SelCell.secondary(
-                        formatFirestoreDate(e.dateGiven, pattern: 'd MMM'),
-                      ),
-                    ],
-                  ),
-              ],
+              itemCount: rows.length,
+              itemBuilder: (context, i) {
+                final e = rows[i];
+                return SelRow(
+                  onTap: () => context.go('/entries/${e.id}'),
+                  cells: [
+                    ArmLabel(
+                      armId: e.partnershipArmId,
+                      name: armName(e.partnershipArmId),
+                      style: SelType.bodyMedium,
+                    ),
+                    SelCell.secondary(periodName(e.partnershipPeriodId)),
+                    EntryAmountCell(
+                      entry: e,
+                      formattedAmount: money(e.amountCedis),
+                      tone: switch (e.status) {
+                        'approved' => SelTone.positive,
+                        'declined' => SelTone.negative,
+                        _ => SelTone.neutral,
+                      },
+                    ),
+                    SelStatusMark.fromString(
+                      status: e.status,
+                      label: e.status[0].toUpperCase() + e.status.substring(1),
+                    ),
+                    SelCell.secondary(
+                      formatFirestoreDate(e.dateGiven, pattern: 'd MMM'),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         );

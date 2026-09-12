@@ -41,6 +41,13 @@ service cloud.firestore {
       return entry.createdBy == request.auth.uid;
     }
 
+    // Voiding reverses money that was already counted, so it is not an
+    // ordinary edit. Only a pastor or an admin may put an entry into or out of
+    // the voided state, and staff may never write it at all.
+    function writesVoidState(before, after) {
+      return before.status == 'voided' || after.status == 'voided';
+    }
+
     match /user_church_index/{uid} {
       allow read: if request.auth.uid == uid;
       allow write: if false;
@@ -111,11 +118,19 @@ service cloud.firestore {
         // Pastor: approve, decline, edit any entry.
         allow update: if belongsToChurch(churchId) && isPastor();
 
+        // Admin: may void an entry and may restore one, but has no other say
+        // over an entry's content — that stays with the pastor.
+        allow update: if belongsToChurch(churchId) && isAdmin()
+                      && writesVoidState(resource.data, request.resource.data);
+
         // Staff: edit own pending or declined entries; must reset to pending (re-submit).
+        // A voided entry is settled and is not theirs to reopen, and they may
+        // never write the voided state themselves.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && isOwnEntry(resource.data)
                       && (resource.data.status == 'pending' || resource.data.status == 'declined')
                       && request.resource.data.status == 'pending'
+                      && !writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.createdBy == resource.data.createdBy;
 
         allow delete: if belongsToChurch(churchId) && isPastor();
@@ -147,14 +162,44 @@ service cloud.firestore {
       }
 
       match /import_batches/{batchId} {
-        // The record of what an import did. Written once by whoever ran it,
-        // amended only to record an undo, and never deleted — an import you
-        // can erase the trace of is not provenance.
+        // The record of what an import did. Written once by whoever ran it and
+        // never deleted — an import you can erase the trace of is not
+        // provenance. What it *did* is fixed: the file name, the counts, the
+        // total, and who ran it are not in either list below, so no client can
+        // rewrite them.
         allow read: if belongsToChurch(churchId) && isPastorOrStaff();
         allow create: if belongsToChurch(churchId) && isPastorOrStaff();
+
+        // Whoever ran it may record that they undid it.
         allow update: if belongsToChurch(churchId) && isPastorOrStaff()
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['undoneAt', 'undoneBy', 'removedCount', 'keptCount']);
+
+        // Closing a run that was opened with begin() — counts stay frozen
+        // after inProgress flips to false.
+        allow update: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && resource.data.inProgress == true
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'inProgress', 'entryCount', 'partnersCreated',
+                             'totalCedis', 'skippedCount',
+                           ]);
+
+        // Pastor or admin: the things the Imports screen offers afterwards —
+        // naming it, recording who prepared the sheet, moving it to another
+        // period, clearing it, and reversing those same actions.
+        allow update: if belongsToChurch(churchId) && isPastorOrAdmin()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'label', 'note', 'preparedBy', 'updatedAt',
+                             'previousLabel', 'previousNote',
+                             'voidedAt', 'voidedBy', 'voidedCount',
+                             'restoredAt', 'restoredBy', 'restoredCount',
+                             'reassignedAt', 'reassignedBy', 'reassignedCount',
+                             'periodName', 'previousPeriodName',
+                             'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
+                           ]);
+
         allow delete: if false;
       }
 

@@ -260,18 +260,32 @@ class _RailSectionHeader extends StatefulWidget {
 
 class _RailSectionHeaderState extends State<_RailSectionHeader> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       link: true,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
         child: GestureDetector(
           onTap: widget.onTap,
-          child: Padding(
+          child: SelFocusRing(
+            focused: _focused,
+            radius: SelRadius.input,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: SelSpace.x3,
               vertical: SelSpace.x2,
@@ -299,6 +313,8 @@ class _RailSectionHeaderState extends State<_RailSectionHeader> {
                 if (widget.badge != null && widget.badge! > 0)
                   SelCountTag(label: '${widget.badge}', emphasised: true),
               ],
+            ),
+              ),
             ),
           ),
         ),
@@ -328,6 +344,7 @@ class _RailLink extends StatefulWidget {
 
 class _RailLinkState extends State<_RailLink> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -339,14 +356,26 @@ class _RailLinkState extends State<_RailLink> {
       selected: active,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 1),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowHoverHighlight: (v) => setState(() => _hover = v),
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
           child: GestureDetector(
             onTap: widget.onTap,
-            child: AnimatedContainer(
+            child: SelFocusRing(
+              focused: _focused,
+              radius: SelRadius.input,
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
               padding: const EdgeInsets.symmetric(
                 horizontal: SelSpace.x3,
                 vertical: SelSpace.x2,
@@ -384,6 +413,7 @@ class _RailLinkState extends State<_RailLink> {
                 ],
               ),
             ),
+            ),
           ),
         ),
       ),
@@ -408,13 +438,14 @@ class _RailSubLink extends StatefulWidget {
 
 class _RailSubLinkState extends State<_RailSubLink> {
   bool _hover = false;
+  bool _focused = false;
 
   static const _iconColumn = 15.0 + SelSpace.x2 + 2;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.ash);
+    final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.warm);
 
     return Semantics(
       link: true,
@@ -425,14 +456,26 @@ class _RailSubLinkState extends State<_RailSubLink> {
           right: SelSpace.x3,
           bottom: 1,
         ),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowHoverHighlight: (v) => setState(() => _hover = v),
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
           child: GestureDetector(
             onTap: widget.onTap,
-            child: AnimatedContainer(
+            child: SelFocusRing(
+              focused: _focused,
+              radius: SelRadius.input,
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
               padding: EdgeInsets.fromLTRB(
                 _iconColumn + SelSpace.x2,
                 SelSpace.x2,
@@ -461,6 +504,7 @@ class _RailSubLinkState extends State<_RailSubLink> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
             ),
           ),
         ),

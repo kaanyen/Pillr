@@ -12,20 +12,36 @@ const db = admin.firestore();
 
 const REGION = "us-central1";
 
-/** Matches Dart [TextCaseUtils.toTitleCase] for names and labels. */
+/**
+ * Matches Dart [TextCaseUtils.toTitleCase] for names and labels.
+ *
+ * A value that is entirely one short all-caps token (FC, USA) keeps its
+ * capitals. That exemption is deliberately not applied inside a multi-word
+ * value: Ghanaian day-names are three and four letters, so an all-caps
+ * spreadsheet used to leave "YAW DARKO" as "YAW Darko" and "KOFI MENSAH" as
+ * "KOFI Mensah". A person's name is never an acronym.
+ *
+ * Keep this in step with lib/core/utils/text_case_utils.dart.
+ */
 function toTitleCase(input: string): string {
   const s = input.trim();
   if (!s) return "";
-  return s.split(/\s+/).map(titleCaseWord).join(" ");
+  const words = s.split(/\s+/);
+  if (words.length === 1 && looksLikeCode(words[0])) return words[0];
+  return words.map(titleCaseWord).join(" ");
+}
+
+function looksLikeCode(word: string): boolean {
+  return /^[A-Za-z]+$/.test(word) &&
+    word.length >= 2 &&
+    word.length <= 4 &&
+    word === word.toUpperCase();
 }
 
 function titleCaseWord(word: string): string {
   if (!word) return "";
   if (word.includes("-")) return word.split("-").map(titleCaseSegment).join("-");
   if (word.includes("'")) return word.split("'").map(titleCaseSegment).join("'");
-  if (/^[A-Za-z]+$/.test(word) && word.length >= 2 && word.length <= 4 && word === word.toUpperCase()) {
-    return word.toUpperCase();
-  }
   return titleCaseSegment(word);
 }
 
@@ -694,23 +710,39 @@ interface AggregateMove {
  * The stamp is claimed in a transaction on the entry alone, which nothing else
  * contends for; the totals then move by increment, which is commutative and
  * survives a hundred approvals landing on one period document at once. If the
- * process dies between the two, the entry is stamped and the totals are short
- * — under-counting, which `reconcile-aggregates` reports and repairs. The
- * other order would double-count, which nothing can detect.
+ * move fails after the stamp is claimed the stamp is put back, so the next
+ * write on the entry retries the whole move rather than believing a reversal
+ * that never happened.
+ *
+ * A stamp can still be missing on an entry whose money *is* in the totals:
+ * rows written before this trigger existed, rows a script wrote, and rows
+ * whose totals were rewritten wholesale by the totals-audit repair or a
+ * partner merge — none of those stamp anything. Reversing on the stamp alone
+ * meant removing such a row was a silent no-op: the row vanished and its money
+ * stayed. So [before] is the second source of truth. An entry that *was*
+ * approved and no longer is has money on the books whatever the stamp says,
+ * and it is reversed at the amount it was approved for.
  */
 async function syncEntryAggregates(
   churchId: string,
   entryId: string,
-  deletedData?: admin.firestore.DocumentData,
+  opts: {
+    /** The entry as it was before this write — the update's `change.before`,
+     * or the deleted document. Absent on create. */
+    before?: admin.firestore.DocumentData;
+    /** Set only when the entry document is gone. */
+    deletedData?: admin.firestore.DocumentData;
+  } = {},
 ): Promise<void> {
   const entryRef = db.doc(`churches/${churchId}/entries/${entryId}`);
 
   const plan = await db.runTransaction(async (tx) => {
     const snap = await tx.get(entryRef);
-    const data = snap.exists ? snap.data() : deletedData;
+    const data = snap.exists ? snap.data() : opts.deletedData;
     if (!data) return null;
 
-    const stamp = (data.aggregateApplied ?? null) as AggregateStamp | null;
+    const written = (data.aggregateApplied ?? null) as AggregateStamp | null;
+    const stamp = written ?? impliedStamp(opts.before);
     const applied = Number(stamp?.pesewas ?? 0);
 
     const desired = snap.exists && data.status === "approved" ? toPesewas(data.amountCedis) : 0;
@@ -736,14 +768,66 @@ async function syncEntryAggregates(
     return {
       reverse: applied > 0 && stamp ? {...stamp, pesewas: applied} : null,
       apply: desired > 0 ? target : null,
+      restore: written,
     };
   });
 
   if (!plan) return;
-  await moveAggregates(churchId, plan.reverse, plan.apply);
+  try {
+    await moveAggregates(churchId, plan.reverse, plan.apply);
+  } catch (e) {
+    // The stamp says this entry has already been settled, and the move that
+    // was meant to settle it did not happen. Left alone that is permanent:
+    // every later write computes a difference of zero and the money stays
+    // where it should not be. Putting the old stamp back makes the next write
+    // on this entry — a restore, an edit, a re-void — try the move again.
+    await db.doc(`churches/${churchId}/entries/${entryId}`)
+      .update({aggregateApplied: plan.restore})
+      .catch(() => undefined);
+    throw e;
+  }
 }
 
-/** Applies a reversal and an application as one set of increments. */
+/**
+ * What an entry must have contributed, read off its previous state.
+ *
+ * Used only when the entry carries no stamp of its own. `approved` is the
+ * status every total in this app is defined by — the client rankings, the
+ * export, and the totals audit all sum exactly that — so an entry that was
+ * approved is money the books were counting, whether or not anything stamped
+ * it.
+ */
+function impliedStamp(
+  before?: admin.firestore.DocumentData,
+): AggregateStamp | null {
+  if (!before || before.status !== "approved") return null;
+  const pesewas = toPesewas(before.amountCedis);
+  if (pesewas <= 0) return null;
+  return {
+    partnerId: String(before.partnerId ?? ""),
+    periodId: String(before.partnershipPeriodId ?? ""),
+    armId: String(before.partnershipArmId ?? ""),
+    pesewas,
+  };
+}
+
+/**
+ * Applies a reversal and an application as one set of increments.
+ *
+ * Totals are kept twice. `totalApprovedPesewas` (and a goal's
+ * `currentAmountPesewas`) is the real one: a whole number of pesewas, moved by
+ * whole numbers, so a gift that goes in and comes back out leaves exactly
+ * nothing behind. `totalApprovedAmount` in cedis is the same figure in a
+ * double, and a double cannot hold most sums of money exactly — reverse a few
+ * hundred gifts and a partner who owes nothing is left holding 2.3e-13. Small
+ * enough never to show, never small enough to be zero, and it only ever grows.
+ *
+ * The cedi field stays because documents and readers that predate the pesewa
+ * field still use it, and rewriting every church's data is not something a
+ * trigger should do behind anyone's back. Both are written on every move; the
+ * app prefers the pesewa field wherever it is present, and the totals-audit
+ * repair backfills it. Once no document is without it, the cedi field can go.
+ */
 async function moveAggregates(
   churchId: string,
   reverse: AggregateStamp | null,
@@ -768,15 +852,32 @@ async function moveAggregates(
     }
   }
 
+  // `update` fails on a document that is not there, and one failure rolls back
+  // the whole batch — so a period a pastor had deleted used to take the
+  // partner's reversal down with it, silently, and with the entry already
+  // stamped as settled. A target that no longer exists has no total left to
+  // correct; the rest of the move still has to land.
+  const paths = [...moves.keys()];
+  const targets = paths.length > 0 ? await db.getAll(...paths.map((p) => db.doc(p))) : [];
+  const missing = new Set(
+    targets.filter((t) => !t.exists).map((t) => t.ref.path),
+  );
+  if (missing.size > 0) {
+    console.warn("moveAggregates: skipping totals for missing documents:", [...missing].join(", "));
+  }
+
   const batch = db.batch();
   let writes = 0;
   for (const [path, move] of moves) {
     if (move.pesewas === 0 && move.count === 0) continue;
+    if (missing.has(path)) continue;
     const isGoal = path.includes("/goals/");
     const patch: Record<string, unknown> = {updatedAt: FieldValue.serverTimestamp()};
     if (isGoal) {
+      patch.currentAmountPesewas = FieldValue.increment(move.pesewas);
       patch.currentAmountCedis = FieldValue.increment(move.pesewas / 100);
     } else {
+      patch.totalApprovedPesewas = FieldValue.increment(move.pesewas);
       patch.totalApprovedAmount = FieldValue.increment(move.pesewas / 100);
       if (move.count !== 0) patch.entryCount = FieldValue.increment(move.count);
     }
@@ -886,7 +987,7 @@ export const onEntryUpdated = functionsV1
     // Most updates are edits to notes or a name and move no money. Checking
     // first keeps them from costing a transaction each.
     if (affectsAggregates(before, after)) {
-      await syncEntryAggregates(churchId, change.after.id);
+      await syncEntryAggregates(churchId, change.after.id, {before});
     }
     if (before.status === "pending" && (after.status === "approved" || after.status === "declined")) {
       await notifyStaffEntryReviewed(churchId, after);
@@ -898,15 +999,20 @@ export const onEntryUpdated = functionsV1
  *
  * Without this an approved entry could be removed and its money would stay in
  * the partner and period totals for good, with nothing in the system aware of
- * it. The stamp on the deleted document says what to take back.
+ * it. The stamp on the deleted document says what to take back — and where
+ * there is no stamp, the fact that the document was approved does.
  */
 export const onEntryDeleted = functionsV1
   .region(REGION)
   .firestore.document("churches/{churchId}/entries/{entryId}")
   .onDelete(async (snap, context) => {
     const data = snap.data();
-    if (!data?.aggregateApplied) return;
-    await syncEntryAggregates(context.params.churchId as string, snap.id, data);
+    if (!data) return;
+    if (!data.aggregateApplied && data.status !== "approved") return;
+    await syncEntryAggregates(context.params.churchId as string, snap.id, {
+      before: data,
+      deletedData: data,
+    });
   });
 
 /** Normalizes partner name casing, keeps `fullNameLower` / `fellowshipLower` in sync. */
@@ -916,8 +1022,18 @@ export const onPartnerWritten = functionsV1
   .onWrite(async (change) => {
     const after = change.after.exists ? change.after.data() : null;
     if (!after) return;
-    const nFull = toTitleCase(String(after.fullName ?? ""));
-    const nFellow = toTitleCase(String(after.fellowship ?? ""));
+    const before = change.before.exists ? change.before.data() : null;
+    // Re-case only when this write set the name. A write that touched nothing
+    // but totals — the aggregates trigger, a reconcile — used to re-case every
+    // partner it passed over: the 10 Sep repair renamed 16 people that way.
+    // `preserveNameCase` keeps a deliberate spelling ("NANA", "ADOM") as given.
+    const nameWritten =
+      !before ||
+      before.fullName !== after.fullName ||
+      before.fellowship !== after.fellowship;
+    const recase = nameWritten && after.preserveNameCase !== true;
+    const nFull = recase ? toTitleCase(String(after.fullName ?? "")) : String(after.fullName ?? "");
+    const nFellow = recase ? toTitleCase(String(after.fellowship ?? "")) : String(after.fellowship ?? "");
     const fullNameLower = nFull.toLowerCase();
     const fellowshipLower = nFellow.toLowerCase();
     const patch: Record<string, unknown> = {};

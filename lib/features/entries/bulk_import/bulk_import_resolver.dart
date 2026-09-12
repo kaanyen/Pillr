@@ -141,28 +141,44 @@ List<BulkResolvedRow> resolveBulkImportRows({
           resolution = PartnerResolutionKind.existing;
           _addNamePhoneWarnings(matched, fullName, fellowship, phone, issues);
         } else {
-          final byName = _singlePartnerByNameAndFellowship(
+          final byName = _nameFellowshipMatch(
             fullName,
             fellowship,
             byNameFellowship,
             ambiguousNameFellowship,
           );
-          if (byName != null) {
-            matched = byName;
+          if (byName.ambiguous) {
+            issues.add(
+              const BulkImportIssue(
+                code: BulkImportIssueCode.ambiguousName,
+                severity: BulkImportSeverity.error,
+              ),
+            );
+            resolution = PartnerResolutionKind.ambiguous;
+          } else if (byName.partner != null) {
+            matched = byName.partner;
             resolution = PartnerResolutionKind.existing;
           } else {
             resolution = PartnerResolutionKind.createNew;
           }
         }
       } else {
-        final byName = _singlePartnerByNameAndFellowship(
+        final byName = _nameFellowshipMatch(
           fullName,
           fellowship,
           byNameFellowship,
           ambiguousNameFellowship,
         );
-        if (byName != null) {
-          matched = byName;
+        if (byName.ambiguous) {
+          issues.add(
+            const BulkImportIssue(
+              code: BulkImportIssueCode.ambiguousName,
+              severity: BulkImportSeverity.error,
+            ),
+          );
+          resolution = PartnerResolutionKind.ambiguous;
+        } else if (byName.partner != null) {
+          matched = byName.partner;
           resolution = PartnerResolutionKind.existing;
         } else {
           resolution = PartnerResolutionKind.createNew;
@@ -181,8 +197,6 @@ List<BulkResolvedRow> resolveBulkImportRows({
 
     final notes = givenTo != null && givenTo.isNotEmpty ? givenTo : null;
 
-    final blocking = issues.any((i) => i.severity == BulkImportSeverity.error);
-
     final sourceAmount = interp.amount ?? 0;
     final currencyCode = parseCurrencyCode(v[BulkImportColumn.currency]) ??
         interp.amountCurrency ??
@@ -191,6 +205,21 @@ List<BulkResolvedRow> resolveBulkImportRows({
       sourceAmount: sourceAmount,
       sourceCurrency: currencyCode,
     );
+    if (!conversion.rateAvailable) {
+      // An error, not a warning: importing at the 1:1 fallback would record
+      // every row in this currency at a figure nobody chose.
+      issues.add(
+        BulkImportIssue(
+          code: BulkImportIssueCode.missingExchangeRate,
+          severity: BulkImportSeverity.error,
+          message: 'No exchange rate is set for '
+              '${conversion.sourceCurrency}. Add one in Settings, then import '
+              'again.',
+        ),
+      );
+    }
+
+    final blocking = issues.any((i) => i.severity == BulkImportSeverity.error);
 
     resolved.add(
       BulkResolvedRow(
@@ -252,7 +281,7 @@ void _addNamePhoneWarnings(
   }
 }
 
-Partner? _singlePartnerByNameAndFellowship(
+({Partner? partner, bool ambiguous}) _nameFellowshipMatch(
   String fullName,
   String fellowship,
   Map<String, Partner> byNameFellowship,
@@ -260,10 +289,12 @@ Partner? _singlePartnerByNameAndFellowship(
 ) {
   final nl = fullName.toLowerCase().trim();
   final fl = fellowship.toLowerCase().trim();
-  if (nl.isEmpty || fl.isEmpty) return null;
+  if (nl.isEmpty || fl.isEmpty) return (partner: null, ambiguous: false);
   final key = '$fl|$nl';
-  if (ambiguousNameFellowship.contains(key)) return null;
-  return byNameFellowship[key];
+  if (ambiguousNameFellowship.contains(key)) {
+    return (partner: null, ambiguous: true);
+  }
+  return (partner: byNameFellowship[key], ambiguous: false);
 }
 
 String _partnerDedupeKey(BulkResolvedRow r) {

@@ -22,7 +22,18 @@ import '../seline_type.dart';
 /// | active    | dot     | Moss    | live             |
 /// | inactive  | dash    | Ash     | dormant          |
 /// | info      | circle  | Cyan    | neutral notice   |
-enum SelStatus { approved, pending, declined, blocked, active, inactive, info }
+enum SelStatus {
+  approved,
+  pending,
+  declined,
+  blocked,
+  active,
+  inactive,
+  /// Reversed after the fact. A voided record is still on the books and still
+  /// readable — it simply stops counting toward any total.
+  voided,
+  info,
+}
 
 extension SelStatusStyle on SelStatus {
   IconData get icon => switch (this) {
@@ -32,6 +43,7 @@ extension SelStatusStyle on SelStatus {
         SelStatus.blocked => LucideIcons.alertTriangle,
         SelStatus.active => LucideIcons.circleDot,
         SelStatus.inactive => LucideIcons.minus,
+        SelStatus.voided => LucideIcons.ban,
         SelStatus.info => LucideIcons.info,
       };
 
@@ -40,6 +52,9 @@ extension SelStatusStyle on SelStatus {
         SelStatus.pending => Sel.warning,
         SelStatus.declined || SelStatus.blocked => Sel.danger,
         SelStatus.inactive => Sel.ash,
+        // Not danger: voiding is a correction someone made deliberately, not a
+        // rejection or a fault. Warm gray reads as "settled and set aside".
+        SelStatus.voided => Sel.warm,
         SelStatus.info => Sel.info,
       };
 
@@ -50,6 +65,7 @@ extension SelStatusStyle on SelStatus {
         SelStatus.pending => Sel.warningWash,
         SelStatus.declined || SelStatus.blocked => Sel.dangerWash,
         SelStatus.inactive => Sel.canvas,
+        SelStatus.voided => Sel.canvas,
         SelStatus.info => Sel.infoWash,
       };
 
@@ -69,6 +85,7 @@ extension SelStatusStyle on SelStatus {
         'blocked' || 'error' || 'invalid' => SelStatus.blocked,
         'info' || 'notice' => SelStatus.info,
         'active' => SelStatus.active,
+        'voided' || 'void' => SelStatus.voided,
         'inactive' || 'suspended' => SelStatus.inactive,
         _ => SelStatus.pending,
       };

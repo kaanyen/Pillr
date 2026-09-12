@@ -19,11 +19,7 @@ Future<void> showPartnerFormPanel(
         ? 'Member ID is assigned automatically when you save.'
         : 'Update member details for partnership records.',
     width: 480,
-    child: PartnerFormPanel(
-      churchId: churchId,
-      uid: uid,
-      existing: existing,
-    ),
+    child: PartnerFormPanel(churchId: churchId, uid: uid, existing: existing),
   );
 }
 
@@ -41,21 +37,15 @@ Future<Partner?> showPartnerPickerPanel(
   );
 }
 
-Future<void> showEntryFormPanel(
-  BuildContext context, {
-  String? entryId,
-}) {
+Future<void> showEntryFormPanel(BuildContext context, {String? entryId}) {
   final isEdit = entryId != null;
   return showSelSideSheet<void>(
     context,
-    title: isEdit ? 'Edit entry' : 'Record partnership',
+    title: isEdit ? 'Edit entry' : 'Record a gift',
     subtitle: isEdit
         ? 'Changes are re-recorded in the activity log.'
         : 'Who gave, how much, and toward what.',
     width: 560,
-    child: EntryFormScreen(
-      entryId: entryId,
-      embedded: true,
-    ),
+    child: EntryFormScreen(entryId: entryId, embedded: true),
   );
 }

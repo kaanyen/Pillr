@@ -114,6 +114,7 @@ List<SelNavGroup> navGroupsFor(
           children: [
             SelNavSubItem('/records', l10n.navRecordsAll),
             SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
+            SelNavSubItem('/records/imports', l10n.navRecordsImports),
           ],
         ),
       ]),
@@ -143,6 +144,7 @@ List<SelNavGroup> navGroupsFor(
           children: [
             SelNavSubItem('/records', l10n.navRecordsAll),
             SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
+            SelNavSubItem('/records/imports', l10n.navRecordsImports),
           ],
         ),
         SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
@@ -185,7 +187,6 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
       SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
       SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
       SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
-      SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ];
   }
   return [
@@ -194,6 +195,5 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
     SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
     SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
-    SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
   ];
 }
