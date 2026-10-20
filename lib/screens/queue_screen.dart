@@ -21,6 +21,7 @@ import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
+import '../features/partners/providers/partners_providers.dart';
 import 'record_filter_bar.dart';
 import 'arm_palette.dart';
 import 'approval_playback.dart';
@@ -242,6 +243,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             all,
             ref.watch(recordFiltersProvider),
             now: DateTime.now(),
+            fellowshipByPartnerId: ref.watch(partnerFellowshipByIdProvider),
           )
         : all;
     final rows = scoped.where((e) {

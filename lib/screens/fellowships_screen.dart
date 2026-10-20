@@ -11,6 +11,7 @@ import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
+import '../features/leaderboard/leaderboard_models.dart';
 import '../features/leaderboard/leaderboard_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import 'export_actions.dart';
@@ -151,42 +152,11 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           partnersAsync.when(
             loading: () => const SelCard(child: SelSkeletonRows()),
             error: (e, _) => SelError(message: '$e'),
-            data: (_) {
-              final rows = ref
-                  .watch(fellowshipDirectoryProvider(false))
-                  .where((row) {
-                    if (_query.isEmpty) return true;
-                    return row.fellowshipName.toLowerCase().contains(_query);
-                  })
-                  .toList();
-
-              return SelLedger(
-                minWidth: 640,
-                columns: const [
-                  SelColumn('Fellowship', flex: 3),
-                  SelColumn.numeric('Partners', width: 110),
-                  SelColumn.numeric('Approved this period', width: 190),
-                ],
-                emptyState: SelEmpty(
-                  title: _query.isEmpty ? 'No fellowships yet' : 'No matches',
-                  message: _query.isEmpty
-                      ? 'Fellowships appear once partners are assigned to a group.'
-                      : 'Nothing matches “$_query”.',
-                  icon: LucideIcons.users,
-                ),
-                rows: [
-                  for (final row in rows)
-                    SelRow(
-                      onTap: () => _openFellowshipMembers(row.fellowshipKey),
-                      cells: [
-                        SelCell.primary(row.fellowshipName),
-                        SelCell.numeric('${row.partnerCount}'),
-                        SelCell.numeric(money(row.periodTotalCedis)),
-                      ],
-                    ),
-                ],
-              );
-            },
+            data: (_) => _FellowshipDirectory(
+              query: _query,
+              money: money,
+              onOpenFellowship: _openFellowshipMembers,
+            ),
           )
         else
           _FellowshipRankedView(
@@ -196,6 +166,63 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
             filters: filters,
             onOpenFellowship: _openFellowshipMembers,
             onBackToAll: _backToAllFellowships,
+          ),
+      ],
+    );
+  }
+}
+
+/// Isolated from [FellowshipsScreen.build] so a directory compute error cannot
+/// blank the title and view switch. Production was throwing in the parent
+/// `build` and leaving an empty canvas.
+class _FellowshipDirectory extends ConsumerWidget {
+  const _FellowshipDirectory({
+    required this.query,
+    required this.money,
+    required this.onOpenFellowship,
+  });
+
+  final String query;
+  final String Function(num) money;
+  final ValueChanged<String> onOpenFellowship;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    late final List<FellowshipDirectoryRow> rows;
+    try {
+      rows = [
+        for (final row in ref.watch(fellowshipDirectoryProvider(false)))
+          if (query.isEmpty ||
+              row.fellowshipName.toLowerCase().contains(query))
+            row,
+      ];
+    } catch (e) {
+      return SelError(message: '$e');
+    }
+
+    return SelLedger(
+      minWidth: 640,
+      columns: const [
+        SelColumn('Fellowship', flex: 3),
+        SelColumn.numeric('Partners', width: 110),
+        SelColumn.numeric('Approved this period', width: 190),
+      ],
+      emptyState: SelEmpty(
+        title: query.isEmpty ? 'No fellowships yet' : 'No matches',
+        message: query.isEmpty
+            ? 'Fellowships appear once partners are assigned to a group.'
+            : 'Nothing matches “$query”.',
+        icon: LucideIcons.users,
+      ),
+      rows: [
+        for (final row in rows)
+          SelRow(
+            onTap: () => onOpenFellowship(row.fellowshipKey),
+            cells: [
+              SelCell.primary(row.fellowshipName),
+              SelCell.numeric('${row.partnerCount}'),
+              SelCell.numeric(money(row.periodTotalCedis)),
+            ],
           ),
       ],
     );
@@ -234,7 +261,12 @@ class _FellowshipRankedView extends ConsumerWidget {
       );
     }
 
-    final rows = ref.watch(fellowshipRankingProvider);
+    late final List<FellowshipRankRow> rows;
+    try {
+      rows = ref.watch(fellowshipRankingProvider);
+    } catch (e) {
+      return SelError(message: '$e');
+    }
 
     if (rows.isEmpty) {
       return Column(

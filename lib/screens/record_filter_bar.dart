@@ -5,7 +5,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../design/seline.dart';
 import '../features/arms/domain/partnership_arm.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/fellowship_of.dart';
 import '../features/entries/providers/record_filters.dart';
+import '../features/partners/providers/partners_providers.dart';
 
 /// The filter row above Records and the ranked partners view.
 ///
@@ -85,10 +87,10 @@ class RecordFilterBar extends ConsumerWidget {
   };
 
   /// Distinct fellowships present in the data, in alphabetical order.
-  List<String> _fellowships() {
+  List<String> _fellowships(Map<String, String> fellowshipByPartnerId) {
     final seen = <String>{};
     for (final e in entries) {
-      final v = e.partnerSnapshot['fellowship']?.toString().trim() ?? '';
+      final v = fellowshipRawOf(e, fellowshipByPartnerId);
       if (v.isNotEmpty) seen.add(v);
     }
     return seen.toList()..sort();
@@ -119,7 +121,8 @@ class RecordFilterBar extends ConsumerWidget {
         if (v != null) notifier.set(filters.withDateRange(v));
       case RecordFilterKind.fellowship:
         final v = await _menu<String>(context, [
-          for (final f in _fellowships()) (f, f),
+          for (final f in _fellowships(ref.read(partnerFellowshipByIdProvider)))
+            (f, f),
         ]);
         if (v != null) notifier.set(filters.withFellowship(v));
       case RecordFilterKind.arm:

@@ -33,7 +33,13 @@ final filteredEntriesProvider =
     Provider.autoDispose<List<PartnershipEntry>>((ref) {
   final scoped = ref.watch(rankingEntriesProvider).valueOrNull ?? const [];
   final filters = ref.watch(recordFiltersProvider);
-  return applyRecordFilters(scoped, filters, now: DateTime.now());
+  final byPartner = ref.watch(partnerFellowshipByIdProvider);
+  return applyRecordFilters(
+    scoped,
+    filters,
+    now: DateTime.now(),
+    fellowshipByPartnerId: byPartner,
+  );
 });
 
 /// Partners ranked by approved giving in the active period, filters applied.
@@ -61,7 +67,12 @@ final fellowshipRankingProvider =
     Provider.autoDispose<List<FellowshipRankRow>>((ref) {
   final entries = ref.watch(filteredEntriesProvider);
   final period = ref.watch(activePeriodProvider);
-  return FellowshipRankRow.fromEntries(entries, periodId: period?.id);
+  final byPartner = ref.watch(partnerFellowshipByIdProvider);
+  return FellowshipRankRow.fromEntries(
+    entries,
+    periodId: period?.id,
+    fellowshipByPartnerId: byPartner,
+  );
 });
 
 /// One ranked partner list per fellowship that has approved giving.
@@ -69,7 +80,12 @@ final fellowshipSectionsProvider =
     Provider.autoDispose<List<FellowshipLeaderboard>>((ref) {
   final entries = ref.watch(filteredEntriesProvider);
   final period = ref.watch(activePeriodProvider);
-  return FellowshipLeaderboard.fromEntries(entries, periodId: period?.id);
+  final byPartner = ref.watch(partnerFellowshipByIdProvider);
+  return FellowshipLeaderboard.fromEntries(
+    entries,
+    periodId: period?.id,
+    fellowshipByPartnerId: byPartner,
+  );
 });
 
 /// Fellowship directory rows — headcount from the partner list, giving from the
@@ -88,5 +104,6 @@ final fellowshipDirectoryProvider =
     partners.map((p) => p.fellowship),
     entries,
     periodId: period?.id,
+    fellowshipByPartnerId: {for (final p in partners) p.id: p.fellowship},
   );
 });

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../partners/providers/partners_providers.dart';
 import '../../periods/providers/periods_providers.dart';
 import '../data/entries_repository.dart';
 import '../domain/partnership_entry.dart';
@@ -140,7 +141,11 @@ final staffApprovedTotalForPartnerProvider = Provider.family<double, String>((re
 final monthlyRecordsIndexProvider =
     Provider.autoDispose<MonthlyRecordsIndex>((ref) {
   final entries = ref.watch(monthlyRecordsEntriesProvider).entries;
-  return MonthlyRecordsIndex.build(entries);
+  final byPartner = ref.watch(partnerFellowshipByIdProvider);
+  return MonthlyRecordsIndex.build(
+    entries,
+    fellowshipByPartnerId: byPartner,
+  );
 });
 
 final partnerEntriesProvider =

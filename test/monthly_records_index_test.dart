@@ -49,4 +49,40 @@ void main() {
       MonthBucket(year: 2026, month: 2),
     );
   });
+
+  test('month fellowships join the partner when the snapshot is blank', () {
+    PartnershipEntry blank(String id, String partnerId, double amount) {
+      return PartnershipEntry(
+        id: id,
+        churchId: 'c1',
+        partnerId: partnerId,
+        partnerSnapshot: {'fullName': partnerId},
+        partnershipArmId: 'arm1',
+        armSnapshot: {'name': 'Missions'},
+        partnershipPeriodId: 'period1',
+        periodSnapshot: {'name': '2026'},
+        amountCedis: amount,
+        dateGiven: DateTime(2026, 3, 5),
+        status: 'approved',
+        createdBy: 'u1',
+        createdBySnapshot: {'fullName': 'Staff'},
+        createdAt: DateTime(2026, 3, 5),
+        updatedAt: DateTime(2026, 3, 5),
+      );
+    }
+
+    final index = MonthlyRecordsIndex.build(
+      [
+        blank('1', 'p1', 100),
+        blank('2', 'p2', 50),
+      ],
+      fellowshipByPartnerId: const {'p1': 'Youth', 'p2': 'Youth'},
+    );
+
+    final groups = index.fellowshipsInMonth(MonthBucket(year: 2026, month: 3));
+    expect(groups, hasLength(1));
+    expect(groups.single.fellowshipName, 'Youth');
+    expect(groups.single.totalCedis, 150);
+    expect(groups.single.partnerCount, 2);
+  });
 }

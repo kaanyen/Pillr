@@ -348,4 +348,86 @@ void main() {
     expect(rows[0].periodTotalCedis, 200);
     expect(rows[1].periodTotalCedis, 0);
   });
+
+  test('directory stays up when giving has no snapshot fellowship', () {
+    final entries = [
+      _entry(
+        id: 'e1',
+        partnerId: 'p1',
+        name: 'Ama',
+        amount: 200,
+        periodId: periodId,
+        armId: 'arm-a',
+      ),
+    ];
+
+    final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
+      ['Bethel', 'Grace'],
+      entries,
+      periodId: periodId,
+      fellowshipByPartnerId: const {'p1': 'Bethel'},
+    );
+
+    expect(rows.map((r) => r.fellowshipName).toList(), ['Bethel', 'Grace']);
+    expect(rows[0].periodTotalCedis, 200);
+    expect(rows[1].periodTotalCedis, 0);
+  });
+
+  test('directory does not crash when an entry fellowship is not on any partner', () {
+    final entries = [
+      _entry(
+        id: 'e1',
+        partnerId: 'p1',
+        name: 'Ama',
+        amount: 200,
+        periodId: periodId,
+        armId: 'arm-a',
+        fellowship: 'Youth',
+      ),
+    ];
+
+    final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
+      ['Bethel', 'Grace'],
+      entries,
+      periodId: periodId,
+    );
+
+    expect(rows.map((r) => r.fellowshipName).toList(), [
+      'Bethel',
+      'Grace',
+      'Youth',
+    ]);
+    expect(rows.last.periodTotalCedis, 200);
+    expect(rows.last.partnerCount, 0);
+  });
+
+  test('ranked fellowships use the partner group when the snapshot is blank', () {
+    final entries = [
+      _entry(
+        id: 'e1',
+        partnerId: 'p1',
+        name: 'Ama',
+        amount: 300,
+        periodId: periodId,
+        armId: 'arm-a',
+      ),
+      _entry(
+        id: 'e2',
+        partnerId: 'p2',
+        name: 'Kofi',
+        amount: 100,
+        periodId: periodId,
+        armId: 'arm-a',
+      ),
+    ];
+
+    final rows = FellowshipRankRow.fromEntries(
+      entries,
+      periodId: periodId,
+      fellowshipByPartnerId: const {'p1': 'Bethel', 'p2': 'Zion'},
+    );
+
+    expect(rows.map((r) => r.fellowshipName).toList(), ['Bethel', 'Zion']);
+    expect(rows[0].totalCedis, 300);
+  });
 }

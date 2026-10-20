@@ -1,6 +1,7 @@
 import '../../core/utils/text_case_utils.dart';
 import '../../features/arms/domain/partnership_arm.dart';
 import '../entries/domain/partnership_entry.dart';
+import '../entries/fellowship_of.dart';
 
 /// Rankings for one partnership arm in the active period.
 class ArmLeaderboard {
@@ -62,14 +63,14 @@ class FellowshipLeaderboard {
   static List<FellowshipLeaderboard> fromEntries(
     List<PartnershipEntry> entries, {
     String? periodId,
+    Map<String, String> fellowshipByPartnerId = const {},
   }) {
-    final labels = _fellowshipLabels(entries, periodId: periodId);
-    final keys = labels.keys.toList()
-      ..sort((a, b) {
-        if (a.isEmpty) return 1;
-        if (b.isEmpty) return -1;
-        return labels[a]!.compareTo(labels[b]!);
-      });
+    final labels = _fellowshipLabels(
+      entries,
+      periodId: periodId,
+      fellowshipByPartnerId: fellowshipByPartnerId,
+    );
+    final keys = labels.keys.toList()..sort(_fellowshipKeyOrder(labels));
 
     return [
       for (final key in keys)
@@ -80,6 +81,7 @@ class FellowshipLeaderboard {
             entries,
             periodId: periodId,
             fellowshipKey: key,
+            fellowshipByPartnerId: fellowshipByPartnerId,
           ),
         ),
     ].where((section) => section.rows.isNotEmpty).toList();
@@ -105,10 +107,12 @@ class FellowshipRankRow {
   static List<FellowshipRankRow> fromEntries(
     List<PartnershipEntry> entries, {
     String? periodId,
+    Map<String, String> fellowshipByPartnerId = const {},
   }) {
     final sections = FellowshipLeaderboard.fromEntries(
       entries,
       periodId: periodId,
+      fellowshipByPartnerId: fellowshipByPartnerId,
     );
     final sorted = [...sections]
       ..sort((a, b) => b.totalCedis.compareTo(a.totalCedis));
@@ -143,15 +147,19 @@ class FellowshipDirectoryRow {
     Iterable<String> partnerFellowships,
     List<PartnershipEntry> entries, {
     String? periodId,
+    Map<String, String> fellowshipByPartnerId = const {},
   }) {
+    String labelFor(String key, String raw) {
+      if (key.isEmpty) return 'No fellowship';
+      if (raw.trim().isNotEmpty) return TextCaseUtils.toTitleCase(raw.trim());
+      return TextCaseUtils.toTitleCase(key);
+    }
+
     final labels = <String, String>{};
     for (final raw in partnerFellowships) {
       final trimmed = raw.trim();
       final key = trimmed.toLowerCase();
-      labels.putIfAbsent(
-        key,
-        () => trimmed.isEmpty ? 'No fellowship' : TextCaseUtils.toTitleCase(trimmed),
-      );
+      labels.putIfAbsent(key, () => labelFor(key, trimmed));
     }
 
     final partnerCounts = <String, int>{};
@@ -164,16 +172,16 @@ class FellowshipDirectoryRow {
     for (final entry in entries) {
       if (entry.status != 'approved') continue;
       if (periodId != null && entry.partnershipPeriodId != periodId) continue;
-      final key = _entryFellowshipKey(entry);
+      final key = fellowshipKeyOf(entry, fellowshipByPartnerId);
       periodTotals[key] = (periodTotals[key] ?? 0) + entry.amountCedis;
+      labels.putIfAbsent(
+        key,
+        () => fellowshipLabelOf(entry, fellowshipByPartnerId),
+      );
     }
 
     final keys = {...labels.keys, ...periodTotals.keys}.toList()
-      ..sort((a, b) {
-        if (a.isEmpty) return 1;
-        if (b.isEmpty) return -1;
-        return labels[a]!.compareTo(labels[b]!);
-      });
+      ..sort(_fellowshipKeyOrder(labels));
 
     return [
       for (final key in keys)
@@ -205,13 +213,15 @@ class LeaderboardRow {
     String? periodId,
     String? armId,
     String? fellowshipKey,
+    Map<String, String> fellowshipByPartnerId = const {},
   }) {
     final fellowship = fellowshipKey?.toLowerCase();
     final filtered = entries.where((e) {
       if (e.status != 'approved') return false;
       if (periodId != null && e.partnershipPeriodId != periodId) return false;
       if (armId != null && e.partnershipArmId != armId) return false;
-      if (fellowship != null && _entryFellowshipKey(e) != fellowship) {
+      if (fellowship != null &&
+          fellowshipKeyOf(e, fellowshipByPartnerId) != fellowship) {
         return false;
       }
       return true;
@@ -235,23 +245,31 @@ class LeaderboardRow {
   }
 }
 
+/// A–Z by label, unnamed groups last. Equal keys compare as 0 so `List.sort`
+/// does not abort and blank the Fellowships tab.
+int Function(String, String) _fellowshipKeyOrder(Map<String, String> labels) {
+  return (a, b) {
+    if (a == b) return 0;
+    if (a.isEmpty) return 1;
+    if (b.isEmpty) return -1;
+    return (labels[a] ?? a).compareTo(labels[b] ?? b);
+  };
+}
+
 Map<String, String> _fellowshipLabels(
   List<PartnershipEntry> entries, {
   String? periodId,
+  Map<String, String> fellowshipByPartnerId = const {},
 }) {
   final labels = <String, String>{};
   for (final entry in entries) {
     if (entry.status != 'approved') continue;
     if (periodId != null && entry.partnershipPeriodId != periodId) continue;
-    final raw = entry.partnerSnapshot['fellowship']?.toString().trim() ?? '';
-    final key = _entryFellowshipKey(entry);
+    final key = fellowshipKeyOf(entry, fellowshipByPartnerId);
     labels.putIfAbsent(
       key,
-      () => raw.isEmpty ? 'No fellowship' : TextCaseUtils.toTitleCase(raw),
+      () => fellowshipLabelOf(entry, fellowshipByPartnerId),
     );
   }
   return labels;
 }
-
-String _entryFellowshipKey(PartnershipEntry entry) =>
-    (entry.partnerSnapshot['fellowship']?.toString().trim() ?? '').toLowerCase();

@@ -120,6 +120,33 @@ void main() {
       expect(ids(out), ['b']);
     });
 
+    test('fellowship falls back to the partner when the snapshot is blank', () {
+      final blank = PartnershipEntry(
+        id: 'snapless',
+        churchId: 'c',
+        partnerId: 'p-youth',
+        partnerSnapshot: const {'fullName': 'Ama Boateng'},
+        partnershipArmId: 'arm-1',
+        armSnapshot: const {},
+        partnershipPeriodId: 'period-1',
+        periodSnapshot: const {},
+        amountCedis: 80,
+        dateGiven: now,
+        status: 'approved',
+        createdBy: 'uid-1',
+        createdBySnapshot: const {},
+        createdAt: now,
+        updatedAt: now,
+      );
+      final out = applyRecordFilters(
+        [blank, ...rows],
+        RecordFilters.empty.withFellowship('Youth'),
+        now: now,
+        fellowshipByPartnerId: const {'p-youth': 'Youth'},
+      );
+      expect(ids(out), ['snapless']);
+    });
+
     test('arm', () {
       final out = applyRecordFilters(
         rows, RecordFilters.empty.withArm('arm-2'), now: now);

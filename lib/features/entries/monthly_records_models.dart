@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 
-import '../../core/utils/text_case_utils.dart';
 import 'domain/partnership_entry.dart';
+import 'fellowship_of.dart';
 
 /// A calendar month bucket keyed by [year] and [month].
 class MonthBucket implements Comparable<MonthBucket> {
@@ -116,8 +116,9 @@ abstract final class MonthlyRecords {
 
   static MonthSummary summarize(
     List<PartnershipEntry> entries,
-    MonthBucket month,
-  ) {
+    MonthBucket month, {
+    Map<String, String> fellowshipByPartnerId = const {},
+  }) {
     final inMonth = _approvedInMonth(entries, month).toList();
     final partners = <String>{};
     final fellowships = <String>{};
@@ -125,7 +126,7 @@ abstract final class MonthlyRecords {
     for (final entry in inMonth) {
       total += entry.amountCedis;
       partners.add(entry.partnerId);
-      fellowships.add(_fellowshipKey(entry));
+      fellowships.add(fellowshipKeyOf(entry, fellowshipByPartnerId));
     }
     return MonthSummary(
       month: month,
@@ -173,14 +174,15 @@ abstract final class MonthlyRecords {
   static List<MonthPartnerGiving> partnersInMonthForFellowship(
     List<PartnershipEntry> entries,
     MonthBucket month,
-    String fellowshipKey,
-  ) {
+    String fellowshipKey, {
+    Map<String, String> fellowshipByPartnerId = const {},
+  }) {
     final key = fellowshipKey.toLowerCase();
     final totals = <String, double>{};
     final names = <String, String>{};
     final counts = <String, int>{};
     for (final entry in _approvedInMonth(entries, month)) {
-      if (_fellowshipKey(entry) != key) continue;
+      if (fellowshipKeyOf(entry, fellowshipByPartnerId) != key) continue;
       totals[entry.partnerId] =
           (totals[entry.partnerId] ?? 0) + entry.amountCedis;
       counts[entry.partnerId] = (counts[entry.partnerId] ?? 0) + 1;
@@ -202,21 +204,21 @@ abstract final class MonthlyRecords {
 
   static List<MonthFellowshipGiving> fellowshipsInMonth(
     List<PartnershipEntry> entries,
-    MonthBucket month,
-  ) {
+    MonthBucket month, {
+    Map<String, String> fellowshipByPartnerId = const {},
+  }) {
     final totals = <String, double>{};
     final names = <String, String>{};
     final partners = <String, Set<String>>{};
     final counts = <String, int>{};
     for (final entry in _approvedInMonth(entries, month)) {
-      final key = _fellowshipKey(entry);
+      final key = fellowshipKeyOf(entry, fellowshipByPartnerId);
       totals[key] = (totals[key] ?? 0) + entry.amountCedis;
       counts[key] = (counts[key] ?? 0) + 1;
       partners.putIfAbsent(key, () => {}).add(entry.partnerId);
-      final raw = entry.partnerSnapshot['fellowship']?.toString().trim() ?? '';
       names.putIfAbsent(
         key,
-        () => raw.isEmpty ? 'No fellowship' : TextCaseUtils.toTitleCase(raw),
+        () => fellowshipLabelOf(entry, fellowshipByPartnerId),
       );
     }
     final rows = totals.entries.toList()
@@ -246,8 +248,4 @@ abstract final class MonthlyRecords {
     if (nextIndex < 0 || nextIndex >= months.length) return null;
     return months[nextIndex];
   }
-
-  static String _fellowshipKey(PartnershipEntry entry) =>
-      (entry.partnerSnapshot['fellowship']?.toString().trim() ?? '')
-          .toLowerCase();
 }

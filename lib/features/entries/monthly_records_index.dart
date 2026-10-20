@@ -1,5 +1,5 @@
-import '../../core/utils/text_case_utils.dart';
 import 'domain/partnership_entry.dart';
+import 'fellowship_of.dart';
 import 'monthly_records_models.dart';
 
 /// Precomputed monthly giving aggregates — one pass over entries.
@@ -19,13 +19,16 @@ class MonthlyRecordsIndex {
   final Map<MonthBucket, Map<String, List<MonthPartnerGiving>>>
       partnersByMonthFellowship;
 
-  factory MonthlyRecordsIndex.build(List<PartnershipEntry> entries) {
+  factory MonthlyRecordsIndex.build(
+    List<PartnershipEntry> entries, {
+    Map<String, String> fellowshipByPartnerId = const {},
+  }) {
     final summaryData = <MonthBucket, _MonthAccumulator>{};
 
     for (final entry in entries) {
       if (entry.status != 'approved') continue;
       final month = MonthBucket.fromDate(entry.dateGiven);
-      final fellowshipKey = _fellowshipKey(entry);
+      final fellowshipKey = fellowshipKeyOf(entry, fellowshipByPartnerId);
       final acc = summaryData.putIfAbsent(month, _MonthAccumulator.new);
 
       acc.total += entry.amountCedis;
@@ -34,7 +37,7 @@ class MonthlyRecordsIndex {
       acc.fellowships.add(fellowshipKey);
       acc.fellowshipNames.putIfAbsent(
         fellowshipKey,
-        () => _fellowshipLabel(entry),
+        () => fellowshipLabelOf(entry, fellowshipByPartnerId),
       );
 
       acc.partnerTotals[entry.partnerId] =
@@ -115,16 +118,6 @@ class MonthlyRecordsIndex {
   ) =>
       partnersByMonthFellowship[month]?[fellowshipKey.toLowerCase()] ??
       const [];
-
-  static String _fellowshipKey(PartnershipEntry entry) =>
-      (entry.partnerSnapshot['fellowship']?.toString().trim() ?? '')
-          .toLowerCase();
-
-  static String _fellowshipLabel(PartnershipEntry entry) {
-    final raw = entry.partnerSnapshot['fellowship']?.toString().trim() ?? '';
-    if (raw.isEmpty) return 'No fellowship';
-    return TextCaseUtils.toTitleCase(raw);
-  }
 
   static List<MonthPartnerGiving> _partnerRows(_MonthAccumulator acc) {
     final rows = acc.partnerTotals.entries.toList()
