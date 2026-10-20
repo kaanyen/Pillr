@@ -13,7 +13,9 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_models.dart';
 import '../features/leaderboard/leaderboard_providers.dart';
+import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../features/periods/providers/periods_providers.dart';
 import 'export_actions.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
@@ -76,13 +78,22 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final money = ref.watch(churchMoneyFormatProvider);
-    final partnersAsync = ref.watch(partnersStreamProvider(false));
-    // Same period-scoped set the rankings use; the filter bar draws its
-    // options from it.
-    final allEntries = ref.watch(rankingEntriesProvider).valueOrNull ?? const [];
-    final arms =
-        ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
+    try {
+      return _buildPage(context);
+    } catch (e) {
+      return SelPageBody(
+        children: [
+          const SelPageTitle(
+            title: 'Fellowships',
+            subtitle: 'The list could not be built.',
+          ),
+          SelError(message: '$e'),
+        ],
+      );
+    }
+  }
+
+  Widget _buildPage(BuildContext context) {
     final filters = ref.watch(recordFiltersProvider);
     final fellowshipFilter = filters.fellowship?.toLowerCase();
     final showingMembers =
@@ -116,54 +127,37 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
             if (_view == _View.ranked) const SizedBox(width: SelSpace.x2),
           ],
         ),
-
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        Row(
           children: [
-            Row(
-              children: [
-                SelPillGroup<_View>(
-                  selected: _view,
-                  onChanged: (v) => setState(() => _view = v),
-                  options: const [
-                    (_View.directory, 'Directory'),
-                    (_View.ranked, 'Ranked'),
-                  ],
-                ),
-                const Spacer(),
-                if (_view == _View.directory)
-                  SizedBox(
-                    width: 240,
-                    child: SelField(
-                      hint: 'Search fellowship',
-                      prefixIcon: LucideIcons.search,
-                      onChanged: (v) =>
-                          setState(() => _query = v.trim().toLowerCase()),
-                    ),
-                  ),
+            SelPillGroup<_View>(
+              selected: _view,
+              onChanged: (v) => setState(() => _view = v),
+              options: const [
+                (_View.directory, 'Directory'),
+                (_View.ranked, 'Ranked'),
               ],
             ),
+            const Spacer(),
+            if (_view == _View.directory)
+              SizedBox(
+                width: 240,
+                child: SelField(
+                  hint: 'Search fellowship',
+                  prefixIcon: LucideIcons.search,
+                  onChanged: (v) =>
+                      setState(() => _query = v.trim().toLowerCase()),
+                ),
+              ),
           ],
         ),
-
         const SizedBox(height: SelSpace.x6),
-
         if (_view == _View.directory)
-          partnersAsync.when(
-            loading: () => const SelCard(child: SelSkeletonRows()),
-            error: (e, _) => SelError(message: '$e'),
-            data: (_) => _FellowshipDirectory(
-              query: _query,
-              money: money,
-              onOpenFellowship: _openFellowshipMembers,
-            ),
+          _FellowshipDirectory(
+            query: _query,
+            onOpenFellowship: _openFellowshipMembers,
           )
         else
           _FellowshipRankedView(
-            money: money,
-            all: allEntries,
-            arms: arms,
-            filters: filters,
             onOpenFellowship: _openFellowshipMembers,
             onBackToAll: _backToAllFellowships,
           ),
@@ -178,27 +172,52 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
 class _FellowshipDirectory extends ConsumerWidget {
   const _FellowshipDirectory({
     required this.query,
-    required this.money,
     required this.onOpenFellowship,
   });
 
   final String query;
-  final String Function(num) money;
   final ValueChanged<String> onOpenFellowship;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    late final List<FellowshipDirectoryRow> rows;
+    final partnersAsync = ref.watch(partnersStreamProvider(false));
+    return partnersAsync.when(
+      loading: () => const SelCard(child: SelSkeletonRows()),
+      error: (e, _) => SelError(message: '$e'),
+      data: (partners) => _directoryTable(ref, partners),
+    );
+  }
+
+  Widget _directoryTable(WidgetRef ref, List<Partner> partners) {
+    late final String Function(num) money;
     try {
-      rows = [
-        for (final row in ref.watch(fellowshipDirectoryProvider(false)))
-          if (query.isEmpty ||
-              row.fellowshipName.toLowerCase().contains(query))
-            row,
-      ];
+      money = ref.watch(churchMoneyFormatProvider);
+    } catch (_) {
+      money = (n) => n.toStringAsFixed(2);
+    }
+
+    List<PartnershipEntry> entries = const [];
+    try {
+      entries = ref.watch(filteredEntriesProvider);
+    } catch (_) {}
+
+    final period = ref.watch(activePeriodProvider);
+    late final List<FellowshipDirectoryRow> computed;
+    try {
+      computed = FellowshipDirectoryRow.fromPartnersAndEntries(
+        partners.map((p) => p.fellowship),
+        entries,
+        periodId: period?.id,
+        fellowshipByPartnerId: {for (final p in partners) p.id: p.fellowship},
+      );
     } catch (e) {
       return SelError(message: '$e');
     }
+    final rows = [
+      for (final row in computed)
+        if (query.isEmpty || row.fellowshipName.toLowerCase().contains(query))
+          row,
+    ];
 
     return SelLedger(
       minWidth: 640,
@@ -231,23 +250,25 @@ class _FellowshipDirectory extends ConsumerWidget {
 
 class _FellowshipRankedView extends ConsumerWidget {
   const _FellowshipRankedView({
-    required this.money,
-    required this.all,
-    required this.arms,
-    required this.filters,
     required this.onOpenFellowship,
     required this.onBackToAll,
   });
 
-  final String Function(num) money;
-  final List<PartnershipEntry> all;
-  final List<PartnershipArm> arms;
-  final RecordFilters filters;
   final ValueChanged<String> onOpenFellowship;
   final VoidCallback onBackToAll;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    late final String Function(num) money;
+    try {
+      money = ref.watch(churchMoneyFormatProvider);
+    } catch (_) {
+      money = (n) => n.toStringAsFixed(2);
+    }
+    final all = ref.watch(rankingEntriesProvider).valueOrNull ?? const [];
+    final arms =
+        ref.watch(armsStreamProvider).valueOrNull ?? const <PartnershipArm>[];
+    final filters = ref.watch(recordFiltersProvider);
     final fellowshipFilter = filters.fellowship?.toLowerCase();
 
     if (fellowshipFilter != null && fellowshipFilter.isNotEmpty) {

@@ -35,6 +35,29 @@ Future<void> main() async {
     debugPrint('Pillr APP_ENV=${AppEnvironmentConfig.current.name}');
   }
 
+  // Release web paints a gray box when a widget throws. Fellowships did that
+  // and looked like an empty tab. Show the exception so the page is readable.
+  if (kIsWeb) {
+    ErrorWidget.builder = (FlutterErrorDetails details) {
+      return ColoredBox(
+        color: const Color(0xFFF9F9F9),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              details.exceptionAsString(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF1B2045),
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ),
+      );
+    };
+  }
+
   // firebase_crashlytics has no web implementation; calling it on web throws
   // MissingPluginException and prevents runApp (blank page).
   if (!kIsWeb) {

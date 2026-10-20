@@ -373,6 +373,46 @@ void main() {
     expect(rows[1].periodTotalCedis, 0);
   });
 
+  test('directory lists Airport City groups when a snapshot name is unmatched', () {
+    const partners = [
+      'Radah',
+      'Online',
+      'Fire Fellowship',
+      'City Of David',
+    ];
+    final entries = [
+      _entry(
+        id: 'e1',
+        partnerId: 'p1',
+        name: 'Ama',
+        amount: 100,
+        periodId: periodId,
+        armId: 'arm-a',
+        fellowship: 'Online Fellowship',
+      ),
+      _entry(
+        id: 'e2',
+        partnerId: 'p2',
+        name: 'Kofi',
+        amount: 50,
+        periodId: periodId,
+        armId: 'arm-a',
+        fellowship: 'FIRE Fellowship',
+      ),
+    ];
+
+    final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
+      partners,
+      entries,
+      periodId: periodId,
+    );
+
+    expect(
+      rows.map((r) => r.fellowshipName).toList(),
+      containsAll(['City Of David', 'Fire Fellowship', 'Online', 'Online Fellowship', 'Radah']),
+    );
+  });
+
   test('directory does not crash when an entry fellowship is not on any partner', () {
     final entries = [
       _entry(
