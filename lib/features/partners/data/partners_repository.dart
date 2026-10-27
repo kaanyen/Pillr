@@ -58,10 +58,20 @@ class PartnersRepository {
 
   Future<bool> memberIdExists(String churchId, String memberId, {String? excludePartnerId}) async {
     final normalized = memberId.trim().toUpperCase();
-    final q = await _partners(churchId).where('memberId', isEqualTo: normalized).limit(5).get();
-    for (final d in q.docs) {
-      if (excludePartnerId != null && d.id == excludePartnerId) continue;
-      return true;
+    // A retired ID — one a merged person used to have — counts as taken, so
+    // an old receipt or sheet never points at someone new.
+    final results = await Future.wait([
+      _partners(churchId).where('memberId', isEqualTo: normalized).limit(5).get(),
+      _partners(churchId)
+          .where('formerMemberIds', arrayContains: normalized)
+          .limit(5)
+          .get(),
+    ]);
+    for (final q in results) {
+      for (final d in q.docs) {
+        if (excludePartnerId != null && d.id == excludePartnerId) continue;
+        return true;
+      }
     }
     return false;
   }
@@ -187,6 +197,8 @@ class PartnersRepository {
             .where('fullNameLower', isLessThanOrEqualTo: '$qLower\uf8ff')
             .limit(25),
       ),
+      // An old member ID from before a merge finds the merged person.
+      merge(col.where('formerMemberIds', arrayContains: qUpper).limit(5)),
       merge(
         col
             .where('fellowshipLower', isGreaterThanOrEqualTo: qLower)

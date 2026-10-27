@@ -52,7 +52,12 @@ class RecordOperation {
       case 'fellowship.move':
         return 'Moved partners from ${v('from')} to ${v('to')}';
       case 'partner.merge':
-        return 'Merged ${v('absorbedName')} into ${v('keptName')}';
+        final ids = v('newMemberId');
+        return 'Merged ${v('absorbedName')} into ${v('keptName')}'
+            '${ids.isEmpty ? '' : ' (new ID $ids)'}';
+      case 'partner.unmerge':
+        return 'Separated ${v('separatedName')} (${v('separatedMemberId')}) '
+            'from ${v('keptName')}';
       default:
         return kind;
     }
@@ -119,23 +124,45 @@ class RecordOpsRepository {
     );
   }
 
-  /// Moves [absorbId]'s entries onto [keepId] and closes [absorbId].
-  Future<({String? opId, int moved, List<String> filled})> partnerMerge({
+  /// Moves every [absorbIds] record's entries onto [keepId] and closes them.
+  ///
+  /// The kept person gets a new member ID; every old one stays attached to
+  /// them in `formerMemberIds`.
+  Future<PartnerMergeResult> partnerMerge({
     required String churchId,
     required String keepId,
-    required String absorbId,
+    required List<String> absorbIds,
     required int expectEntries,
   }) async {
     final r = await _call(FirebaseConstants.partnerMerge, {
       'churchId': churchId,
       'keepId': keepId,
-      'absorbId': absorbId,
+      'absorbIds': absorbIds,
       'expectEntries': expectEntries,
     });
-    return (
+    return PartnerMergeResult(
       opId: r['opId'] as String?,
       moved: (r['moved'] as num?)?.toInt() ?? 0,
       filled: [for (final f in (r['filled'] as List? ?? const [])) f.toString()],
+      newMemberId: r['newMemberId'] as String? ?? '',
+      formerMemberIds: [
+        for (final f in (r['formerMemberIds'] as List? ?? const [])) f.toString(),
+      ],
+    );
+  }
+
+  /// Takes the record with [memberId] back out of the merge it is in.
+  Future<({int moved, String partnerId})> partnerUnmerge({
+    required String churchId,
+    required String memberId,
+  }) async {
+    final r = await _call(FirebaseConstants.partnerUnmerge, {
+      'churchId': churchId,
+      'memberId': memberId,
+    });
+    return (
+      moved: (r['moved'] as num?)?.toInt() ?? 0,
+      partnerId: r['partnerId'] as String? ?? '',
     );
   }
 
@@ -163,6 +190,22 @@ class RecordOpsRepository {
         .snapshots()
         .map((s) => s.docs.map(RecordOperation.fromDoc).toList());
   }
+}
+
+class PartnerMergeResult {
+  const PartnerMergeResult({
+    required this.opId,
+    required this.moved,
+    required this.filled,
+    required this.newMemberId,
+    required this.formerMemberIds,
+  });
+
+  final String? opId;
+  final int moved;
+  final List<String> filled;
+  final String newMemberId;
+  final List<String> formerMemberIds;
 }
 
 class FellowshipChangeResult {

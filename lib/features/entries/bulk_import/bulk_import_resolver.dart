@@ -66,6 +66,13 @@ List<BulkResolvedRow> resolveBulkImportRows({
       mergedByMemberId[mid] = cur;
     }
   }
+  // A sheet still using an ID from before a merge: the merged person holds
+  // it in formerMemberIds.
+  for (final p in partners) {
+    for (final f in p.formerMemberIds) {
+      if (!byMemberId.containsKey(f)) mergedByMemberId.putIfAbsent(f, () => p);
+    }
+  }
   final everyone = [...partners, ...inactivePartners];
 
   final resolved = <BulkResolvedRow>[];
@@ -135,8 +142,8 @@ List<BulkResolvedRow> resolveBulkImportRows({
             BulkImportIssue(
               code: BulkImportIssueCode.memberIdMerged,
               severity: BulkImportSeverity.warning,
-              message: '${mid.toUpperCase()} was merged into '
-                  '${survivor!.fullName} (${survivor.memberId}).',
+              message: '${mid.toUpperCase()} is an old ID. It now belongs to '
+                  '${survivor!.fullName}, member ID ${survivor.memberId}.',
             ),
           );
         }

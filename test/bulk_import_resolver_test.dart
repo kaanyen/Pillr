@@ -30,6 +30,27 @@ void main() {
       );
     });
 
+    test('an old ID kept on a merged person finds them', () {
+      final merged = Partner(
+        id: 'keep', churchId: 'c1', memberId: 'ACC555555', fullName: 'Kwame Mensah',
+        fellowship: 'FC', isActive: true, totalApprovedAmount: 0, entryCount: 0,
+        createdBy: 'u', createdAt: DateTime(2024), updatedAt: DateTime(2024),
+        formerMemberIds: const ['ACC001', 'ACC002'],
+      );
+      final rows = resolveBulkImportRows(
+        rawRows: _rows([
+          ['2024-02-01', 'Kwame Mensah', 'acc002', '', 'FC', '40', 'Offerings'],
+        ]),
+        arms: [_arm()],
+        activePeriod: _period(),
+        partners: [merged],
+        viewerIsStaff: false,
+      );
+      expect(rows.single.partnerId, 'keep');
+      expect(rows.single.isBlocking, isFalse);
+      expect(rows.single.issues.single.code, BulkImportIssueCode.memberIdMerged);
+    });
+
     test('an unknown member ID still stops the row', () {
       final rows = resolveBulkImportRows(
         rawRows: _rows([

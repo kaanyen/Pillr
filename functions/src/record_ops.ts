@@ -36,7 +36,8 @@ type OpKind =
   | "fellowship.rename"
   | "fellowship.dissolve"
   | "fellowship.move"
-  | "partner.merge";
+  | "partner.merge"
+  | "partner.unmerge";
 
 /** Who may run each kind. Undo follows the same table. */
 const ALLOWED: Record<OpKind, Role[]> = {
@@ -45,6 +46,7 @@ const ALLOWED: Record<OpKind, Role[]> = {
   "fellowship.dissolve": ["pastor", "admin", "staff"],
   "fellowship.move": ["pastor", "admin", "staff"],
   "partner.merge": ["pastor", "staff"],
+  "partner.unmerge": ["pastor", "staff"],
 };
 
 /** One document's change: the fields it had, and what this operation wrote. */
@@ -54,6 +56,8 @@ export interface Change {
   after: Record<string, unknown>;
   /** Fields that did not exist before. Undo deletes them again. */
   absent: string[];
+  /** The operation made this document. Undo removes it again, if untouched. */
+  created?: boolean;
 }
 
 interface Actor {
@@ -106,6 +110,19 @@ export function sameValue(a: unknown, b: unknown): boolean {
     return ka.every((k) => sameValue(ma[k], mb[k]));
   }
   return false;
+}
+
+const isDelete = (v: unknown) => v instanceof FieldValue && v.isEqual(FieldValue.delete());
+
+/**
+ * The change as it is stored. A field this operation deletes is recorded as
+ * null — a delete marker cannot be saved — and undo reads null as "was not
+ * there".
+ */
+function recordable(c: Change): Change {
+  const after: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(c.after)) after[k] = isDelete(v) ? null : v;
+  return {...c, after};
 }
 
 /** Builds a change from a snapshot, recording which fields were missing. */
@@ -229,8 +246,13 @@ async function applyOperation(
       const chunk = changes.slice(i, i + CHANGES_PER_BATCH);
       const batch = db().batch();
       for (const c of chunk) {
-        batch.update(db().doc(c.path), {...c.after, updatedAt: FieldValue.serverTimestamp()});
-        batch.set(opRef.collection("changes").doc(String(seq).padStart(6, "0")), {seq, ...c});
+        if (c.created) {
+          batch.set(db().doc(c.path), {...c.after, createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()});
+        } else {
+          batch.update(db().doc(c.path), {...c.after, updatedAt: FieldValue.serverTimestamp()});
+        }
+        batch.set(opRef.collection("changes").doc(String(seq).padStart(6, "0")), {seq, ...recordable(c)});
         seq++;
       }
       batch.update(opRef, {applied: FieldValue.increment(chunk.length)});
@@ -310,7 +332,7 @@ export const fellowshipChange = onCall(
     const data = (request.data ?? {}) as FellowshipRequest;
     const churchId = str(data.churchId);
     const kind = `fellowship.${str(data.kind)}` as OpKind;
-    if (!(kind in ALLOWED) || kind === "partner.merge") {
+    if (!(kind in ALLOWED) || kind.startsWith("partner.")) {
       throw new HttpsError("invalid-argument", "Unknown fellowship change.");
     }
     const actor = await actorFor(request.auth?.uid, churchId, kind);
@@ -397,14 +419,119 @@ export const fellowshipChange = onCall(
 interface PartnerMergeRequest {
   churchId?: string;
   keepId?: string;
+  /** One record, or several when one person was entered many times. */
   absorbId?: string;
+  absorbIds?: unknown[];
   /** Entries the person saw moving when they confirmed. */
   expectEntries?: number;
 }
 
-/** Contact fields copied onto the kept record when it has none of its own. */
-const FILLABLE = ["phone", "email", "memberId"] as const;
+const upper = (v: unknown) => str(v).toUpperCase();
 
+/** Phones compared by their last nine digits, as the duplicate scan does. */
+const phoneKey = (v: unknown) => {
+  const d = str(v).replace(/\D/g, "");
+  return d.length < 9 ? d : d.slice(-9);
+};
+const emailKey = (v: unknown) => str(v).toLowerCase();
+
+/** Every phone or email a record holds: its list, plus the single field. */
+function contactsOf(m: {get(f: string): unknown} | Record<string, unknown>, kind: "phone" | "email"): string[] {
+  const get = (f: string) => ("get" in m && typeof m.get === "function" ? (m as {get(f: string): unknown}).get(f) :
+    (m as Record<string, unknown>)[f]);
+  const list = (get(kind === "phone" ? "phones" : "emails") as unknown[] | undefined) ?? [];
+  return [str(get(kind)), ...list.map(str)].filter(Boolean);
+}
+
+/** Distinct values, first spelling kept, in the order given. */
+function distinct(values: string[], key: (v: string) => string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    const k = key(v);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  return out;
+}
+
+/** Letters at the front of a member ID: ACC from ACC682216. */
+function memberIdPrefix(memberId: string): string {
+  return /^[A-Z]+/.exec(memberId)?.[0] ?? "";
+}
+
+/** Same rule as Dart `churchInitialsFromName`, for a church whose IDs carry no prefix yet. */
+function churchInitials(name: string): string {
+  const skip = new Set(["the", "a", "an", "of", "and", "or", "to", "in", "at"]);
+  const words = name.replace(/[^a-zA-Z\s]/g, " ").split(/\s+/)
+    .filter((w) => w && !skip.has(w.toLowerCase()));
+  if (words.length === 0) return "CH";
+  let s = "";
+  for (const w of words) {
+    if (s.length >= 4) break;
+    s += w[0].toUpperCase();
+  }
+  if (s.length === 1 && words[0].length > 1) s = words[0].slice(0, 2).toUpperCase();
+  return s;
+}
+
+/**
+ * A member ID nobody has held: not a current ID, and not one retired into a
+ * merged person's former IDs — an old ID is never handed to someone new.
+ */
+async function freshMemberId(churchId: string, prefix: string): Promise<string> {
+  const col = db().collection(`churches/${churchId}/partners`);
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const id = `${prefix}${100000 + Math.floor(Math.random() * 900000)}`;
+    const [now, former] = await Promise.all([
+      col.where("memberId", "==", id).limit(1).get(),
+      col.where("formerMemberIds", "array-contains", id).limit(1).get(),
+    ]);
+    if (now.empty && former.empty) return id;
+  }
+  throw new HttpsError("internal", "Could not find a free member ID. Try again.");
+}
+
+/** One record inside a merged person, as kept in `mergedAliases`. */
+interface MergedAlias {
+  partnerId: string;
+  fullName: string;
+  fellowship: string;
+  memberId: string | null;
+  phone: string | null;
+  email: string | null;
+  phones: string[];
+  emails: string[];
+  /** The record that was kept: its own details before the merge changed them. */
+  self?: boolean;
+}
+
+function aliasOf(snap: FirebaseFirestore.DocumentSnapshot, memberId: string, self = false): MergedAlias {
+  return {
+    partnerId: snap.id,
+    fullName: str(snap.get("fullName")),
+    fellowship: str(snap.get("fellowship")),
+    memberId: memberId || null,
+    phone: str(snap.get("phone")) || null,
+    email: str(snap.get("email")) || null,
+    phones: distinct(contactsOf(snap, "phone"), phoneKey),
+    emails: distinct(contactsOf(snap, "email"), emailKey),
+    ...(self ? {self: true} : {}),
+  };
+}
+
+/**
+ * Merges one or more duplicate records into the record kept.
+ *
+ * The person comes out with a new member ID. Every ID they were known by —
+ * the kept record's and each duplicate's — is kept on them as
+ * `formerMemberIds`, and every phone number and email from every record is
+ * kept in `phones` and `emails`. The duplicates are closed, not deleted, and
+ * keep their own IDs. The kept record's own details and gifts are recorded
+ * too, so any one of the records — the kept one included — can be taken out
+ * again by its ID ([partnerUnmerge]), or the whole merge undone.
+ */
 export const partnerMerge = onCall(
   {region: REGION, timeoutSeconds: 540, memory: "512MiB"},
   async (request) => {
@@ -412,89 +539,291 @@ export const partnerMerge = onCall(
     const churchId = str(data.churchId);
     const actor = await actorFor(request.auth?.uid, churchId, "partner.merge");
     const keepId = str(data.keepId);
-    const absorbId = str(data.absorbId);
-    if (!keepId || !absorbId || keepId === absorbId) {
-      throw new HttpsError("invalid-argument", "Pick two different partners.");
+    const absorbIds = [...new Set([
+      ...(data.absorbIds ?? []).map(str),
+      str(data.absorbId),
+    ].filter(Boolean))];
+    if (!keepId || absorbIds.length === 0 || absorbIds.includes(keepId)) {
+      throw new HttpsError("invalid-argument", "Pick the record to keep and at least one other.");
+    }
+    if (absorbIds.length > 50) {
+      throw new HttpsError("invalid-argument", "Merge at most 50 records at once.");
     }
 
     return withLock(churchId, `${actor.uid}:${Date.now()}`, async () => {
       const partnersCol = db().collection(`churches/${churchId}/partners`);
-      const [keep, absorb] = await db().getAll(partnersCol.doc(keepId), partnersCol.doc(absorbId));
-      if (!keep.exists || !absorb.exists) {
-        throw new HttpsError("failed-precondition", "One of these partners no longer exists.");
+      const snaps = await db().getAll(partnersCol.doc(keepId), ...absorbIds.map((id) => partnersCol.doc(id)));
+      const [keep, ...absorbs] = snaps;
+      if (snaps.some((s) => !s.exists)) {
+        throw new HttpsError("failed-precondition", "One of these partners no longer exists. Refresh the list.");
       }
       if (str(keep.get("mergedInto"))) {
         throw new HttpsError("failed-precondition",
           `${str(keep.get("fullName"))} was already merged into another record. Merge into that one.`);
       }
-      if (str(absorb.get("mergedInto"))) {
+      const already = absorbs.find((a) => str(a.get("mergedInto")));
+      if (already) {
         throw new HttpsError("failed-precondition",
-          `${str(absorb.get("fullName"))} was already merged. Refresh the list.`);
+          `${str(already.get("fullName"))} was already merged. Refresh the list.`);
       }
 
-      const entries = await db().collection(`churches/${churchId}/entries`)
-        .where("partnerId", "==", absorbId).get();
-      if (typeof data.expectEntries === "number" && data.expectEntries !== entries.size) {
+      const entriesCol = db().collection(`churches/${churchId}/entries`);
+      const entrySets = await Promise.all(absorbs.map((a) => entriesCol.where("partnerId", "==", a.id).get()));
+      const entryCount = entrySets.reduce((n, s) => n + s.size, 0);
+      if (typeof data.expectEntries === "number" && data.expectEntries !== entryCount) {
         throw new HttpsError("failed-precondition",
-          `${str(absorb.get("fullName"))} now has ${entries.size} entries, not ${data.expectEntries}. ` +
-          "Refresh and check again.", {entries: entries.size});
+          `These records now have ${entryCount} entries, not ${data.expectEntries}. Refresh and check again.`,
+          {entries: entryCount});
       }
+
+      const oldKeepId = upper(keep.get("memberId"));
+      const churchName = str((await db().doc(`churches/${churchId}`).get()).get("name"));
+      const prefix = memberIdPrefix(oldKeepId) ||
+        absorbs.map((a) => memberIdPrefix(upper(a.get("memberId")))).find(Boolean) ||
+        churchInitials(churchName);
+      const newMemberId = await freshMemberId(churchId, prefix);
 
       const keepSnapshot = {
         fullName: toTitleCase(str(keep.get("fullName"))),
         fellowship: toTitleCase(str(keep.get("fellowship"))),
-        memberId: str(keep.get("memberId")),
+        memberId: newMemberId,
       };
-      // Each moved entry names the record it came from, so even without this
-      // operation's record anyone can see whose gift it was. Undo removes it.
-      const changes: Change[] = entries.docs.map((e) =>
-        changeOf(e, {
-          partnerId: keepId,
-          partnerSnapshot: keepSnapshot,
-          mergedFromPartnerId: absorbId,
-        }));
 
-      // Anything already merged into the absorbed record follows it, so a
-      // chain of merges always ends at one live partner.
-      const chained = await partnersCol.where("mergedInto", "==", absorbId).get();
-      for (const c of chained.docs) changes.push(changeOf(c, {mergedInto: keepId}));
-
-      // The kept record takes contact details it lacks; nothing it has is overwritten.
-      const keepAfter: Record<string, unknown> = {};
-      const filled: string[] = [];
-      for (const f of FILLABLE) {
-        if (!str(keep.get(f)) && str(absorb.get(f))) {
-          keepAfter[f] = f === "memberId" ? str(absorb.get(f)).toUpperCase() : str(absorb.get(f));
-          filled.push(f);
-        }
-      }
-      const aliases = (keep.get("mergedAliases") as unknown[] | undefined) ?? [];
-      keepAfter.mergedAliases = [...aliases, {
-        partnerId: absorbId,
-        fullName: str(absorb.get("fullName")),
-        memberId: str(absorb.get("memberId")) || null,
-        phone: str(absorb.get("phone")) || null,
-        email: str(absorb.get("email")) || null,
-      }];
-      changes.push(changeOf(keep, keepAfter));
-
-      changes.push(changeOf(absorb, {
-        isActive: false,
-        mergedInto: keepId,
-        mergedBy: actor.uid,
-        mergedAt: Timestamp.now(),
+      // The kept record's own gifts: their snapshot follows it to the new ID,
+      // and each is marked as the kept record's, so the kept record can be
+      // taken out again too.
+      const keepEntries = await entriesCol.where("partnerId", "==", keepId).get();
+      const changes: Change[] = keepEntries.docs.map((e) => changeOf(e, {
+        partnerSnapshot: {...(e.get("partnerSnapshot") ?? {}), memberId: newMemberId},
+        mergedFromPartnerId: str(e.get("mergedFromPartnerId")) || keepId,
       }));
 
+      // Each moved gift remembers the record it first came from. A chain of
+      // merges keeps the original, so any record can be taken out again.
+      absorbs.forEach((a, i) => {
+        for (const e of entrySets[i].docs) {
+          changes.push(changeOf(e, {
+            partnerId: keepId,
+            partnerSnapshot: keepSnapshot,
+            mergedFromPartnerId: str(e.get("mergedFromPartnerId")) || a.id,
+          }));
+        }
+      });
+
+      // Anything already merged into a duplicate follows it.
+      for (const a of absorbs) {
+        const chained = await partnersCol.where("mergedInto", "==", a.id).get();
+        for (const c of chained.docs) changes.push(changeOf(c, {mergedInto: keepId}));
+      }
+
+      // Every ID this person has been known by.
+      const former = new Set<string>(((keep.get("formerMemberIds") as unknown[] | undefined) ?? []).map(upper));
+      if (oldKeepId) former.add(oldKeepId);
+      for (const a of absorbs) {
+        if (upper(a.get("memberId"))) former.add(upper(a.get("memberId")));
+        for (const f of (a.get("formerMemberIds") as unknown[] | undefined) ?? []) former.add(upper(f));
+      }
+      former.delete(newMemberId);
+
+      // Every phone and email from every record. The kept record's own stay
+      // first, so its main contact does not change.
+      const phones = distinct([...contactsOf(keep, "phone"), ...absorbs.flatMap((a) => contactsOf(a, "phone"))], phoneKey);
+      const emails = distinct([...contactsOf(keep, "email"), ...absorbs.flatMap((a) => contactsOf(a, "email"))], emailKey);
+
+      const aliases = ((keep.get("mergedAliases") as MergedAlias[] | undefined) ?? []).slice();
+      if (!aliases.some((a) => a.self)) aliases.unshift(aliasOf(keep, oldKeepId, true));
+      for (const a of absorbs) {
+        aliases.push(aliasOf(a, upper(a.get("memberId"))));
+        // A duplicate that was itself a merged person brings its records along.
+        for (const inner of (a.get("mergedAliases") as MergedAlias[] | undefined) ?? []) {
+          if (!inner.self) aliases.push(inner);
+        }
+      }
+
+      const keepAfter: Record<string, unknown> = {
+        memberId: newMemberId,
+        formerMemberIds: [...former].filter(Boolean).sort(),
+        phones,
+        emails,
+        mergedAliases: aliases,
+      };
+      const filled: string[] = [];
+      if (!str(keep.get("phone")) && phones.length) {
+        keepAfter.phone = phones[0];
+        filled.push("phone");
+      }
+      if (!str(keep.get("email")) && emails.length) {
+        keepAfter.email = emails[0];
+        filled.push("email");
+      }
+      changes.push(changeOf(keep, keepAfter));
+
+      const at = Timestamp.now();
+      for (const a of absorbs) {
+        changes.push(changeOf(a, {isActive: false, mergedInto: keepId, mergedBy: actor.uid, mergedAt: at}));
+      }
+
+      const absorbedNames = absorbs.map((a) => str(a.get("fullName")));
       const summary = {
         keptId: keepId,
         keptName: keepSnapshot.fullName,
-        absorbedId: absorbId,
-        absorbedName: str(absorb.get("fullName")),
-        moved: entries.size,
+        absorbedId: absorbs[0].id,
+        absorbedIds: absorbs.map((a) => a.id),
+        absorbedName: absorbedNames.length === 1 ? absorbedNames[0] : `${absorbedNames.length} records`,
+        absorbedMemberIds: absorbs.map((a) => upper(a.get("memberId"))),
+        oldMemberId: oldKeepId,
+        newMemberId,
+        moved: entryCount,
+        phones: phones.length,
+        emails: emails.length,
         filled,
       };
       const opId = await applyOperation(churchId, actor, "partner.merge", summary, changes);
-      return {opId, moved: entries.size, filled};
+      return {
+        opId, moved: entryCount, filled, newMemberId,
+        formerMemberIds: keepAfter.formerMemberIds, phones, emails,
+      };
+    });
+  },
+);
+
+/**
+ * Takes one person back out of a merge, found by the member ID they had.
+ *
+ * Their gifts — the ones that came from their record — go back to them,
+ * their record opens again with its own ID, phones and emails, and the merged
+ * person loses only what came from them. The rest stays merged.
+ *
+ * Works for any record in the merge, including the one that was kept: that
+ * record now belongs to the merged person, so a new record is made for it
+ * from the details saved at merge time. Recorded like any other change, so it
+ * can itself be undone.
+ */
+export const partnerUnmerge = onCall(
+  {region: REGION, timeoutSeconds: 540, memory: "512MiB"},
+  async (request) => {
+    const churchId = str(request.data?.churchId);
+    const actor = await actorFor(request.auth?.uid, churchId, "partner.unmerge");
+    const memberId = upper(request.data?.memberId);
+    if (!memberId) throw new HttpsError("invalid-argument", "Give the member ID to take out.");
+
+    return withLock(churchId, `${actor.uid}:${Date.now()}`, async () => {
+      const partnersCol = db().collection(`churches/${churchId}/partners`);
+      const holders = await partnersCol.where("formerMemberIds", "array-contains", memberId).get();
+      let survivor = holders.docs.find((d) => !str(d.get("mergedInto")));
+      if (!survivor) {
+        // A merge from before old IDs were kept: the closed record still holds
+        // its ID and points at the person it went into.
+        const closed = (await partnersCol.where("memberId", "==", memberId).get()).docs
+          .find((d) => str(d.get("mergedInto")));
+        if (closed) {
+          const into = await partnersCol.doc(str(closed.get("mergedInto"))).get();
+          if (into.exists) survivor = into as FirebaseFirestore.QueryDocumentSnapshot;
+        }
+      }
+      if (!survivor) {
+        const asCurrent = await partnersCol.where("memberId", "==", memberId).limit(1).get();
+        throw new HttpsError("failed-precondition", asCurrent.empty ?
+          `No record has member ID ${memberId}.` :
+          `${memberId} is not part of a merge.`);
+      }
+      const aliases = (survivor.get("mergedAliases") as MergedAlias[] | undefined) ?? [];
+      let alias = aliases.find((a) => upper(a.memberId) === memberId);
+      if (!alias) {
+        const closed = (await partnersCol.where("memberId", "==", memberId).get()).docs
+          .find((d) => str(d.get("mergedInto")) === survivor!.id);
+        if (closed) alias = aliasOf(closed, memberId);
+      }
+      if (!alias) {
+        throw new HttpsError("failed-precondition",
+          `${memberId} is an old ID of ${str(survivor.get("fullName"))} with no record of its own to take out.`);
+      }
+
+      const changes: Change[] = [];
+      let targetId: string;
+      if (alias.self) {
+        // The kept record became the merged person, so its own details go
+        // into a new record that takes its old ID back.
+        const fresh = partnersCol.doc();
+        targetId = fresh.id;
+        const fullName = toTitleCase(alias.fullName);
+        const fellowship = toTitleCase(alias.fellowship);
+        changes.push({
+          path: fresh.path,
+          created: true,
+          before: {},
+          absent: [],
+          after: {
+            id: fresh.id, churchId, memberId, fullName, fellowship,
+            fullNameLower: fullName.toLowerCase(), fellowshipLower: fellowship.toLowerCase(),
+            phone: alias.phone, email: alias.email,
+            phones: alias.phones ?? [], emails: alias.emails ?? [],
+            isActive: true, totalApprovedAmount: 0, totalApprovedPesewas: 0, entryCount: 0,
+            createdBy: actor.uid, splitFrom: survivor.id,
+          },
+        });
+      } else {
+        const closed = await partnersCol.doc(alias.partnerId).get();
+        if (!closed.exists) throw new HttpsError("failed-precondition", `The record for ${memberId} is missing.`);
+        targetId = closed.id;
+        changes.push(changeOf(closed, {
+          isActive: true,
+          mergedInto: FieldValue.delete(),
+          mergedBy: FieldValue.delete(),
+          mergedAt: FieldValue.delete(),
+        }));
+      }
+
+      const snapshot = {fullName: toTitleCase(alias.fullName), fellowship: toTitleCase(alias.fellowship), memberId};
+      const entries = await db().collection(`churches/${churchId}/entries`)
+        .where("mergedFromPartnerId", "==", alias.partnerId).get();
+      for (const e of entries.docs) {
+        if (str(e.get("partnerId")) !== survivor.id) continue;
+        changes.push(changeOf(e, {
+          partnerId: targetId,
+          partnerSnapshot: snapshot,
+          mergedFromPartnerId: FieldValue.delete(),
+        }));
+      }
+      const moved = changes.filter((c) => c.path.includes("/entries/")).length;
+
+      // The merged person keeps every contact that some other record also
+      // had; only what came from this one alone goes with it.
+      const rest = aliases.filter((a) => a.partnerId !== alias!.partnerId);
+      const keepsPhone = new Set(rest.flatMap((a) => [a.phone ?? "", ...(a.phones ?? [])]).map(phoneKey).filter(Boolean));
+      const keepsEmail = new Set(rest.flatMap((a) => [a.email ?? "", ...(a.emails ?? [])]).map(emailKey).filter(Boolean));
+      const leaving = (v: string, own: string[], keeps: Set<string>, key: (x: string) => string) =>
+        own.map(key).includes(key(v)) && !keeps.has(key(v));
+      const ownPhones = [alias.phone ?? "", ...(alias.phones ?? [])].filter(Boolean);
+      const ownEmails = [alias.email ?? "", ...(alias.emails ?? [])].filter(Boolean);
+      const phones = ((survivor.get("phones") as string[] | undefined) ?? [])
+        .filter((p) => !leaving(p, ownPhones, keepsPhone, phoneKey));
+      const emails = ((survivor.get("emails") as string[] | undefined) ?? [])
+        .filter((e) => !leaving(e, ownEmails, keepsEmail, emailKey));
+      const survivorAfter: Record<string, unknown> = {
+        formerMemberIds: ((survivor.get("formerMemberIds") as unknown[] | undefined) ?? []).map(upper)
+          .filter((f) => f !== memberId),
+        mergedAliases: rest,
+        phones,
+        emails,
+      };
+      const mainPhone = str(survivor.get("phone"));
+      if (mainPhone && leaving(mainPhone, ownPhones, keepsPhone, phoneKey)) survivorAfter.phone = phones[0] ?? null;
+      const mainEmail = str(survivor.get("email"));
+      if (mainEmail && leaving(mainEmail, ownEmails, keepsEmail, emailKey)) survivorAfter.email = emails[0] ?? null;
+      changes.push(changeOf(survivor, survivorAfter));
+
+      const summary = {
+        keptId: survivor.id,
+        keptName: str(survivor.get("fullName")),
+        separatedId: targetId,
+        separatedName: snapshot.fullName,
+        separatedMemberId: memberId,
+        wasKeptRecord: Boolean(alias.self),
+        moved,
+      };
+      const opId = await applyOperation(churchId, actor, "partner.unmerge", summary, changes);
+      return {opId, moved, partnerId: targetId};
     });
   },
 );
@@ -534,6 +863,21 @@ export const undoOperation = onCall(
           chunk.forEach((r, j) => {
             const c = r.data() as Change;
             const now = snaps[j];
+            if (c.created) {
+              // A record this operation made: remove it again, unless someone
+              // has changed it since, in which case it stays and is listed.
+              if (!now.exists) {
+                reverted++;
+              } else if (Object.keys(c.after).every((f) =>
+                ["totalApprovedAmount", "totalApprovedPesewas", "entryCount"].includes(f) ||
+                sameValue(now.get(f), c.after[f]))) {
+                batch.delete(now.ref);
+                writes++;
+              } else {
+                conflicts.push(c.path);
+              }
+              return;
+            }
             const patch = now.exists ? revertPatch(c, now) : null;
             if (patch === null) {
               conflicts.push(c.path);

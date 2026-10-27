@@ -396,6 +396,23 @@ void main() {
       }
     });
 
+    test("a merged person's second phone number still matches", () {
+      final merged = Partner(
+        id: 'm', churchId: 'c1', memberId: 'ACC1', fullName: 'Ama Mensah',
+        fellowship: '', phone: '0241111111', isActive: true,
+        totalApprovedAmount: 0, entryCount: 0, createdBy: 'u',
+        createdAt: DateTime(2026), updatedAt: DateTime(2026),
+        phones: const ['0241111111', '0242222222'],
+      );
+      final pairs = findDuplicatePartners([
+        merged,
+        _partner(id: 'n', fullName: 'Ama Mensah', fellowship: '', phone: '+233 24 222 2222'),
+      ]);
+      expect(pairs.single.reasons, contains('Same phone number'));
+      expect(pairs.single.reasons, isNot(contains('Different phone numbers')));
+      expect(suggestPartners('0242222222', [merged]).single.partner.id, 'm');
+    });
+
     test('a partner is never paired with itself', () {
       // "Boakye Boateng": two words share their first three letters.
       final pairs = findDuplicatePartners([
@@ -481,6 +498,31 @@ void main() {
 
       expect(pairs.length, 2);
       expect(pairs.every((p) => p.original.id == 'a'), isTrue);
+    });
+  });
+
+  group('duplicate groups', () {
+    test('records linked by name become one group, most gifts first', () {
+      final pairs = findDuplicatePartners([
+        _partner(id: 'a', fullName: 'Precious Adedeji', count: 1),
+        _partner(id: 'b', fullName: 'Precious Adedeji', count: 4),
+        _partner(id: 'c', fullName: 'Precious Adedeji', count: 2),
+        _partner(id: 'x', fullName: 'Ama Serwaa'),
+      ]);
+      final split = groupDuplicates(pairs);
+      expect(split.groups.single.partners.map((p) => p.id), ['b', 'c', 'a']);
+      expect(split.pairs, isEmpty);
+    });
+
+    test('a shared family phone does not join a group', () {
+      final pairs = findDuplicatePartners([
+        _partner(id: 'a', fullName: 'Kofi Boateng', phone: '0244123456', fellowship: ''),
+        _partner(id: 'b', fullName: 'Kofi Boateng', phone: '0244123456', fellowship: ''),
+        _partner(id: 'c', fullName: 'Akosua Owusu', phone: '0244123456', fellowship: ''),
+      ]);
+      final split = groupDuplicates(pairs);
+      expect(split.groups, isEmpty);
+      expect(split.pairs, hasLength(3));
     });
   });
 

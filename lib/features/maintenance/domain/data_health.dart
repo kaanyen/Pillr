@@ -32,7 +32,12 @@ class DuplicatePartnerPair {
     required this.b,
     required this.reasons,
     required this.confidence,
+    this.nameMatch = true,
   });
+
+  /// The names agree. Only these join a [DuplicateGroup]: a family's shared
+  /// phone or email must not pull a different person into one.
+  final bool nameMatch;
 
   final Partner a;
   final Partner b;
@@ -285,15 +290,22 @@ class _Facts {
   _Facts(this.p)
     : name = _Name(p.fullName),
       memberId = p.memberId.trim().toUpperCase(),
-      phone = phoneKey(p.phone),
-      email = emailKey(p.email),
+      phones = {
+        for (final x in p.allPhones)
+          if (phoneKey(x).isNotEmpty) phoneKey(x),
+      },
+      emails = {
+        for (final x in p.allEmails)
+          if (emailKey(x).isNotEmpty) emailKey(x),
+      },
       fellowship = p.fellowship.trim().toLowerCase();
 
   final Partner p;
   final _Name name;
   final String memberId;
-  final String phone;
-  final String email;
+  /// Every phone and email the record holds — a merged person has several.
+  final Set<String> phones;
+  final Set<String> emails;
   final String fellowship;
 }
 
@@ -320,7 +332,7 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
   // A shared phone or email confirms a name that already agrees. Behind only
   // a short form it is weaker: sisters share numbers.
   final contact = name == null ? 0.0 : (name.weight >= 0.45 ? 0.9 : 0.7);
-  if (x.phone.isNotEmpty && x.phone == y.phone) {
+  if (x.phones.intersection(y.phones).isNotEmpty) {
     if (name != null) {
       reasons.add('Same phone number');
       weights.add(contact);
@@ -329,7 +341,7 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
       weights.add(0.45);
     }
   }
-  if (x.email.isNotEmpty && x.email == y.email) {
+  if (x.emails.intersection(y.emails).isNotEmpty) {
     if (name != null) {
       reasons.add('Same email');
       weights.add(contact);
@@ -356,7 +368,10 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
   var score = 1 - miss;
 
   final idMatch = x.memberId.isNotEmpty && x.memberId == y.memberId;
-  if (!idMatch && x.phone.isNotEmpty && y.phone.isNotEmpty && x.phone != y.phone) {
+  if (!idMatch &&
+      x.phones.isNotEmpty &&
+      y.phones.isNotEmpty &&
+      x.phones.intersection(y.phones).isEmpty) {
     reasons.add('Different phone numbers');
     // The full name in the same fellowship outweighs a phone typed twice
     // differently — the usual way an import makes a second record.
@@ -370,6 +385,7 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
     b: y.p,
     reasons: reasons,
     confidence: score > 1 ? 1 : score,
+    nameMatch: name != null,
   );
 }
 
@@ -399,8 +415,12 @@ List<DuplicatePartnerPair> findDuplicatePartners(
   for (var i = 0; i < facts.length; i++) {
     final f = facts[i];
     if (f.memberId.isNotEmpty) put('m:${f.memberId}', i);
-    if (f.phone.isNotEmpty) put('p:${f.phone}', i);
-    if (f.email.isNotEmpty) put('e:${f.email}', i);
+    for (final ph in f.phones) {
+      put('p:$ph', i);
+    }
+    for (final em in f.emails) {
+      put('e:$em', i);
+    }
     if (f.name.exact.isNotEmpty) put('n:${f.name.exact}', i);
     for (final w in f.name.core) {
       put('w:$w', i);
@@ -431,6 +451,78 @@ List<DuplicatePartnerPair> findDuplicatePartners(
 
   pairs.sort((x, y) => y.confidence.compareTo(x.confidence));
   return pairs;
+}
+
+/// Three or more records that are one person, entered again at each import.
+class DuplicateGroup {
+  const DuplicateGroup({required this.partners, required this.pairs});
+
+  /// Most gifts first, then oldest: the first is the suggested one to keep.
+  final List<Partner> partners;
+
+  /// The pairs that link them, for the reasons shown.
+  final List<DuplicatePartnerPair> pairs;
+
+  double get confidence =>
+      pairs.map((p) => p.confidence).fold(0.0, (a, b) => a > b ? a : b);
+
+  String get key => 'group:${([for (final p in partners) p.id]..sort()).join('|')}';
+}
+
+/// Splits [pairs] into groups of three or more and the pairs left over.
+///
+/// Records join a group through "likely" or stronger pairs whose names agree.
+/// Merging a group is one change with one new member ID, instead of a chain
+/// of pairwise merges that would hand out an ID at every step.
+({List<DuplicateGroup> groups, List<DuplicatePartnerPair> pairs})
+groupDuplicates(List<DuplicatePartnerPair> pairs) {
+  final parent = <String, String>{};
+  String find(String k) {
+    var r = parent[k] ?? k;
+    while (r != (parent[r] ?? r)) {
+      r = parent[r] ?? r;
+    }
+    parent[k] = r;
+    return r;
+  }
+
+  bool joins(DuplicatePartnerPair p) => p.nameMatch && p.band != DuplicateBand.check;
+  final byId = <String, Partner>{};
+  for (final p in pairs) {
+    byId[p.a.id] = p.a;
+    byId[p.b.id] = p.b;
+    if (joins(p)) parent[find(p.a.id)] = find(p.b.id);
+  }
+  final members = <String, Set<String>>{};
+  for (final p in pairs) {
+    if (!joins(p)) continue;
+    members.putIfAbsent(find(p.a.id), () => {})
+      ..add(p.a.id)
+      ..add(p.b.id);
+  }
+  final groups = <DuplicateGroup>[];
+  final grouped = <String>{};
+  for (final ids in members.values) {
+    if (ids.length < 3) continue;
+    grouped.addAll(ids);
+    final list = [for (final id in ids) byId[id]!]
+      ..sort((x, y) {
+        final c = y.entryCount.compareTo(x.entryCount);
+        return c != 0 ? c : x.createdAt.compareTo(y.createdAt);
+      });
+    groups.add(DuplicateGroup(
+      partners: list,
+      pairs: [for (final p in pairs) if (ids.contains(p.a.id) && ids.contains(p.b.id)) p],
+    ));
+  }
+  groups.sort((x, y) => y.partners.length.compareTo(x.partners.length));
+  return (
+    groups: groups,
+    pairs: [
+      for (final p in pairs)
+        if (!(grouped.contains(p.a.id) && grouped.contains(p.b.id))) p,
+    ],
+  );
 }
 
 /// Existing partners a new record would duplicate, for a warning before it is
@@ -726,8 +818,11 @@ List<PartnerSuggestion> suggestPartners(
     final tail = digits.length > 9 ? digits.substring(digits.length - 9) : digits;
     for (final p in partners) {
       if (exclude.contains(p.id) || (p.mergedInto ?? '').isNotEmpty) continue;
-      final pd = (p.phone ?? '').replaceAll(RegExp(r'\D'), '');
-      if (pd.length >= 7 && pd.endsWith(tail)) {
+      final match = p.allPhones.any((ph) {
+        final pd = ph.replaceAll(RegExp(r'\D'), '');
+        return pd.length >= 7 && pd.endsWith(tail);
+      });
+      if (match) {
         out.add(PartnerSuggestion(partner: p, reason: 'Same phone number', score: 0.95));
       }
     }

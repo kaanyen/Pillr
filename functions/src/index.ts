@@ -1283,4 +1283,4 @@ export {
   previewMonthlyPartnerGivingEmail,
   runMonthlyPartnerGivingSummary,
 } from "./monthly_partner_email";
-export {fellowshipChange, partnerMerge, undoOperation} from "./record_ops";
+export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";

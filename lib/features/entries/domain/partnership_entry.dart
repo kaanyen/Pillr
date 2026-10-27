@@ -34,7 +34,12 @@ class PartnershipEntry {
     this.voidReason,
     this.importBatchId,
     this.editHistory = const [],
+    this.mergedFromPartnerId,
   });
+
+  /// The partner record this gift first belonged to, when a merge moved it.
+  /// Taking that record back out of the merge sends the gift back.
+  final String? mergedFromPartnerId;
 
   final String id;
   final String churchId;
@@ -123,6 +128,7 @@ class PartnershipEntry {
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           const [],
+      mergedFromPartnerId: m['mergedFromPartnerId'] as String?,
     );
   }
 

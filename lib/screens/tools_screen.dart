@@ -116,7 +116,10 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                       entitySnapshot: {'corrected': n},
                     );
                     if (!context.mounted) return;
-                    selNotice(context, 'Corrected $n ${n == 1 ? "total" : "totals"}.');
+                    selNotice(
+                      context,
+                      'Corrected $n ${n == 1 ? "total" : "totals"}.',
+                    );
                   }),
                   repairing: _running == 'repair',
                 ),
@@ -125,6 +128,13 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
         const SizedBox(height: SelSpace.x4),
 
         const RecentChangesCard(),
+
+        const SizedBox(height: SelSpace.x4),
+
+        _SeparateCard(
+          busy: _running == 'separate',
+          onSeparate: (id) => _separate(id, idx!.churchId),
+        ),
 
         const SizedBox(height: SelSpace.x4),
 
@@ -146,10 +156,13 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
           result: _dupPartners == null
               ? null
               : _DuplicatePartnersResult(
-                  pairs: _dupPartners!,
+                  found: groupDuplicates(_dupPartners!),
                   money: money,
                   onMerge: (pair, keepA) => _merge(pair, keepA, idx!.churchId),
+                  onMergeGroup: (g, keep) =>
+                      _mergeGroup(g, keep, idx!.churchId),
                   onDismiss: (pair) => _dismiss(pair, idx!.churchId),
+                  onDismissGroup: (g) => _dismissGroup(g, idx!.churchId),
                   busy: _running == 'merge' || _running == 'dismiss',
                 ),
         ),
@@ -228,7 +241,10 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                       entitySnapshot: {'corrected': n},
                     );
                     if (!context.mounted) return;
-                    selNotice(context, 'Corrected $n ${n == 1 ? "name" : "names"}.');
+                    selNotice(
+                      context,
+                      'Corrected $n ${n == 1 ? "name" : "names"}.',
+                    );
                   }),
                 ),
         ),
@@ -251,43 +267,81 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     }
   }
 
-  Future<void> _merge(
-    DuplicatePartnerPair pair,
-    bool keepA,
+  Future<void> _merge(DuplicatePartnerPair pair, bool keepA, String churchId) =>
+      _mergeRecords(keepA ? pair.a : pair.b, [
+        keepA ? pair.b : pair.a,
+      ], churchId);
+
+  Future<void> _mergeGroup(
+    DuplicateGroup group,
+    Partner keep,
+    String churchId,
+  ) => _mergeRecords(keep, [
+    for (final p in group.partners)
+      if (p.id != keep.id) p,
+  ], churchId);
+
+  /// One person, several records: [keep] stays, the rest close. The person
+  /// gets a new member ID and keeps every old one.
+  Future<void> _mergeRecords(
+    Partner keep,
+    List<Partner> others,
     String churchId,
   ) async {
-    final keep = keepA ? pair.a : pair.b;
-    final absorb = keepA ? pair.b : pair.a;
-
     await _run('merge', () async {
       final repo = ref.read(maintenanceRepositoryProvider);
-      final entries = await repo.entriesForPartners(churchId, [keep.id, absorb.id]);
-      final plan = planPartnerMerge(keep: keep, absorb: absorb, allEntries: entries);
+      final entries = await repo.entriesForPartners(churchId, [
+        keep.id,
+        for (final o in others) o.id,
+      ]);
+      final otherIds = {for (final o in others) o.id};
+      final moving = entries
+          .where((e) => otherIds.contains(e.partnerId))
+          .length;
+      var total = 0.0;
+      for (final e in entries) {
+        if (e.countsTowardTotals) total += e.amountCedis;
+      }
+      final oldIds = [
+        if (keep.memberId.isNotEmpty) keep.memberId,
+        for (final o in others)
+          if (o.memberId.isNotEmpty) o.memberId,
+      ];
+      final money = ref.read(churchMoneyFormatProvider);
 
       if (!mounted) return;
       final ok = await selConfirm(
         context,
-        title: 'Merge into ${keep.fullName}?',
+        title: others.length == 1
+            ? 'Make these one person?'
+            : 'Make these ${others.length + 1} records one person?',
         message:
-            '${plan.entriesToMove.length} entries move from ${absorb.fullName} '
-            'to ${keep.fullName}, whose total becomes '
-            '${ref.read(churchMoneyFormatProvider)(plan.resultingTotal)} across '
-            '${plan.resultingCount} entries. ${absorb.fullName} is closed, not '
-            'deleted, and any phone or email ${keep.fullName} lacks is copied '
-            'over. You can undo this from Recent changes.',
-        confirmLabel: 'Merge',
+            '${keep.fullName} stays. '
+            '${others.length == 1 ? "The other record closes" : "The other ${others.length} records close"}'
+            ' — nothing is deleted.\n\n'
+            '• $moving ${moving == 1 ? "gift moves" : "gifts move"} to ${keep.fullName}. '
+            'Their total becomes ${money(total)}.\n'
+            '• Every phone number and email from these records stays with '
+            '${keep.fullName}.\n'
+            '• ${keep.fullName} gets a new member ID. The old IDs '
+            '(${oldIds.join(", ")}) stay with them, so old sheets and receipts '
+            'still find them.\n\n'
+            'You can undo this, or later take out any one record by its old ID.',
+        confirmLabel: 'Make one person',
       );
       if (!ok) return;
 
-      // The count the person just confirmed: if an entry lands on either
-      // record before the server runs, it refuses rather than move a
+      // The count the person just confirmed: if a gift lands on any of these
+      // records before the server runs, it refuses rather than move a
       // different set.
-      final r = await ref.read(recordOpsRepositoryProvider).partnerMerge(
-        churchId: churchId,
-        keepId: keep.id,
-        absorbId: absorb.id,
-        expectEntries: plan.entriesToMove.length,
-      );
+      final r = await ref
+          .read(recordOpsRepositoryProvider)
+          .partnerMerge(
+            churchId: churchId,
+            keepId: keep.id,
+            absorbIds: [for (final o in others) o.id],
+            expectEntries: moving,
+          );
       if (!mounted) return;
       setState(() => _dupPartners = null);
       ref.invalidate(partnersStreamProvider(false));
@@ -296,9 +350,61 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       if (!context.mounted) return;
       selNotice(
         context,
-        'Merged. ${r.moved} ${r.moved == 1 ? "entry" : "entries"} moved'
+        'Done. ${keep.fullName} is now ${r.newMemberId}. '
+        '${r.moved} ${r.moved == 1 ? "gift" : "gifts"} moved'
         '${r.filled.isEmpty ? "" : ", ${r.filled.join(" and ")} copied over"}.',
+        kind: SelNoticeKind.success,
       );
+    });
+  }
+
+  Future<void> _separate(String memberId, String churchId) async {
+    final id = memberId.trim().toUpperCase();
+    if (id.isEmpty) return;
+    final ok = await selConfirm(
+      context,
+      title: 'Take $id out of its merge?',
+      message:
+          'The record with ID $id opens again with its own gifts. Everyone '
+          'else stays merged. You can undo this too.',
+      confirmLabel: 'Take it out',
+    );
+    if (!ok) return;
+    await _run('separate', () async {
+      final r = await ref
+          .read(recordOpsRepositoryProvider)
+          .partnerUnmerge(churchId: churchId, memberId: id);
+      ref.invalidate(partnersStreamProvider(false));
+      ref.invalidate(rankingEntriesProvider);
+      invalidateEntryDerivedData(ref);
+      if (!mounted) return;
+      selNotice(
+        context,
+        '$id is its own record again. ${r.moved} ${r.moved == 1 ? "gift" : "gifts"} went back to it.',
+        kind: SelNoticeKind.success,
+      );
+    });
+  }
+
+  Future<void> _dismissGroup(DuplicateGroup group, String churchId) async {
+    final uid = ref.read(authStateProvider).valueOrNull?.uid;
+    if (uid == null) return;
+    await _run('dismiss', () async {
+      final repo = ref.read(maintenanceRepositoryProvider);
+      for (final pair in group.pairs) {
+        await repo.dismissDuplicatePair(
+          churchId: churchId,
+          pair: pair,
+          uid: uid,
+        );
+      }
+      if (!mounted) return;
+      final keys = {for (final p in group.pairs) p.key};
+      setState(() {
+        _dupPartners = _dupPartners
+            ?.where((p) => !keys.contains(p.key))
+            .toList();
+      });
     });
   }
 
@@ -306,11 +412,9 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     final uid = ref.read(authStateProvider).valueOrNull?.uid;
     if (uid == null) return;
     await _run('dismiss', () async {
-      await ref.read(maintenanceRepositoryProvider).dismissDuplicatePair(
-        churchId: churchId,
-        pair: pair,
-        uid: uid,
-      );
+      await ref
+          .read(maintenanceRepositoryProvider)
+          .dismissDuplicatePair(churchId: churchId, pair: pair, uid: uid);
       if (!mounted) return;
       setState(() {
         _dupPartners = _dupPartners?.where((p) => p.key != pair.key).toList();
@@ -333,7 +437,9 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     if (!ok) return;
 
     await _run('voidDup', () async {
-      await ref.read(entriesRepositoryProvider).voidEntries(
+      await ref
+          .read(entriesRepositoryProvider)
+          .voidEntries(
             churchId: churchId,
             entries: [pair.duplicate],
             actor: actor,
@@ -353,10 +459,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
         action: 'entry.void',
         entityType: 'entry',
         entityId: pair.duplicate.id,
-        entitySnapshot: {
-          'originalId': pair.original.id,
-          'reason': 'Duplicate',
-        },
+        entitySnapshot: {'originalId': pair.original.id, 'reason': 'Duplicate'},
       );
       if (!mounted) return;
       selNotice(
@@ -519,18 +622,24 @@ class _TotalsResult extends StatelessWidget {
 
 class _DuplicatePartnersResult extends StatelessWidget {
   const _DuplicatePartnersResult({
-    required this.pairs,
+    required this.found,
     required this.money,
     required this.onMerge,
+    required this.onMergeGroup,
     required this.onDismiss,
+    required this.onDismissGroup,
     required this.busy,
   });
 
-  final List<DuplicatePartnerPair> pairs;
+  final ({List<DuplicateGroup> groups, List<DuplicatePartnerPair> pairs}) found;
   final String Function(num) money;
   final void Function(DuplicatePartnerPair pair, bool keepA) onMerge;
+  final void Function(DuplicateGroup group, Partner keep) onMergeGroup;
   final void Function(DuplicatePartnerPair pair) onDismiss;
+  final void Function(DuplicateGroup group) onDismissGroup;
   final bool busy;
+
+  List<DuplicatePartnerPair> get pairs => found.pairs;
 
   static String bandLabel(DuplicateBand b) => switch (b) {
     DuplicateBand.almostCertain => 'Almost certainly the same',
@@ -540,12 +649,14 @@ class _DuplicatePartnersResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (pairs.isEmpty) {
+    if (pairs.isEmpty && found.groups.isEmpty) {
       return const Row(
         children: [
           SelStatusMark(status: SelStatus.approved, label: 'None found'),
           SizedBox(width: SelSpace.x3),
-          Expanded(child: Text('No partner looks like a duplicate of another.')),
+          Expanded(
+            child: Text('No partner looks like a duplicate of another.'),
+          ),
         ],
       );
     }
@@ -558,13 +669,27 @@ class _DuplicatePartnersResult extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '${pairs.length} possible ${pairs.length == 1 ? "duplicate" : "duplicates"}'
-          ' — ${[for (final b in DuplicateBand.values) if ((counts[b] ?? 0) > 0) '${counts[b]} ${bandLabel(b).toLowerCase()}'].join(', ')}. '
-          'Choose which record to keep — the other is closed, not deleted. '
-          'If they are two people, say so and the pair is not shown again.',
-          style: SelType.bodyMuted,
-        ),
+        for (final g in found.groups) ...[
+          _GroupCase(
+            group: g,
+            money: money,
+            busy: busy,
+            onKeep: (keep) => onMergeGroup(g, keep),
+            onDismiss: () => onDismissGroup(g),
+          ),
+          const SizedBox(height: SelSpace.x2),
+        ],
+        if (found.groups.isNotEmpty && pairs.isNotEmpty)
+          const SizedBox(height: SelSpace.x3),
+        if (pairs.isNotEmpty)
+          Text(
+            '${pairs.length} possible ${pairs.length == 1 ? "duplicate" : "duplicates"}'
+            ' — ${[for (final b in DuplicateBand.values)
+              if ((counts[b] ?? 0) > 0) '${counts[b]} ${bandLabel(b).toLowerCase()}'].join(', ')}. '
+            'Choose which record to keep — the other is closed, not deleted. '
+            'If they are two people, say so and the pair is not shown again.',
+            style: SelType.bodyMuted,
+          ),
         const SizedBox(height: SelSpace.x3),
         for (final p in pairs.take(30)) ...[
           Container(
@@ -625,6 +750,148 @@ class _DuplicatePartnersResult extends StatelessWidget {
             style: SelType.small,
           ),
       ],
+    );
+  }
+}
+
+/// Three or more records that are one person. Pick the one to keep.
+class _GroupCase extends StatelessWidget {
+  const _GroupCase({
+    required this.group,
+    required this.money,
+    required this.busy,
+    required this.onKeep,
+    required this.onDismiss,
+  });
+
+  final DuplicateGroup group;
+  final String Function(num) money;
+  final bool busy;
+  final void Function(Partner keep) onKeep;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final reasons = {
+      for (final p in group.pairs) ...p.reasons,
+    }.take(5).join(' · ');
+    return Container(
+      padding: const EdgeInsets.all(SelSpace.x3),
+      decoration: BoxDecoration(
+        color: Sel.canvas,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: Border.all(color: Sel.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${group.partners.length} records look like one person',
+            style: SelType.bodyMedium,
+          ),
+          Text(reasons, style: SelType.small),
+          const SizedBox(height: SelSpace.x2),
+          Text(
+            'Pick the record to keep. The others close and their gifts move to it.',
+            style: SelType.bodyMuted,
+          ),
+          const SizedBox(height: SelSpace.x2),
+          for (final p in group.partners) ...[
+            _MergeSide(
+              partner: p,
+              money: money,
+              onKeep: busy ? null : () => onKeep(p),
+            ),
+            const SizedBox(height: SelSpace.x2),
+          ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: SelButton(
+              label: 'These are different people',
+              kind: SelButtonKind.quiet,
+              dense: true,
+              onPressed: busy ? null : onDismiss,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Take one record back out of a merge by its old member ID.
+class _SeparateCard extends StatefulWidget {
+  const _SeparateCard({required this.busy, required this.onSeparate});
+
+  final bool busy;
+  final void Function(String memberId) onSeparate;
+
+  @override
+  State<_SeparateCard> createState() => _SeparateCardState();
+}
+
+class _SeparateCardState extends State<_SeparateCard> {
+  final _id = TextEditingController();
+
+  @override
+  void dispose() {
+    _id.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(LucideIcons.split, size: 18, color: Sel.warm),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Take a record out of a merge',
+                      style: SelType.subtitleSm,
+                    ),
+                    const SizedBox(height: SelSpace.x1),
+                    Text(
+                      'Merged two people by mistake? Type the old member ID '
+                      'of the one to take out. It opens again with its own '
+                      'gifts; the rest stay merged.',
+                      style: SelType.bodyMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x3),
+          Row(
+            children: [
+              Expanded(
+                child: SelField(
+                  controller: _id,
+                  hint: 'Old member ID, e.g. ACC682216',
+                ),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              SelButton(
+                label: widget.busy ? 'Working…' : 'Take out',
+                dense: true,
+                onPressed: widget.busy
+                    ? null
+                    : () => widget.onSeparate(_id.text),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

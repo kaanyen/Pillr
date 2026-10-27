@@ -123,7 +123,8 @@ service cloud.firestore {
         allow update: if belongsToChurch(churchId) && isPastor()
                       && !request.resource.data.diff(resource.data).affectedKeys()
                            .hasAny(['mergedInto', 'mergedBy', 'mergedAt',
-                                    'mergedAliases']);
+                                    'mergedAliases', 'formerMemberIds',
+                                    'phones', 'emails', 'splitFrom']);
         // Staff Tools: tidy name and fellowship casing. Casing only — the
         // value may not change otherwise, or this becomes a way round the
         // recorded fellowship move.

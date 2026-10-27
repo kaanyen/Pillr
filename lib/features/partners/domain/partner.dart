@@ -20,6 +20,10 @@ class Partner {
     required this.createdAt,
     required this.updatedAt,
     this.mergedInto,
+    this.formerMemberIds = const [],
+    this.mergedAliases = const [],
+    this.phones = const [],
+    this.emails = const [],
   });
 
   final String id;
@@ -39,6 +43,23 @@ class Partner {
   /// Set when this record was merged into another and closed. The other id
   /// is where its giving now lives.
   final String? mergedInto;
+
+  /// Every member ID this person was known by before a merge gave them their
+  /// current one. Search and imports find them by any of these.
+  final List<String> formerMemberIds;
+
+  /// The records merged into this one: their id, name and member ID, so any
+  /// of them can be separated again.
+  final List<MergedRecord> mergedAliases;
+
+  /// Every phone number and email this person has, after merges brought
+  /// several records together. [phone] and [email] are the main ones.
+  final List<String> phones;
+  final List<String> emails;
+
+  /// [phones] with [phone] first, each once — what to show and compare.
+  List<String> get allPhones => _distinctContacts([phone ?? '', ...phones]);
+  List<String> get allEmails => _distinctContacts([email ?? '', ...emails]);
 
   String get displayLabel => '$memberId · $fullName · $fellowship';
 
@@ -65,6 +86,70 @@ class Partner {
       mergedInto: (m['mergedInto'] as String?)?.trim().isEmpty ?? true
           ? null
           : (m['mergedInto'] as String).trim(),
+      formerMemberIds: [
+        for (final f in (m['formerMemberIds'] as List? ?? const []))
+          if (f.toString().trim().isNotEmpty) f.toString().trim().toUpperCase(),
+      ],
+      mergedAliases: [
+        for (final a in (m['mergedAliases'] as List? ?? const []))
+          if (a is Map) MergedRecord.fromMap(a.cast<String, dynamic>()),
+      ],
+      phones: _strings(m['phones']),
+      emails: _strings(m['emails']),
     );
   }
+}
+
+List<String> _strings(Object? v) => [
+  for (final x in (v as List? ?? const []))
+    if (x.toString().trim().isNotEmpty) x.toString().trim(),
+];
+
+List<String> _distinctContacts(List<String> values) {
+  final seen = <String>{};
+  final out = <String>[];
+  for (final v in values) {
+    final t = v.trim();
+    if (t.isEmpty) continue;
+    final digits = t.replaceAll(RegExp(r'\D'), '');
+    final key = t.contains('@')
+        ? t.toLowerCase()
+        : (digits.length >= 9 ? digits.substring(digits.length - 9) : digits);
+    if (seen.add(key)) out.add(t);
+  }
+  return out;
+}
+
+/// One record that became part of a merged partner: its id, name, member
+/// ID and contacts as they were, so it can be told apart and taken out again.
+class MergedRecord {
+  const MergedRecord({
+    required this.partnerId,
+    required this.fullName,
+    required this.memberId,
+    this.fellowship = '',
+    this.phones = const [],
+    this.emails = const [],
+    this.self = false,
+  });
+
+  factory MergedRecord.fromMap(Map<String, dynamic> m) => MergedRecord(
+    partnerId: m['partnerId'] as String? ?? '',
+    fullName: m['fullName'] as String? ?? '',
+    memberId: (m['memberId'] as String? ?? '').trim().toUpperCase(),
+    fellowship: m['fellowship'] as String? ?? '',
+    phones: _distinctContacts([m['phone'] as String? ?? '', ..._strings(m['phones'])]),
+    emails: _distinctContacts([m['email'] as String? ?? '', ..._strings(m['emails'])]),
+    self: m['self'] == true,
+  );
+
+  final String partnerId;
+  final String fullName;
+  final String memberId;
+  final String fellowship;
+  final List<String> phones;
+  final List<String> emails;
+
+  /// The record that was kept in the merge, as it was before.
+  final bool self;
 }
