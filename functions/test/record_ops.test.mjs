@@ -182,6 +182,7 @@ describe("partner merge", () => {
     assert.equal(r.result?.moved, 2, JSON.stringify(r));
     assert.deepEqual(r.result.filled, ["phone", "email"]);
     assert.equal((await entry("e1").get()).get("partnerId"), "keep");
+    assert.equal((await entry("e1").get()).get("mergedFromPartnerId"), "dup");
     const keep = (await partner("keep").get()).data();
     assert.equal(keep.phone, "0244123456");
     assert.equal(keep.memberId, "ACC001");
@@ -204,6 +205,7 @@ describe("partner merge", () => {
     const r = await call("undoOperation", {opId: op.id}, "staff");
     assert.equal(r.result?.conflicts, 0, JSON.stringify(r));
     assert.equal((await entry("e2").get()).get("partnerId"), "dup");
+    assert.equal((await entry("e2").get()).get("mergedFromPartnerId"), undefined);
     const keep = (await partner("keep").get()).data();
     assert.equal(keep.phone, undefined);
     assert.equal(keep.mergedAliases, undefined);

@@ -10,6 +10,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/fellowships/fellowship_match.dart';
 import '../features/fellowships/fellowship_providers.dart';
+import '../features/operations/recent_changes_card.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
@@ -707,6 +708,16 @@ class _FellowshipManageViewState extends ConsumerState<FellowshipManageView> {
                 ),
             ],
           ),
+        if (canEdit) ...[
+          const SizedBox(height: SelSpace.x6),
+          const RecentChangesCard(
+            kindPrefix: 'fellowship.',
+            blurb:
+                'Merges, moves, renames and dissolves. Undo puts everyone back '
+                'in the group they were in — inactive partners too — and brings '
+                'back any name the change removed.',
+          ),
+        ],
       ],
     );
   }
@@ -741,5 +752,5 @@ String fellowshipChangeNotice(String done, int moved, int inactiveMoved) {
   final parts = <String>[done];
   if (moved > 0) parts.add('$moved ${moved == 1 ? 'partner' : 'partners'} updated');
   if (inactiveMoved > 0) parts.add('$inactiveMoved inactive moved with them');
-  return '${parts.join(' · ')}. Undo from Tools → Recent changes.';
+  return '${parts.join(' · ')}. Undo it below, under Recent changes.';
 }

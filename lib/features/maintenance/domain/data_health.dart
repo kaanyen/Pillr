@@ -73,6 +73,50 @@ const _titles = {
   'bro', 'brother', 'sis', 'sister', 'snr', 'sr', 'jnr', 'jr',
 };
 
+/// Akan day names and their common spellings, Twi and Fante, to one key.
+///
+/// Kofi and Fiifi are the same name; so are Kwaku and Kweku, Ama and Amma.
+/// A day name is shared by a seventh of the church, so a match here only
+/// counts when the rest of the name agrees too.
+const _dayNames = <String, String>{
+  // Sunday
+  'kwasi': 'sun-m', 'kwesi': 'sun-m', 'akwasi': 'sun-m', 'siisi': 'sun-m',
+  'kwasie': 'sun-m', 'akosua': 'sun-f', 'esi': 'sun-f', 'essi': 'sun-f',
+  'akos': 'sun-f',
+  // Monday
+  'kwadwo': 'mon-m', 'kojo': 'mon-m', 'kodwo': 'mon-m', 'jojo': 'mon-m',
+  'kwadjo': 'mon-m', 'adwoa': 'mon-f', 'adjoa': 'mon-f', 'adjowa': 'mon-f',
+  // Tuesday
+  'kwabena': 'tue-m', 'kobina': 'tue-m', 'ebo': 'tue-m', 'kwabina': 'tue-m',
+  'kobena': 'tue-m', 'abena': 'tue-f', 'araba': 'tue-f', 'abenaa': 'tue-f',
+  // Wednesday
+  'kwaku': 'wed-m', 'kweku': 'wed-m', 'kuuku': 'wed-m',
+  'kwaaku': 'wed-m', 'akua': 'wed-f', 'ekua': 'wed-f', 'akuah': 'wed-f',
+  // Thursday
+  'yaw': 'thu-m', 'ekow': 'thu-m', 'yao': 'thu-m', 'kwaw': 'thu-m',
+  'yaa': 'thu-f', 'aba': 'thu-f',
+  // Friday
+  'kofi': 'fri-m', 'fiifi': 'fri-m', 'fifi': 'fri-m', 'fiofi': 'fri-m',
+  'afua': 'fri-f', 'efua': 'fri-f', 'afia': 'fri-f', 'afuah': 'fri-f',
+  // Saturday
+  'kwame': 'sat-m', 'kwamena': 'sat-m', 'kwamina': 'sat-m', 'kwami': 'sat-m',
+  'ama': 'sat-f', 'amma': 'sat-f', 'ame': 'sat-f', 'amah': 'sat-f',
+};
+
+/// A word reduced to how it sounds rather than how it was typed: doubled
+/// letters collapse, a trailing h goes ("Mensah"/"Mensa"), ph is f.
+String spellingKey(String word) {
+  var w = word.replaceAll('ph', 'f');
+  w = w.replaceAllMapped(RegExp(r'(.)\1+'), (m) => m[1]!);
+  if (w.length > 3 && w.endsWith('h')) w = w.substring(0, w.length - 1);
+  return w;
+}
+
+String _canonWord(String word) {
+  final day = _dayNames[word];
+  return day == null ? spellingKey(word) : 'day:$day';
+}
+
 /// A name taken apart for comparison.
 class _Name {
   _Name(String raw) {
@@ -93,12 +137,23 @@ class _Name {
     }
     core.sort();
     joined = core.join(' ');
+    canon = [for (final w in core) _canonWord(w)]..sort();
+    canonJoined = canon.join(' ');
+    spelledJoined = ([for (final w in core) spellingKey(w)]..sort()).join(' ');
   }
 
   late final String exact;
   final core = <String>[];
   final initials = <String>[];
   late final String joined;
+
+  /// [core] with spelling variants and Akan day names folded together.
+  late final List<String> canon;
+  late final String canonJoined;
+
+  /// [core] by spelling only. Typos are measured on this: folded day names
+  /// are labels, and two labels a letter apart are different names.
+  late final String spelledJoined;
 }
 
 /// Phone numbers compared by their last nine digits, so `+233 24 412 3456`,
@@ -122,6 +177,9 @@ String emailKey(String? raw) {
   if (x.core.isEmpty || y.core.isEmpty) return null;
   if (x.joined == y.joined) {
     return (weight: 0.55, reason: 'Same name, written differently');
+  }
+  if (x.core.length >= 2 && x.canonJoined == y.canonJoined) {
+    return (weight: 0.5, reason: 'Same name, another spelling (${_variantNote(x, y)})');
   }
 
   final xs = x.core.toSet();
@@ -147,10 +205,44 @@ String emailKey(String? raw) {
     return (weight: 0.45, reason: 'One name contains the other');
   }
   if (x.core.length == y.core.length && x.joined.length >= 6) {
-    final sim = textSimilarity(x.joined, y.joined);
+    final sim = textSimilarity(x.spelledJoined, y.spelledJoined);
     if (sim >= 0.85) return (weight: 0.45, reason: 'Nearly the same name');
   }
+
+  // "Ella Kabe" and "Emmanuella Catherine Kabe"; "Joy Meyrawo Dziks" and
+  // "Joy Meyrawo Dzik-Sewornu": every word of the shorter name is in the
+  // longer one, whole, as the start or end of a word, or nearly.
+  final shorter = x.core.length <= y.core.length ? x : y;
+  final longer = identical(shorter, x) ? y : x;
+  if (shorter.core.length >= 2) {
+    var exact = 0;
+    final allFit = shorter.core.every((w) {
+      final cw = _canonWord(w);
+      for (final v in longer.core) {
+        if (v == w || _canonWord(v) == cw) {
+          exact++;
+          return true;
+        }
+      }
+      return longer.core.any((v) =>
+          (w.length >= 3 && (v.startsWith(w) || v.endsWith(w))) ||
+          (v.length >= 3 && (w.startsWith(v) || w.endsWith(v))) ||
+          textSimilarity(spellingKey(w), spellingKey(v)) >= 0.8);
+    });
+    if (allFit && exact >= 1) {
+      return (weight: 0.4, reason: 'Short form of the same name');
+    }
+  }
   return null;
+}
+
+/// "Kofi = Fiifi" — the words that differ between two names that fold to
+/// the same canonical form.
+String _variantNote(_Name x, _Name y) {
+  final xs = x.core.toSet().difference(y.core.toSet()).toList()..sort();
+  final ys = y.core.toSet().difference(x.core.toSet()).toList()..sort();
+  String cap(String w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1);
+  return '${xs.map(cap).join(' ')} = ${ys.map(cap).join(' ')}';
 }
 
 /// 1.0 for identical strings, falling with edit distance.
@@ -225,10 +317,13 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
     reasons.add('Same member ID (${x.memberId})');
     weights.add(1.0);
   }
+  // A shared phone or email confirms a name that already agrees. Behind only
+  // a short form it is weaker: sisters share numbers.
+  final contact = name == null ? 0.0 : (name.weight >= 0.45 ? 0.9 : 0.7);
   if (x.phone.isNotEmpty && x.phone == y.phone) {
     if (name != null) {
       reasons.add('Same phone number');
-      weights.add(0.9);
+      weights.add(contact);
     } else {
       reasons.add('Same phone number, different names — may be family');
       weights.add(0.45);
@@ -237,7 +332,7 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
   if (x.email.isNotEmpty && x.email == y.email) {
     if (name != null) {
       reasons.add('Same email');
-      weights.add(0.9);
+      weights.add(contact);
     } else {
       reasons.add('Same email, different names — may be family');
       weights.add(0.45);
@@ -263,7 +358,11 @@ DuplicatePartnerPair? _score(_Facts x, _Facts y) {
   final idMatch = x.memberId.isNotEmpty && x.memberId == y.memberId;
   if (!idMatch && x.phone.isNotEmpty && y.phone.isNotEmpty && x.phone != y.phone) {
     reasons.add('Different phone numbers');
-    score *= 0.8;
+    // The full name in the same fellowship outweighs a phone typed twice
+    // differently — the usual way an import makes a second record.
+    final sameFullName = name?.reason == 'Same name' && x.name.core.length >= 2;
+    final sameGroup = x.fellowship.isNotEmpty && x.fellowship == y.fellowship;
+    score *= sameFullName && sameGroup ? 0.9 : 0.8;
   }
   if (score < _reportFloor) return null;
   return DuplicatePartnerPair(
@@ -293,8 +392,10 @@ List<DuplicatePartnerPair> findDuplicatePartners(
       if ((p.mergedInto ?? '').isEmpty) _factsOf(p),
   ];
 
-  final buckets = <String, List<int>>{};
-  void put(String k, int i) => buckets.putIfAbsent(k, () => []).add(i);
+  // Sets, not lists: "Boakye Boateng" files the same partner under "boa"
+  // twice, and a list would then pair that partner with itself.
+  final buckets = <String, Set<int>>{};
+  void put(String k, int i) => buckets.putIfAbsent(k, () => {}).add(i);
   for (var i = 0; i < facts.length; i++) {
     final f = facts[i];
     if (f.memberId.isNotEmpty) put('m:${f.memberId}', i);
@@ -312,12 +413,14 @@ List<DuplicatePartnerPair> findDuplicatePartners(
 
   final seen = <String>{};
   final pairs = <DuplicatePartnerPair>[];
-  for (final members in buckets.values) {
-    if (members.length < 2) continue;
+  for (final bucket in buckets.values) {
+    if (bucket.length < 2) continue;
+    final members = bucket.toList();
     for (var i = 0; i < members.length; i++) {
       for (var j = i + 1; j < members.length; j++) {
         final x = facts[members[i]];
         final y = facts[members[j]];
+        if (x.p.id == y.p.id) continue;
         final key = duplicatePairKey(x.p.id, y.p.id);
         if (dismissed.contains(key) || !seen.add(key)) continue;
         final pair = _score(x, y);
@@ -586,4 +689,92 @@ List<PartnerDataIssue> findPartnerDataIssues(List<Partner> partners) {
   }
 
   return out;
+}
+
+/// A partner the person may have meant while searching.
+class PartnerSuggestion {
+  const PartnerSuggestion({
+    required this.partner,
+    required this.reason,
+    required this.score,
+  });
+
+  final Partner partner;
+  final String reason;
+  final double score;
+}
+
+/// "Did you mean…?" for the partner picker.
+///
+/// The picker's search is a prefix match, so "Mensah Kwame", "Kweku" for
+/// Kwaku, or one wrong letter finds nobody — and that is the moment someone
+/// creates a second record. This looks across the whole book for names that
+/// read the same, spellings and day-name variants included, and for a typed
+/// phone number in any format. [exclude] is the ids the search already shows.
+List<PartnerSuggestion> suggestPartners(
+  String query,
+  List<Partner> partners, {
+  Set<String> exclude = const {},
+  int limit = 5,
+}) {
+  final q = query.trim();
+  if (q.length < 3) return const [];
+  final out = <PartnerSuggestion>[];
+
+  final digits = q.replaceAll(RegExp(r'\D'), '');
+  if (digits.length >= 7 && digits.length * 2 >= q.length) {
+    final tail = digits.length > 9 ? digits.substring(digits.length - 9) : digits;
+    for (final p in partners) {
+      if (exclude.contains(p.id) || (p.mergedInto ?? '').isNotEmpty) continue;
+      final pd = (p.phone ?? '').replaceAll(RegExp(r'\D'), '');
+      if (pd.length >= 7 && pd.endsWith(tail)) {
+        out.add(PartnerSuggestion(partner: p, reason: 'Same phone number', score: 0.95));
+      }
+    }
+  } else {
+    final qn = _Name(q);
+    if (qn.core.isEmpty) return const [];
+    for (final p in partners) {
+      if (exclude.contains(p.id) || (p.mergedInto ?? '').isNotEmpty) continue;
+      final pn = _factsOf(p).name;
+      final sig = _nameSignal(qn, pn);
+      if (sig != null) {
+        out.add(PartnerSuggestion(partner: p, reason: sig.reason, score: sig.weight));
+        continue;
+      }
+      // Every word typed is close to a word of theirs: a typo, another
+      // spelling, a day-name variant, or the start of a longer word.
+      var total = 0.0;
+      var allClose = true;
+      for (final w in qn.core) {
+        final cw = _canonWord(w);
+        var best = 0.0;
+        for (var i = 0; i < pn.core.length; i++) {
+          final pw = pn.core[i];
+          final pc = _canonWord(pw);
+          final sim = cw == pc
+              ? 1.0
+              : (w.length >= 3 && pw.startsWith(w))
+              ? 0.9
+              : textSimilarity(cw, pc);
+          if (sim > best) best = sim;
+        }
+        if (best < 0.8) {
+          allClose = false;
+          break;
+        }
+        total += best;
+      }
+      if (allClose) {
+        out.add(PartnerSuggestion(
+          partner: p,
+          reason: 'Similar spelling',
+          score: 0.3 * total / qn.core.length,
+        ));
+      }
+    }
+  }
+
+  out.sort((a, b) => b.score.compareTo(a.score));
+  return out.take(limit).toList();
 }

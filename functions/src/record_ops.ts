@@ -445,8 +445,14 @@ export const partnerMerge = onCall(
         fellowship: toTitleCase(str(keep.get("fellowship"))),
         memberId: str(keep.get("memberId")),
       };
+      // Each moved entry names the record it came from, so even without this
+      // operation's record anyone can see whose gift it was. Undo removes it.
       const changes: Change[] = entries.docs.map((e) =>
-        changeOf(e, {partnerId: keepId, partnerSnapshot: keepSnapshot}));
+        changeOf(e, {
+          partnerId: keepId,
+          partnerSnapshot: keepSnapshot,
+          mergedFromPartnerId: absorbId,
+        }));
 
       // Anything already merged into the absorbed record follows it, so a
       // chain of merges always ends at one live partner.

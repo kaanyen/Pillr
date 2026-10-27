@@ -12,6 +12,7 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/maintenance/data/maintenance_repository.dart';
 import '../features/maintenance/domain/data_health.dart';
 import '../features/maintenance/domain/totals_audit.dart';
+import '../features/operations/recent_changes_card.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
@@ -123,10 +124,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
 
         const SizedBox(height: SelSpace.x4),
 
-        _RecentChangesCard(
-          onUndo: (op) => _undo(op, idx!.churchId),
-          busy: _running == 'undo',
-        ),
+        const RecentChangesCard(),
 
         const SizedBox(height: SelSpace.x4),
 
@@ -317,35 +315,6 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       setState(() {
         _dupPartners = _dupPartners?.where((p) => p.key != pair.key).toList();
       });
-    });
-  }
-
-  Future<void> _undo(RecordOperation op, String churchId) async {
-    final ok = await selConfirm(
-      context,
-      title: 'Undo this change?',
-      message:
-          '${op.label}. Everything it changed goes back as it was — except '
-          'anything someone has edited since, which is left alone and counted.',
-      confirmLabel: 'Undo',
-    );
-    if (!ok) return;
-    await _run('undo', () async {
-      final r = await ref.read(recordOpsRepositoryProvider).undo(
-        churchId: churchId,
-        opId: op.id,
-      );
-      ref.invalidate(partnersStreamProvider(false));
-      ref.invalidate(rankingEntriesProvider);
-      invalidateEntryDerivedData(ref);
-      if (!mounted) return;
-      selNotice(
-        context,
-        r.conflicts == 0
-            ? 'Undone. ${r.reverted} ${r.reverted == 1 ? "record" : "records"} put back.'
-            : 'Undone. ${r.reverted} put back; ${r.conflicts} had been edited '
-                  'since and were left as they are.',
-      );
     });
   }
 
@@ -703,106 +672,6 @@ class _MergeSide extends StatelessWidget {
       ],
     );
   }
-}
-
-/// The last bulk changes — fellowship merges, moves, dissolves and partner
-/// merges — each with Undo while it can still be undone.
-class _RecentChangesCard extends ConsumerWidget {
-  const _RecentChangesCard({required this.onUndo, required this.busy});
-
-  final void Function(RecordOperation op) onUndo;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final ops = ref.watch(recentOperationsProvider).valueOrNull ?? const [];
-    return SelCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(LucideIcons.history, size: 18, color: Sel.warm),
-              const SizedBox(width: SelSpace.x3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Recent changes', style: SelType.subtitleSm),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      'Fellowship merges, moves and dissolves, and partner '
-                      'merges. Undo puts back what each one changed, unless it '
-                      'has been edited since.',
-                      style: SelType.bodyMuted,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: SelSpace.x4),
-          const Divider(height: 1, color: Sel.border),
-          const SizedBox(height: SelSpace.x3),
-          if (ops.isEmpty)
-            Text('Nothing yet.', style: SelType.small)
-          else
-            for (final op in ops)
-              Padding(
-                padding: const EdgeInsets.only(bottom: SelSpace.x2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(op.label, style: SelType.body),
-                          Text(
-                            [
-                              formatOperationTime(op.createdAt),
-                              if (op.actorName.isNotEmpty) op.actorName,
-                              operationStatusLabel(op),
-                            ].join('  ·  '),
-                            style: SelType.small.copyWith(
-                              color: op.status == 'failed' ? Sel.danger : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (op.canUndo)
-                      SelButton(
-                        label: 'Undo',
-                        kind: SelButtonKind.quiet,
-                        dense: true,
-                        onPressed: busy ? null : () => onUndo(op),
-                      ),
-                  ],
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-}
-
-String operationStatusLabel(RecordOperation op) => switch (op.status) {
-  'applied' => '${op.planned} ${op.planned == 1 ? "record" : "records"}',
-  'failed' => 'stopped after ${op.applied} of ${op.planned} — undo or run again',
-  'applying' => 'running',
-  'undoing' => 'undoing',
-  'undone' => op.undoConflictCount == 0
-      ? 'undone'
-      : 'undone, ${op.undoConflictCount} left as edited',
-  _ => op.status,
-};
-
-String formatOperationTime(DateTime t) {
-  final l = t.toLocal();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${l.day}/${two(l.month)}/${l.year} ${two(l.hour)}:${two(l.minute)}';
 }
 
 class _DuplicateEntriesResult extends StatelessWidget {

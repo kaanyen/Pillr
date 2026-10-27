@@ -337,6 +337,74 @@ void main() {
       );
     });
 
+    test('Akan day-name spellings are one name', () {
+      for (final pair in [
+        ['Kofi Mensah', 'Fiifi Mensah'],
+        ['Kwaku Asante', 'Kweku Asante'],
+        ['Ama Owusu', 'Amma Owusu'],
+        ['Akosua Boateng', 'Esi Boateng'],
+      ]) {
+        final pairs = findDuplicatePartners([
+          _partner(id: 'a', fullName: pair[0], fellowship: ''),
+          _partner(id: 'b', fullName: pair[1], fellowship: ''),
+        ]);
+        expect(pairs, hasLength(1), reason: pair.join(' / '));
+        expect(pairs.single.reason, contains('another spelling'), reason: pair.join(' / '));
+      }
+    });
+
+    test('a surname spelled with or without the h is one name', () {
+      final pairs = findDuplicatePartners([
+        _partner(id: 'a', fullName: 'Yaw Mensah', fellowship: ''),
+        _partner(id: 'b', fullName: 'Yaw Mensa', fellowship: ''),
+      ]);
+      expect(pairs, hasLength(1));
+    });
+
+    test('the same day name with another surname is not a match', () {
+      final pairs = findDuplicatePartners([
+        _partner(id: 'a', fullName: 'Kofi Mensah', fellowship: ''),
+        _partner(id: 'b', fullName: 'Fiifi Owusu', fellowship: ''),
+      ]);
+      expect(pairs, isEmpty);
+    });
+
+    test('different day names are not a typo of each other', () {
+      for (final pair in [
+        ['Ama Mensah', 'Akosua Mensah'],
+        ['Samuel Yeboah', 'Daniel Yeboah'],
+      ]) {
+        final pairs = findDuplicatePartners([
+          _partner(id: 'a', fullName: pair[0], fellowship: ''),
+          _partner(id: 'b', fullName: pair[1], fellowship: ''),
+        ]);
+        expect(pairs, isEmpty, reason: pair.join(' / '));
+      }
+    });
+
+    test('a short form of the name is found', () {
+      for (final pair in [
+        ['Ella Kabe', 'Emmanuella Catherine Kabe'],
+        ['Joy Meyrawo Dziks', 'Joy Meyrawo Dzik-Sewornu'],
+      ]) {
+        final pairs = findDuplicatePartners([
+          _partner(id: 'a', fullName: pair[0], fellowship: ''),
+          _partner(id: 'b', fullName: pair[1], fellowship: ''),
+        ]);
+        expect(pairs.single.reasons, contains('Short form of the same name'),
+            reason: pair.join(' / '));
+      }
+    });
+
+    test('a partner is never paired with itself', () {
+      // "Boakye Boateng": two words share their first three letters.
+      final pairs = findDuplicatePartners([
+        _partner(id: 'a', memberId: 'A1', fullName: 'Paulina Boakye Boateng'),
+        _partner(id: 'b', memberId: 'B2', fullName: 'Ama Serwaa'),
+      ]);
+      expect(pairs, isEmpty);
+    });
+
     test('a pair is reported once, not twice', () {
       // Same member ID *and* same name — two signals, one pair.
       final pairs = findDuplicatePartners([
@@ -413,6 +481,40 @@ void main() {
 
       expect(pairs.length, 2);
       expect(pairs.every((p) => p.original.id == 'a'), isTrue);
+    });
+  });
+
+  group('did you mean', () {
+    final book = [
+      _partner(id: 'k', fullName: 'Kwaku Mensah', phone: '0244123456'),
+      _partner(id: 'a', fullName: 'Abena Asamoah'),
+      _partner(id: 'gone', fullName: 'Kweku Mensah', isActive: false, mergedInto: 'k'),
+    ];
+
+    test('finds a day-name variant the prefix search would miss', () {
+      final s = suggestPartners('Kweku Mensah', book);
+      expect(s.map((x) => x.partner.id), ['k']);
+    });
+
+    test('finds a reversed name', () {
+      expect(suggestPartners('Mensah Kwaku', book).first.partner.id, 'k');
+    });
+
+    test('finds a typo', () {
+      expect(suggestPartners('Abena Asamaoh', book).first.partner.id, 'a');
+    });
+
+    test('finds a phone number in another format', () {
+      expect(suggestPartners('+233 24 412 3456', book).single.partner.id, 'k');
+    });
+
+    test('leaves out what the search already shows', () {
+      expect(suggestPartners('Kwaku Mensah', book, exclude: {'k'}), isEmpty);
+    });
+
+    test('stays quiet for two letters or an unrelated name', () {
+      expect(suggestPartners('Kw', book), isEmpty);
+      expect(suggestPartners('Esi Ansah', book), isEmpty);
     });
   });
 
