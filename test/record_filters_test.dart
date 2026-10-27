@@ -120,6 +120,33 @@ void main() {
       expect(ids(out), ['b']);
     });
 
+    test('fellowship filter uses the partner name after a rename', () {
+      final renamed = PartnershipEntry(
+        id: 'renamed',
+        churchId: 'c',
+        partnerId: 'p-fire',
+        partnerSnapshot: const {'fullName': 'Ama Boateng', 'fellowship': 'FIRE'},
+        partnershipArmId: 'arm-1',
+        armSnapshot: const {},
+        partnershipPeriodId: 'period-1',
+        periodSnapshot: const {},
+        amountCedis: 80,
+        dateGiven: now,
+        status: 'approved',
+        createdBy: 'uid-1',
+        createdBySnapshot: const {},
+        createdAt: now,
+        updatedAt: now,
+      );
+      final out = applyRecordFilters(
+        [renamed, ...rows],
+        RecordFilters.empty.withFellowship('Fire'),
+        now: now,
+        fellowshipByPartnerId: const {'p-fire': 'Fire'},
+      );
+      expect(ids(out), ['renamed']);
+    });
+
     test('fellowship falls back to the partner when the snapshot is blank', () {
       final blank = PartnershipEntry(
         id: 'snapless',

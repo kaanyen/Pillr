@@ -20,6 +20,7 @@ class ChurchSettings {
     this.sendMonthlyPartnerEmails = false,
     this.primaryPastorUid,
     this.partnerEmailFrom,
+    this.fellowshipNames = const [],
   });
 
   final String churchId;
@@ -35,6 +36,9 @@ class ChurchSettings {
   final bool sendMonthlyPartnerEmails;
   final String? primaryPastorUid;
   final String? partnerEmailFrom;
+
+  /// Groups the church has created, including empty ones.
+  final List<String> fellowshipNames;
 
   static ChurchSettings? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -54,6 +58,14 @@ class ChurchSettings {
         : <String, dynamic>{};
     final from = (settings['partnerEmailFrom'] as String?)?.trim();
     final pastorUid = (settings['primaryPastorUid'] as String?)?.trim();
+    final rawFellowships = settings['fellowshipNames'];
+    final fellowshipNames = rawFellowships is List
+        ? [
+            for (final n in rawFellowships)
+              if (n is String && n.trim().isNotEmpty)
+                TextCaseUtils.toTitleCase(n),
+          ]
+        : const <String>[];
     return ChurchSettings(
       churchId: churchId,
       name: rawName == null || rawName.trim().isEmpty ? null : TextCaseUtils.toTitleCase(rawName),
@@ -68,6 +80,7 @@ class ChurchSettings {
       sendMonthlyPartnerEmails: settings['sendMonthlyPartnerEmails'] == true,
       primaryPastorUid: pastorUid == null || pastorUid.isEmpty ? null : pastorUid,
       partnerEmailFrom: from == null || from.isEmpty ? null : from,
+      fellowshipNames: fellowshipNames,
     );
   }
 }

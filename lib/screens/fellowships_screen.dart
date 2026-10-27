@@ -7,6 +7,7 @@ import '../core/extensions/async_value_ext.dart';
 import '../design/seline.dart';
 import '../features/arms/domain/partnership_arm.dart';
 import '../features/arms/providers/arms_providers.dart';
+import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
@@ -17,10 +18,11 @@ import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
 import 'export_actions.dart';
+import 'fellowship_manage_view.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
 
-enum _View { directory, ranked }
+enum _View { directory, ranked, manage }
 
 /// Fellowships — directory of groups, with giving rankings alongside.
 ///
@@ -42,9 +44,11 @@ class FellowshipsScreen extends ConsumerStatefulWidget {
 }
 
 class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
-  late _View _view = widget.initialView == 'ranked'
-      ? _View.ranked
-      : _View.directory;
+  late _View _view = switch (widget.initialView) {
+    'ranked' => _View.ranked,
+    'manage' => _View.manage,
+    _ => _View.directory,
+  };
   String _query = '';
 
   @override
@@ -94,10 +98,14 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
   }
 
   Widget _buildPage(BuildContext context) {
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    final canManage = idx?.canManageFellowships ?? false;
+    final adminOnly = idx?.isAdmin ?? false;
+    final view = adminOnly ? _View.manage : _view;
     final filters = ref.watch(recordFiltersProvider);
     final fellowshipFilter = filters.fellowship?.toLowerCase();
     final showingMembers =
-        _view == _View.ranked && fellowshipFilter != null && fellowshipFilter.isNotEmpty;
+        view == _View.ranked && fellowshipFilter != null && fellowshipFilter.isNotEmpty;
 
     return SelPageBody(
       onRefresh: () async {
@@ -108,13 +116,15 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
       children: [
         SelPageTitle(
           title: 'Fellowships',
-          subtitle: _view == _View.directory
+          subtitle: view == _View.directory
               ? 'Every fellowship group in your church and what they have given this period.'
-              : showingMembers
-                  ? 'Partners ranked within this fellowship group.'
-                  : 'Fellowships ranked by total approved giving.',
+              : view == _View.manage
+                  ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
+                  : showingMembers
+                      ? 'Partners ranked within this fellowship group.'
+                      : 'Fellowships ranked by total approved giving.',
           actions: [
-            if (_view == _View.ranked)
+            if (view == _View.ranked)
               EntryExportButtons(
                 entriesLoader: () => loadEntriesForExport(ref),
                 title: showingMembers
@@ -124,21 +134,23 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
                     ? 'Partners ranked within this fellowship'
                     : 'Fellowships ranked by approved giving',
               ),
-            if (_view == _View.ranked) const SizedBox(width: SelSpace.x2),
+            if (view == _View.ranked) const SizedBox(width: SelSpace.x2),
           ],
         ),
         Row(
           children: [
-            SelPillGroup<_View>(
-              selected: _view,
-              onChanged: (v) => setState(() => _view = v),
-              options: const [
-                (_View.directory, 'Directory'),
-                (_View.ranked, 'Ranked'),
-              ],
-            ),
+            if (!adminOnly)
+              SelPillGroup<_View>(
+                selected: _view,
+                onChanged: (v) => setState(() => _view = v),
+                options: [
+                  (_View.directory, 'Directory'),
+                  (_View.ranked, 'Ranked'),
+                  if (canManage) (_View.manage, 'Manage'),
+                ],
+              ),
             const Spacer(),
-            if (_view == _View.directory)
+            if (view == _View.directory)
               SizedBox(
                 width: 240,
                 child: SelField(
@@ -151,11 +163,13 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           ],
         ),
         const SizedBox(height: SelSpace.x6),
-        if (_view == _View.directory)
+        if (view == _View.directory)
           _FellowshipDirectory(
             query: _query,
             onOpenFellowship: _openFellowshipMembers,
           )
+        else if (view == _View.manage)
+          const FellowshipManageView()
         else
           _FellowshipRankedView(
             onOpenFellowship: _openFellowshipMembers,
@@ -202,6 +216,9 @@ class _FellowshipDirectory extends ConsumerWidget {
     } catch (_) {}
 
     final period = ref.watch(activePeriodProvider);
+    final catalog =
+        ref.watch(churchSettingsProvider).valueOrNull?.fellowshipNames ??
+            const [];
     late final List<FellowshipDirectoryRow> computed;
     try {
       computed = FellowshipDirectoryRow.fromPartnersAndEntries(
@@ -209,6 +226,7 @@ class _FellowshipDirectory extends ConsumerWidget {
         entries,
         periodId: period?.id,
         fellowshipByPartnerId: {for (final p in partners) p.id: p.fellowship},
+        catalog: catalog,
       );
     } catch (e) {
       return SelError(message: '$e');

@@ -19,6 +19,7 @@ class Partner {
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
+    this.mergedInto,
   });
 
   final String id;
@@ -34,6 +35,10 @@ class Partner {
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Set when this record was merged into another and closed. The other id
+  /// is where its giving now lives.
+  final String? mergedInto;
 
   String get displayLabel => '$memberId · $fullName · $fellowship';
 
@@ -57,6 +62,9 @@ class Partner {
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),
+      mergedInto: (m['mergedInto'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (m['mergedInto'] as String).trim(),
     );
   }
 }

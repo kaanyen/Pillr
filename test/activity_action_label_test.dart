@@ -6,9 +6,21 @@ void main() {
     expect(activityActionLabel('import.commit'), 'Imported a spreadsheet');
     expect(activityActionLabel('import.undo'), 'Undid an import');
     expect(activityActionLabel('import.restore'), 'Restored an import');
-    expect(activityActionLabel('entry.create'), 'Recorded a gift');
+    expect(activityActionLabel('entry.create'), 'Recorded an entry');
     expect(activityActionLabel('entry.approve_undo'), 'Undid an approval');
     expect(activityActionLabel('entry.void'), 'Voided an entry');
     expect(activityActionLabel('partner.merge'), 'Merged partners');
+    expect(activityActionLabel('partner.tidy'), 'Tidied partner names');
+    expect(activityActionLabel('totals.repair'), 'Corrected ledger totals');
+    expect(
+      activityActionLabel('settings.exchange_rates'),
+      'Updated exchange rates',
+    );
+    expect(activityActionLabel('fellowship.create'), 'Created a fellowship');
+    expect(activityActionLabel('fellowship.merge'), 'Merged fellowships');
+    expect(
+      activityActionLabel('fellowship.move'),
+      'Moved partners between fellowships',
+    );
   });
 }

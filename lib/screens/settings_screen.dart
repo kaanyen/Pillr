@@ -117,6 +117,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final goals = ref.watch(notificationGoalsProvider);
     final canBrand = idx?.isAdmin ?? false;
     final canPartnerEmail = idx != null && (idx.isPastor || idx.isAdmin);
+    final canRates = idx?.canEditExchangeRates ?? false;
 
     if (settings != null && !_seeded) {
       _seeded = true;
@@ -211,7 +212,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: SelSpace.x4),
         ],
 
-        if (canPartnerEmail && settings != null) ...[
+        if (canRates && settings != null) ...[
           ExchangeRatesSettingsPanel(
             churchId: settings.churchId,
             initialRates: settings.exchangeRates,

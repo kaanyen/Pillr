@@ -844,6 +844,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get navActivity => 'Activité';
 
   @override
+  String get navTools => 'Outils';
+
+  @override
   String get navPlatformChurches => 'Toutes les églises';
 
   @override

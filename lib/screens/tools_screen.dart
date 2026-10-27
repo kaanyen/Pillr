@@ -12,6 +12,8 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/maintenance/data/maintenance_repository.dart';
 import '../features/maintenance/domain/data_health.dart';
 import '../features/maintenance/domain/totals_audit.dart';
+import '../features/operations/record_ops_repository.dart';
+import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
 
 /// Tools — the repairs a giving ledger needs after a few years of use.
@@ -41,7 +43,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
-    final canManage = (idx?.isPastor ?? false) || (idx?.isAdmin ?? false);
+    final canManage = idx?.canUseTools ?? false;
 
     if (!canManage) {
       return const SelPageBody(
@@ -49,7 +51,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
         children: [
           SelEmpty(
             title: 'Not your tools',
-            message: 'Repairs to the ledger are done by a pastor or an admin.',
+            message:
+                'Repairs to the ledger are done by a pastor, an admin, or staff.',
           ),
         ],
       );
@@ -103,10 +106,26 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                     setState(() => _totals = null);
                     ref.invalidate(partnersStreamProvider(false));
                     invalidateEntryDerivedData(ref);
+                    await logPillrActivity(
+                      ref,
+                      churchId: idx.churchId,
+                      action: 'totals.repair',
+                      entityType: 'church',
+                      entityId: idx.churchId,
+                      entitySnapshot: {'corrected': n},
+                    );
+                    if (!context.mounted) return;
                     selNotice(context, 'Corrected $n ${n == 1 ? "total" : "totals"}.');
                   }),
                   repairing: _running == 'repair',
                 ),
+        ),
+
+        const SizedBox(height: SelSpace.x4),
+
+        _RecentChangesCard(
+          onUndo: (op) => _undo(op, idx!.churchId),
+          busy: _running == 'undo',
         ),
 
         const SizedBox(height: SelSpace.x4),
@@ -116,7 +135,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
           title: 'Merge duplicate partners',
           blurb:
               'The same person entered twice — usually once by hand and once by '
-              'an import. Matches on member ID, phone number, then name.',
+              'an import. Compares member ID, phone (in any format), email and '
+              'name — titles, word order, initials and small typos included.',
           runLabel: 'Find duplicates',
           running: _running == 'dupPartners',
           onRun: () => _run('dupPartners', () async {
@@ -131,7 +151,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                   pairs: _dupPartners!,
                   money: money,
                   onMerge: (pair, keepA) => _merge(pair, keepA, idx!.churchId),
-                  busy: _running == 'merge',
+                  onDismiss: (pair) => _dismiss(pair, idx!.churchId),
+                  busy: _running == 'merge' || _running == 'dismiss',
                 ),
         ),
 
@@ -139,9 +160,9 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
 
         _ToolCard(
           icon: LucideIcons.copy,
-          title: 'Find duplicate gifts',
+          title: 'Find duplicate entries',
           blurb:
-              'The same gift recorded twice — same partner, arm, period, date '
+              'The same entry recorded twice — same partner, arm, period, date '
               'and amount. The importer catches these on the way in; nothing '
               'catches the ones typed by hand.',
           runLabel: 'Find duplicates',
@@ -201,6 +222,14 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                     if (!context.mounted) return;
                     setState(() => _partnerIssues = null);
                     ref.invalidate(partnersStreamProvider(false));
+                    await logPillrActivity(
+                      ref,
+                      churchId: idx.churchId,
+                      action: 'partner.tidy',
+                      entityType: 'partner',
+                      entitySnapshot: {'corrected': n},
+                    );
+                    if (!context.mounted) return;
                     selNotice(context, 'Corrected $n ${n == 1 ? "name" : "names"}.');
                   }),
                 ),
@@ -231,8 +260,6 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   ) async {
     final keep = keepA ? pair.a : pair.b;
     final absorb = keepA ? pair.b : pair.a;
-    final actor = ref.read(churchUserProfileProvider).valueOrNull;
-    if (actor == null) return;
 
     await _run('merge', () async {
       final repo = ref.read(maintenanceRepositoryProvider);
@@ -248,35 +275,77 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
             'to ${keep.fullName}, whose total becomes '
             '${ref.read(churchMoneyFormatProvider)(plan.resultingTotal)} across '
             '${plan.resultingCount} entries. ${absorb.fullName} is closed, not '
-            'deleted.',
+            'deleted, and any phone or email ${keep.fullName} lacks is copied '
+            'over. You can undo this from Recent changes.',
         confirmLabel: 'Merge',
       );
       if (!ok) return;
 
-      final moved = await repo.mergePartners(
+      // The count the person just confirmed: if an entry lands on either
+      // record before the server runs, it refuses rather than move a
+      // different set.
+      final r = await ref.read(recordOpsRepositoryProvider).partnerMerge(
         churchId: churchId,
-        plan: plan,
-        actor: actor,
+        keepId: keep.id,
+        absorbId: absorb.id,
+        expectEntries: plan.entriesToMove.length,
       );
       if (!mounted) return;
       setState(() => _dupPartners = null);
       ref.invalidate(partnersStreamProvider(false));
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      await logPillrActivity(
-        ref,
-        churchId: churchId,
-        action: 'partner.merge',
-        entityType: 'partner',
-        entityId: keep.id,
-        entitySnapshot: {
-          'keptName': keep.fullName,
-          'absorbedName': absorb.fullName,
-          'moved': moved,
-        },
-      );
       if (!context.mounted) return;
-      selNotice(context, 'Merged. $moved ${moved == 1 ? "entry" : "entries"} moved.');
+      selNotice(
+        context,
+        'Merged. ${r.moved} ${r.moved == 1 ? "entry" : "entries"} moved'
+        '${r.filled.isEmpty ? "" : ", ${r.filled.join(" and ")} copied over"}.',
+      );
+    });
+  }
+
+  Future<void> _dismiss(DuplicatePartnerPair pair, String churchId) async {
+    final uid = ref.read(authStateProvider).valueOrNull?.uid;
+    if (uid == null) return;
+    await _run('dismiss', () async {
+      await ref.read(maintenanceRepositoryProvider).dismissDuplicatePair(
+        churchId: churchId,
+        pair: pair,
+        uid: uid,
+      );
+      if (!mounted) return;
+      setState(() {
+        _dupPartners = _dupPartners?.where((p) => p.key != pair.key).toList();
+      });
+    });
+  }
+
+  Future<void> _undo(RecordOperation op, String churchId) async {
+    final ok = await selConfirm(
+      context,
+      title: 'Undo this change?',
+      message:
+          '${op.label}. Everything it changed goes back as it was — except '
+          'anything someone has edited since, which is left alone and counted.',
+      confirmLabel: 'Undo',
+    );
+    if (!ok) return;
+    await _run('undo', () async {
+      final r = await ref.read(recordOpsRepositoryProvider).undo(
+        churchId: churchId,
+        opId: op.id,
+      );
+      ref.invalidate(partnersStreamProvider(false));
+      ref.invalidate(rankingEntriesProvider);
+      invalidateEntryDerivedData(ref);
+      if (!mounted) return;
+      selNotice(
+        context,
+        r.conflicts == 0
+            ? 'Undone. ${r.reverted} ${r.reverted == 1 ? "record" : "records"} put back.'
+            : 'Undone. ${r.reverted} put back; ${r.conflicts} had been edited '
+                  'since and were left as they are.',
+      );
     });
   }
 
@@ -320,7 +389,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
           'reason': 'Duplicate',
         },
       );
-      if (!context.mounted) return;
+      if (!mounted) return;
       selNotice(
         context,
         'Duplicate cleared. Restore it from the entry if that was a mistake.',
@@ -484,13 +553,21 @@ class _DuplicatePartnersResult extends StatelessWidget {
     required this.pairs,
     required this.money,
     required this.onMerge,
+    required this.onDismiss,
     required this.busy,
   });
 
   final List<DuplicatePartnerPair> pairs;
   final String Function(num) money;
   final void Function(DuplicatePartnerPair pair, bool keepA) onMerge;
+  final void Function(DuplicatePartnerPair pair) onDismiss;
   final bool busy;
+
+  static String bandLabel(DuplicateBand b) => switch (b) {
+    DuplicateBand.almostCertain => 'Almost certainly the same',
+    DuplicateBand.likely => 'Likely the same',
+    DuplicateBand.check => 'Worth checking',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -499,21 +576,28 @@ class _DuplicatePartnersResult extends StatelessWidget {
         children: [
           SelStatusMark(status: SelStatus.approved, label: 'None found'),
           SizedBox(width: SelSpace.x3),
-          Text('No partner looks like a duplicate of another.'),
+          Expanded(child: Text('No partner looks like a duplicate of another.')),
         ],
       );
+    }
+
+    final counts = <DuplicateBand, int>{};
+    for (final p in pairs) {
+      counts[p.band] = (counts[p.band] ?? 0) + 1;
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '${pairs.length} possible ${pairs.length == 1 ? "duplicate" : "duplicates"}. '
-          'Choose which record to keep — the other is closed, not deleted.',
+          '${pairs.length} possible ${pairs.length == 1 ? "duplicate" : "duplicates"}'
+          ' — ${[for (final b in DuplicateBand.values) if ((counts[b] ?? 0) > 0) '${counts[b]} ${bandLabel(b).toLowerCase()}'].join(', ')}. '
+          'Choose which record to keep — the other is closed, not deleted. '
+          'If they are two people, say so and the pair is not shown again.',
           style: SelType.bodyMuted,
         ),
         const SizedBox(height: SelSpace.x3),
-        for (final p in pairs.take(20)) ...[
+        for (final p in pairs.take(30)) ...[
           Container(
             padding: const EdgeInsets.all(SelSpace.x3),
             decoration: BoxDecoration(
@@ -527,11 +611,15 @@ class _DuplicatePartnersResult extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(child: Text(p.reason, style: SelType.small)),
-                    if (p.confidence < 1.0)
-                      Text(
-                        'worth checking',
-                        style: SelType.small.copyWith(color: Sel.warning),
+                    const SizedBox(width: SelSpace.x2),
+                    Text(
+                      bandLabel(p.band),
+                      style: SelType.small.copyWith(
+                        color: p.band == DuplicateBand.almostCertain
+                            ? Sel.success
+                            : Sel.warning,
                       ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: SelSpace.x2),
@@ -546,15 +634,25 @@ class _DuplicatePartnersResult extends StatelessWidget {
                   money: money,
                   onKeep: busy ? null : () => onMerge(p, false),
                 ),
+                const SizedBox(height: SelSpace.x2),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SelButton(
+                    label: 'Not the same person',
+                    kind: SelButtonKind.quiet,
+                    dense: true,
+                    onPressed: busy ? null : () => onDismiss(p),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: SelSpace.x2),
         ],
-        if (pairs.length > 20)
+        if (pairs.length > 30)
           Text(
-            'Showing the first 20 of ${pairs.length}. Merge these, then run the '
-            'check again.',
+            'Showing the first 30 of ${pairs.length}, strongest first. Settle '
+            'these, then run the check again.',
             style: SelType.small,
           ),
       ],
@@ -562,6 +660,7 @@ class _DuplicatePartnersResult extends StatelessWidget {
   }
 }
 
+/// One side of a suspected pair, with everything needed to tell them apart.
 class _MergeSide extends StatelessWidget {
   const _MergeSide({
     required this.partner,
@@ -569,20 +668,30 @@ class _MergeSide extends StatelessWidget {
     required this.onKeep,
   });
 
-  final dynamic partner;
+  final Partner partner;
   final String Function(num) money;
   final VoidCallback? onKeep;
 
   @override
   Widget build(BuildContext context) {
+    final p = partner;
+    final details = [
+      p.memberId.isEmpty ? 'no member ID' : p.memberId,
+      if (p.fellowship.trim().isNotEmpty) p.fellowship,
+      if ((p.phone ?? '').trim().isNotEmpty) p.phone!.trim(),
+      if ((p.email ?? '').trim().isNotEmpty) p.email!.trim(),
+      '${money(p.totalApprovedAmount)} (${p.entryCount})',
+      if (!p.isActive) 'inactive',
+    ];
     return Row(
       children: [
         Expanded(
-          child: Text(
-            '${partner.fullName}  ·  ${partner.memberId.isEmpty ? "no member ID" : partner.memberId}'
-            '  ·  ${money(partner.totalApprovedAmount)} (${partner.entryCount})'
-            '${partner.isActive ? "" : "  ·  inactive"}',
-            style: SelType.bodyMuted,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(p.fullName, style: SelType.bodyMedium),
+              Text(details.join('  ·  '), style: SelType.small),
+            ],
           ),
         ),
         SelButton(
@@ -594,6 +703,106 @@ class _MergeSide extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The last bulk changes — fellowship merges, moves, dissolves and partner
+/// merges — each with Undo while it can still be undone.
+class _RecentChangesCard extends ConsumerWidget {
+  const _RecentChangesCard({required this.onUndo, required this.busy});
+
+  final void Function(RecordOperation op) onUndo;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ops = ref.watch(recentOperationsProvider).valueOrNull ?? const [];
+    return SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(LucideIcons.history, size: 18, color: Sel.warm),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Recent changes', style: SelType.subtitleSm),
+                    const SizedBox(height: SelSpace.x1),
+                    Text(
+                      'Fellowship merges, moves and dissolves, and partner '
+                      'merges. Undo puts back what each one changed, unless it '
+                      'has been edited since.',
+                      style: SelType.bodyMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x4),
+          const Divider(height: 1, color: Sel.border),
+          const SizedBox(height: SelSpace.x3),
+          if (ops.isEmpty)
+            Text('Nothing yet.', style: SelType.small)
+          else
+            for (final op in ops)
+              Padding(
+                padding: const EdgeInsets.only(bottom: SelSpace.x2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(op.label, style: SelType.body),
+                          Text(
+                            [
+                              formatOperationTime(op.createdAt),
+                              if (op.actorName.isNotEmpty) op.actorName,
+                              operationStatusLabel(op),
+                            ].join('  ·  '),
+                            style: SelType.small.copyWith(
+                              color: op.status == 'failed' ? Sel.danger : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (op.canUndo)
+                      SelButton(
+                        label: 'Undo',
+                        kind: SelButtonKind.quiet,
+                        dense: true,
+                        onPressed: busy ? null : () => onUndo(op),
+                      ),
+                  ],
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+String operationStatusLabel(RecordOperation op) => switch (op.status) {
+  'applied' => '${op.planned} ${op.planned == 1 ? "record" : "records"}',
+  'failed' => 'stopped after ${op.applied} of ${op.planned} — undo or run again',
+  'applying' => 'running',
+  'undoing' => 'undoing',
+  'undone' => op.undoConflictCount == 0
+      ? 'undone'
+      : 'undone, ${op.undoConflictCount} left as edited',
+  _ => op.status,
+};
+
+String formatOperationTime(DateTime t) {
+  final l = t.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${l.day}/${two(l.month)}/${l.year} ${two(l.hour)}:${two(l.minute)}';
 }
 
 class _DuplicateEntriesResult extends StatelessWidget {
@@ -616,7 +825,7 @@ class _DuplicateEntriesResult extends StatelessWidget {
         children: [
           SelStatusMark(status: SelStatus.approved, label: 'None found'),
           SizedBox(width: SelSpace.x3),
-          Text('No gift appears to have been recorded twice.'),
+          Text('No entry appears to have been recorded twice.'),
         ],
       );
     }
@@ -625,7 +834,7 @@ class _DuplicateEntriesResult extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '${pairs.length} ${pairs.length == 1 ? "gift looks" : "gifts look"} '
+          '${pairs.length} ${pairs.length == 1 ? "entry looks" : "entries look"} '
           'recorded twice. The earlier one is kept.',
           style: SelType.bodyMuted,
         ),

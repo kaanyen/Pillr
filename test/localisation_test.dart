@@ -31,7 +31,14 @@ void main() {
   testWidgets('the rail is in English for en', (tester) async {
     final l10n = await localisationsFor(tester, const Locale('en'));
     final labels = navGroupsFor(pastor, l10n).expand((g) => g.items).map((i) => i.label);
-    expect(labels, containsAll(['Overview', 'Queue', 'Records', 'Partners']));
+    expect(labels, containsAll(['Overview', 'Queue', 'Records', 'Partners', 'Tools']));
+  });
+
+  testWidgets('staff see Tools on the rail', (tester) async {
+    final l10n = await localisationsFor(tester, const Locale('en'));
+    final staff = UserChurchIndex(uid: 's', churchId: 'c1', role: 'staff');
+    final labels = navGroupsFor(staff, l10n).expand((g) => g.items).map((i) => i.label);
+    expect(labels, contains('Tools'));
   });
 
   testWidgets('the rail is in French for fr', (tester) async {

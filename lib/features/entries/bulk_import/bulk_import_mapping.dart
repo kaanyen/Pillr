@@ -157,7 +157,7 @@ BulkImportHeaderDetection detectBulkImportHeaders(List<List<String?>> grid) {
         message: ignored.length == 1
             ? 'Row $numbers looks like a total or a note rather than a gift, '
                   'so it was left out.'
-            : 'Rows $numbers look like totals or notes rather than gifts, so '
+            : 'Rows $numbers look like totals or notes rather than giving, so '
                   'they were left out.',
       ),
     );

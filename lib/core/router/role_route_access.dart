@@ -18,18 +18,20 @@ bool isPathForbiddenForRole(String location, String role) {
 
   switch (role) {
     // Admin runs the workspace but has no access to financial records.
+    // Fellowships is allowed for the manage tools (who belongs where);
+    // ranked giving stays off that screen for this role.
     case 'admin':
       if (starts('/queue')) return true;
       if (starts('/records')) return true;
       if (starts('/entries')) return true;
       if (starts('/partners')) return true;
-      if (starts('/fellowships')) return true;
       if (starts('/goals')) return true;
       if (starts('/search')) return true;
       return false;
 
-    // Staff records entries and looks up partners. No review, no config,
-    // no people management, no audit trail.
+    // Staff records entries, looks up partners, and may manage fellowships
+    // and Tools. No review, no config, no people management. Fellowship and
+    // Tools writes go to the activity log; the Activity tab stays with admin.
     case 'staff':
       if (starts('/goals')) return true;
       if (starts('/configuration')) return true;

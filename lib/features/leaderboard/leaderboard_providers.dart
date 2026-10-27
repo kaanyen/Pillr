@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/extensions/async_value_ext.dart';
 import '../arms/domain/partnership_arm.dart';
 import '../arms/providers/arms_providers.dart';
+import '../church/providers/church_settings_providers.dart';
 import '../entries/domain/partnership_entry.dart';
 import '../entries/providers/entries_providers.dart';
 import '../entries/providers/record_filters.dart';
@@ -100,10 +101,14 @@ final fellowshipDirectoryProvider =
       ref.watch(partnersStreamProvider(includeInactive)).valueOrNull ?? const [];
   final entries = ref.watch(filteredEntriesProvider);
   final period = ref.watch(activePeriodProvider);
+  final catalog =
+      ref.watch(churchSettingsProvider).valueOrNull?.fellowshipNames ??
+          const [];
   return FellowshipDirectoryRow.fromPartnersAndEntries(
     partners.map((p) => p.fellowship),
     entries,
     periodId: period?.id,
     fellowshipByPartnerId: {for (final p in partners) p.id: p.fellowship},
+    catalog: catalog,
   );
 });

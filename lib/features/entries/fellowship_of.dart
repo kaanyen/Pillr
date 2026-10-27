@@ -1,15 +1,16 @@
 import '../../core/utils/text_case_utils.dart';
 import 'domain/partnership_entry.dart';
 
-/// Fellowship on the entry snapshot, or the partner's current group if the
-/// snapshot never stored one. Older rows often have only a name.
+/// The partner's current fellowship, or the name frozen on the entry if we
+/// have no live partner. Snapshots are a copy from record time — a rename
+/// on the partner book must win, or Fellowships keeps showing the old group.
 String fellowshipRawOf(
   PartnershipEntry entry, [
   Map<String, String> fellowshipByPartnerId = const {},
 ]) {
-  final snap = entry.partnerSnapshot['fellowship']?.toString().trim() ?? '';
-  if (snap.isNotEmpty) return snap;
-  return fellowshipByPartnerId[entry.partnerId]?.trim() ?? '';
+  final live = fellowshipByPartnerId[entry.partnerId]?.trim() ?? '';
+  if (live.isNotEmpty) return live;
+  return entry.partnerSnapshot['fellowship']?.toString().trim() ?? '';
 }
 
 String fellowshipKeyOf(

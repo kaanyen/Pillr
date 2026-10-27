@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/extensions/async_value_ext.dart';
 import '../../../design/seline.dart';
+import '../../activity/activity_log_helper.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../domain/exchange_rates.dart';
 import '../providers/church_settings_providers.dart';
 
-/// Admin & pastor panel for foreign exchange rates → GHS.
+/// Exchange rates → GHS. Pastor, admin, and staff may save; only a pastor
+/// may rewrite already-recorded foreign entries.
 class ExchangeRatesSettingsPanel extends ConsumerStatefulWidget {
   const ExchangeRatesSettingsPanel({
     super.key,
@@ -166,6 +170,18 @@ class _ExchangeRatesSettingsPanelState
               },
             ),
           );
+      await logPillrActivity(
+        ref,
+        churchId: widget.churchId,
+        action: 'settings.exchange_rates',
+        entityType: 'church',
+        entityId: widget.churchId,
+        entitySnapshot: {
+          'USD': usd,
+          'EUR': eur,
+          'GBP': gbp,
+        },
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Exchange rates saved.')),
@@ -184,6 +200,8 @@ class _ExchangeRatesSettingsPanelState
 
   @override
   Widget build(BuildContext context) {
+    final canRecalculate =
+        ref.watch(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
     return SelPanel(
       title: 'Exchange rates',
       subtitle:
@@ -218,17 +236,19 @@ class _ExchangeRatesSettingsPanelState
             loading: _busy,
             onPressed: _busy || _recalculating ? null : _save,
           ),
-          const SizedBox(height: SelSpace.x3),
-          SelButton(
-            label: 'Recalculate foreign entries',
-            loading: _recalculating,
-            onPressed: _busy || _recalculating ? null : _recalculate,
-          ),
-          const SizedBox(height: SelSpace.x2),
-          Text(
-            'Use after changing rates. Reconverts saved USD/EUR/GBP entries to GHS.',
-            style: SelType.small,
-          ),
+          if (canRecalculate) ...[
+            const SizedBox(height: SelSpace.x3),
+            SelButton(
+              label: 'Recalculate foreign entries',
+              loading: _recalculating,
+              onPressed: _busy || _recalculating ? null : _recalculate,
+            ),
+            const SizedBox(height: SelSpace.x2),
+            Text(
+              'Use after changing rates. Reconverts saved USD/EUR/GBP entries to GHS.',
+              style: SelType.small,
+            ),
+          ],
         ],
       ),
     );

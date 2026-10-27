@@ -1,5 +1,7 @@
 import '../../church/domain/exchange_rates.dart';
 import '../../arms/domain/partnership_arm.dart';
+import '../../fellowships/fellowship_match.dart';
+import '../../maintenance/domain/data_health.dart';
 import '../../partners/domain/partner.dart';
 import '../../periods/domain/partnership_period.dart';
 import 'bulk_import_arm_match.dart';
@@ -14,9 +16,11 @@ List<BulkResolvedRow> resolveBulkImportRows({
   required List<PartnershipArm> arms,
   required PartnershipPeriod? activePeriod,
   required List<Partner> partners,
+  List<Partner> inactivePartners = const [],
   required bool viewerIsStaff,
   ChurchExchangeRates exchangeRates = const ChurchExchangeRates(),
   String defaultImportCurrency = BaseCurrency.code,
+  List<String> knownFellowships = const [],
 }) {
   final byPhone = <String, List<Partner>>{};
   final byMemberId = <String, Partner>{};
@@ -45,6 +49,25 @@ List<BulkResolvedRow> resolveBulkImportRows({
     }
   }
 
+  // A member ID on a closed record that was merged as a duplicate follows the
+  // merge to the partner that took its giving.
+  final byId = {for (final p in [...partners, ...inactivePartners]) p.id: p};
+  final mergedByMemberId = <String, Partner>{};
+  for (final p in inactivePartners) {
+    final mid = p.memberId.trim().toUpperCase();
+    if (mid.isEmpty || (p.mergedInto ?? '').isEmpty) continue;
+    var cur = p;
+    for (var hop = 0; hop < 10 && (cur.mergedInto ?? '').isNotEmpty; hop++) {
+      final next = byId[cur.mergedInto];
+      if (next == null) break;
+      cur = next;
+    }
+    if (cur.isActive && (cur.mergedInto ?? '').isEmpty) {
+      mergedByMemberId[mid] = cur;
+    }
+  }
+  final everyone = [...partners, ...inactivePartners];
+
   final resolved = <BulkResolvedRow>[];
 
   for (final raw in rawRows) {
@@ -59,6 +82,19 @@ List<BulkResolvedRow> resolveBulkImportRows({
     final givenTo = v[BulkImportColumn.givenToNotes]?.trim();
 
     final issues = List<BulkImportIssue>.from(interp.issues);
+    if (fellowship.isNotEmpty && knownFellowships.isNotEmpty) {
+      final known = mergeKnownFellowships(knownFellowships, const []);
+      final exact = known.any((n) => fellowshipNamesMatch(n, fellowship));
+      if (!exact) {
+        issues.add(
+          BulkImportIssue(
+            code: BulkImportIssueCode.unknownFellowship,
+            severity: BulkImportSeverity.warning,
+            message: suggestSimilarFellowship(fellowship, known),
+          ),
+        );
+      }
+    }
 
     final arm = armNameRaw.isEmpty ? null : findArmMatchFromExcelCell(armNameRaw, arms);
     if (armNameRaw.isNotEmpty && arm == null) {
@@ -84,7 +120,8 @@ List<BulkResolvedRow> resolveBulkImportRows({
 
     final mid = memberIdFromSheet;
     if (mid != null && mid.isNotEmpty) {
-      final byMember = byMemberId[mid.toUpperCase()];
+      final survivor = mergedByMemberId[mid.toUpperCase()];
+      final byMember = byMemberId[mid.toUpperCase()] ?? survivor;
       if (byMember == null) {
         issues.add(
           const BulkImportIssue(
@@ -93,6 +130,16 @@ List<BulkResolvedRow> resolveBulkImportRows({
           ),
         );
       } else {
+        if (identical(byMember, survivor)) {
+          issues.add(
+            BulkImportIssue(
+              code: BulkImportIssueCode.memberIdMerged,
+              severity: BulkImportSeverity.warning,
+              message: '${mid.toUpperCase()} was merged into '
+                  '${survivor!.fullName} (${survivor.memberId}).',
+            ),
+          );
+        }
         matched = byMember;
         resolution = PartnerResolutionKind.existing;
         if (fullName.isNotEmpty &&
@@ -183,6 +230,28 @@ List<BulkResolvedRow> resolveBulkImportRows({
         } else {
           resolution = PartnerResolutionKind.createNew;
         }
+      }
+    }
+
+    if (resolution == PartnerResolutionKind.createNew && fullName.isNotEmpty) {
+      final lookalikes = findDuplicatesOf(
+        fullName: fullName,
+        phone: phone,
+        email: email,
+        fellowship: fellowship,
+        existing: everyone,
+      );
+      if (lookalikes.isNotEmpty) {
+        final m = lookalikes.first;
+        issues.add(
+          BulkImportIssue(
+            code: BulkImportIssueCode.possibleDuplicatePartner,
+            severity: BulkImportSeverity.warning,
+            message: 'Looks like ${m.b.fullName}'
+                '${m.b.memberId.isEmpty ? '' : ' (${m.b.memberId})'}'
+                '${m.b.isActive ? '' : ', inactive'} — ${m.reason}.',
+          ),
+        );
       }
     }
 

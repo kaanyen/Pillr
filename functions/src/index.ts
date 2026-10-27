@@ -6,51 +6,12 @@ import PDFDocument from "pdfkit";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {Resend} from "resend";
+import {toTitleCase} from "./text_case";
 
 admin.initializeApp();
 const db = admin.firestore();
 
 const REGION = "us-central1";
-
-/**
- * Matches Dart [TextCaseUtils.toTitleCase] for names and labels.
- *
- * A value that is entirely one short all-caps token (FC, USA) keeps its
- * capitals. That exemption is deliberately not applied inside a multi-word
- * value: Ghanaian day-names are three and four letters, so an all-caps
- * spreadsheet used to leave "YAW DARKO" as "YAW Darko" and "KOFI MENSAH" as
- * "KOFI Mensah". A person's name is never an acronym.
- *
- * Keep this in step with lib/core/utils/text_case_utils.dart.
- */
-function toTitleCase(input: string): string {
-  const s = input.trim();
-  if (!s) return "";
-  const words = s.split(/\s+/);
-  if (words.length === 1 && looksLikeCode(words[0])) return words[0];
-  return words.map(titleCaseWord).join(" ");
-}
-
-function looksLikeCode(word: string): boolean {
-  return /^[A-Za-z]+$/.test(word) &&
-    word.length >= 2 &&
-    word.length <= 4 &&
-    word === word.toUpperCase();
-}
-
-function titleCaseWord(word: string): string {
-  if (!word) return "";
-  if (word.includes("-")) return word.split("-").map(titleCaseSegment).join("-");
-  if (word.includes("'")) return word.split("'").map(titleCaseSegment).join("'");
-  return titleCaseSegment(word);
-}
-
-function titleCaseSegment(segment: string): string {
-  if (!segment) return "";
-  if (/^\d/.test(segment)) return segment;
-  if (segment.length === 1) return segment.toUpperCase();
-  return segment[0].toUpperCase() + segment.slice(1).toLowerCase();
-}
 
 /** Must match a domain verified in Resend (Dashboard → Domains). Default: thepillr.com. */
 const RESEND_FROM =
@@ -1322,3 +1283,4 @@ export {
   previewMonthlyPartnerGivingEmail,
   runMonthlyPartnerGivingSummary,
 } from "./monthly_partner_email";
+export {fellowshipChange, partnerMerge, undoOperation} from "./record_ops";

@@ -183,6 +183,238 @@ it("membership itself is not client-writable", async () => {
   assert.ok(true);
 });
 
+describe("admin fellowship tools", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/partners/p1"), {
+        churchId: "c1",
+        fullName: "Ama Mensah",
+        fellowship: "Bethel",
+        fellowshipLower: "bethel",
+        phone: "0240000000",
+        email: "ama@example.com",
+      });
+    });
+  });
+
+  it("lets an admin read a partner", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertSucceeds(getDoc(doc(db, "churches/c1/partners/p1")));
+  });
+
+  // Fellowship moves run through the fellowshipChange callable, which records
+  // them for undo. A direct write would skip that record.
+  it("refuses an admin moving a partner directly", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p1"), {
+      fellowship: "Zion",
+      fellowshipLower: "zion",
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses an admin changing a partner's phone", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p1"), {
+      phone: "0241111111",
+    }));
+  });
+
+  it("refuses staff moving a partner directly", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p1"), {
+      fellowship: "Zion",
+      fellowshipLower: "zion",
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff changing a partner's phone", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p1"), {
+      phone: "0241111111",
+    }));
+  });
+});
+
+describe("staff ledger tools", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "churches/c1/partners/p_keep"), {
+        churchId: "c1",
+        fullName: "Ama Mensah",
+        fullNameLower: "ama mensah",
+        fellowship: "Bethel",
+        fellowshipLower: "bethel",
+        phone: "0240000000",
+        isActive: true,
+        totalApprovedAmount: 100,
+        entryCount: 1,
+      });
+      await setDoc(doc(db, "churches/c1/partners/p_absorb"), {
+        churchId: "c1",
+        fullName: "Ama M.",
+        isActive: true,
+      });
+      await setDoc(doc(db, "churches/c1/entries/e_approved"), {
+        churchId: "c1",
+        createdBy: PASTOR,
+        status: "approved",
+        partnerId: "p_absorb",
+        amountCedis: 100,
+      });
+      await setDoc(doc(db, "churches/c1/entries/e_dup"), {
+        churchId: "c1",
+        createdBy: PASTOR,
+        status: "approved",
+        partnerId: "p_keep",
+        amountCedis: 100,
+      });
+      await setDoc(doc(db, "churches/c1/partnership_periods/per1"), {
+        name: "2026",
+        totalApprovedAmount: 50,
+        entryCount: 1,
+      });
+    });
+  });
+
+  // Partner merges run through the partnerMerge callable.
+  it("refuses staff repointing an entry directly", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e_approved"), {
+      partnerId: "p_keep",
+      partnerSnapshot: {fullName: "Ama Mensah"},
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff changing an entry amount on the way", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e_approved"), {
+      partnerId: "p_keep",
+      amountCedis: 999,
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets staff void a duplicate entry", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/entries/e_dup"), {
+      status: "voided",
+      voidedBy: STAFF,
+      voidedAt: new Date(),
+      voidReason: "Duplicate",
+      updatedAt: new Date(),
+      editHistory: [{changeDescription: "Entry voided: Duplicate"}],
+    }));
+  });
+
+  it("refuses staff approving an entry", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/entries/e_pending"), {
+        churchId: "c1",
+        createdBy: "someone-else",
+        status: "pending",
+        amountCedis: 10,
+      });
+    });
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e_pending"), {
+      status: "approved",
+    }));
+  });
+
+  it("refuses staff closing the absorbed partner directly", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p_absorb"), {
+      isActive: false,
+      mergedInto: "p_keep",
+      mergedBy: STAFF,
+      mergedAt: new Date(),
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff renaming a partner under cover of tidying", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
+      fullName: "Someone Else",
+      fullNameLower: "someone else",
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets staff tidy a partner name", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
+      fullName: "Ama Mensah",
+      fullNameLower: "ama mensah",
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets staff correct partner totals", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
+      totalApprovedAmount: 200,
+      totalApprovedPesewas: 20000,
+      entryCount: 2,
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets staff correct period totals", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partnership_periods/per1"), {
+      totalApprovedAmount: 200,
+      totalApprovedPesewas: 20000,
+      entryCount: 2,
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff renaming a period", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partnership_periods/per1"), {
+      name: "Sneaky",
+    }));
+  });
+});
+
+describe("staff exchange rates", () => {
+  it("lets staff save exchange rates", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1"), {
+      settings: {exchangeRates: {USD: 12.5, EUR: 13, GBP: 16}},
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets an admin save exchange rates", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1"), {
+      settings: {exchangeRates: {USD: 13, EUR: 14, GBP: 17}},
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff turning on monthly partner email", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1"), {
+      settings: {sendMonthlyPartnerEmails: true},
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("refuses staff changing the church name", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1"), {
+      name: "Staff Church",
+    }));
+  });
+});
+
 describe("monthly partner email reports are function-written", () => {
   it("lets a pastor read a report", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -206,5 +438,94 @@ describe("monthly partner email reports are function-written", () => {
     await assertFails(
       setDoc(doc(db, "churches/c1/monthly_email_reports/2026-07"), {sent: 99}),
     );
+  });
+});
+
+describe("bulk change records", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "churches/c1/operations/op1"), {kind: "fellowship.merge", status: "applied"});
+      await setDoc(doc(db, "churches/c1/operations/op1/changes/000000"), {seq: 0, path: "x"});
+      await setDoc(doc(db, "churches/c1/partners/p_merge"), {churchId: "c1", fullName: "Kofi Asante", isActive: true});
+    });
+  });
+
+  it("lets staff read an operation and its changes", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(getDoc(doc(db, "churches/c1/operations/op1")));
+    await assertSucceeds(getDoc(doc(db, "churches/c1/operations/op1/changes/000000")));
+  });
+
+  it("refuses anyone editing an operation record", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/operations/op1"), {status: "undone"}));
+    await assertFails(setDoc(doc(db, "churches/c1/operations/op2"), {kind: "partner.merge"}));
+    await assertFails(updateDoc(doc(db, "churches/c1/operations/op1/changes/000000"), {path: "y"}));
+  });
+
+  it("refuses another church reading an operation", async () => {
+    const db = env.authenticatedContext(OUTSIDER).firestore();
+    await assertFails(getDoc(doc(db, "churches/c1/operations/op1")));
+  });
+
+  it("refuses touching the operation lock", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertFails(setDoc(doc(db, "churches/c1/op_locks/records"), {holder: "me"}));
+  });
+
+  it("refuses a pastor writing merge fields directly", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p_merge"), {mergedInto: "p_keep"}));
+  });
+
+  it("still lets a pastor edit a partner", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_merge"), {
+      phone: "0241234567",
+      fellowship: "Zion",
+      fellowshipLower: "zion",
+    }));
+  });
+});
+
+describe("duplicate dismissals", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      for (const id of ["a|b", "c|d", "e|f"]) {
+        await deleteDoc(doc(ctx.firestore(), `churches/c1/duplicate_dismissals/${id}`));
+      }
+    });
+  });
+
+  it("refuses editing a dismissal once made", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/duplicate_dismissals/g|h"), {
+        a: "g", b: "h", dismissedBy: STAFF,
+      });
+    });
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/duplicate_dismissals/g|h"), {a: "x"}));
+  });
+
+  it("lets staff mark a pair as not the same person", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(setDoc(doc(db, "churches/c1/duplicate_dismissals/a|b"), {
+      a: "a", b: "b", dismissedBy: STAFF, dismissedAt: new Date(),
+    }));
+  });
+
+  it("refuses a dismissal written in someone else's name", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(setDoc(doc(db, "churches/c1/duplicate_dismissals/c|d"), {
+      a: "c", b: "d", dismissedBy: PASTOR,
+    }));
+  });
+
+  it("refuses an admin dismissing a pair", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertFails(setDoc(doc(db, "churches/c1/duplicate_dismissals/e|f"), {
+      a: "e", b: "f", dismissedBy: ADMIN,
+    }));
   });
 });

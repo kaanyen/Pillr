@@ -1592,6 +1592,12 @@ abstract class AppLocalizations {
   /// **'Activity'**
   String get navActivity;
 
+  /// No description provided for @navTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get navTools;
+
   /// No description provided for @navPlatformChurches.
   ///
   /// In en, this message translates to:

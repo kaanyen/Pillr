@@ -7,6 +7,7 @@ import '../../../design/seline.dart';
 import '../../../screens/arm_palette.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../church/domain/exchange_rates.dart';
+import '../../fellowships/fellowship_match.dart';
 import 'bulk_import_autofix.dart';
 import 'bulk_import_columns.dart';
 import 'bulk_import_mapping.dart';
@@ -18,7 +19,8 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
   BulkImportIssueCode.missingName ||
   BulkImportIssueCode.nameMismatch => BulkImportColumn.name,
   BulkImportIssueCode.missingFellowship ||
-  BulkImportIssueCode.fellowshipMismatch => BulkImportColumn.fellowship,
+  BulkImportIssueCode.fellowshipMismatch ||
+  BulkImportIssueCode.unknownFellowship => BulkImportColumn.fellowship,
   BulkImportIssueCode.missingAmount ||
   BulkImportIssueCode.invalidAmount ||
   BulkImportIssueCode.missingExchangeRate => BulkImportColumn.amount,
@@ -29,7 +31,9 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
   BulkImportIssueCode.ambiguousPhone ||
   BulkImportIssueCode.ambiguousName => BulkImportColumn.contact,
   BulkImportIssueCode.memberIdNotFound ||
-  BulkImportIssueCode.memberIdConflict => BulkImportColumn.memberId,
+  BulkImportIssueCode.memberIdConflict ||
+  BulkImportIssueCode.memberIdMerged => BulkImportColumn.memberId,
+  BulkImportIssueCode.possibleDuplicatePartner => BulkImportColumn.name,
   BulkImportIssueCode.staffPastorYesPending => BulkImportColumn.pastorConfirmed,
   BulkImportIssueCode.duplicateInFile ||
   BulkImportIssueCode.duplicateInDatabase ||
@@ -68,6 +72,12 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         help:
             'The fellowship here is not the one on the partner profile. '
             'Fix whichever is out of date.',
+      ),
+      BulkImportIssueCode.unknownFellowship => (
+        title: 'New fellowship on the sheet',
+        help:
+            'This name is not in your fellowship book. Create it, or point '
+            'the rows at a similar group you already have.',
       ),
       BulkImportIssueCode.missingAmount => (
         title: 'No amount',
@@ -122,6 +132,18 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         title: 'Member ID belongs to somebody else',
         help: 'The ID and the name point at two different partners.',
       ),
+      BulkImportIssueCode.memberIdMerged => (
+        title: 'Member ID was merged into another partner',
+        help:
+            'This record was merged as a duplicate. The gift goes to the '
+            'partner it was merged into.',
+      ),
+      BulkImportIssueCode.possibleDuplicatePartner => (
+        title: 'Looks like someone already on the book',
+        help:
+            'Importing as it is creates a new partner. If it is the same '
+            'person, open the row and pick them instead.',
+      ),
       BulkImportIssueCode.staffPastorYesPending => (
         title: 'Marked as with the pastor',
         help:
@@ -132,13 +154,13 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         title: 'No exchange rate for this currency',
         help:
             'These rows are in a currency the church has no rate for. '
-            'Importing them would record the figure as cedis — a \$100 gift '
+            'Importing them would record the figure as cedis — a \$100 entry '
             'as ₵100. Set the rate in Settings, then import again.',
       ),
       BulkImportIssueCode.ignoredNonDataRow => (
         title: 'Left out of the import',
         help:
-            'These lines are part of the sheet rather than gifts — a total at '
+            'These lines are part of the sheet rather than giving — a total at '
             'the bottom, or a note typed under the table.',
       ),
       BulkImportIssueCode.duplicateInFile ||
@@ -146,7 +168,7 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
         title: 'Might already exist',
         help:
             'Keep it if the person really gave twice, or drop it if it is '
-            'the same gift recorded twice.',
+            'the same entry recorded twice.',
       ),
     };
 
@@ -166,7 +188,7 @@ double _columnWidth(BulkImportColumn c) => switch (c) {
 
 const double _rowHeight = 38;
 const double _gutterWidth = 56;
-const double _panelWidth = 340;
+const double _panelWidth = 320;
 
 /// Hues used to tie a problem in the panel to its rows in the sheet. Distinct
 /// from the arm palette, which is already carrying meaning in its own column.
@@ -237,6 +259,8 @@ class BulkImportGrid extends ConsumerStatefulWidget {
     required this.onDropRow,
     required this.onUndoDecision,
     this.onBulkMapArm,
+    this.knownFellowships = const [],
+    this.onBulkResolveFellowship,
   });
 
   final List<BulkRawRow> rawRows;
@@ -270,6 +294,17 @@ class BulkImportGrid extends ConsumerStatefulWidget {
   final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)?
   onBulkMapArm;
 
+  final List<String> knownFellowships;
+
+  /// Maps every row using [sourceTexts] onto [target]. When [create] is
+  /// true, [target] is added to the church fellowship book.
+  final Future<void> Function(
+    List<String> sourceTexts,
+    String target, {
+    required bool create,
+  })?
+  onBulkResolveFellowship;
+
   @override
   ConsumerState<BulkImportGrid> createState() => _BulkImportGridState();
 }
@@ -301,9 +336,25 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
   (int, BulkImportColumn)? _focusCell;
   int _focusSerial = 0;
 
-  bool _panelOpen = true;
+  bool _panelOpen = false;
+  bool _userSetPanel = false;
+  double _lastMaxWidth = 1600;
   List<_Group>? _cachedGroups;
   Map<int, String>? _rowGroupIds;
+
+  bool get _overlayIssues => true;
+
+  bool get _panelVisible {
+    if (_userSetPanel) return _panelOpen;
+    return false;
+  }
+
+  void _setPanel(bool open) {
+    setState(() {
+      _userSetPanel = true;
+      _panelOpen = open;
+    });
+  }
 
   @override
   void didUpdateWidget(covariant BulkImportGrid oldWidget) {
@@ -551,14 +602,14 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
       _editorFocus = focus;
       _focusCell = (rowIndex, column);
       _focusSerial++;
-      // A hidden panel cannot explain the cell you just opened. If the cell
-      // belongs to a problem, the panel comes back to show it — hiding it was
-      // a wish for room, not a refusal to be told what is wrong.
-      if (!_panelOpen &&
+      // A hidden docked panel cannot explain the cell you just opened.
+      // On a small screen the overlay would cover the cell — leave it shut.
+      if (!_overlayIssues &&
+          !_panelVisible &&
           _groups().any(
             (g) => g.column == column && g.rows.contains(rowIndex),
           )) {
-        _panelOpen = true;
+        _setPanel(true);
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => focus.requestFocus());
@@ -632,87 +683,155 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
         _gutterWidth +
         2;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_panelOpen)
-          SizedBox(
-            width: _panelWidth,
-            child: _IssuesPanel(
-              groups: groups,
-              rawRows: widget.rawRows,
-              resolved: widget.resolved,
-              arms: widget.arms,
-              dayFirst: widget.dayFirst,
-              busy: widget.busy,
-              money: widget.money,
-              keptSheetRows: widget.keptSheetRows,
-              droppedSheetRows: widget.droppedSheetRows,
-              onJumpToRow: _jumpToRow,
-              onApplyFixes: widget.onApplyFixes,
-              onDayFirstChanged: widget.onDayFirstChanged,
-              onKeepRow: widget.onKeepRow,
-              onDropRow: widget.onDropRow,
-              onUndoDecision: widget.onUndoDecision,
-              onBulkMapArm: widget.onBulkMapArm,
-              onHoverGroup: (id) => setState(() => _hoverGroup = id),
-              onCollapse: () => setState(() {
-                _panelOpen = false;
-                _focusCell = null;
-              }),
-              focusCell: _focusCell,
-              focusSerial: _focusSerial,
-              hoverRow: _hoverRow,
-            ),
-          )
-        else
-          _CollapsedPanel(
-            groups: groups,
-            onExpand: () => setState(() {
-              _panelOpen = true;
-              _focusCell = null;
-            }),
-          ),
-        const SizedBox(width: SelSpace.x4),
-        Expanded(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Sel.card,
-              border: Border.all(color: Sel.border),
-              borderRadius: BorderRadius.circular(SelRadius.card),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(SelRadius.card),
-              child: Scrollbar(
-                controller: _horizontal,
-                child: SingleChildScrollView(
-                  controller: _horizontal,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: gridWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _header(groups),
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _vertical,
-                            itemExtent: _rowHeight,
-                            itemCount: widget.rawRows.length,
-                            itemBuilder: (context, i) => _row(
-                              i,
-                              rowColor[i],
-                              cellColor[i] ?? const {},
-                              cellIsProblem[i] ?? const {},
-                              groups,
-                            ),
-                          ),
-                        ),
-                      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _lastMaxWidth = constraints.maxWidth;
+        final sheet = _sheet(
+          groups: groups,
+          gridWidth: gridWidth,
+          rowColor: rowColor,
+          cellColor: cellColor,
+          cellIsProblem: cellIsProblem,
+        );
+        if (_overlayIssues) {
+          return _overlayLayout(context, groups, sheet);
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_panelVisible)
+              SizedBox(width: _panelWidth, child: _issuesPanel(groups))
+            else
+              _CollapsedPanel(groups: groups, onExpand: () => _setPanel(true)),
+            const SizedBox(width: SelSpace.x4),
+            Expanded(child: sheet),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sheet({
+    required List<_Group> groups,
+    required double gridWidth,
+    required Map<int, Color> rowColor,
+    required Map<int, Map<BulkImportColumn, Color>> cellColor,
+    required Map<int, Set<BulkImportColumn>> cellIsProblem,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Sel.card,
+        border: Border.all(color: Sel.border),
+        borderRadius: BorderRadius.circular(SelRadius.card),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        child: Scrollbar(
+          controller: _horizontal,
+          child: SingleChildScrollView(
+            controller: _horizontal,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: gridWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _header(groups),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _vertical,
+                      itemExtent: _rowHeight,
+                      itemCount: widget.rawRows.length,
+                      itemBuilder: (context, i) => _row(
+                        i,
+                        rowColor[i],
+                        cellColor[i] ?? const {},
+                        cellIsProblem[i] ?? const {},
+                        groups,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _issuesPanel(List<_Group> groups) {
+    return _IssuesPanel(
+      groups: groups,
+      rawRows: widget.rawRows,
+      resolved: widget.resolved,
+      arms: widget.arms,
+      dayFirst: widget.dayFirst,
+      busy: widget.busy,
+      money: widget.money,
+      keptSheetRows: widget.keptSheetRows,
+      droppedSheetRows: widget.droppedSheetRows,
+      onJumpToRow: (i) {
+        _jumpToRow(i);
+        if (_overlayIssues) _setPanel(false);
+      },
+      onApplyFixes: widget.onApplyFixes,
+      onDayFirstChanged: widget.onDayFirstChanged,
+      onKeepRow: widget.onKeepRow,
+      onDropRow: widget.onDropRow,
+      onUndoDecision: widget.onUndoDecision,
+      onBulkMapArm: widget.onBulkMapArm,
+      knownFellowships: widget.knownFellowships,
+      onBulkResolveFellowship: widget.onBulkResolveFellowship,
+      onHoverGroup: (id) => setState(() => _hoverGroup = id),
+      onCollapse: () {
+        _focusCell = null;
+        _setPanel(false);
+      },
+      focusCell: _focusCell,
+      focusSerial: _focusSerial,
+      hoverRow: _hoverRow,
+    );
+  }
+
+  Widget _overlayLayout(
+    BuildContext context,
+    List<_Group> groups,
+    Widget sheet,
+  ) {
+    final open = _panelVisible;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final drawerWidth = (_lastMaxWidth * 0.92).clamp(240.0, 320.0);
+    return Stack(
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!open)
+              _IssuesOpenBar(groups: groups, onExpand: () => _setPanel(true)),
+            if (!open) const SizedBox(height: SelSpace.x2),
+            Expanded(child: sheet),
+          ],
+        ),
+        if (open)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _setPanel(false),
+              child: ColoredBox(color: Sel.ink.withValues(alpha: 0.2)),
+            ),
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AnimatedSlide(
+            offset: open ? Offset.zero : const Offset(-1.05, 0),
+            duration: reduce
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
+            curve: const Cubic(0.23, 1, 0.32, 1),
+            child: IgnorePointer(
+              ignoring: !open,
+              child: SizedBox(width: drawerWidth, child: _issuesPanel(groups)),
             ),
           ),
         ),
@@ -1155,7 +1274,7 @@ class _CollapsedPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final blocking = groups.where((g) => g.blocking).length;
     return SizedBox(
-      width: 44,
+      width: SelLayout.tapTarget,
       child: Tooltip(
         message: blocking == 0
             ? 'Show what can be tidied'
@@ -1171,7 +1290,11 @@ class _CollapsedPanel extends StatelessWidget {
             child: Column(
               children: [
                 const SizedBox(height: SelSpace.x4),
-                const Icon(LucideIcons.panelLeftOpen, size: 15, color: Sel.ash),
+                const Icon(
+                  LucideIcons.panelLeftOpen,
+                  size: 18,
+                  color: Sel.warm,
+                ),
                 const SizedBox(height: SelSpace.x3),
                 for (final g in groups)
                   Padding(
@@ -1191,6 +1314,51 @@ class _CollapsedPanel extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: SelSpace.x4),
                     child: Text('$blocking', style: SelType.small),
                   ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A 44px bar that opens the issues drawer on a small screen (Fitts).
+class _IssuesOpenBar extends StatelessWidget {
+  const _IssuesOpenBar({required this.groups, required this.onExpand});
+
+  final List<_Group> groups;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocking = groups.where((g) => g.blocking).length;
+    final label = blocking == 0
+        ? (groups.isEmpty
+              ? 'Nothing to fix'
+              : '${groups.length} optional ${groups.length == 1 ? "tidy" : "tidies"}')
+        : '$blocking ${blocking == 1 ? "thing" : "things"} to fix';
+    return Material(
+      color: Sel.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        side: const BorderSide(color: Sel.border),
+      ),
+      child: InkWell(
+        onTap: onExpand,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4),
+            child: Row(
+              children: [
+                Icon(LucideIcons.panelLeftOpen, size: 18, color: Sel.warm),
+                const SizedBox(width: SelSpace.x3),
+                Expanded(child: Text(label, style: SelType.bodyMedium)),
+                Text('Show', style: SelType.small.copyWith(color: Sel.warm)),
+                const SizedBox(width: SelSpace.x2),
+                const Icon(LucideIcons.chevronRight, size: 16, color: Sel.warm),
               ],
             ),
           ),
@@ -1223,6 +1391,8 @@ class _IssuesPanel extends StatefulWidget {
     required this.onDropRow,
     required this.onUndoDecision,
     required this.onBulkMapArm,
+    required this.knownFellowships,
+    required this.onBulkResolveFellowship,
     required this.onHoverGroup,
     required this.onCollapse,
     required this.focusCell,
@@ -1246,6 +1416,13 @@ class _IssuesPanel extends StatefulWidget {
   final void Function(int sheetRow) onDropRow;
   final void Function(int sheetRow) onUndoDecision;
   final Future<void> Function(List<String>, PartnershipArm)? onBulkMapArm;
+  final List<String> knownFellowships;
+  final Future<void> Function(
+    List<String> sourceTexts,
+    String target, {
+    required bool create,
+  })?
+  onBulkResolveFellowship;
   final void Function(String?) onHoverGroup;
   final VoidCallback onCollapse;
 
@@ -1388,15 +1565,18 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(
-                    LucideIcons.panelLeftClose,
-                    size: 15,
-                    color: Sel.ash,
+                SizedBox(
+                  width: SelLayout.tapTarget,
+                  height: SelLayout.tapTarget,
+                  child: IconButton(
+                    icon: const Icon(
+                      LucideIcons.panelLeftClose,
+                      size: 18,
+                      color: Sel.warm,
+                    ),
+                    tooltip: 'Hide this list',
+                    onPressed: widget.onCollapse,
                   ),
-                  tooltip: 'Hide this panel',
-                  splashRadius: 15,
-                  onPressed: widget.onCollapse,
                 ),
               ],
             ),
@@ -1695,6 +1875,9 @@ class _IssuesPanelState extends State<_IssuesPanel> {
         g.column == BulkImportColumn.category &&
         widget.onBulkMapArm != null &&
         widget.arms.isNotEmpty;
+    final canBulkMapFellowship =
+        g.id == 'code:unknownFellowship' &&
+        widget.onBulkResolveFellowship != null;
 
     // When we can repair it, show what the repair would do — the decision is
     // "does this look right", not "trust me".
@@ -1740,7 +1923,7 @@ class _IssuesPanelState extends State<_IssuesPanel> {
 
     // Grouping inside a problem by the offending value turns thirty
     // corrections back into one.
-    if (g.byValue.length > 1 || canBulkMapArm) {
+    if (g.byValue.length > 1 || canBulkMapArm || canBulkMapFellowship) {
       return [
         for (final entry in g.byValue.entries)
           Padding(
@@ -1772,6 +1955,24 @@ class _IssuesPanelState extends State<_IssuesPanel> {
                     arms: widget.arms,
                     busy: widget.busy,
                     onPick: (arm) => widget.onBulkMapArm!([entry.key], arm),
+                  ),
+                ],
+                if (canBulkMapFellowship) ...[
+                  const SizedBox(height: SelSpace.x2),
+                  _FellowshipAssign(
+                    spelling: entry.key,
+                    known: widget.knownFellowships,
+                    busy: widget.busy,
+                    onUse: (name) => widget.onBulkResolveFellowship!(
+                      [entry.key],
+                      name,
+                      create: false,
+                    ),
+                    onCreate: () => widget.onBulkResolveFellowship!(
+                      [entry.key],
+                      entry.key,
+                      create: true,
+                    ),
                   ),
                 ],
               ],
@@ -2114,6 +2315,90 @@ class _DuplicateRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Create the sheet name, or map it onto a fellowship the church already has.
+class _FellowshipAssign extends StatelessWidget {
+  const _FellowshipAssign({
+    required this.spelling,
+    required this.known,
+    required this.busy,
+    required this.onUse,
+    required this.onCreate,
+  });
+
+  final String spelling;
+  final List<String> known;
+  final bool busy;
+  final void Function(String name) onUse;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final similar = suggestSimilarFellowship(spelling, known);
+    final others = [
+      for (final n in known)
+        if (similar == null || !fellowshipNamesMatch(n, similar)) n,
+    ];
+    return Wrap(
+      spacing: SelSpace.x2,
+      runSpacing: SelSpace.x2,
+      children: [
+        if (similar != null)
+          SelButton(
+            label: 'Use $similar',
+            kind: SelButtonKind.edge,
+            dense: true,
+            onPressed: busy ? null : () => onUse(similar),
+          ),
+        SelButton(
+          label: spelling.isEmpty ? 'Create fellowship' : 'Create “$spelling”',
+          kind: SelButtonKind.quiet,
+          dense: true,
+          onPressed: busy || spelling.trim().isEmpty ? null : onCreate,
+        ),
+        if (others.isNotEmpty)
+          Builder(
+            builder: (anchor) => InkWell(
+              onTap: busy
+                  ? null
+                  : () async {
+                      final picked = await _anchoredMenu<String>(anchor, [
+                        for (final n in others) (n, n),
+                      ]);
+                      if (picked != null) onUse(picked);
+                    },
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SelSpace.x3,
+                  vertical: SelSpace.x2,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Sel.border),
+                  borderRadius: BorderRadius.circular(SelRadius.pill),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Use another fellowship',
+                      style: SelType.small.copyWith(color: Sel.ink),
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    const Icon(
+                      LucideIcons.chevronDown,
+                      size: 12,
+                      color: Sel.ash,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -17,9 +17,12 @@ import '../../../core/navigation/panel_flows.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
+import '../../../core/utils/text_case_utils.dart';
 import '../../church/domain/exchange_rates.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
+import '../../fellowships/fellowship_match.dart';
+import '../../fellowships/fellowship_providers.dart';
 import '../../auth/domain/user_church_index.dart' show UserChurchIndex;
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
@@ -117,6 +120,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   /// Default currency for sheet amounts unless a row has a Currency column.
   String _importDefaultCurrency = BaseCurrency.code;
 
+  /// Names accepted during this import (Create) before they land on partners.
+  final Set<String> _acceptedFellowships = {};
+
   /// A saved import found on disk, waiting to be resumed or discarded.
   BulkImportPersistedSession? _pendingDraft;
 
@@ -133,6 +139,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
   List<PartnershipArm>? _cachedArms;
   List<Partner>? _cachedPartners;
+
+  /// Inactive and merged-away partners: not matched against, but used to
+  /// follow a merged member ID and to warn before creating a duplicate.
+  List<Partner> _cachedInactivePartners = const [];
   List<PartnershipPeriod>? _cachedPeriods;
   PartnershipPeriod? _cachedActivePeriod;
   PartnershipPeriod? _importPeriod;
@@ -406,6 +416,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               ? 'Bring a spreadsheet of giving into Pillr.'
               : _fileName!,
           actions: [
+            SelButton(
+              label: 'Close',
+              kind: SelButtonKind.quiet,
+              onPressed: _committing
+                  ? null
+                  : () => context.go('/records/imports'),
+            ),
             if (_step != _Step.upload)
               SelButton(
                 label: 'Start over',
@@ -455,6 +472,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _error = null;
       _duplicateAcknowledgedSheetRows.clear();
       _droppedSheetRows.clear();
+      _acceptedFellowships.clear();
       _pendingDraft = null;
       _step = _Step.upload;
     });
@@ -645,136 +663,224 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final duplicatesPending = !_duplicatesFullyAcknowledged();
     final money = ref.watch(churchMoneyFormatProvider);
 
-    return Padding(
-      // The shell's utility cluster floats over the top-right of the canvas,
-      // so the takeover has to start below it or the title collides with the
-      // account chip.
-      padding: const EdgeInsets.fromLTRB(
-        SelSpace.x8,
-        SelSpace.x16,
-        SelSpace.x8,
-        SelSpace.x6,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    // Law → pixels (check the sheet):
+    // Fitts → Close / Back / Continue stay 44px.
+    // Tesler → shell rail + account cluster are gone; issues start closed.
+    // Pareto → the grid takes leftover viewport.
+    // Jakob → fullscreen editor; Close returns to Records.
+    // Goal-gradient → Continue stays last in the footer.
+    // Aesthetic-usability → 12px inset, no 64px empty headroom.
+    // Hick → 20px title, one line of meta.
+    // Working memory → one surface.
+    // Occam → hide chrome instead of a collapse toggle.
+    // Doherty → hide is instant; no entrance motion.
+    // Serial position → title left, Continue right.
+    // Zeigarnik → "N things to fix" stays on the sheet.
+    // Peak-end / Von Restorff / Postel's / Miller extras: N/A — review tool.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            SelSpace.x3,
+            SelSpace.x3,
+            SelSpace.x3,
+            SelSpace.x3,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Check the sheet', style: SelType.title),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      live.length == resolved.length
-                          ? '${resolved.length} rows from '
-                                '${_fileName ?? "your file"} — click any cell '
-                                'to change it.'
-                          : '${live.length} of ${resolved.length} rows will be '
-                                'imported — click any cell to change it.',
-                      style: SelType.bodyMuted,
+              compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            _closeImport(),
+                            Expanded(
+                              child: _sheetTitle(
+                                compact: true,
+                                resolved: resolved,
+                                live: live,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: SelSpace.x2),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _sheetActions(),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _closeImport(),
+                        Expanded(
+                          child: _sheetTitle(
+                            compact: false,
+                            resolved: resolved,
+                            live: live,
+                          ),
+                        ),
+                        _sheetActions(),
+                      ],
                     ),
+              SizedBox(height: compact ? SelSpace.x2 : SelSpace.x3),
+              if (_error != null) ...[
+                _Notice(message: _error!, status: SelStatus.blocked),
+                const SizedBox(height: SelSpace.x4),
+              ],
+              // Anything the parser decided about the file itself — rows it left
+              // out, headers it could not place. Leaving a row out silently is
+              // how an importer loses someone's giving without anyone noticing.
+              for (final i in _fileIssues) ...[
+                _Notice(
+                  message: i.message ?? _issueLabel(l10n, i.code),
+                  status: i.severity == BulkImportSeverity.error
+                      ? SelStatus.blocked
+                      : SelStatus.pending,
+                ),
+                const SizedBox(height: SelSpace.x4),
+              ],
+              Expanded(
+                child: BulkImportGrid(
+                  rawRows: _rawRows ?? const [],
+                  resolved: resolved,
+                  columns: _gridColumns(columns),
+                  arms: arms,
+                  dayFirst: _dayFirst,
+                  busy: _loadingPartners || _committing,
+                  money: (v) => v == v.roundToDouble()
+                      ? money(v).replaceAll(RegExp(r'\.00$'), '')
+                      : money(v),
+                  keptSheetRows: _duplicateAcknowledgedSheetRows,
+                  droppedSheetRows: _droppedSheetRows,
+                  onEditCell: _editRawCell,
+                  onApplyFixes: _applyFixes,
+                  onDayFirstChanged: (v) => setState(() => _dayFirst = v),
+                  onKeepRow: _keepRow,
+                  onDropRow: _dropRow,
+                  onUndoDecision: _undoRowDecision,
+                  onBulkMapArm: _bulkMapArm,
+                  knownFellowships: [
+                    ...ref.watch(knownFellowshipsProvider),
+                    ..._acceptedFellowships,
                   ],
+                  onBulkResolveFellowship: _bulkResolveFellowship,
                 ),
               ),
-              if (_loadingPartners)
-                const Padding(
-                  padding: EdgeInsets.only(right: SelSpace.x3),
-                  child: SizedBox(
-                    height: 14,
-                    width: 14,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
+              const SizedBox(height: SelSpace.x3),
+              Row(
+                children: [
+                  SelButton(
+                    label: 'Back',
+                    kind: SelButtonKind.quiet,
+                    onPressed: () => setState(() => _step = _Step.columns),
                   ),
-                ),
-              _buildCompactSheetCurrencySelector(),
-              SelButton(
-                label: 'Start over',
-                kind: SelButtonKind.quiet,
-                onPressed: _committing ? null : _startOver,
+                  const Spacer(),
+                  if (blocking)
+                    Padding(
+                      padding: const EdgeInsets.only(right: SelSpace.x3),
+                      child: Text(
+                        l10n.bulkImportBlocking,
+                        style: SelType.small,
+                      ),
+                    )
+                  else if (duplicatesPending)
+                    Padding(
+                      padding: const EdgeInsets.only(right: SelSpace.x3),
+                      child: Text(
+                        'Say keep or drop for the rows that might already exist.',
+                        style: SelType.small,
+                      ),
+                    )
+                  else if (live.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: SelSpace.x3),
+                      child: Text(
+                        'Every row was left out.',
+                        style: SelType.small,
+                      ),
+                    ),
+                  SelButton.cyan(
+                    label: 'Continue',
+                    onPressed:
+                        blocking ||
+                            duplicatesPending ||
+                            _loadingPartners ||
+                            live.isEmpty
+                        ? null
+                        : () => setState(() => _step = _Step.confirm),
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: SelSpace.x6),
-          if (_error != null) ...[
-            _Notice(message: _error!, status: SelStatus.blocked),
-            const SizedBox(height: SelSpace.x4),
-          ],
-          // Anything the parser decided about the file itself — rows it left
-          // out, headers it could not place. Leaving a row out silently is
-          // how an importer loses someone's giving without anyone noticing.
-          for (final i in _fileIssues) ...[
-            _Notice(
-              message: i.message ?? _issueLabel(l10n, i.code),
-              status: i.severity == BulkImportSeverity.error
-                  ? SelStatus.blocked
-                  : SelStatus.pending,
-            ),
-            const SizedBox(height: SelSpace.x4),
-          ],
-          Expanded(
-            child: BulkImportGrid(
-              rawRows: _rawRows ?? const [],
-              resolved: resolved,
-              columns: _gridColumns(columns),
-              arms: arms,
-              dayFirst: _dayFirst,
-              busy: _loadingPartners || _committing,
-              money: (v) => v == v.roundToDouble()
-                  ? money(v).replaceAll(RegExp(r'\.00$'), '')
-                  : money(v),
-              keptSheetRows: _duplicateAcknowledgedSheetRows,
-              droppedSheetRows: _droppedSheetRows,
-              onEditCell: _editRawCell,
-              onApplyFixes: _applyFixes,
-              onDayFirstChanged: (v) => setState(() => _dayFirst = v),
-              onKeepRow: _keepRow,
-              onDropRow: _dropRow,
-              onUndoDecision: _undoRowDecision,
-              onBulkMapArm: _bulkMapArm,
-            ),
+        );
+      },
+    );
+  }
+
+  Widget _closeImport() {
+    return IconButton(
+      tooltip: 'Close',
+      onPressed: _committing ? null : () => context.go('/records/imports'),
+      icon: const Icon(LucideIcons.x, size: 18),
+      color: Sel.ink,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _sheetTitle({
+    required bool compact,
+    required List<BulkResolvedRow> resolved,
+    required List<BulkResolvedRow> live,
+  }) {
+    final meta = live.length == resolved.length
+        ? '${resolved.length} rows from ${_fileName ?? "your file"}'
+        : '${live.length} of ${resolved.length} rows will be imported';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Check the sheet',
+          style: SelType.subtitle.copyWith(
+            fontSize: compact ? 18 : 20,
+            letterSpacing: compact ? -0.1 : -0.2,
           ),
-          const SizedBox(height: SelSpace.x4),
-          Row(
-            children: [
-              SelButton(
-                label: 'Back',
-                kind: SelButtonKind.quiet,
-                onPressed: () => setState(() => _step = _Step.columns),
-              ),
-              const Spacer(),
-              if (blocking)
-                Padding(
-                  padding: const EdgeInsets.only(right: SelSpace.x3),
-                  child: Text(l10n.bulkImportBlocking, style: SelType.small),
-                )
-              else if (duplicatesPending)
-                Padding(
-                  padding: const EdgeInsets.only(right: SelSpace.x3),
-                  child: Text(
-                    'Say keep or drop for the rows that might already exist.',
-                    style: SelType.small,
-                  ),
-                )
-              else if (live.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: SelSpace.x3),
-                  child: Text('Every row was left out.', style: SelType.small),
-                ),
-              SelButton.cyan(
-                label: 'Continue',
-                onPressed:
-                    blocking ||
-                        duplicatesPending ||
-                        _loadingPartners ||
-                        live.isEmpty
-                    ? null
-                    : () => setState(() => _step = _Step.confirm),
-              ),
-            ],
+        ),
+        Text(
+          meta,
+          style: SelType.small,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _sheetActions() {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: SelSpace.x2,
+      runSpacing: SelSpace.x2,
+      children: [
+        if (_loadingPartners)
+          const SizedBox(
+            height: 14,
+            width: 14,
+            child: CircularProgressIndicator(strokeWidth: 1.5),
           ),
-        ],
-      ),
+        _buildCompactSheetCurrencySelector(),
+        SelButton(
+          label: 'Start over',
+          kind: SelButtonKind.quiet,
+          onPressed: _committing ? null : _startOver,
+        ),
+      ],
     );
   }
 
@@ -805,23 +911,20 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     // them. Typing in the sheet cannot change that, so there is nothing to
     // invalidate — and clearing it here cost one query per distinct partner,
     // sequentially, after every edit.
-    _scheduleReResolve(
-      checkDuplicates: _columnAffectsDuplicates(column),
-    );
+    _scheduleReResolve(checkDuplicates: _columnAffectsDuplicates(column));
     _schedulePersistSession();
   }
 
   bool _columnAffectsDuplicates(BulkImportColumn column) => switch (column) {
-        BulkImportColumn.amount ||
-        BulkImportColumn.date ||
-        BulkImportColumn.category ||
-        BulkImportColumn.name ||
-        BulkImportColumn.contact ||
-        BulkImportColumn.memberId ||
-        BulkImportColumn.currency =>
-          true,
-        _ => false,
-      };
+    BulkImportColumn.amount ||
+    BulkImportColumn.date ||
+    BulkImportColumn.category ||
+    BulkImportColumn.name ||
+    BulkImportColumn.contact ||
+    BulkImportColumn.memberId ||
+    BulkImportColumn.currency => true,
+    _ => false,
+  };
 
   void _scheduleReResolve({bool checkDuplicates = true}) {
     _resolveDebounce?.cancel();
@@ -920,7 +1023,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   // ---------------------------------------------------------------- step 4
-  List<BulkImportColumn> _gridColumns(List<MapEntry<BulkImportColumn, int>> mapped) {
+  List<BulkImportColumn> _gridColumns(
+    List<MapEntry<BulkImportColumn, int>> mapped,
+  ) {
     final cols = mapped.map((e) => e.key).toList();
     if (cols.contains(BulkImportColumn.currency)) return cols;
     final amountIdx = cols.indexOf(BulkImportColumn.amount);
@@ -971,12 +1076,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 expanded: false,
                 onChanged: _committing || _loadingPartners
                     ? null
-                : (v) async {
-                    if (v == null) return;
-                    setState(() => _importDefaultCurrency = v);
-                    _syncRowCurrencies();
-                    _scheduleReResolve();
-                  },
+                    : (v) async {
+                        if (v == null) return;
+                        setState(() => _importDefaultCurrency = v);
+                        _syncRowCurrencies();
+                        _scheduleReResolve();
+                      },
                 items: [
                   for (final code in SelectableCurrency.all)
                     DropdownMenuItem(value: code, child: Text(code)),
@@ -1042,7 +1147,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   });
                 },
                 items: [
-                  for (final p in _cachedPeriods ?? (period == null ? const <PartnershipPeriod>[] : [period]))
+                  for (final p
+                      in _cachedPeriods ??
+                          (period == null
+                              ? const <PartnershipPeriod>[]
+                              : [period]))
                     DropdownMenuItem(value: p.id, child: Text(p.name)),
                 ],
               ),
@@ -1388,6 +1497,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     onReviewRow: (idx) => _editRow(context, l10n, idx),
                     onRemoveRow: (idx) => _confirmRemoveRow(context, l10n, idx),
                     onBulkMapArm: _bulkMapArm,
+                    onBulkResolveFellowship: _bulkResolveFellowship,
                   ),
                 ],
               ],
@@ -1444,6 +1554,74 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     _schedulePersistSession();
   }
 
+  Future<void> _bulkResolveFellowship(
+    List<String> sourceTexts,
+    String target, {
+    required bool create,
+  }) async {
+    final label = TextCaseUtils.toTitleCase(target);
+    if (label.isEmpty) return;
+
+    if (create) {
+      _acceptedFellowships.add(label);
+      final idx = ref.read(userChurchIndexProvider).valueOrNull;
+      if (idx != null) {
+        final catalog =
+            ref.read(churchSettingsProvider).valueOrNull?.fellowshipNames ??
+            const [];
+        final partners =
+            ref.read(partnersStreamProvider(false)).valueOrNull ?? const [];
+        try {
+          await ref
+              .read(fellowshipOpsProvider)
+              .create(
+                churchId: idx.churchId,
+                name: label,
+                catalog: catalog,
+                partnerFellowships: partners.map((p) => p.fellowship),
+              );
+          try {
+            await logPillrActivity(
+              ref,
+              churchId: idx.churchId,
+              action: 'fellowship.create',
+              entityType: 'fellowship',
+              entitySnapshot: {'name': label, 'source': 'import'},
+            );
+          } catch (_) {}
+        } catch (_) {
+          // Staff cannot write church settings. The name still counts
+          // for this import via _acceptedFellowships.
+        }
+      }
+    }
+
+    final raw = _rawRows;
+    if (raw == null) return;
+    final needles = sourceTexts.map((t) => t.trim().toLowerCase()).toSet();
+    var changed = 0;
+    for (var i = 0; i < raw.length; i++) {
+      final v = Map<BulkImportColumn, String>.from(raw[i].valuesByColumn);
+      final current = (v[BulkImportColumn.fellowship] ?? '')
+          .trim()
+          .toLowerCase();
+      if (!needles.contains(current)) continue;
+      if (fellowshipNamesMatch(v[BulkImportColumn.fellowship] ?? '', label)) {
+        continue;
+      }
+      v[BulkImportColumn.fellowship] = label;
+      raw[i] = BulkRawRow(
+        sheetRowNumber: raw[i].sheetRowNumber,
+        valuesByColumn: v,
+      );
+      changed++;
+    }
+    if (changed == 0 && !create) return;
+
+    await _reResolve();
+    _schedulePersistSession();
+  }
+
   String fmtAmount(double v) {
     if (v == v.roundToDouble()) return v.round().toString();
     return v.toStringAsFixed(2);
@@ -1493,12 +1671,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final title = r.incomplete
         ? 'Import stopped partway'
         : r.isPartial
-            ? 'Import finished, with rows left out'
-            : l10n.bulkImportResultTitle;
+        ? 'Import finished, with rows left out'
+        : l10n.bulkImportResultTitle;
     final summary = r.incomplete || r.isPartial
         ? '${r.entriesCreated} of ${r.rowsAttempted} recorded'
-            '${r.rowsSkipped > 0 ? ", ${r.rowsSkipped} skipped" : ""}'
-            '${r.partnersCreated > 0 ? ", ${r.partnersCreated} new partners" : ""}.'
+              '${r.rowsSkipped > 0 ? ", ${r.rowsSkipped} skipped" : ""}'
+              '${r.partnersCreated > 0 ? ", ${r.partnersCreated} new partners" : ""}.'
         : null;
 
     return SelCard(
@@ -1635,6 +1813,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _result = null;
       _fileIssues = const [];
       _duplicateAcknowledgedSheetRows.clear();
+      _acceptedFellowships.clear();
       _parsing = false;
       _step = _Step.columns;
     });
@@ -1746,11 +1925,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   Future<void> _ensureImportContext(UserChurchIndex idx) async {
-    _cachedArms ??=
-        await ref.read(armsRepositoryProvider).fetchArms(idx.churchId);
+    _cachedArms ??= await ref
+        .read(armsRepositoryProvider)
+        .fetchArms(idx.churchId);
     if (_cachedPartners == null || _cachedActivePeriod == null) {
-      final periods =
-          await ref.read(periodsRepositoryProvider).fetchPeriods(idx.churchId);
+      final periods = await ref
+          .read(periodsRepositoryProvider)
+          .fetchPeriods(idx.churchId);
       _cachedPeriods = periods;
       try {
         _cachedActivePeriod = periods.firstWhere((p) => p.isActive);
@@ -1758,9 +1939,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         _cachedActivePeriod = null;
       }
       _importPeriod ??= _cachedActivePeriod;
-      _cachedPartners = await ref
+      final all = await ref
           .read(partnersRepositoryProvider)
-          .fetchAllActivePartners(idx.churchId);
+          .fetchAllPartners(idx.churchId, includeInactive: true);
+      _cachedPartners = [for (final p in all) if (p.isActive) p];
+      _cachedInactivePartners = [for (final p in all) if (!p.isActive) p];
     }
   }
 
@@ -1779,11 +1962,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     _cachePersistIds(idx);
     _cachedArms = null;
     _cachedPartners = null;
-      _cachedActivePeriod = null;
-      _cachedPeriods = null;
-      _importPeriod = null;
-      _duplicateEntryCache.clear();
-      _partnerOverrides.clear();
+    _cachedActivePeriod = null;
+    _cachedPeriods = null;
+    _importPeriod = null;
+    _duplicateEntryCache.clear();
+    _partnerOverrides.clear();
     try {
       await _resolveImport(idx, checkDuplicates: true, persist: true);
     } catch (e) {
@@ -1812,9 +1995,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         arms: _cachedArms ?? const [],
         activePeriod: _importPeriod ?? _cachedActivePeriod,
         partners: _cachedPartners ?? const [],
+        inactivePartners: _cachedInactivePartners,
         viewerIsStaff: idx.isStaff,
         exchangeRates: ref.read(churchExchangeRatesProvider),
         defaultImportCurrency: _importDefaultCurrency,
+        knownFellowships: [
+          ...ref.read(knownFellowshipsProvider),
+          ..._acceptedFellowships,
+        ],
       ),
     );
     if (!mounted) return;
@@ -1850,7 +2038,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
     final missing = <String>{};
     for (final r in resolved) {
-      if (r.partnerId == null || r.armId == null || r.periodId == null) continue;
+      if (r.partnerId == null || r.armId == null || r.periodId == null)
+        continue;
       if (_duplicateEntryCache.containsKey(r.partnerId)) continue;
       missing.add(r.partnerId!);
     }
@@ -2024,199 +2213,198 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       child: StatefulBuilder(
         builder: (context, setLocal) {
           return LayoutBuilder(
-                builder: (context, c) {
-                  final twoCol = c.maxWidth >= 480;
-                  Widget row2(Widget a, Widget b) {
-                    if (!twoCol) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          a,
-                          const SizedBox(height: SelSpace.x4),
-                          b,
-                        ],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: a),
-                        const SizedBox(width: SelSpace.x4),
-                        Expanded(child: b),
-                      ],
-                    );
-                  }
-
+            builder: (context, c) {
+              final twoCol = c.maxWidth >= 480;
+              Widget row2(Widget a, Widget b) {
+                if (!twoCol) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      row2(
-                        SelField(
-                          controller: dateCtrl,
-                          label: l10n.bulkImportFieldDate,
-                          hint: l10n.bulkImportFieldDateHint,
-                        ),
-                        SelField(
-                          controller: nameCtrl,
-                          label: l10n.bulkImportFieldName,
-                        ),
-                      ),
+                      a,
                       const SizedBox(height: SelSpace.x4),
-                      row2(
-                        SelField(
-                          controller: fellowCtrl,
-                          label: l10n.bulkImportFieldFellowship,
-                        ),
-                        SelField(
-                          controller: phoneCtrl,
-                          label: l10n.bulkImportFieldPhone,
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ),
-                      const SizedBox(height: SelSpace.x4),
-                      row2(
-                        SelField(
-                          controller: emailCtrl,
-                          label: l10n.bulkImportFieldEmail,
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                        SelField(
-                          controller: amountCtrl,
-                          label: l10n.bulkImportFieldAmount,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: SelSpace.x4),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          l10n.bulkImportFieldArm,
-                          style: SelType.small.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Sel.warm,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: SelSpace.x1),
-                      SelSelect<String>(
-                        value: selectedArm?.id,
-                        hint: Text(l10n.bulkImportSelectArm),
-                        onChanged: activeArms.isEmpty
-                            ? null
-                            : (id) {
-                                if (id == null) return;
-                                setLocal(() {
-                                  selectedArm = activeArms.firstWhere(
-                                    (a) => a.id == id,
-                                  );
-                                  armCtrl.text = selectedArm!.name;
-                                });
-                              },
-                        items: [
-                          for (final a in activeArms)
-                            DropdownMenuItem(value: a.id, child: Text(a.name)),
-                        ],
-                      ),
-                      const SizedBox(height: SelSpace.x4),
-                      SelButton(
-                        label: 'Match to an existing partner',
-                        icon: LucideIcons.users,
-                        kind: SelButtonKind.ghost,
-                        onPressed: () async {
-                          final picked = await showPartnerPickerPanel(
-                            context,
-                            churchId: idx.churchId,
-                            uid: idx.uid,
-                          );
-                          if (picked == null) return;
-                          setLocal(() {
-                            nameCtrl.text = picked.fullName;
-                            fellowCtrl.text = picked.fellowship;
-                            phoneCtrl.text = picked.phone ?? phoneCtrl.text;
-                            emailCtrl.text = picked.email ?? emailCtrl.text;
-                          });
-                          _partnerOverrides[row.sheetRowNumber] = picked;
-                        },
-                      ),
-                      const SizedBox(height: SelSpace.x4),
-                      SelField(
-                        controller: notesCtrl,
-                        label: l10n.bulkImportFieldNotes,
-                        maxLines: 3,
-                      ),
-                      const SizedBox(height: SelSpace.x4),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Sel.card,
-                          borderRadius: BorderRadius.circular(SelRadius.card),
-                          border: Border.all(color: Sel.border),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: SelSpace.x4,
-                            vertical: SelSpace.x2,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  l10n.bulkImportFieldPastorYes,
-                                  style: SelType.body.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              Switch.adaptive(
-                                value: pastorYes,
-                                onChanged: (b) => setLocal(() => pastorYes = b),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: SelSpace.x6),
-                      Row(
-                        children: [
-                          SelButton(
-                            label: l10n.bulkImportCancel,
-                            kind: SelButtonKind.quiet,
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const Spacer(),
-                          SelButton.cyan(
-                            label: l10n.bulkImportSave,
-                            onPressed: () {
-                              v[BulkImportColumn.date] = dateCtrl.text.trim();
-                              v[BulkImportColumn.name] = nameCtrl.text.trim();
-                              v[BulkImportColumn.fellowship] =
-                                  fellowCtrl.text.trim();
-                              v[BulkImportColumn.contact] =
-                                  phoneCtrl.text.trim();
-                              v[BulkImportColumn.email] = emailCtrl.text.trim();
-                              v[BulkImportColumn.amount] =
-                                  amountCtrl.text.trim();
-                              v[BulkImportColumn.category] =
-                                  (selectedArm?.name ?? armCtrl.text).trim();
-                              v[BulkImportColumn.givenToNotes] =
-                                  notesCtrl.text.trim();
-                              v[BulkImportColumn.pastorConfirmed] =
-                                  pastorYes ? 'YES' : 'NO';
-                              _rawRows![index] = BulkRawRow(
-                                sheetRowNumber: row.sheetRowNumber,
-                                valuesByColumn: v,
-                              );
-                              Navigator.pop(context);
-                              _reResolve().then((_) => _schedulePersistSession());
-                            },
-                          ),
-                        ],
-                      ),
+                      b,
                     ],
                   );
-                },
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: a),
+                    const SizedBox(width: SelSpace.x4),
+                    Expanded(child: b),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  row2(
+                    SelField(
+                      controller: dateCtrl,
+                      label: l10n.bulkImportFieldDate,
+                      hint: l10n.bulkImportFieldDateHint,
+                    ),
+                    SelField(
+                      controller: nameCtrl,
+                      label: l10n.bulkImportFieldName,
+                    ),
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  row2(
+                    SelField(
+                      controller: fellowCtrl,
+                      label: l10n.bulkImportFieldFellowship,
+                    ),
+                    SelField(
+                      controller: phoneCtrl,
+                      label: l10n.bulkImportFieldPhone,
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  row2(
+                    SelField(
+                      controller: emailCtrl,
+                      label: l10n.bulkImportFieldEmail,
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    SelField(
+                      controller: amountCtrl,
+                      label: l10n.bulkImportFieldAmount,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      l10n.bulkImportFieldArm,
+                      style: SelType.small.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Sel.warm,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: SelSpace.x1),
+                  SelSelect<String>(
+                    value: selectedArm?.id,
+                    hint: Text(l10n.bulkImportSelectArm),
+                    onChanged: activeArms.isEmpty
+                        ? null
+                        : (id) {
+                            if (id == null) return;
+                            setLocal(() {
+                              selectedArm = activeArms.firstWhere(
+                                (a) => a.id == id,
+                              );
+                              armCtrl.text = selectedArm!.name;
+                            });
+                          },
+                    items: [
+                      for (final a in activeArms)
+                        DropdownMenuItem(value: a.id, child: Text(a.name)),
+                    ],
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  SelButton(
+                    label: 'Match to an existing partner',
+                    icon: LucideIcons.users,
+                    kind: SelButtonKind.ghost,
+                    onPressed: () async {
+                      final picked = await showPartnerPickerPanel(
+                        context,
+                        churchId: idx.churchId,
+                        uid: idx.uid,
+                      );
+                      if (picked == null) return;
+                      setLocal(() {
+                        nameCtrl.text = picked.fullName;
+                        fellowCtrl.text = picked.fellowship;
+                        phoneCtrl.text = picked.phone ?? phoneCtrl.text;
+                        emailCtrl.text = picked.email ?? emailCtrl.text;
+                      });
+                      _partnerOverrides[row.sheetRowNumber] = picked;
+                    },
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  SelField(
+                    controller: notesCtrl,
+                    label: l10n.bulkImportFieldNotes,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: SelSpace.x4),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Sel.card,
+                      borderRadius: BorderRadius.circular(SelRadius.card),
+                      border: Border.all(color: Sel.border),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: SelSpace.x4,
+                        vertical: SelSpace.x2,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              l10n.bulkImportFieldPastorYes,
+                              style: SelType.body.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: pastorYes,
+                            onChanged: (b) => setLocal(() => pastorYes = b),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: SelSpace.x6),
+                  Row(
+                    children: [
+                      SelButton(
+                        label: l10n.bulkImportCancel,
+                        kind: SelButtonKind.quiet,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Spacer(),
+                      SelButton.cyan(
+                        label: l10n.bulkImportSave,
+                        onPressed: () {
+                          v[BulkImportColumn.date] = dateCtrl.text.trim();
+                          v[BulkImportColumn.name] = nameCtrl.text.trim();
+                          v[BulkImportColumn.fellowship] = fellowCtrl.text
+                              .trim();
+                          v[BulkImportColumn.contact] = phoneCtrl.text.trim();
+                          v[BulkImportColumn.email] = emailCtrl.text.trim();
+                          v[BulkImportColumn.amount] = amountCtrl.text.trim();
+                          v[BulkImportColumn.category] =
+                              (selectedArm?.name ?? armCtrl.text).trim();
+                          v[BulkImportColumn.givenToNotes] = notesCtrl.text
+                              .trim();
+                          v[BulkImportColumn.pastorConfirmed] = pastorYes
+                              ? 'YES'
+                              : 'NO';
+                          _rawRows![index] = BulkRawRow(
+                            sheetRowNumber: row.sheetRowNumber,
+                            valuesByColumn: v,
+                          );
+                          Navigator.pop(context);
+                          _reResolve().then((_) => _schedulePersistSession());
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               );
+            },
+          );
         },
       ),
     );
@@ -2357,6 +2545,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         _fileName = null;
         _fileBytes = null;
         _duplicateAcknowledgedSheetRows.clear();
+        _acceptedFellowships.clear();
       });
       selNotice(context, successMessage, kind: SelNoticeKind.success);
       Future<void>.delayed(const Duration(seconds: 4), () {
@@ -2394,8 +2583,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         l10n.bulkImportIssueMemberIdNotFound,
       BulkImportIssueCode.memberIdConflict =>
         l10n.bulkImportIssueMemberIdConflict,
+      BulkImportIssueCode.memberIdMerged =>
+        'Member ID was merged into another partner',
+      BulkImportIssueCode.possibleDuplicatePartner =>
+        'Looks like an existing partner',
       BulkImportIssueCode.fellowshipMismatch =>
         l10n.bulkImportIssueFellowshipMismatch,
+      BulkImportIssueCode.unknownFellowship =>
+        'New fellowship — create it or use a similar one',
       BulkImportIssueCode.nameMismatch => l10n.bulkImportIssueNameMismatch,
       BulkImportIssueCode.duplicateInFile =>
         l10n.bulkImportIssueDuplicateInFile,
@@ -2421,6 +2616,7 @@ class _IssueGroup extends ConsumerStatefulWidget {
     required this.onReviewRow,
     required this.onRemoveRow,
     required this.onBulkMapArm,
+    required this.onBulkResolveFellowship,
   });
 
   final BulkImportIssueCode code;
@@ -2434,6 +2630,12 @@ class _IssueGroup extends ConsumerStatefulWidget {
   final void Function(int index) onRemoveRow;
   final Future<void> Function(List<String> sourceTexts, PartnershipArm arm)
   onBulkMapArm;
+  final Future<void> Function(
+    List<String> sourceTexts,
+    String target, {
+    required bool create,
+  })
+  onBulkResolveFellowship;
 
   @override
   ConsumerState<_IssueGroup> createState() => _IssueGroupState();
@@ -2448,13 +2650,18 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
   /// row editor because the correct value differs per row.
   bool get _fixable =>
       widget.code == BulkImportIssueCode.armNotFound ||
-      widget.code == BulkImportIssueCode.missingArm;
+      widget.code == BulkImportIssueCode.missingArm ||
+      widget.code == BulkImportIssueCode.unknownFellowship;
 
   /// The distinct spreadsheet values that failed to match, with their counts.
   Map<String, int> get _unmatched {
     final counts = <String, int>{};
+    final fellowshipIssue =
+        widget.code == BulkImportIssueCode.unknownFellowship;
     for (final i in widget.rowIndices) {
-      final raw = widget.rows[i].armName.trim();
+      final raw = fellowshipIssue
+          ? widget.rows[i].fellowship.trim()
+          : widget.rows[i].armName.trim();
       final key = raw.isEmpty ? '(blank)' : raw;
       counts[key] = (counts[key] ?? 0) + 1;
     }
@@ -2613,42 +2820,106 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
                         ],
                       ),
                     ),
-                    SizedBox(
-                      width: 190,
-                      child: SelSelect<String>(
-                        value: _armChoice[cluster.label],
-                        hint: Text('Select arm', style: SelType.bodyMuted),
-                        onChanged: widget.busy || _applying
-                            ? null
-                            : (v) =>
-                                  setState(() => _armChoice[cluster.label] = v),
-                        items: [
-                          for (final a in arms)
-                            DropdownMenuItem(value: a.id, child: Text(a.name)),
-                        ],
+                    if (widget.code == BulkImportIssueCode.unknownFellowship)
+                      Flexible(
+                        child: Wrap(
+                          spacing: SelSpace.x2,
+                          runSpacing: SelSpace.x2,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            if (suggestSimilarFellowship(
+                                  cluster.label,
+                                  ref.watch(knownFellowshipsProvider),
+                                )
+                                case final similar?)
+                              SelButton(
+                                label: 'Use $similar',
+                                kind: SelButtonKind.edge,
+                                dense: true,
+                                loading: _applying,
+                                onPressed: widget.busy
+                                    ? null
+                                    : () async {
+                                        setState(() => _applying = true);
+                                        await widget.onBulkResolveFellowship(
+                                          cluster.variants,
+                                          similar,
+                                          create: false,
+                                        );
+                                        if (mounted) {
+                                          setState(() => _applying = false);
+                                        }
+                                      },
+                              ),
+                            SelButton(
+                              label: 'Create “${cluster.label}”',
+                              kind: SelButtonKind.quiet,
+                              dense: true,
+                              loading: _applying,
+                              onPressed: widget.busy
+                                  ? null
+                                  : () async {
+                                      setState(() => _applying = true);
+                                      await widget.onBulkResolveFellowship(
+                                        cluster.variants,
+                                        cluster.label,
+                                        create: true,
+                                      );
+                                      if (mounted) {
+                                        setState(() => _applying = false);
+                                      }
+                                    },
+                            ),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      SizedBox(
+                        width: 190,
+                        child: SelSelect<String>(
+                          value: _armChoice[cluster.label],
+                          hint: Text('Select arm', style: SelType.bodyMuted),
+                          onChanged: widget.busy || _applying
+                              ? null
+                              : (v) => setState(
+                                  () => _armChoice[cluster.label] = v,
+                                ),
+                          items: [
+                            for (final a in arms)
+                              DropdownMenuItem(
+                                value: a.id,
+                                child: Text(a.name),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: SelSpace.x2),
-                    SelButton(
-                      label: 'Apply',
-                      kind: SelButtonKind.edge,
-                      dense: true,
-                      loading: _applying,
-                      onPressed:
-                          _armChoice[cluster.label] == null || widget.busy
-                          ? null
-                          : () async {
-                              final arm = arms
-                                  .where(
-                                    (a) => a.id == _armChoice[cluster.label],
-                                  )
-                                  .firstOrNull;
-                              if (arm == null) return;
-                              setState(() => _applying = true);
-                              await widget.onBulkMapArm(cluster.variants, arm);
-                              if (mounted) setState(() => _applying = false);
-                            },
-                    ),
+                      const SizedBox(width: SelSpace.x2),
+                      SelButton(
+                        label: 'Apply',
+                        kind: SelButtonKind.edge,
+                        dense: true,
+                        loading: _applying,
+                        onPressed:
+                            _armChoice[cluster.label] == null || widget.busy
+                            ? null
+                            : () async {
+                                final arm = arms
+                                    .where(
+                                      (a) => a.id == _armChoice[cluster.label],
+                                    )
+                                    .firstOrNull;
+                                if (arm == null) return;
+                                setState(() => _applying = true);
+                                await widget.onBulkMapArm(
+                                  cluster.variants,
+                                  arm,
+                                );
+                                if (mounted) {
+                                  setState(() => _applying = false);
+                                }
+                              },
+                      ),
+                    ],
                   ],
                 ),
               ),

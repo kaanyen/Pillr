@@ -29,7 +29,7 @@ final entriesRepositoryProvider = Provider<EntriesRepository>((ref) {
 final rankingEntriesProvider =
     StreamProvider.autoDispose<List<PartnershipEntry>>((ref) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-  if (idx == null) return Stream.value([]);
+  if (idx == null || idx.isAdmin) return Stream.value([]);
   final period = ref.watch(activePeriodProvider);
   return ref.watch(entriesRepositoryProvider).watchApprovedEntriesForRanking(
         idx.churchId,

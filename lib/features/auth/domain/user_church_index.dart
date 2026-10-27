@@ -15,6 +15,16 @@ class UserChurchIndex {
   bool get isPastor => role == 'pastor';
   bool get isStaff => role == 'staff';
 
+  /// Pastor, church admin, or staff — create, rename, merge, dissolve, move.
+  bool get canManageFellowships => isPastor || isAdmin || isStaff;
+
+  /// Ledger repairs on Tools: totals, merge duplicates, void duplicate
+  /// entries, tidy names. Writes go to the activity log.
+  bool get canUseTools => isPastor || isAdmin || isStaff;
+
+  /// Set USD/EUR/GBP → GHS rates. Recalculating saved entries stays pastor-only.
+  bool get canEditExchangeRates => isPastor || isAdmin || isStaff;
+
   static UserChurchIndex? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
     if (data == null) return null;

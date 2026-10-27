@@ -21,7 +21,17 @@ enum BulkImportIssueCode {
   ambiguousName,
   memberIdNotFound,
   memberIdConflict,
+
+  /// The member ID belongs to a record that was merged into another. The row
+  /// goes to the partner it was merged into.
+  memberIdMerged,
+
+  /// No partner matched, so one would be created — but an existing partner
+  /// looks like the same person.
+  possibleDuplicatePartner,
   fellowshipMismatch,
+  /// Sheet spelling is not in the church's fellowship book.
+  unknownFellowship,
   nameMismatch,
   duplicateInFile,
   duplicateInDatabase,

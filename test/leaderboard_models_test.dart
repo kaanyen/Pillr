@@ -373,6 +373,31 @@ void main() {
     expect(rows[1].periodTotalCedis, 0);
   });
 
+  test('directory follows a renamed partner fellowship, not the entry snapshot', () {
+    final entries = [
+      _entry(
+        id: 'e1',
+        partnerId: 'p1',
+        name: 'Ama',
+        amount: 200,
+        periodId: periodId,
+        armId: 'arm-a',
+        fellowship: 'FIRE',
+      ),
+    ];
+
+    final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
+      ['Fire'],
+      entries,
+      periodId: periodId,
+      fellowshipByPartnerId: const {'p1': 'Fire'},
+    );
+
+    expect(rows.map((r) => r.fellowshipName).toList(), ['Fire']);
+    expect(rows.single.periodTotalCedis, 200);
+    expect(rows.single.partnerCount, 1);
+  });
+
   test('directory lists Airport City groups when a snapshot name is unmatched', () {
     const partners = [
       'Radah',
@@ -439,6 +464,18 @@ void main() {
     ]);
     expect(rows.last.periodTotalCedis, 200);
     expect(rows.last.partnerCount, 0);
+  });
+
+  test('directory includes catalog fellowships that have no partners yet', () {
+    final rows = FellowshipDirectoryRow.fromPartnersAndEntries(
+      ['Bethel'],
+      const [],
+      catalog: const ['Campus A', 'Bethel'],
+    );
+
+    expect(rows.map((r) => r.fellowshipName).toList(), ['Bethel', 'Campus A']);
+    expect(rows[0].partnerCount, 1);
+    expect(rows[1].partnerCount, 0);
   });
 
   test('ranked fellowships use the partner group when the snapshot is blank', () {

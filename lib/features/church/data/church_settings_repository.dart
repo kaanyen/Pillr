@@ -51,6 +51,17 @@ class ChurchSettingsRepository {
     }, SetOptions(merge: true));
   }
 
+  Future<void> setFellowshipNames(String churchId, List<String> names) async {
+    final cleaned = [
+      for (final n in names)
+        if (n.trim().isNotEmpty) TextCaseUtils.toTitleCase(n.trim()),
+    ];
+    await _church(churchId).update({
+      'settings.fellowshipNames': cleaned,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> completeSetup(String churchId) async {
     await _church(churchId).set({
       'churchSetupCompletedAt': FieldValue.serverTimestamp(),

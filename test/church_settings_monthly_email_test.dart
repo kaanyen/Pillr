@@ -9,6 +9,7 @@ void main() {
     expect(s.sendMonthlyPartnerEmails, isFalse);
     expect(s.primaryPastorUid, isNull);
     expect(s.partnerEmailFrom, isNull);
+    expect(s.fellowshipNames, isEmpty);
   });
 
   test('monthly partner email settings read from nested map', () {
@@ -27,5 +28,16 @@ void main() {
       s.partnerEmailFrom,
       'Partner Appreciation <pastor@theairportcitychurch.com>',
     );
+    expect(s.fellowshipNames, isEmpty);
+  });
+
+  test('fellowship catalog reads from settings.fellowshipNames', () {
+    final s = ChurchSettings.fromData('c1', {
+      'name': 'Demo Community Church',
+      'settings': {
+        'fellowshipNames': ['bethel', 'Fire Fellowship'],
+      },
+    });
+    expect(s.fellowshipNames, ['Bethel', 'Fire Fellowship']);
   });
 }

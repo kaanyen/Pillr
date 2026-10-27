@@ -2,8 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/money.dart';
-import '../../../core/utils/text_case_utils.dart';
-import '../../auth/domain/church_user.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../entries/domain/partnership_entry.dart';
 import '../../partners/domain/partner.dart';
@@ -165,7 +163,39 @@ class MaintenanceRepository {
   Future<List<DuplicatePartnerPair>> scanDuplicatePartners(
     String churchId,
   ) async {
-    return findDuplicatePartners(await allPartners(churchId));
+    final results = await Future.wait([
+      allPartners(churchId),
+      dismissedDuplicatePairs(churchId),
+    ]);
+    return findDuplicatePartners(
+      results[0] as List<Partner>,
+      dismissed: results[1] as Set<String>,
+    );
+  }
+
+  CollectionReference<Map<String, dynamic>> _dismissals(String churchId) =>
+      _firestore.collection('churches/$churchId/duplicate_dismissals');
+
+  /// Pairs a person checked and marked as two different people.
+  Future<Set<String>> dismissedDuplicatePairs(String churchId) async {
+    final snap = await _dismissals(churchId).get();
+    return {for (final d in snap.docs) d.id};
+  }
+
+  Future<void> dismissDuplicatePair({
+    required String churchId,
+    required DuplicatePartnerPair pair,
+    required String uid,
+  }) async {
+    await _dismissals(churchId).doc(pair.key).set({
+      'a': pair.a.id,
+      'b': pair.b.id,
+      'aName': pair.a.fullName,
+      'bName': pair.b.fullName,
+      'reason': pair.reason,
+      'dismissedBy': uid,
+      'dismissedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<List<DuplicateEntryPair>> scanDuplicateEntries(
@@ -196,61 +226,9 @@ class MaintenanceRepository {
   }
 
   // ------------------------------------------------------------------ merges
-
-  /// Moves one partner's entries onto another and retires the empty record.
-  ///
-  /// The absorbed partner is deactivated rather than deleted: it may be
-  /// referenced by a receipt, an export or someone's memory, and a record that
-  /// vanishes is harder to explain than one marked closed.
-  ///
-  /// Neither total is written here. Repointing an entry is a write the
-  /// aggregate trigger already answers — it takes the money off the absorbed
-  /// partner and puts it on the survivor, one entry at a time. Writing the
-  /// recomputed figures as well double-counted every gift that moved: the
-  /// trigger's increments land a moment after this commit, on top of a total
-  /// that already included them. A two-partner merge of ₵200 and ₵300 left the
-  /// survivor holding ₵800 and the absorbed record holding −₵300.
-  ///
-  /// [PartnerMergePlan.resultingTotal] is still what the confirmation shows the
-  /// person doing the merge; it is a prediction, not a write.
-  Future<int> mergePartners({
-    required String churchId,
-    required PartnerMergePlan plan,
-    required ChurchUser actor,
-  }) async {
-    final keepSnapshot = TextCaseUtils.normalizePartnerSnapshot({
-      'fullName': plan.keep.fullName,
-      'fellowship': plan.keep.fellowship,
-      'memberId': plan.keep.memberId,
-    });
-
-    var moved = 0;
-    const chunkSize = 400;
-    final toMove = plan.entriesToMove;
-    for (var i = 0; i < toMove.length; i += chunkSize) {
-      final end = (i + chunkSize < toMove.length) ? i + chunkSize : toMove.length;
-      final batch = _firestore.batch();
-      for (var j = i; j < end; j++) {
-        batch.update(_entries(churchId).doc(toMove[j].id), {
-          'partnerId': plan.keep.id,
-          'partnerSnapshot': keepSnapshot,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        moved++;
-      }
-      await batch.commit();
-    }
-
-    await _partners(churchId).doc(plan.absorb.id).update({
-      'isActive': false,
-      'mergedInto': plan.keep.id,
-      'mergedBy': actor.uid,
-      'mergedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    return moved;
-  }
+  //
+  // Merging two partners runs on the server: RecordOpsRepository.partnerMerge.
+  // It records every entry it moves, so the merge can be undone.
 
   // ------------------------------------------------------------ partner data
 

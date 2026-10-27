@@ -14,15 +14,18 @@ Future<void> logPillrActivity(
   Map<String, dynamic>? metadata,
 }) async {
   final user = ref.read(authStateProvider).valueOrNull;
+  if (user == null) return;
   final profile = ref.read(churchUserProfileProvider).valueOrNull;
-  if (user == null || profile == null) return;
+  final idx = ref.read(userChurchIndexProvider).valueOrNull;
   await ref.read(activityLogRepositoryProvider).log(
         churchId: churchId,
         actorUid: user.uid,
         actorSnapshot: {
-          'fullName': profile.fullName,
-          'role': profile.role,
-          'email': profile.email,
+          'fullName': (profile?.fullName.trim().isNotEmpty ?? false)
+              ? profile!.fullName
+              : (user.email ?? user.uid),
+          'role': profile?.role ?? idx?.role ?? '',
+          'email': profile?.email ?? user.email,
         },
         action: action,
         entityType: entityType,

@@ -148,6 +148,7 @@ class FellowshipDirectoryRow {
     List<PartnershipEntry> entries, {
     String? periodId,
     Map<String, String> fellowshipByPartnerId = const {},
+    Iterable<String> catalog = const [],
   }) {
     String labelFor(String key, String raw) {
       if (key.isEmpty) return 'No fellowship';
@@ -156,6 +157,11 @@ class FellowshipDirectoryRow {
     }
 
     final labels = <String, String>{};
+    for (final raw in catalog) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) continue;
+      labels.putIfAbsent(trimmed.toLowerCase(), () => labelFor(trimmed.toLowerCase(), trimmed));
+    }
     for (final raw in partnerFellowships) {
       final trimmed = raw.trim();
       final key = trimmed.toLowerCase();

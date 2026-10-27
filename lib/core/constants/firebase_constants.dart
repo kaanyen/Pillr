@@ -16,4 +16,7 @@ class FirebaseConstants {
       'previewMonthlyPartnerGivingEmail';
   static const runMonthlyPartnerGivingSummary =
       'runMonthlyPartnerGivingSummary';
+  static const fellowshipChange = 'fellowshipChange';
+  static const partnerMerge = 'partnerMerge';
+  static const undoOperation = 'undoOperation';
 }

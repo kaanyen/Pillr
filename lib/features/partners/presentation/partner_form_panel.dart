@@ -7,6 +7,7 @@ import '../../../design/seline.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
+import 'duplicate_warning.dart';
 import '../providers/partners_providers.dart';
 
 /// Add or edit a partner — body for [showPartnerFormPanel].
@@ -60,6 +61,29 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     if (_fullName.text.trim().isEmpty || _fellowship.text.trim().isEmpty) {
       setState(() => _error = 'Full name and fellowship are required.');
       return;
+    }
+    if (widget.existing == null) {
+      setState(() => _loading = true);
+      bool goAhead;
+      try {
+        goAhead = await confirmNotDuplicate(
+          context,
+          ref,
+          churchId: widget.churchId,
+          fullName: _fullName.text,
+          phone: _phone.text,
+          email: _email.text,
+          fellowship: _fellowship.text,
+        );
+      } catch (_) {
+        // The check is advice. If it cannot load, the save says what is wrong.
+        goAhead = true;
+      }
+      if (!goAhead) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      if (!mounted) return;
     }
     setState(() => _loading = true);
     final repo = ref.read(partnersRepositoryProvider);

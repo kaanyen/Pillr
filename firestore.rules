@@ -32,6 +32,17 @@ service cloud.firestore {
     function isStaff() { return isRole('staff'); }
     function isPastorOrAdmin() { return isAdmin() || isPastor(); }
     function isPastorOrStaff() { return isPastor() || isStaff(); } // used in UI guards
+    function settingsOf(data) {
+      return data.keys().hasAny(['settings']) && data.settings is map
+             ? data.settings
+             : {};
+    }
+
+    // A partner field that this write changes only in capitals or spacing.
+    function sameIgnoringCase(field) {
+      return request.resource.data.get(field, '').lower().trim()
+             == resource.data.get(field, '').lower().trim();
+    }
 
     function belongsToChurch(churchId) {
       return isAuthenticated() && getUserChurchId() == churchId;
@@ -42,8 +53,9 @@ service cloud.firestore {
     }
 
     // Voiding reverses money that was already counted, so it is not an
-    // ordinary edit. Only a pastor or an admin may put an entry into or out of
-    // the voided state, and staff may never write it at all.
+    // ordinary edit. Pastor and admin may put an entry into or out of the
+    // voided state. Staff may void from Tools (duplicate entries) with a
+    // field-restricted write below.
     function writesVoidState(before, after) {
       return before.status == 'voided' || after.status == 'voided';
     }
@@ -84,6 +96,15 @@ service cloud.firestore {
                                    'logoStoragePath', 'currency',
                                    'currencySymbol', 'settings',
                                    'churchSetupCompletedAt', 'updatedAt']);
+      // Staff may rewrite the fellowship book and exchange rates — not
+      // branding or monthly email settings.
+      allow update: if belongsToChurch(churchId) && isStaff()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['settings', 'updatedAt'])
+                    && settingsOf(request.resource.data)
+                         .diff(settingsOf(resource.data))
+                         .affectedKeys()
+                         .hasOnly(['fellowshipNames', 'exchangeRates']);
 
       match /users/{uidField} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
@@ -94,9 +115,29 @@ service cloud.firestore {
       }
 
       match /partners/{partnerId} {
-        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff());
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
         allow create: if belongsToChurch(churchId) && (isPastor() || isStaff());
-        allow update: if belongsToChurch(churchId) && isPastor();
+        // Pastor edits any partner, but not the merge record: merges, fellowship
+        // merges and moves run through the fellowshipChange / partnerMerge
+        // callables, which record every change so it can be undone.
+        allow update: if belongsToChurch(churchId) && isPastor()
+                      && !request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['mergedInto', 'mergedBy', 'mergedAt',
+                                    'mergedAliases']);
+        // Staff Tools: tidy name and fellowship casing. Casing only — the
+        // value may not change otherwise, or this becomes a way round the
+        // recorded fellowship move.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['fullName', 'fullNameLower', 'fellowship',
+                                     'fellowshipLower', 'updatedAt'])
+                      && sameIgnoringCase('fullName')
+                      && sameIgnoringCase('fellowship');
+        // Staff Tools: write recomputed partner totals.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
+                                     'entryCount', 'updatedAt']);
         allow delete: if belongsToChurch(churchId) && isPastor();
       }
 
@@ -124,14 +165,20 @@ service cloud.firestore {
                       && writesVoidState(resource.data, request.resource.data);
 
         // Staff: edit own pending or declined entries; must reset to pending (re-submit).
-        // A voided entry is settled and is not theirs to reopen, and they may
-        // never write the voided state themselves.
+        // A voided entry is settled and is not theirs to reopen from the form.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && isOwnEntry(resource.data)
                       && (resource.data.status == 'pending' || resource.data.status == 'declined')
                       && request.resource.data.status == 'pending'
                       && !writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.createdBy == resource.data.createdBy;
+
+        // Staff Tools: void a duplicate entry. Amount and review stay untouched.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && writesVoidState(resource.data, request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['status', 'voidedBy', 'voidedAt', 'voidReason',
+                                     'updatedAt', 'editHistory']);
 
         allow delete: if belongsToChurch(churchId) && isPastor();
         allow delete: if belongsToChurch(churchId) && isStaff()
@@ -147,6 +194,11 @@ service cloud.firestore {
       match /partnership_periods/{periodId} {
         allow read: if belongsToChurch(churchId);
         allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
+        // Staff Tools: write recomputed period totals.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
+                                     'entryCount', 'updatedAt']);
       }
 
       match /goals/{goalId} {
@@ -211,6 +263,29 @@ service cloud.firestore {
       match /monthly_email_deliveries/{deliveryId} {
         allow read: if belongsToChurch(churchId) && isPastor();
         allow write: if false;
+      }
+
+      // Bulk changes and their before/after records. Written only by the
+      // record_ops callables; readable so Tools can list and undo them.
+      match /operations/{opId} {
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+        allow write: if false;
+        match /changes/{changeId} {
+          allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+          allow write: if false;
+        }
+      }
+
+      match /op_locks/{lockId} {
+        allow read, write: if false;
+      }
+
+      // Pairs someone checked and marked "not the same person", so the
+      // duplicate scan stops offering them.
+      match /duplicate_dismissals/{pairId} {
+        allow read, delete: if belongsToChurch(churchId) && isPastorOrStaff();
+        allow create: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && request.resource.data.dismissedBy == request.auth.uid;
       }
 
       match /activity_logs/{logId} {

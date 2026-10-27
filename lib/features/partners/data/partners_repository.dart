@@ -33,13 +33,19 @@ class PartnersRepository {
   }
 
   /// All active partners (paginated internally). Used for bulk import matching.
-  Future<List<Partner>> fetchAllActivePartners(String churchId) async {
+  Future<List<Partner>> fetchAllActivePartners(String churchId) =>
+      fetchAllPartners(churchId, includeInactive: false);
+
+  Future<List<Partner>> fetchAllPartners(
+    String churchId, {
+    required bool includeInactive,
+  }) async {
     final out = <Partner>[];
     DocumentSnapshot<Map<String, dynamic>>? cursor;
     while (true) {
       final page = await fetchPartnersPage(
         churchId,
-        includeInactive: false,
+        includeInactive: includeInactive,
         pageSize: 400,
         startAfter: cursor,
       );

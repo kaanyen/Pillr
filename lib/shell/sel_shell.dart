@@ -42,31 +42,39 @@ class SelShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final compact = c.maxWidth < 900;
+        // The sheet step is a tool, not a page: Tesler hides the rail and
+        // the top-right account cluster so the grid can take the viewport.
+        // Occam: hide chrome rather than add a collapse toggle.
+        final fillViewport = path.startsWith('/entries/bulk-import');
 
-        final body = Stack(
-          children: [
-            Positioned.fill(
-              child: compact
-                  ? child
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: SelSpace.x6),
-                          child: SelRail(currentPath: path),
-                        ),
-                        Expanded(child: child),
-                      ],
-                    ),
-            ),
-            // Utility cluster floats on the canvas — no bar, no fill.
-            Positioned(
-              top: SelSpace.x6,
-              right: compact ? SelSpace.x4 : SelSpace.x8,
-              child: _UtilityCluster(compact: compact, path: path),
-            ),
-          ],
-        );
+        final body = fillViewport
+            ? child
+            : Stack(
+                children: [
+                  Positioned.fill(
+                    child: compact
+                        ? child
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: SelSpace.x6,
+                                ),
+                                child: SelRail(currentPath: path),
+                              ),
+                              Expanded(child: child),
+                            ],
+                          ),
+                  ),
+                  // Utility cluster floats on the canvas — no bar, no fill.
+                  Positioned(
+                    top: SelSpace.x6,
+                    right: compact ? SelSpace.x4 : SelSpace.x8,
+                    child: _UtilityCluster(compact: compact, path: path),
+                  ),
+                ],
+              );
 
         final canSearch = idx?.isPastor == true || idx?.isStaff == true;
 
@@ -83,7 +91,7 @@ class SelShell extends ConsumerWidget {
                     Expanded(child: SafeArea(child: body)),
                   ],
                 ),
-                bottomNavigationBar: compact
+                bottomNavigationBar: compact && !fillViewport
                     ? _BottomBar(path: path, idx: idx)
                     : null,
               ),

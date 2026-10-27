@@ -89,6 +89,7 @@ List<SelNavGroup> navGroupsFor(
       ]),
       SelNavGroup(l10n.navSectionChurch, [
         SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+        SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
         SelNavItem(
           '/configuration',
           l10n.navConfiguration,
@@ -156,6 +157,8 @@ List<SelNavGroup> navGroupsFor(
   // Utility group — no title, reads as a footer.
   groups.add(
     SelNavGroup(null, [
+      if (idx.canUseTools)
+        SelNavItem('/tools', l10n.navTools, LucideIcons.wrench),
       SelNavItem('/help', l10n.navHelp, LucideIcons.helpCircle),
       SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ]),
@@ -171,6 +174,7 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     return [
       SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
       SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+      SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
       SelNavItem('/configuration', l10n.navConfigShort, LucideIcons.sliders),
       SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ];
