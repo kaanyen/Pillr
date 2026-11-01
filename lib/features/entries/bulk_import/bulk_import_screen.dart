@@ -2038,8 +2038,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
     final missing = <String>{};
     for (final r in resolved) {
-      if (r.partnerId == null || r.armId == null || r.periodId == null)
+      if (r.partnerId == null || r.armId == null || r.periodId == null) {
         continue;
+      }
       if (_duplicateEntryCache.containsKey(r.partnerId)) continue;
       missing.add(r.partnerId!);
     }
@@ -2547,7 +2548,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         _duplicateAcknowledgedSheetRows.clear();
         _acceptedFellowships.clear();
       });
-      selNotice(context, successMessage, kind: SelNoticeKind.success);
+      if (context.mounted) {
+        selNotice(context, successMessage, kind: SelNoticeKind.success);
+      }
       Future<void>.delayed(const Duration(seconds: 4), () {
         if (mounted) {
           ref.read(bulkImportCommitProgressProvider.notifier).reset();

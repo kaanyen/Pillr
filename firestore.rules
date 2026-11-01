@@ -124,7 +124,7 @@ service cloud.firestore {
                       && !request.resource.data.diff(resource.data).affectedKeys()
                            .hasAny(['mergedInto', 'mergedBy', 'mergedAt',
                                     'mergedAliases', 'formerMemberIds',
-                                    'phones', 'emails', 'splitFrom']);
+                                    'splitFrom']);
         // Staff Tools: tidy name and fellowship casing. Casing only — the
         // value may not change otherwise, or this becomes a way round the
         // recorded fellowship move.
@@ -139,7 +139,10 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
                                      'entryCount', 'updatedAt']);
-        allow delete: if belongsToChurch(churchId) && isPastor();
+        // A partner is never deleted: their gifts point at them, and a record
+        // that vanishes cannot be explained or restored. Close them (isActive)
+        // or merge them; both keep the record and can be undone.
+        allow delete: if false;
       }
 
       match /entries/{entryId} {
@@ -275,6 +278,12 @@ service cloud.firestore {
           allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
           allow write: if false;
         }
+      }
+
+      // Counts from the nightly duplicate check, for the Tools badge.
+      match /health/{docId} {
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+        allow write: if false;
       }
 
       match /op_locks/{lockId} {

@@ -138,10 +138,14 @@ class PartnersRepository {
     String? email,
     String? phone,
     required bool isActive,
+    List<String>? phones,
+    List<String>? emails,
   }) async {
     final fn = TextCaseUtils.toTitleCase(fullName);
     final fs = TextCaseUtils.toTitleCase(fellowship);
     await _partners(churchId).doc(partner.id).update({
+      'phones': ?phones,
+      'emails': ?emails,
       'memberId': memberId.trim().toUpperCase(),
       'fullName': fn,
       'fellowship': fs,

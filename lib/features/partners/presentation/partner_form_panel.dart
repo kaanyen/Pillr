@@ -32,6 +32,11 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
   late final TextEditingController _fellowship;
   late final TextEditingController _email;
   late final TextEditingController _phone;
+
+  /// Numbers and emails beyond the main ones, one per line. A merge brings
+  /// several together; they all keep finding this person.
+  late final TextEditingController _otherPhones;
+  late final TextEditingController _otherEmails;
   bool _active = true;
   bool _loading = false;
   String? _error;
@@ -44,6 +49,18 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     _fellowship = TextEditingController(text: e?.fellowship ?? '');
     _email = TextEditingController(text: e?.email ?? '');
     _phone = TextEditingController(text: e?.phone ?? '');
+    _otherPhones = TextEditingController(
+      text: [
+        for (final p in e?.allPhones ?? const <String>[])
+          if (p != (e?.phone ?? '').trim()) p,
+      ].join('\n'),
+    );
+    _otherEmails = TextEditingController(
+      text: [
+        for (final m in e?.allEmails ?? const <String>[])
+          if (m != (e?.email ?? '').trim()) m,
+      ].join('\n'),
+    );
     _active = e?.isActive ?? true;
   }
 
@@ -53,6 +70,8 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     _fellowship.dispose();
     _email.dispose();
     _phone.dispose();
+    _otherPhones.dispose();
+    _otherEmails.dispose();
     super.dispose();
   }
 
@@ -118,6 +137,8 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           'fellowship': ex.fellowship,
           'email': ex.email,
           'phone': ex.phone,
+          'phones': ex.allPhones,
+          'emails': ex.allEmails,
           'isActive': ex.isActive,
         };
         await repo.updatePartner(
@@ -129,12 +150,16 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           email: _email.text,
           phone: _phone.text,
           isActive: _active,
+          phones: _lines(_phone.text, _otherPhones.text),
+          emails: _lines(_email.text, _otherEmails.text),
         );
         final after = {
           'fullName': TextCaseUtils.toTitleCase(_fullName.text),
           'fellowship': TextCaseUtils.toTitleCase(_fellowship.text),
           'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
           'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+          'phones': _lines(_phone.text, _otherPhones.text),
+          'emails': _lines(_email.text, _otherEmails.text),
           'isActive': _active,
         };
         await logPillrActivity(
@@ -195,6 +220,22 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
         ),
         if (isEdit) ...[
           const SizedBox(height: SelSpace.x4),
+          SelField(
+            controller: _otherPhones,
+            label: 'Other phone numbers (one per line)',
+            keyboardType: TextInputType.multiline,
+            maxLines: 3,
+          ),
+          const SizedBox(height: SelSpace.x4),
+          SelField(
+            controller: _otherEmails,
+            label: 'Other emails (one per line)',
+            keyboardType: TextInputType.multiline,
+            maxLines: 3,
+          ),
+        ],
+        if (isEdit) ...[
+          const SizedBox(height: SelSpace.x4),
           DecoratedBox(
             decoration: BoxDecoration(
               color: Sel.canvas,
@@ -247,3 +288,10 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     );
   }
 }
+
+/// The main value first, then each other line, blanks dropped.
+List<String> _lines(String main, String others) => [
+  if (main.trim().isNotEmpty) main.trim(),
+  for (final l in others.split(RegExp(r'[\n,;]+')))
+    if (l.trim().isNotEmpty && l.trim() != main.trim()) l.trim(),
+];

@@ -19,8 +19,9 @@ class SelNavItem {
   final String label;
   final IconData icon;
 
-  /// Identifies a live count to render beside the label. Only `pending` is
-  /// wired today; the indirection keeps the rail free of provider imports.
+  /// Identifies a live count to render beside the label: `pending` (the
+  /// review queue) or `duplicates` (last night's duplicate check). The
+  /// indirection keeps this model free of provider imports.
   final String? badgeKey;
 
   /// Indented sub-destinations shown under this item when its section is active.
@@ -158,7 +159,12 @@ List<SelNavGroup> navGroupsFor(
   groups.add(
     SelNavGroup(null, [
       if (idx.canUseTools)
-        SelNavItem('/tools', l10n.navTools, LucideIcons.wrench),
+        SelNavItem(
+          '/tools',
+          l10n.navTools,
+          LucideIcons.wrench,
+          badgeKey: 'duplicates',
+        ),
       SelNavItem('/help', l10n.navHelp, LucideIcons.helpCircle),
       SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ]),

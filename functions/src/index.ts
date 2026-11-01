@@ -1284,3 +1284,4 @@ export {
   runMonthlyPartnerGivingSummary,
 } from "./monthly_partner_email";
 export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";
+export {nightlyDuplicateCheck} from "./duplicate_scan";

@@ -529,3 +529,18 @@ describe("duplicate dismissals", () => {
     }));
   });
 });
+
+describe("partners are never deleted", () => {
+  it("refuses a pastor deleting a partner", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/partners/p_del"), {churchId: "c1", fullName: "Yaw Darko"});
+    });
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertFails(deleteDoc(doc(db, "churches/c1/partners/p_del")));
+  });
+
+  it("still lets a pastor close a partner", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_del"), {isActive: false}));
+  });
+});

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/maintenance/providers/duplicate_health_provider.dart';
 import '../core/extensions/async_value_ext.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
@@ -38,6 +39,12 @@ class SelRail extends ConsumerWidget {
     final churchName = ref.watch(churchNameProvider) ?? 'Your church';
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final pending = ref.watch(pendingApprovalCountProvider);
+    final duplicates = ref.watch(duplicateBadgeCountProvider);
+    int? badgeFor(String? key) => switch (key) {
+      'pending' => pending,
+      'duplicates' => duplicates,
+      _ => null,
+    };
     final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
 
     final groups = navGroupsFor(
@@ -114,14 +121,14 @@ class SelRail extends ConsumerWidget {
                       _RailLink(
                         item: item,
                         active: _isActive(item.path),
-                        badge: item.badgeKey == 'pending' ? pending : null,
+                        badge: badgeFor(item.badgeKey),
                         onTap: () => context.go(item.path),
                       )
                     else
                       _RailSection(
                         item: item,
                         currentPath: currentPath,
-                        badge: item.badgeKey == 'pending' ? pending : null,
+                        badge: badgeFor(item.badgeKey),
                         onNavigate: context.go,
                       ),
                 ],

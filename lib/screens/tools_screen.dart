@@ -12,6 +12,7 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/maintenance/data/maintenance_repository.dart';
 import '../features/maintenance/domain/data_health.dart';
 import '../features/maintenance/domain/totals_audit.dart';
+import '../features/maintenance/providers/duplicate_health_provider.dart';
 import '../features/operations/recent_changes_card.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../features/partners/domain/partner.dart';
@@ -144,7 +145,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
           blurb:
               'The same person entered twice — usually once by hand and once by '
               'an import. Compares member ID, phone (in any format), email and '
-              'name — titles, word order, initials and small typos included.',
+              'name — titles, word order, initials and small typos included.'
+              '${_nightlyNote(ref.watch(duplicateHealthProvider).valueOrNull)}',
           runLabel: 'Find duplicates',
           running: _running == 'dupPartners',
           onRun: () => _run('dupPartners', () async {
@@ -1095,4 +1097,16 @@ class _PartnerDataResult extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "Last night's check: …" under the duplicates tool, or nothing before the
+/// first nightly run.
+String _nightlyNote(DuplicateHealth? h) {
+  if (h == null) return '';
+  if (h.open == 0) return '\n\nLast night\'s check found nothing to merge.';
+  final groups = h.groups == 0
+      ? ''
+      : ', including ${h.groups} ${h.groups == 1 ? "person" : "people"} entered 3 or more times';
+  return '\n\nLast night\'s check found ${h.open} likely '
+      '${h.open == 1 ? "duplicate" : "duplicates"}$groups. Run the check to see them.';
 }
