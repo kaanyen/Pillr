@@ -7,6 +7,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
+import 'emulator_auth_reset.dart';
 
 /// Routes every Firebase SDK at the local emulator suite instead of the live
 /// project. Off unless the build explicitly opts in:
@@ -35,6 +36,10 @@ const int _storagePort = 9199;
 /// Ensures Firebase is initialized exactly once per process.
 Future<void> ensureFirebaseInitialized() async {
   if (Firebase.apps.isEmpty) {
+    // Before initializeApp, because that is when web Auth restores a saved
+    // user — against the live project, not the emulator. See
+    // emulator_auth_reset.dart.
+    if (kUseFirebaseEmulators) await forgetSavedAuthSession();
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
   await _connectToEmulatorsIfEnabled();
