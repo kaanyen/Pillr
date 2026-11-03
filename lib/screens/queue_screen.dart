@@ -396,12 +396,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                           value: null,
                           child: Text(l10n.queueAllArms),
                         ),
-                        for (final row in armTree.flattened)
-                          if (arms.any((a) => a.id == row.arm.id))
-                            DropdownMenuItem(
-                              value: row.arm.id,
-                              child: armMenuLabel(row.arm.name, isSub: row.isSub),
-                            ),
+                        for (final a in armTree.mains)
+                          if (arms.any((x) => x.id == a.id))
+                            DropdownMenuItem(value: a.id, child: Text(a.name)),
                       ],
                     ),
                   ),

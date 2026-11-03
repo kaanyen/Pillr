@@ -16,7 +16,6 @@ import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/activity/activity_log_helper.dart';
 import '../../features/arms/domain/partnership_arm.dart';
 import '../../features/arms/providers/arms_providers.dart';
-import '../arm_palette.dart';
 import '../../features/auth/domain/church_user.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
@@ -303,22 +302,57 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SelSelect<String>(
-                value: _arm?.id,
-                label: 'Partnership arm',
-                hint: Text('Select an arm', style: SelType.bodyMuted),
-                onChanged: (v) => setState(() {
-                  _arm = arms.where((a) => a.id == v).firstOrNull;
-                }),
-                items: [
-                  for (final row in ref.watch(armTreeProvider).flattened)
-                    if (arms.any((a) => a.id == row.arm.id))
-                      DropdownMenuItem(
-                        value: row.arm.id,
-                        child: armMenuLabel(row.arm.name, isSub: row.isSub),
+              // Main arm first; if it has sub-arms, which part of it. The
+              // entry keeps its exact arm, but everywhere outside this form
+              // and Configuration it shows under the main arm.
+              Builder(builder: (context) {
+                final tree = ref.watch(armTreeProvider);
+                final mainId = _arm == null ? null : tree.shownArmIdOf(_arm!.id);
+                final subs = mainId == null
+                    ? const <PartnershipArm>[]
+                    : [
+                        for (final c in tree.childrenOf(mainId))
+                          if (arms.any((a) => a.id == c.id)) c,
+                      ];
+                final mainName = mainId == null ? '' : tree.byId(mainId)?.name ?? '';
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SelSelect<String>(
+                      value: mainId,
+                      label: 'Partnership arm',
+                      hint: Text('Select an arm', style: SelType.bodyMuted),
+                      onChanged: (v) => setState(() {
+                        _arm = arms.where((a) => a.id == v).firstOrNull ??
+                            (v == null ? null : tree.byId(v));
+                      }),
+                      items: [
+                        for (final m in tree.mains)
+                          if (arms.any((a) => a.id == m.id))
+                            DropdownMenuItem(value: m.id, child: Text(m.name)),
+                      ],
+                    ),
+                    if (subs.isNotEmpty) ...[
+                      const SizedBox(height: SelSpace.x4),
+                      SelSelect<String>(
+                        value: _arm?.id,
+                        label: 'Which part of $mainName?',
+                        onChanged: (v) => setState(() {
+                          _arm = arms.where((a) => a.id == v).firstOrNull ?? _arm;
+                        }),
+                        items: [
+                          DropdownMenuItem(
+                            value: mainId,
+                            child: Text('$mainName (general)'),
+                          ),
+                          for (final c in subs)
+                            DropdownMenuItem(value: c.id, child: Text(c.name)),
+                        ],
                       ),
-                ],
-              ),
+                    ],
+                  ],
+                );
+              }),
               const SizedBox(height: SelSpace.x4),
               if (_isEdit)
                 SelSelect<String>(

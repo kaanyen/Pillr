@@ -8,6 +8,7 @@ import '../core/navigation/panel_flows.dart';
 import '../core/notifications/sel_notice.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
+import '../features/arms/domain/arm_tree.dart';
 import '../features/arms/domain/partnership_arm.dart';
 import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
@@ -604,8 +605,8 @@ class _RowEditor extends StatelessWidget {
                         }
                       : null,
                   items: [
-                    for (final a in arms)
-                      DropdownMenuItem(value: a.id, child: Text(a.name)),
+                    for (final (a, label) in ArmTree(arms).recordingOptions())
+                      DropdownMenuItem(value: a.id, child: Text(label)),
                   ],
                 ),
               ),

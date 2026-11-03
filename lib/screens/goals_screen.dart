@@ -63,7 +63,10 @@ class GoalsScreen extends ConsumerWidget {
           data: (all) {
             final goals = period == null
                 ? <PartnershipGoal>[]
-                : all.where((g) => g.partnershipPeriodId == period.id).toList();
+                : all
+                    .where((g) =>
+                        g.partnershipPeriodId == period.id && isShownGoal(tree, g))
+                    .toList();
 
             if (goals.isEmpty) {
               return SelCard(
@@ -90,31 +93,13 @@ class GoalsScreen extends ConsumerWidget {
                           child: Consumer(builder: (context, ref, _) {
                             final reached = ref.watch(goalReachedCedisProvider(goals[i]));
                             final armId = goals[i].partnershipArmId;
-                            final subs = tree.childrenOf(armId);
-                            final main = tree.mainOf(armId);
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SelGoalLine(
-                                  color: armColorOf(ref, armId),
-                                  label: armName(armId),
-                                  value: reached,
-                                  target: goals[i].targetAmountCedis,
-                                  valueText: money(reached),
-                                  targetText: money(goals[i].targetAmountCedis),
-                                ),
-                                if (subs.isNotEmpty) ...[
-                                  const SizedBox(height: SelSpace.x2),
-                                  Text(
-                                    'Includes ${subs.map((a) => a.name).join(', ')}',
-                                    style: SelType.small,
-                                  ),
-                                ] else if (main != null) ...[
-                                  const SizedBox(height: SelSpace.x2),
-                                  Text('Counts toward ${main.name}', style: SelType.small),
-                                ],
-                              ],
+                            return SelGoalLine(
+                              color: armColorOf(ref, armId),
+                              label: armName(armId),
+                              value: reached,
+                              target: goals[i].targetAmountCedis,
+                              valueText: money(reached),
+                              targetText: money(goals[i].targetAmountCedis),
                             );
                           }),
                         ),
@@ -190,11 +175,8 @@ Future<void> _goalDialog(
                 label: 'Partnership arm',
                 onChanged: (v) => setState(() => armId = v),
                 items: [
-                  for (final row in ref.read(armTreeProvider).flattened)
-                    DropdownMenuItem(
-                      value: row.arm.id,
-                      child: armMenuLabel(row.arm.name, isSub: row.isSub),
-                    ),
+                  for (final a in ref.read(armTreeProvider).mains)
+                    DropdownMenuItem(value: a.id, child: Text(a.name)),
                 ],
               ),
             if (existing == null) const SizedBox(height: SelSpace.x4),

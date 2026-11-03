@@ -42,6 +42,24 @@ class ArmTree {
     return _byId[parent];
   }
 
+  /// The arm [armId]'s giving is shown under everywhere outside
+  /// Configuration: its main arm, or itself when it is a main arm. Unknown ids
+  /// come back unchanged.
+  String shownArmIdOf(String armId) => mainOf(armId)?.id ?? armId;
+
+  /// Name to show for [armId] outside Configuration (see [shownArmIdOf]), or
+  /// null when the arm isn't in the list.
+  String? shownNameOf(String armId) => _byId[shownArmIdOf(armId)]?.name;
+
+  /// "Venue · Logistics" for a sub-arm, "Venue" for a main arm. For the one
+  /// place an entry's exact arm is worth showing: its own page.
+  String? fullNameOf(String armId) {
+    final arm = _byId[armId];
+    if (arm == null) return null;
+    final main = mainOf(armId);
+    return main == null ? arm.name : '${main.name} · ${arm.name}';
+  }
+
   /// [armId] and every sub-arm under it: the arms whose giving counts toward
   /// [armId]. For a sub-arm, just itself.
   Set<String> familyOf(String armId) => {
@@ -57,6 +75,18 @@ class ArmTree {
             (arm: c, isSub: true),
         ],
       ];
+
+  /// Arms to record giving to, in display order, each labelled the way a
+  /// recording picker shows it: "Venue", then "Venue · Logistics" beneath.
+  /// Limited to [allowed] when given (e.g. only active arms).
+  List<(PartnershipArm, String)> recordingOptions([Iterable<PartnershipArm>? allowed]) {
+    final ids = allowed == null ? null : {for (final a in allowed) a.id};
+    return [
+      for (final r in flattened)
+        if (ids == null || ids.contains(r.arm.id))
+          (r.arm, r.isSub ? fullNameOf(r.arm.id)! : r.arm.name),
+    ];
+  }
 
   /// Why [armId] can't be placed under [newParentId], or null if it can.
   ///

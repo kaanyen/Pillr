@@ -28,15 +28,16 @@ class ArmLeaderboard {
   }) {
     final tree = ArmTree(arms);
     return [
-      for (final row in tree.flattened)
+      // One section per main arm, ranking its sub-arms' giving with its own.
+      // Sub-arms are shown only in Configuration.
+      for (final arm in tree.mains)
         ArmLeaderboard(
-          armId: row.arm.id,
-          armName: row.arm.name,
-          // A main arm ranks its sub-arms' giving with its own.
+          armId: arm.id,
+          armName: arm.name,
           rows: LeaderboardRow.fromEntries(
             entries,
             periodId: periodId,
-            armIds: armFamilyOf?.call(row.arm.id) ?? tree.familyOf(row.arm.id),
+            armIds: armFamilyOf?.call(arm.id) ?? tree.familyOf(arm.id),
           ),
         ),
     ];

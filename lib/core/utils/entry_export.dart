@@ -25,6 +25,7 @@ Future<void> shareEntriesPdf({
   String? exporterName,
   String? currencySymbol,
   DateTime? generatedAt,
+  String? Function(PartnershipEntry entry)? armNameOf,
 }) async {
   final data = GivingLedgerReportBuilder.fromEntries(
     entries: entries,
@@ -37,6 +38,7 @@ Future<void> shareEntriesPdf({
     exporterName: exporterName ?? _exporterFromLine(exporterLine) ?? '-',
     currencySymbol: currencySymbol ?? 'GHS',
     verificationSeed: generatedAt,
+    armNameOf: armNameOf,
   );
 
   await shareGivingLedgerPdf(

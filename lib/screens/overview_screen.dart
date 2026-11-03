@@ -112,7 +112,7 @@ class _PastorBlocks extends ConsumerWidget {
     final compactMoney = ref.watch(churchCompactMoneyProvider);
     final partners = ref.watch(activePartnerCountProvider);
     final goalPct = ref.watch(pastorGoalProgressPercentProvider);
-    final goals = ref.watch(activePeriodGoalsProvider);
+    final goals = ref.watch(countedActivePeriodGoalsProvider);
     final period = ref.watch(activePeriodProvider);
     final pending = ref.watch(pendingEntriesProvider).valueOrNull ?? [];
 
@@ -201,14 +201,14 @@ class _PastorBlocks extends ConsumerWidget {
 /// The top of the review queue, inline. A pastor's most common next action is
 /// "approve the oldest pending thing", so it lives on the Overview rather than
 /// one navigation step away.
-class _PendingPreview extends StatelessWidget {
+class _PendingPreview extends ConsumerWidget {
   const _PendingPreview({required this.entries, required this.money});
 
   final List<PartnershipEntry> entries;
   final String Function(num) money;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final show = entries.take(4).toList();
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -242,7 +242,9 @@ class _PendingPreview extends StatelessWidget {
                     Expanded(
                       child: SelCell.stacked(
                         show[i].partnerSnapshot['fullName']?.toString() ?? '—',
-                        show[i].armSnapshot['name']?.toString() ?? '',
+                        ref.watch(armTreeProvider).shownNameOf(show[i].partnershipArmId) ??
+                            show[i].armSnapshot['name']?.toString() ??
+                            '',
                       ),
                     ),
                     EntryAmountCell(

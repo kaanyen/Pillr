@@ -129,16 +129,8 @@ class RecordFilterBar extends ConsumerWidget {
       case RecordFilterKind.arm:
         final tree = ref.read(armTreeProvider);
         final v = await _menu<String>(context, [
-          for (final row in tree.flattened)
-            if (arms.any((a) => a.id == row.arm.id))
-              (
-                row.arm.id,
-                row.isSub
-                    ? '    ${row.arm.name}'
-                    : tree.hasChildren(row.arm.id)
-                        ? '${row.arm.name} and its sub-arms'
-                        : row.arm.name,
-              ),
+          for (final a in tree.mains)
+            if (arms.any((x) => x.id == a.id)) (a.id, a.name),
         ]);
         if (v != null) notifier.set(filters.withArm(v));
       case RecordFilterKind.amount:

@@ -70,12 +70,18 @@ abstract final class GivingLedgerReportBuilder {
     String? reportTitle,
     String currencySymbol = 'GHS',
     DateTime? verificationSeed,
+    String? Function(PartnershipEntry entry)? armNameOf,
   }) {
+    // The ledger shows main arms only: giving recorded to a sub-arm is listed
+    // and subtotalled under its main arm. [armNameOf] maps an entry to that
+    // name; without it the name stored on the entry is used.
+    String armOf(PartnershipEntry e) =>
+        armNameOf?.call(e) ?? e.armSnapshot['name']?.toString() ?? '';
     final records = [
       for (final e in entries)
         PartnerGivingRecord(
           partnerName: pdfSafeText(e.partnerSnapshot['fullName']?.toString()),
-          armCategory: pdfSafeText(e.armSnapshot['name']?.toString()),
+          armCategory: pdfSafeText(armOf(e)),
           status: e.status,
           dateGiven: pdfFormatDate(e.dateGiven),
           amount: e.amountCedis,

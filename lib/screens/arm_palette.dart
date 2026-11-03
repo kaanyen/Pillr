@@ -35,8 +35,13 @@ final armColorsProvider = Provider<Map<String, Color>>((ref) {
 
 /// Colour for [armId], falling back to the id-derived swatch when the arm is
 /// not in the current stream (a deleted arm still named on an old entry).
-Color armColorOf(WidgetRef ref, String armId) =>
-    ref.watch(armColorsProvider)[armId] ?? Sel.armColor(armId);
+///
+/// A sub-arm takes its main arm's colour: outside Configuration, sub-arms are
+/// never shown on their own.
+Color armColorOf(WidgetRef ref, String armId) {
+  final shown = ref.watch(armTreeProvider).shownArmIdOf(armId);
+  return ref.watch(armColorsProvider)[shown] ?? Sel.armColor(shown);
+}
 
 /// A small filled dot in the arm's colour, sized to sit inline with 14px text.
 class ArmDot extends ConsumerWidget {
@@ -59,6 +64,10 @@ class ArmDot extends ConsumerWidget {
 }
 
 /// Arm name preceded by its dot — the standard way an arm appears in a row.
+///
+/// An entry recorded to a sub-arm shows its main arm's name: sub-arms appear
+/// only in Configuration (and on an entry's own page). [name] is the fallback
+/// for an arm no longer in the list.
 class ArmLabel extends ConsumerWidget {
   const ArmLabel({
     super.key,
@@ -75,7 +84,11 @@ class ArmLabel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dotColor = color ?? armColorOf(ref, armId);
+    final tree = ref.watch(armTreeProvider);
+    final shownName = tree.shownNameOf(armId) ?? name;
+    final dotColor = tree.mainOf(armId) == null
+        ? (color ?? armColorOf(ref, armId))
+        : armColorOf(ref, armId);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -90,7 +103,7 @@ class ArmLabel extends ConsumerWidget {
         const SizedBox(width: SelSpace.x2),
         Flexible(
           child: Text(
-            name,
+            shownName,
             style: style ?? SelType.bodyMuted,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

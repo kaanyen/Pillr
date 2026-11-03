@@ -18,6 +18,7 @@ import {
   shouldSendLive,
   yearMonthKey,
 } from "./monthly_partner_email_lib";
+import {loadMainArmNames} from "./arm_groups";
 
 const REGION = "us-central1";
 
@@ -41,6 +42,8 @@ async function loadApprovedEntries(
   to: Date,
 ): Promise<EntryRow[]> {
   const rows: EntryRow[] = [];
+  // Partners see main arms only: a sub-arm's giving is listed under its main.
+  const mainNames = await loadMainArmNames(db(), churchId);
   let last: admin.firestore.QueryDocumentSnapshot | undefined;
   for (;;) {
     let q: admin.firestore.Query = db()
@@ -62,7 +65,8 @@ async function loadApprovedEntries(
         partnerId: String(d.partnerId ?? ""),
         amount: Number(d.amountCedis ?? 0),
         dateGiven,
-        armName: String(armSnap.name ?? "Partnership"),
+        armName: mainNames.get(String(d.partnershipArmId ?? "")) ??
+          String(armSnap.name ?? "Partnership"),
       });
     }
     last = snap.docs[snap.docs.length - 1];

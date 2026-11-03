@@ -104,4 +104,33 @@ void main() {
       [('venue', null, 1), ('rhapsody', null, 2)],
     );
   });
+
+  group('outside Configuration only main arms show', () {
+    final t = ArmTree([
+      arm('venue', 0),
+      arm('logistics', 1, parent: 'venue'),
+      arm('w1909', 2),
+    ]);
+
+    test('a sub-arm is shown as its main arm', () {
+      expect(t.shownArmIdOf('logistics'), 'venue');
+      expect(t.shownNameOf('logistics'), 'venue');
+      expect(t.shownArmIdOf('w1909'), 'w1909');
+      expect(t.shownArmIdOf('unknown'), 'unknown');
+      expect(t.shownNameOf('unknown'), isNull);
+    });
+
+    test('an entry\'s own page names the exact arm', () {
+      expect(t.fullNameOf('logistics'), 'venue · logistics');
+      expect(t.fullNameOf('venue'), 'venue');
+    });
+
+    test('recording pickers list each main arm then its sub-arms', () {
+      expect(t.recordingOptions().map((o) => o.$2).toList(),
+          ['venue', 'venue · logistics', 'w1909']);
+      expect(
+          t.recordingOptions([t.byId('w1909')!]).map((o) => o.$2).toList(),
+          ['w1909']);
+    });
+  });
 }

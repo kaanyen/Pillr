@@ -8,6 +8,7 @@ import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../design/seline.dart';
 import '../../features/activity/activity_log_helper.dart';
+import '../../features/arms/providers/arms_providers.dart';
 import '../../features/auth/domain/church_user.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
@@ -126,7 +127,12 @@ class EntryDetailScreen extends ConsumerWidget {
                   const SizedBox(height: SelSpace.x8),
                   const Divider(height: 1, color: Sel.border),
                   const SizedBox(height: SelSpace.x6),
-                  _Row('Arm', entry.armSnapshot['name']?.toString() ?? '—'),
+                  _Row(
+                    'Arm',
+                    ref.watch(armTreeProvider).fullNameOf(entry.partnershipArmId) ??
+                        entry.armSnapshot['name']?.toString() ??
+                        '—',
+                  ),
                   _Row('Period', entry.periodSnapshot['name']?.toString() ?? '—'),
                   _Row(
                     'Member ID',

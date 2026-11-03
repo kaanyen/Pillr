@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../design/seline.dart';
 import '../../../screens/arm_palette.dart';
+import '../../arms/domain/arm_tree.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../church/domain/exchange_rates.dart';
 import '../../fellowships/fellowship_match.dart';
@@ -2423,7 +2424,7 @@ class _ArmAssign extends StatelessWidget {
             ? null
             : () async {
                 final picked = await _anchoredMenu<PartnershipArm>(anchor, [
-                  for (final a in arms) (a, a.name),
+                  ...ArmTree(arms).recordingOptions(),
                 ]);
                 if (picked != null) onPick(picked);
               },

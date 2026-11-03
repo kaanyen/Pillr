@@ -9,6 +9,7 @@ import '../core/utils/entry_export.dart';
 import '../core/utils/export_naming.dart';
 import '../l10n/app_localizations.dart';
 import '../design/seline.dart';
+import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
@@ -127,6 +128,7 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
         (ref.watch(churchSettingsProvider).valueOrNull?.currency ?? 'GHS')
             .toUpperCase();
     final church = ref.watch(churchNameProvider) ?? 'Church';
+    final armTree = ref.watch(armTreeProvider);
     final logoUrl = ref.watch(churchSettingsProvider).valueOrNull?.logoUrl;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final now = DateTime.now();
@@ -162,6 +164,9 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
                     exporterName: profile?.fullName,
                     currencySymbol: currency,
                     generatedAt: now,
+                    // Sub-arms appear under their main arm on the PDF; the
+                    // CSV keeps each entry's exact arm.
+                    armNameOf: (e) => armTree.shownNameOf(e.partnershipArmId),
                     filename: pillrExportFileName(
                       report: widget.title,
                       scope: scope,

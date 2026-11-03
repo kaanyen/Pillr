@@ -19,6 +19,7 @@ import '../../activity/activity_log_helper.dart';
 import '../../../core/utils/entry_duplicate_utils.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../../church/domain/exchange_rates.dart';
+import '../../arms/domain/arm_tree.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../fellowships/fellowship_match.dart';
@@ -2887,10 +2888,10 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
                                   () => _armChoice[cluster.label] = v,
                                 ),
                           items: [
-                            for (final a in arms)
+                            for (final (a, label) in ArmTree(arms).recordingOptions())
                               DropdownMenuItem(
                                 value: a.id,
-                                child: Text(a.name),
+                                child: Text(label),
                               ),
                           ],
                         ),

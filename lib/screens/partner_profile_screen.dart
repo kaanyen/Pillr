@@ -81,8 +81,11 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
 
     String periodName(String id) =>
         periods.where((p) => p.id == id).firstOrNull?.name ?? id;
-    String armName(String id) =>
-        arms.where((a) => a.id == id).firstOrNull?.name ?? id;
+    final armTree = ref.watch(armTreeProvider);
+    String armName(String id) => armTree.shownNameOf(id) ?? id;
+    // A main arm's filter takes in its sub-arms' entries.
+    bool inArmFilter(String armId) =>
+        _armFilter == null || armTree.shownArmIdOf(armId) == _armFilter;
 
     return partnerAsync.when(
       loading: () => const SelPageBody(
@@ -110,9 +113,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 e.partnershipPeriodId != _periodFilter) {
               return false;
             }
-            if (_armFilter != null && e.partnershipArmId != _armFilter) {
-              return false;
-            }
+            if (!inArmFilter(e.partnershipArmId)) return false;
             return true;
           }),
         );
@@ -130,9 +131,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
           if (_periodFilter != null && e.partnershipPeriodId != _periodFilter) {
             return false;
           }
-          if (_armFilter != null && e.partnershipArmId != _armFilter) {
-            return false;
-          }
+          if (!inArmFilter(e.partnershipArmId)) return false;
           if (monthFilter != null && !monthFilter.contains(e.dateGiven)) {
             return false;
           }
@@ -303,7 +302,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                           value: null,
                           child: Text('All arms'),
                         ),
-                        for (final a in arms)
+                        for (final a in armTree.mains)
                           DropdownMenuItem(value: a.id, child: Text(a.name)),
                       ],
                     ),

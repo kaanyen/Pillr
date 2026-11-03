@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/extensions/async_value_ext.dart';
+import '../../arms/domain/arm_tree.dart';
 import '../../arms/providers/arms_providers.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../entries/providers/entries_providers.dart';
@@ -63,17 +64,16 @@ final goalReachedCedisProvider =
       goal.currentAmountCedis;
 });
 
-/// Active-period goals that count toward the overall figure.
-///
-/// A sub-arm's own goal is still shown, but when its main arm has a goal too,
-/// that sub-arm's giving is already inside the main arm's figure, so adding
-/// both would count it twice.
+/// Whether [goal] is shown: only goals on main arms are. A goal set on an
+/// arm before it became a sub-arm stays stored (nothing is deleted) and comes
+/// back if the arm is made a main arm again; its giving is already inside its
+/// main arm's figure.
+bool isShownGoal(ArmTree tree, PartnershipGoal goal) =>
+    tree.mainOf(goal.partnershipArmId) == null;
+
+/// Active-period goals that are shown, and count toward the overall figure.
 final countedActivePeriodGoalsProvider = Provider.autoDispose<List<PartnershipGoal>>((ref) {
   final goals = ref.watch(activePeriodGoalsProvider);
   final tree = ref.watch(armTreeProvider);
-  final goaled = {for (final g in goals) g.partnershipArmId};
-  return [
-    for (final g in goals)
-      if (!goaled.contains(tree.mainOf(g.partnershipArmId)?.id)) g,
-  ];
+  return [for (final g in goals) if (isShownGoal(tree, g)) g];
 });

@@ -7,6 +7,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {Resend} from "resend";
 import {toTitleCase} from "./text_case";
+import {loadMainArmNames} from "./arm_groups";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1103,6 +1104,8 @@ async function generatePeriodSummaryPdf(churchId: string, periodId: string): Pro
     .where("status", "==", "approved")
     .get();
 
+  // The summary lists main arms only; a sub-arm's giving goes under its main.
+  const mainNames = await loadMainArmNames(db, churchId);
   const byArm = new Map<string, number>();
   const byPartner = new Map<string, {name: string; amount: number}>();
   let total = 0;
@@ -1111,7 +1114,8 @@ async function generatePeriodSummaryPdf(churchId: string, periodId: string): Pro
     const amt = Number(e.amountCedis ?? 0);
     total += amt;
     const armId = String(e.partnershipArmId ?? "");
-    const armName = String((e.armSnapshot as {name?: string} | undefined)?.name ?? armId);
+    const armName = mainNames.get(armId) ??
+      String((e.armSnapshot as {name?: string} | undefined)?.name ?? armId);
     byArm.set(armName, (byArm.get(armName) ?? 0) + amt);
     const pid = String(e.partnerId ?? "");
     const pname = String((e.partnerSnapshot as {fullName?: string} | undefined)?.fullName ?? pid);
