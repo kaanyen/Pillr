@@ -155,7 +155,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 if (isRecurring) 'Recurring partner',
               ].where((e) => e.isNotEmpty).join(' · '),
               actions: [
-                if (idx?.isPastor == true)
+                if (idx?.isPastor == true || idx?.role == 'staff')
                   SelButton(
                     label: 'Edit',
                     icon: LucideIcons.pencil,
@@ -201,8 +201,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
 
             const SelSectionGap(factor: 0.4),
 
-            if (partner.mergedAliases.isNotEmpty ||
-                partner.formerMemberIds.isNotEmpty) ...[
+            if (partner.mergedAliases.isNotEmpty) ...[
               _MergedRecordsPanel(
                 churchId: idx?.churchId ?? '',
                 formerMemberIds: partner.formerMemberIds,
@@ -215,7 +214,12 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
               const SelSectionGap(factor: 0.4),
             ],
 
-            if (partner.allPhones.isNotEmpty || partner.allEmails.isNotEmpty) ...[
+            if (partner.allPhones.isNotEmpty ||
+                partner.allEmails.isNotEmpty ||
+                (partner.address ?? '').trim().isNotEmpty ||
+                (partner.notes ?? '').trim().isNotEmpty ||
+                (partner.mergedAliases.isEmpty &&
+                    partner.formerMemberIds.isNotEmpty)) ...[
               SelPanel(
                 title: 'Contact',
                 child: Column(
@@ -225,6 +229,17 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                       _Contact(LucideIcons.phone, p),
                     for (final e in partner.allEmails)
                       _Contact(LucideIcons.mail, e),
+                    if ((partner.address ?? '').trim().isNotEmpty)
+                      _Contact(LucideIcons.mapPin, partner.address!.trim()),
+                    if ((partner.notes ?? '').trim().isNotEmpty)
+                      _Contact(LucideIcons.stickyNote, partner.notes!.trim()),
+                    // Old IDs from an ID change; a merge shows them above.
+                    if (partner.mergedAliases.isEmpty &&
+                        partner.formerMemberIds.isNotEmpty)
+                      _Contact(
+                        LucideIcons.history,
+                        'Old member IDs: ${partner.formerMemberIds.join(", ")}',
+                      ),
                   ],
                 ),
               ),
@@ -365,7 +380,7 @@ class _Contact extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: Sel.ash),
           const SizedBox(width: SelSpace.x2),
-          Text(value, style: SelType.body),
+          Flexible(child: Text(value, style: SelType.body)),
         ],
       ),
     );
@@ -395,7 +410,8 @@ class _MergedRecordsPanel extends ConsumerStatefulWidget {
   final VoidCallback onChanged;
 
   @override
-  ConsumerState<_MergedRecordsPanel> createState() => _MergedRecordsPanelState();
+  ConsumerState<_MergedRecordsPanel> createState() =>
+      _MergedRecordsPanelState();
 }
 
 class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
@@ -415,10 +431,9 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
     if (!ok || !mounted) return;
     setState(() => _busy = r.memberId);
     try {
-      final res = await ref.read(recordOpsRepositoryProvider).partnerUnmerge(
-        churchId: widget.churchId,
-        memberId: r.memberId,
-      );
+      final res = await ref
+          .read(recordOpsRepositoryProvider)
+          .partnerUnmerge(churchId: widget.churchId, memberId: r.memberId);
       ref.invalidate(partnersStreamProvider(false));
       invalidateEntryDerivedData(ref);
       widget.onChanged();
@@ -462,62 +477,68 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
           ),
           const SizedBox(height: SelSpace.x3),
           for (final r in widget.records) ...[
-            Builder(builder: (context) {
-              final mine = [
-                for (final e in widget.entries)
-                  if (e.mergedFromPartnerId == r.partnerId) e,
-              ]..sort((a, b) => a.dateGiven.compareTo(b.dateGiven));
-              final total = mine
-                  .where((e) => e.countsTowardTotals)
-                  .fold<double>(0, (n, e) => n + e.amountCedis);
-              final details = [
-                r.memberId.isEmpty ? 'no member ID' : r.memberId,
-                if (r.fellowship.isNotEmpty) r.fellowship,
-                for (final p in r.phones) ending(p),
-                if (r.emails.isNotEmpty) r.emails.join(', '),
-                mine.isEmpty
-                    ? 'no gifts'
-                    : '${mine.length} ${mine.length == 1 ? "gift" : "gifts"} · ${money(total)}'
-                          ' · ${formatFirestoreDate(mine.first.dateGiven, pattern: 'd MMM y')}'
-                          '${mine.length > 1 ? " to ${formatFirestoreDate(mine.last.dateGiven, pattern: 'd MMM y')}" : ""}',
-              ];
-              return Container(
-                padding: const EdgeInsets.all(SelSpace.x3),
-                decoration: BoxDecoration(
-                  color: Sel.canvas,
-                  borderRadius: BorderRadius.circular(SelRadius.card),
-                  border: Border.all(color: Sel.border),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            r.self ? '${r.fullName} · the record that was kept' : r.fullName,
-                            style: SelType.bodyMedium,
-                          ),
-                          Text(details.join('  ·  '), style: SelType.small),
-                        ],
+            Builder(
+              builder: (context) {
+                final mine = [
+                  for (final e in widget.entries)
+                    if (e.mergedFromPartnerId == r.partnerId) e,
+                ]..sort((a, b) => a.dateGiven.compareTo(b.dateGiven));
+                final total = mine
+                    .where((e) => e.countsTowardTotals)
+                    .fold<double>(0, (n, e) => n + e.amountCedis);
+                final details = [
+                  r.memberId.isEmpty ? 'no member ID' : r.memberId,
+                  if (r.fellowship.isNotEmpty) r.fellowship,
+                  for (final p in r.phones) ending(p),
+                  if (r.emails.isNotEmpty) r.emails.join(', '),
+                  mine.isEmpty
+                      ? 'no gifts'
+                      : '${mine.length} ${mine.length == 1 ? "gift" : "gifts"} · ${money(total)}'
+                            ' · ${formatFirestoreDate(mine.first.dateGiven, pattern: 'd MMM y')}'
+                            '${mine.length > 1 ? " to ${formatFirestoreDate(mine.last.dateGiven, pattern: 'd MMM y')}" : ""}',
+                ];
+                return Container(
+                  padding: const EdgeInsets.all(SelSpace.x3),
+                  decoration: BoxDecoration(
+                    color: Sel.canvas,
+                    borderRadius: BorderRadius.circular(SelRadius.card),
+                    border: Border.all(color: Sel.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              r.self
+                                  ? '${r.fullName} · the record that was kept'
+                                  : r.fullName,
+                              style: SelType.bodyMedium,
+                            ),
+                            Text(details.join('  ·  '), style: SelType.small),
+                          ],
+                        ),
                       ),
-                    ),
-                    if (widget.canSeparate && r.memberId.isNotEmpty)
-                      SelButton(
-                        label: _busy == r.memberId ? 'Working…' : 'Take out',
-                        kind: SelButtonKind.quiet,
-                        dense: true,
-                        onPressed: _busy != null ? null : () => _separate(r, mine.length),
-                      ),
-                  ],
-                ),
-              );
-            }),
+                      if (widget.canSeparate && r.memberId.isNotEmpty)
+                        SelButton(
+                          label: _busy == r.memberId ? 'Working…' : 'Take out',
+                          kind: SelButtonKind.quiet,
+                          dense: true,
+                          onPressed: _busy != null
+                              ? null
+                              : () => _separate(r, mine.length),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
             const SizedBox(height: SelSpace.x2),
           ],
           if (otherIds.isNotEmpty)
             Text(
-              'Also known as ${otherIds.join(", ")} from an earlier merge. '
+              'Also known as ${otherIds.join(", ")}. '
               'Sheets with these IDs still find this person.',
               style: SelType.small,
             ),

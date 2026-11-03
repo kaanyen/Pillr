@@ -2586,7 +2586,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         l10n.bulkImportIssueMemberIdNotFound,
       BulkImportIssueCode.memberIdConflict =>
         l10n.bulkImportIssueMemberIdConflict,
-      BulkImportIssueCode.memberIdMerged => 'Old member ID — goes to the merged person',
+      BulkImportIssueCode.memberIdMerged => 'Old member ID — goes to the person who has it now',
       BulkImportIssueCode.possibleDuplicatePartner =>
         'Looks like an existing partner',
       BulkImportIssueCode.fellowshipMismatch =>

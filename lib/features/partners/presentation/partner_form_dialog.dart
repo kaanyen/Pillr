@@ -183,7 +183,10 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isEdit) ...[
-            Text('Member ID', style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              'Member ID',
+              style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: SelSpace.x2),
             Text(
               widget.existing!.memberId,
@@ -221,11 +224,19 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
                 border: Border.all(color: Sel.border),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SelSpace.x4,
+                  vertical: SelSpace.x2,
+                ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('Active', style: SelType.body.copyWith(fontWeight: FontWeight.w500)),
+                      child: Text(
+                        'Active',
+                        style: SelType.body.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     Switch.adaptive(
                       value: _active,

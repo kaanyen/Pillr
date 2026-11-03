@@ -19,9 +19,13 @@ Future<bool> confirmNotDuplicate(
   String? phone,
   String? email,
   String fellowship = '',
+  String? editingPartnerId,
 }) async {
-  final existing =
-      await ref.read(maintenanceRepositoryProvider).allPartners(churchId);
+  final existing = [
+    for (final p
+        in await ref.read(maintenanceRepositoryProvider).allPartners(churchId))
+      if (p.id != editingPartnerId) p,
+  ];
   final matches = findDuplicatesOf(
     fullName: fullName,
     phone: phone,
@@ -33,21 +37,20 @@ Future<bool> confirmNotDuplicate(
 
   final lines = [
     for (final m in matches.take(3))
-      '• ${m.b.fullName} (${[
-        if (m.b.memberId.isNotEmpty) m.b.memberId,
-        if (m.b.fellowship.isNotEmpty) m.b.fellowship,
-        if (!m.b.isActive) 'inactive',
-      ].join(', ')}) — ${m.reason}',
+      '• ${m.b.fullName} (${[if (m.b.memberId.isNotEmpty) m.b.memberId, if (m.b.fellowship.isNotEmpty) m.b.fellowship, if (!m.b.isActive) 'inactive'].join(', ')}) — ${m.reason}',
   ];
   return selConfirm(
     context,
     title: matches.length == 1
         ? 'This looks like someone already here'
         : 'This looks like ${matches.length} people already here',
-    message:
-        '${lines.join('\n')}\n\nIf it is the same person, cancel and record '
-        'their giving on the existing partner. Create a new partner only if '
-        'this is someone else.',
-    confirmLabel: 'Create anyway',
+    message: editingPartnerId == null
+        ? '${lines.join('\n')}\n\nIf it is the same person, cancel and record '
+              'their giving on the existing partner. Create a new partner only '
+              'if this is someone else.'
+        : '${lines.join('\n')}\n\nIf it is the same person, cancel and merge '
+              'the two in Tools so their giving comes together. Save only if '
+              'this is someone else.',
+    confirmLabel: editingPartnerId == null ? 'Create anyway' : 'Save anyway',
   );
 }

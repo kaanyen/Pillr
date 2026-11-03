@@ -6,7 +6,7 @@
  *   node --test functions/test/rules.test.mjs
  */
 import {readFileSync} from "node:fs";
-import {after, before, describe, it} from "node:test";
+import {after, before, beforeEach, describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   assertFails,
@@ -229,8 +229,8 @@ describe("admin fellowship tools", () => {
     }));
   });
 
-  it("refuses staff changing a partner's phone", async () => {
-    const db = env.authenticatedContext(STAFF).firestore();
+  it("refuses an admin changing a partner's phone", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
     await assertFails(updateDoc(doc(db, "churches/c1/partners/p1"), {
       phone: "0241111111",
     }));
@@ -336,14 +336,6 @@ describe("staff ledger tools", () => {
     }));
   });
 
-  it("refuses staff renaming a partner under cover of tidying", async () => {
-    const db = env.authenticatedContext(STAFF).firestore();
-    await assertFails(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
-      fullName: "Someone Else",
-      fullNameLower: "someone else",
-      updatedAt: new Date(),
-    }));
-  });
 
   it("lets staff tidy a partner name", async () => {
     const db = env.authenticatedContext(STAFF).firestore();
@@ -542,5 +534,66 @@ describe("partners are never deleted", () => {
   it("still lets a pastor close a partner", async () => {
     const db = env.authenticatedContext(PASTOR).firestore();
     await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_del"), {isActive: false}));
+  });
+});
+
+describe("staff editing a partner", () => {
+  const path = "churches/c1/partners/p_edit";
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), {
+        churchId: "c1", memberId: "ACC100001", fullName: "Kojo Antwi",
+        fullNameLower: "kojo antwi", fellowship: "Bethel", fellowshipLower: "bethel",
+        isActive: true, formerMemberIds: ["ACC000009"],
+      });
+    });
+  });
+  const staff = () => env.authenticatedContext(STAFF).firestore();
+  const pastor = () => env.authenticatedContext(PASTOR).firestore();
+
+  it("lets staff change the name, contacts, address and notes", async () => {
+    await assertSucceeds(updateDoc(doc(staff(), path), {
+      fullName: "Kojo Antwi Mensah", fullNameLower: "kojo antwi mensah",
+      phone: "0241112222", phones: ["0241112222", "0203334444"],
+      email: "kojo@example.com", emails: ["kojo@example.com"],
+      address: "12 Airport Rd", notes: "Prefers MoMo", updatedAt: new Date(),
+    }));
+  });
+
+  it("lets staff change the member ID when the old one is kept", async () => {
+    await assertSucceeds(updateDoc(doc(staff(), path), {
+      memberId: "ACC200002", formerMemberIds: ["ACC000009", "ACC100001"],
+    }));
+  });
+
+  it("refuses a member ID change that drops the old ID", async () => {
+    await assertFails(updateDoc(doc(staff(), path), {memberId: "ACC200002"}));
+    await assertFails(updateDoc(doc(pastor(), path), {memberId: "ACC200002"}));
+  });
+
+  it("refuses rewriting the old IDs", async () => {
+    await assertFails(updateDoc(doc(staff(), path), {formerMemberIds: []}));
+    await assertFails(updateDoc(doc(pastor(), path), {
+      memberId: "ACC200002", formerMemberIds: ["ACC100001"],
+    }));
+  });
+
+  it("lets a pastor change the member ID when the old one is kept", async () => {
+    await assertSucceeds(updateDoc(doc(pastor(), path), {
+      memberId: "ACC200002", formerMemberIds: ["ACC000009", "ACC100001"],
+    }));
+  });
+
+  it("refuses staff moving the fellowship, but allows fixing its casing", async () => {
+    await assertFails(updateDoc(doc(staff(), path), {fellowship: "Zion", fellowshipLower: "zion"}));
+    await assertSucceeds(updateDoc(doc(staff(), path), {fellowship: "BETHEL"}));
+  });
+
+  it("refuses staff closing a partner", async () => {
+    await assertFails(updateDoc(doc(staff(), path), {isActive: false}));
+  });
+
+  it("refuses staff writing merge fields", async () => {
+    await assertFails(updateDoc(doc(staff(), path), {mergedInto: "p_keep"}));
   });
 });

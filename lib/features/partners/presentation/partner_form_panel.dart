@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/extensions/async_value_ext.dart';
 import '../../../core/navigation/panel_flows.dart';
 import '../../../core/utils/text_case_utils.dart';
 import '../../../design/seline.dart';
 import '../../activity/activity_log_helper.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
 import 'duplicate_warning.dart';
@@ -37,6 +39,9 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
   /// several together; they all keep finding this person.
   late final TextEditingController _otherPhones;
   late final TextEditingController _otherEmails;
+  late final TextEditingController _memberId;
+  late final TextEditingController _address;
+  late final TextEditingController _notes;
   bool _active = true;
   bool _loading = false;
   String? _error;
@@ -61,6 +66,9 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           if (m != (e?.email ?? '').trim()) m,
       ].join('\n'),
     );
+    _memberId = TextEditingController(text: e?.memberId ?? '');
+    _address = TextEditingController(text: e?.address ?? '');
+    _notes = TextEditingController(text: e?.notes ?? '');
     _active = e?.isActive ?? true;
   }
 
@@ -72,6 +80,9 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     _phone.dispose();
     _otherPhones.dispose();
     _otherEmails.dispose();
+    _memberId.dispose();
+    _address.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -81,7 +92,20 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
       setState(() => _error = 'Full name and fellowship are required.');
       return;
     }
-    if (widget.existing == null) {
+    final ex = widget.existing;
+    if (ex != null) {
+      final problem = await _memberIdProblem(ex);
+      if (problem != null) {
+        if (mounted) setState(() => _error = problem);
+        return;
+      }
+      if (!mounted) return;
+    }
+    // A new person, or a name changed into someone who may already be here.
+    final renamed =
+        ex != null &&
+        _fullName.text.trim().toLowerCase() != ex.fullName.trim().toLowerCase();
+    if (ex == null || renamed) {
       setState(() => _loading = true);
       bool goAhead;
       try {
@@ -93,6 +117,7 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           phone: _phone.text,
           email: _email.text,
           fellowship: _fellowship.text,
+          editingPartnerId: ex?.id,
         );
       } catch (_) {
         // The check is advice. If it cannot load, the save says what is wrong.
@@ -133,18 +158,21 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
       } else {
         final ex = widget.existing!;
         final before = {
+          'memberId': ex.memberId,
           'fullName': ex.fullName,
           'fellowship': ex.fellowship,
           'email': ex.email,
           'phone': ex.phone,
           'phones': ex.allPhones,
           'emails': ex.allEmails,
+          'address': ex.address,
+          'notes': ex.notes,
           'isActive': ex.isActive,
         };
         await repo.updatePartner(
           churchId: widget.churchId,
           partner: ex,
-          memberId: ex.memberId,
+          memberId: _memberId.text,
           fullName: _fullName.text,
           fellowship: _fellowship.text,
           email: _email.text,
@@ -152,14 +180,19 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           isActive: _active,
           phones: _lines(_phone.text, _otherPhones.text),
           emails: _lines(_email.text, _otherEmails.text),
+          address: _address.text,
+          notes: _notes.text,
         );
         final after = {
+          'memberId': _memberId.text.trim().toUpperCase(),
           'fullName': TextCaseUtils.toTitleCase(_fullName.text),
           'fellowship': TextCaseUtils.toTitleCase(_fellowship.text),
           'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
           'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
           'phones': _lines(_phone.text, _otherPhones.text),
           'emails': _lines(_email.text, _otherEmails.text),
+          'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
+          'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
           'isActive': _active,
         };
         await logPillrActivity(
@@ -179,21 +212,50 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     }
   }
 
+  /// Why the member ID can't be saved, or null. A changed ID must be free:
+  /// not anyone's current ID, and not one anyone had before.
+  Future<String?> _memberIdProblem(Partner ex) async {
+    final id = _memberId.text.trim().toUpperCase();
+    if (id == ex.memberId.trim().toUpperCase()) return null;
+    if (id.isEmpty) return 'Member ID is required.';
+    if (!RegExp(r'^[A-Z0-9-]+$').hasMatch(id)) {
+      return 'Member ID can only have letters, numbers and dashes.';
+    }
+    if (ex.formerMemberIds.contains(id)) {
+      return '$id is one of this person\'s old IDs. Pick a new one.';
+    }
+    setState(() => _loading = true);
+    try {
+      final taken = await ref
+          .read(partnersRepositoryProvider)
+          .memberIdExists(widget.churchId, id, excludePartnerId: ex.id);
+      return taken ? '$id already belongs to someone, now or before.' : null;
+    } catch (e) {
+      return '$e';
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
+    // Staff edit names, IDs and contacts. Moving fellowship and closing a
+    // partner stay with the pastor, or go through the recorded move.
+    final staff =
+        isEdit &&
+        ref.watch(userChurchIndexProvider).valueOrNull?.role == 'staff';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isEdit) ...[
-          Text(
-            'Member ID',
-            style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: SelSpace.x2),
-          Text(
-            widget.existing!.memberId,
-            style: SelType.body.copyWith(fontWeight: FontWeight.w600),
+          SelField(
+            controller: _memberId,
+            label: 'Member ID',
+            textCapitalization: TextCapitalization.characters,
+            helper:
+                'If you change it, the old ID stays with this person, so '
+                'old receipts and sheets still find them.',
           ),
           const SizedBox(height: SelSpace.x4),
         ] else ...[
@@ -205,7 +267,15 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
         ],
         SelField(controller: _fullName, label: 'Full name'),
         const SizedBox(height: SelSpace.x4),
-        SelField(controller: _fellowship, label: 'Fellowship'),
+        SelField(
+          controller: _fellowship,
+          label: 'Fellowship',
+          enabled: !staff,
+          helper: staff
+              ? 'To move them, use Move partners on the Fellowships page, '
+                    'so it can be undone.'
+              : null,
+        ),
         const SizedBox(height: SelSpace.x4),
         SelField(
           controller: _email,
@@ -233,8 +303,22 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
             keyboardType: TextInputType.multiline,
             maxLines: 3,
           ),
+          const SizedBox(height: SelSpace.x4),
+          SelField(
+            controller: _address,
+            label: 'Address (optional)',
+            keyboardType: TextInputType.multiline,
+            maxLines: 2,
+          ),
+          const SizedBox(height: SelSpace.x4),
+          SelField(
+            controller: _notes,
+            label: 'Notes (optional)',
+            keyboardType: TextInputType.multiline,
+            maxLines: 3,
+          ),
         ],
-        if (isEdit) ...[
+        if (isEdit && !staff) ...[
           const SizedBox(height: SelSpace.x4),
           DecoratedBox(
             decoration: BoxDecoration(

@@ -12,10 +12,16 @@ class PartnersRepository {
   final FirebaseFirestore _firestore;
 
   CollectionReference<Map<String, dynamic>> _partners(String churchId) {
-    return _firestore.collection('churches').doc(churchId).collection('partners');
+    return _firestore
+        .collection('churches')
+        .doc(churchId)
+        .collection('partners');
   }
 
-  Stream<List<Partner>> watchPartners(String churchId, {bool includeInactive = false}) {
+  Stream<List<Partner>> watchPartners(
+    String churchId, {
+    bool includeInactive = false,
+  }) {
     return _partners(churchId).orderBy('memberId').snapshots().map((snap) {
       final list = snap.docs.map(Partner.fromDoc).toList();
       if (includeInactive) return list;
@@ -24,10 +30,15 @@ class PartnersRepository {
   }
 
   /// Returns the partner with this [memberId], or null if none.
-  Future<Partner?> findPartnerByMemberId(String churchId, String memberId) async {
+  Future<Partner?> findPartnerByMemberId(
+    String churchId,
+    String memberId,
+  ) async {
     final normalized = memberId.trim().toUpperCase();
     if (normalized.isEmpty) return null;
-    final q = await _partners(churchId).where('memberId', isEqualTo: normalized).limit(1).get();
+    final q = await _partners(
+      churchId,
+    ).where('memberId', isEqualTo: normalized).limit(1).get();
     if (q.docs.isEmpty) return null;
     return Partner.fromDoc(q.docs.first);
   }
@@ -56,16 +67,21 @@ class PartnersRepository {
     return out;
   }
 
-  Future<bool> memberIdExists(String churchId, String memberId, {String? excludePartnerId}) async {
+  Future<bool> memberIdExists(
+    String churchId,
+    String memberId, {
+    String? excludePartnerId,
+  }) async {
     final normalized = memberId.trim().toUpperCase();
     // A retired ID — one a merged person used to have — counts as taken, so
     // an old receipt or sheet never points at someone new.
     final results = await Future.wait([
-      _partners(churchId).where('memberId', isEqualTo: normalized).limit(5).get(),
-      _partners(churchId)
-          .where('formerMemberIds', arrayContains: normalized)
-          .limit(5)
-          .get(),
+      _partners(
+        churchId,
+      ).where('memberId', isEqualTo: normalized).limit(5).get(),
+      _partners(
+        churchId,
+      ).where('formerMemberIds', arrayContains: normalized).limit(5).get(),
     ]);
     for (final q in results) {
       for (final d in q.docs) {
@@ -77,7 +93,10 @@ class PartnersRepository {
   }
 
   /// `{churchInitials}{100000–999999}` until unique within the church.
-  Future<String> generateUniqueMemberId(String churchId, String? churchDisplayName) async {
+  Future<String> generateUniqueMemberId(
+    String churchId,
+    String? churchDisplayName,
+  ) async {
     final prefix = churchInitialsFromName(churchDisplayName);
     final rnd = Random();
     for (var attempt = 0; attempt < 100; attempt++) {
@@ -129,6 +148,8 @@ class PartnersRepository {
     return (id: docRef.id, memberId: mid);
   }
 
+  /// A changed member ID keeps the old one in `formerMemberIds`, so old
+  /// receipts, sheets and searches still find this person.
   Future<void> updatePartner({
     required String churchId,
     required Partner partner,
@@ -140,20 +161,32 @@ class PartnersRepository {
     required bool isActive,
     List<String>? phones,
     List<String>? emails,
+    String? address,
+    String? notes,
   }) async {
     final fn = TextCaseUtils.toTitleCase(fullName);
     final fs = TextCaseUtils.toTitleCase(fellowship);
+    final mid = memberId.trim().toUpperCase();
+    final oldId = partner.memberId.trim().toUpperCase();
+    String? blankToNull(String? v) =>
+        v?.trim().isEmpty ?? true ? null : v!.trim();
     await _partners(churchId).doc(partner.id).update({
       'phones': ?phones,
       'emails': ?emails,
-      'memberId': memberId.trim().toUpperCase(),
+      'memberId': mid,
+      if (mid != oldId && oldId.isNotEmpty)
+        'formerMemberIds': [...partner.formerMemberIds, oldId],
       'fullName': fn,
       'fellowship': fs,
       'fullNameLower': fn.toLowerCase(),
       'fellowshipLower': fs.toLowerCase(),
-      'email': email?.trim().isEmpty ?? true ? null : email!.trim(),
-      'phone': phone?.trim().isEmpty ?? true ? null : phone!.trim(),
-      'isActive': isActive,
+      'email': blankToNull(email),
+      'phone': blankToNull(phone),
+      'address': blankToNull(address),
+      'notes': blankToNull(notes),
+      // Written only when it changes: staff may not touch it, and an older
+      // record may have no isActive field at all.
+      if (isActive != partner.isActive) 'isActive': isActive,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -223,7 +256,8 @@ class PartnersRepository {
       }
     }
 
-    final out = byId.values.toList()..sort((a, b) => a.memberId.compareTo(b.memberId));
+    final out = byId.values.toList()
+      ..sort((a, b) => a.memberId.compareTo(b.memberId));
     if (out.length <= limit) return out;
     return out.sublist(0, limit);
   }
@@ -236,11 +270,14 @@ class PartnersRepository {
   }
 
   /// Server-side pagination by `memberId` (active-only uses composite index).
-  Future<({
-    List<Partner> items,
-    DocumentSnapshot<Map<String, dynamic>>? lastDoc,
-    bool hasMore,
-  })> fetchPartnersPage(
+  Future<
+    ({
+      List<Partner> items,
+      DocumentSnapshot<Map<String, dynamic>>? lastDoc,
+      bool hasMore,
+    })
+  >
+  fetchPartnersPage(
     String churchId, {
     required bool includeInactive,
     int pageSize = 20,
@@ -256,7 +293,9 @@ class PartnersRepository {
     }
     final snap = await q.limit(pageSize + 1).get();
     final hasMore = snap.docs.length > pageSize;
-    final docs = hasMore ? snap.docs.take(pageSize).toList() : snap.docs.toList();
+    final docs = hasMore
+        ? snap.docs.take(pageSize).toList()
+        : snap.docs.toList();
     final items = docs.map(Partner.fromDoc).toList();
     final lastDoc = docs.isEmpty ? null : docs.last;
     return (items: items, lastDoc: lastDoc, hasMore: hasMore);

@@ -44,6 +44,19 @@ service cloud.firestore {
              == resource.data.get(field, '').lower().trim();
     }
 
+    // A partner's member ID changes only with the old one added to
+    // formerMemberIds, so receipts, sheets and searches by it still find them.
+    function keepsOldMemberId() {
+      let after = request.resource.data;
+      let keys = after.diff(resource.data).affectedKeys();
+      let oldId = resource.data.get('memberId', '');
+      return (!keys.hasAny(['memberId']) && !keys.hasAny(['formerMemberIds']))
+          || (keys.hasAny(['memberId']) && oldId == ''
+              && !keys.hasAny(['formerMemberIds']))
+          || (keys.hasAll(['memberId', 'formerMemberIds']) && oldId != ''
+              && after.formerMemberIds
+                   == resource.data.get('formerMemberIds', []).concat([oldId]));
+    }
     function belongsToChurch(churchId) {
       return isAuthenticated() && getUserChurchId() == churchId;
     }
@@ -123,17 +136,21 @@ service cloud.firestore {
         allow update: if belongsToChurch(churchId) && isPastor()
                       && !request.resource.data.diff(resource.data).affectedKeys()
                            .hasAny(['mergedInto', 'mergedBy', 'mergedAt',
-                                    'mergedAliases', 'formerMemberIds',
-                                    'splitFrom']);
-        // Staff Tools: tidy name and fellowship casing. Casing only — the
-        // value may not change otherwise, or this becomes a way round the
-        // recorded fellowship move.
+                                    'mergedAliases', 'splitFrom'])
+                      && keepsOldMemberId();
+        // Staff edit a partner's name, member ID, contacts, address and
+        // notes. The fellowship may change only in casing — a real move goes
+        // through the recorded fellowship move — and staff never close a
+        // partner.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['fullName', 'fullNameLower', 'fellowship',
-                                     'fellowshipLower', 'updatedAt'])
-                      && sameIgnoringCase('fullName')
-                      && sameIgnoringCase('fellowship');
+                           .hasOnly(['fullName', 'fullNameLower', 'memberId',
+                                     'formerMemberIds', 'email', 'phone',
+                                     'phones', 'emails', 'address', 'notes',
+                                     'fellowship', 'fellowshipLower',
+                                     'updatedAt'])
+                      && sameIgnoringCase('fellowship')
+                      && keepsOldMemberId();
         // Staff Tools: write recomputed partner totals.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && request.resource.data.diff(resource.data).affectedKeys()

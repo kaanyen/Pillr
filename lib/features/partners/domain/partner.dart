@@ -24,6 +24,8 @@ class Partner {
     this.mergedAliases = const [],
     this.phones = const [],
     this.emails = const [],
+    this.address,
+    this.notes,
   });
 
   final String id;
@@ -56,6 +58,11 @@ class Partner {
   /// several records together. [phone] and [email] are the main ones.
   final List<String> phones;
   final List<String> emails;
+
+  final String? address;
+
+  /// Anything the church wants to remember about this person.
+  final String? notes;
 
   /// [phones] with [phone] first, each once — what to show and compare.
   List<String> get allPhones => _distinctContacts([phone ?? '', ...phones]);
@@ -96,6 +103,8 @@ class Partner {
       ],
       phones: _strings(m['phones']),
       emails: _strings(m['emails']),
+      address: m['address'] as String?,
+      notes: m['notes'] as String?,
     );
   }
 }
@@ -138,8 +147,14 @@ class MergedRecord {
     fullName: m['fullName'] as String? ?? '',
     memberId: (m['memberId'] as String? ?? '').trim().toUpperCase(),
     fellowship: m['fellowship'] as String? ?? '',
-    phones: _distinctContacts([m['phone'] as String? ?? '', ..._strings(m['phones'])]),
-    emails: _distinctContacts([m['email'] as String? ?? '', ..._strings(m['emails'])]),
+    phones: _distinctContacts([
+      m['phone'] as String? ?? '',
+      ..._strings(m['phones']),
+    ]),
+    emails: _distinctContacts([
+      m['email'] as String? ?? '',
+      ..._strings(m['emails']),
+    ]),
     self: m['self'] == true,
   );
 
