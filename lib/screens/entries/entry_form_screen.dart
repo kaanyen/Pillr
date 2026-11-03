@@ -16,6 +16,7 @@ import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/activity/activity_log_helper.dart';
 import '../../features/arms/domain/partnership_arm.dart';
 import '../../features/arms/providers/arms_providers.dart';
+import '../arm_palette.dart';
 import '../../features/auth/domain/church_user.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
@@ -310,8 +311,12 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   _arm = arms.where((a) => a.id == v).firstOrNull;
                 }),
                 items: [
-                  for (final a in arms)
-                    DropdownMenuItem(value: a.id, child: Text(a.name)),
+                  for (final row in ref.watch(armTreeProvider).flattened)
+                    if (arms.any((a) => a.id == row.arm.id))
+                      DropdownMenuItem(
+                        value: row.arm.id,
+                        child: armMenuLabel(row.arm.name, isSub: row.isSub),
+                      ),
                 ],
               ),
               const SizedBox(height: SelSpace.x4),

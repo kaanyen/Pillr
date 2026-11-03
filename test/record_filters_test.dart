@@ -207,4 +207,43 @@ void main() {
       expect(ids(out), ['a']);
     });
   });
+
+  group('main arms and sub-arms', () {
+    final entries = [
+      entry(id: 'venue', armId: 'venue'),
+      entry(id: 'logistics', armId: 'logistics'),
+      entry(id: 'w1909', armId: 'w1909'),
+    ];
+    Set<String> family(String id) =>
+        id == 'venue' ? {'venue', 'logistics'} : {id};
+
+    test('filtering a main arm takes in its sub-arms', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('venue'),
+        now: now,
+        armFamilyOf: family,
+      );
+      expect(out.map((e) => e.id), ['venue', 'logistics']);
+    });
+
+    test('filtering a sub-arm is just that sub-arm', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('logistics'),
+        now: now,
+        armFamilyOf: family,
+      );
+      expect(out.map((e) => e.id), ['logistics']);
+    });
+
+    test('without grouping, an arm filter is exact as before', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('venue'),
+        now: now,
+      );
+      expect(out.map((e) => e.id), ['venue']);
+    });
+  });
 }

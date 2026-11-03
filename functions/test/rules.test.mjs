@@ -597,3 +597,45 @@ describe("staff editing a partner", () => {
     await assertFails(updateDoc(doc(staff(), path), {mergedInto: "p_keep"}));
   });
 });
+
+describe("main arms and sub-arms", () => {
+  const arms = "churches/c1/partnership_arms";
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, `${arms}/ministry`), {churchId: "c1", name: "Ministry", sortOrder: 0, isActive: true});
+      await setDoc(doc(db, `${arms}/rhapsody`), {churchId: "c1", name: "Rhapsody", sortOrder: 1, isActive: true});
+      await setDoc(doc(db, `${arms}/healing`), {churchId: "c1", name: "Healing Streams", sortOrder: 2, isActive: true, parentArmId: "ministry"});
+    });
+  });
+  const pastor = () => env.authenticatedContext(PASTOR).firestore();
+  const staff = () => env.authenticatedContext(STAFF).firestore();
+
+  it("lets a pastor put an arm under a main arm", async () => {
+    await assertSucceeds(updateDoc(doc(pastor(), `${arms}/rhapsody`), {parentArmId: "ministry", sortOrder: 2}));
+  });
+
+  it("lets a pastor make a sub-arm a main arm again", async () => {
+    await assertSucceeds(updateDoc(doc(pastor(), `${arms}/healing`), {parentArmId: null}));
+  });
+
+  it("refuses an arm counting toward itself", async () => {
+    await assertFails(updateDoc(doc(pastor(), `${arms}/rhapsody`), {parentArmId: "rhapsody"}));
+  });
+
+  it("refuses a sub-arm under a sub-arm", async () => {
+    await assertFails(updateDoc(doc(pastor(), `${arms}/rhapsody`), {parentArmId: "healing"}));
+  });
+
+  it("refuses a main arm that does not exist", async () => {
+    await assertFails(updateDoc(doc(pastor(), `${arms}/rhapsody`), {parentArmId: "nope"}));
+  });
+
+  it("refuses staff rearranging arms", async () => {
+    await assertFails(updateDoc(doc(staff(), `${arms}/rhapsody`), {parentArmId: "ministry"}));
+  });
+
+  it("still lets a pastor rename an arm that has no main arm", async () => {
+    await assertSucceeds(updateDoc(doc(pastor(), `${arms}/ministry`), {name: "Ministries"}));
+  });
+});

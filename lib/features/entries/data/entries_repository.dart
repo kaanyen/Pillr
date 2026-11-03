@@ -126,6 +126,32 @@ class EntriesRepository {
     );
   }
 
+  /// Approved giving in [periodId] to any of [armIds], summed by Firestore.
+  ///
+  /// How a main arm's goal counts its sub-arms: the stored goal total only
+  /// moves for the arm an entry was recorded to, so the family's figure is
+  /// read from the entries themselves rather than written anywhere.
+  Future<double> fetchApprovedCedisForArms(
+    String churchId, {
+    required String periodId,
+    required List<String> armIds,
+  }) async {
+    if (armIds.isEmpty) return 0;
+    var total = 0.0;
+    // `whereIn` takes at most 30 values.
+    for (var i = 0; i < armIds.length; i += 30) {
+      final chunk = armIds.sublist(i, i + 30 > armIds.length ? armIds.length : i + 30);
+      final snap = await _entries(churchId)
+          .where('partnershipPeriodId', isEqualTo: periodId)
+          .where('status', isEqualTo: 'approved')
+          .where('partnershipArmId', whereIn: chunk)
+          .aggregate(sum('amountCedis'))
+          .get();
+      total += snap.getSum('amountCedis') ?? 0;
+    }
+    return total;
+  }
+
   /// One partner's giving history, most recent gift first.
   ///
   /// By `dateGiven` for the same reason the paged lists are: this is a record

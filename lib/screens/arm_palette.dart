@@ -100,3 +100,13 @@ class ArmLabel extends ConsumerWidget {
     );
   }
 }
+
+/// An arm's name in a picker: sub-arms indented under their main arm, so the
+/// grouping reads in every dropdown the same way it does in Configuration.
+Widget armMenuLabel(String name, {required bool isSub}) {
+  if (!isSub) return Text(name);
+  return Padding(
+    padding: const EdgeInsets.only(left: SelSpace.x4),
+    child: Text(name),
+  );
+}

@@ -1,4 +1,5 @@
 import '../../core/utils/text_case_utils.dart';
+import '../../features/arms/domain/arm_tree.dart';
 import '../../features/arms/domain/partnership_arm.dart';
 import '../entries/domain/partnership_entry.dart';
 import '../entries/fellowship_of.dart';
@@ -23,17 +24,19 @@ class ArmLeaderboard {
     List<PartnershipEntry> entries,
     List<PartnershipArm> arms, {
     String? periodId,
+    Set<String> Function(String armId)? armFamilyOf,
   }) {
-    final ordered = [...arms]..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final tree = ArmTree(arms);
     return [
-      for (final arm in ordered)
+      for (final row in tree.flattened)
         ArmLeaderboard(
-          armId: arm.id,
-          armName: arm.name,
+          armId: row.arm.id,
+          armName: row.arm.name,
+          // A main arm ranks its sub-arms' giving with its own.
           rows: LeaderboardRow.fromEntries(
             entries,
             periodId: periodId,
-            armId: arm.id,
+            armIds: armFamilyOf?.call(row.arm.id) ?? tree.familyOf(row.arm.id),
           ),
         ),
     ];
@@ -218,6 +221,7 @@ class LeaderboardRow {
     List<PartnershipEntry> entries, {
     String? periodId,
     String? armId,
+    Set<String>? armIds,
     String? fellowshipKey,
     Map<String, String> fellowshipByPartnerId = const {},
   }) {
@@ -226,6 +230,7 @@ class LeaderboardRow {
       if (e.status != 'approved') return false;
       if (periodId != null && e.partnershipPeriodId != periodId) return false;
       if (armId != null && e.partnershipArmId != armId) return false;
+      if (armIds != null && !armIds.contains(e.partnershipArmId)) return false;
       if (fellowship != null &&
           fellowshipKeyOf(e, fellowshipByPartnerId) != fellowship) {
         return false;

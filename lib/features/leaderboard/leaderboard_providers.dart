@@ -40,6 +40,7 @@ final filteredEntriesProvider =
     filters,
     now: DateTime.now(),
     fellowshipByPartnerId: byPartner,
+    armFamilyOf: ref.watch(armTreeProvider).familyOf,
   );
 });
 
@@ -60,6 +61,7 @@ final armRankingProvider = Provider.autoDispose<List<ArmLeaderboard>>((ref) {
     entries,
     arms.where((a) => a.isActive).toList(),
     periodId: period?.id,
+    armFamilyOf: ref.watch(armTreeProvider).familyOf,
   );
 });
 

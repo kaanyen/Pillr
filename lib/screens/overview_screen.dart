@@ -178,12 +178,13 @@ class _PastorBlocks extends ConsumerWidget {
                     final arm = arms
                         .where((a) => a.id == goals[i].partnershipArmId)
                         .firstOrNull;
+                    final reached = ref.watch(goalReachedCedisProvider(goals[i]));
                     return SelGoalLine(
                       color: armColorOf(ref, goals[i].partnershipArmId),
                       label: arm?.name ?? 'Partnership arm',
-                      value: goals[i].currentAmountCedis,
+                      value: reached,
                       target: goals[i].targetAmountCedis,
-                      valueText: money(goals[i].currentAmountCedis),
+                      valueText: money(reached),
                       targetText: money(goals[i].targetAmountCedis),
                     );
                   }),

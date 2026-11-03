@@ -231,6 +231,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         : const AsyncValue<List<PartnershipEntry>>.data([]);
     final armColors = ref.watch(armColorsProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
+    final armTree = ref.watch(armTreeProvider);
     final isPastor = idx?.isPastor ?? false;
 
     final all = widget.mode == QueueMode.records
@@ -244,8 +245,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             ref.watch(recordFiltersProvider),
             now: DateTime.now(),
             fellowshipByPartnerId: ref.watch(partnerFellowshipByIdProvider),
+            armFamilyOf: armTree.familyOf,
           )
         : all;
+    // Picking a main arm takes in its sub-arms too.
+    final armFamily = _armId == null ? null : armTree.familyOf(_armId!);
     final rows = scoped.where((e) {
       final byStatus = switch (_filter) {
         _Filter.all => true,
@@ -253,7 +257,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         _Filter.approved => e.status == 'approved',
         _Filter.declined => e.status == 'declined',
       };
-      final byArm = _armId == null || e.partnershipArmId == _armId;
+      final byArm = armFamily == null || armFamily.contains(e.partnershipArmId);
       return byStatus && byArm;
     }).toList();
 
@@ -277,7 +281,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
         ? const <PartnershipEntry>[]
         : (ref.watch(recentlyDecidedProvider(_decidedSince)).valueOrNull ??
                   const <PartnershipEntry>[])
-              .where((e) => _armId == null || e.partnershipArmId == _armId)
+              .where((e) => armFamily == null || armFamily.contains(e.partnershipArmId))
               .toList();
 
     return CallbackShortcuts(
@@ -392,8 +396,12 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                           value: null,
                           child: Text(l10n.queueAllArms),
                         ),
-                        for (final a in arms)
-                          DropdownMenuItem(value: a.id, child: Text(a.name)),
+                        for (final row in armTree.flattened)
+                          if (arms.any((a) => a.id == row.arm.id))
+                            DropdownMenuItem(
+                              value: row.arm.id,
+                              child: armMenuLabel(row.arm.name, isSub: row.isSub),
+                            ),
                       ],
                     ),
                   ),

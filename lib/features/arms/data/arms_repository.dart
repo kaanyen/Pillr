@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/text_case_utils.dart';
+import '../domain/arm_tree.dart';
 import '../domain/partnership_arm.dart';
 
 class ArmsRepository {
@@ -75,6 +76,28 @@ class ArmsRepository {
     });
   }
 
+  /// Saves a new arrangement of arms: which main arm each counts toward, and
+  /// the order they are listed in.
+  ///
+  /// Only `parentArmId`, `sortOrder` and `updatedAt` are written, and only on
+  /// arms whose place actually changed. No entry, total or goal is touched:
+  /// a main arm's figures are added up from its sub-arms when they are shown.
+  Future<void> arrangeArms({
+    required String churchId,
+    required List<ArmPlacement> placements,
+  }) async {
+    if (placements.isEmpty) return;
+    final batch = _firestore.batch();
+    for (final p in placements) {
+      batch.update(_arms(churchId).doc(p.armId), {
+        'parentArmId': p.parentArmId,
+        'sortOrder': p.sortOrder,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
+
   Future<void> setActive({
     required String churchId,
     required String armId,
@@ -111,3 +134,4 @@ class ArmsRepository {
     await _arms(churchId).doc(armId).delete();
   }
 }
+

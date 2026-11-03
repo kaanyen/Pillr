@@ -285,9 +285,13 @@ class _RankedByArmBody extends ConsumerWidget {
     // O(arms x entries), so it is worth never running this twice for one
     // snapshot of the data.
     final sections = ref.watch(armRankingProvider);
-    final visible = filters.armId == null
+    // A main arm's filter shows its section and each of its sub-arms'.
+    final family = filters.armId == null
+        ? null
+        : ref.watch(armTreeProvider).familyOf(filters.armId!);
+    final visible = family == null
         ? sections
-        : sections.where((s) => s.armId == filters.armId).toList();
+        : sections.where((s) => family.contains(s.armId)).toList();
 
     return RankedGroupedBody(
       money: money,

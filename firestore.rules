@@ -31,6 +31,21 @@ service cloud.firestore {
     function isPastor() { return isRole('pastor'); }
     function isStaff() { return isRole('staff'); }
     function isPastorOrAdmin() { return isAdmin() || isPastor(); }
+
+    // Sub-arms are one level deep: an arm may name a main arm to count toward,
+    // never itself, and only one that is not a sub-arm already. Read after the
+    // write, because a rearrangement is one batch that can promote the main
+    // arm in the same commit. Whether an arm
+    // that has sub-arms is being made a sub-arm can't be seen from here (it
+    // needs a query); the app refuses that move before it writes.
+    function validArmParent(churchId, armId) {
+      let parent = request.resource.data.get('parentArmId', null);
+      return parent == null
+          || (parent is string && parent != armId
+              && existsAfter(/databases/$(database)/documents/churches/$(churchId)/partnership_arms/$(parent))
+              && getAfter(/databases/$(database)/documents/churches/$(churchId)/partnership_arms/$(parent))
+                   .data.get('parentArmId', null) == null);
+    }
     function isPastorOrStaff() { return isPastor() || isStaff(); } // used in UI guards
     function settingsOf(data) {
       return data.keys().hasAny(['settings']) && data.settings is map
@@ -209,7 +224,9 @@ service cloud.firestore {
 
       match /partnership_arms/{armId} {
         allow read: if belongsToChurch(churchId);
-        allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow create, update: if belongsToChurch(churchId) && isPastorOrAdmin()
+                              && validArmParent(churchId, armId);
+        allow delete: if belongsToChurch(churchId) && isPastorOrAdmin();
       }
 
       match /partnership_periods/{periodId} {

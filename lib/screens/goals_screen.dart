@@ -26,6 +26,7 @@ class GoalsScreen extends ConsumerWidget {
     final money = ref.watch(churchMoneyFormatProvider);
     final goalsAsync = ref.watch(goalsListProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
+    final tree = ref.watch(armTreeProvider);
     final period = ref.watch(activePeriodProvider);
     final canEdit = idx?.isPastor ?? false;
 
@@ -86,14 +87,36 @@ class GoalsScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: SelGoalLine(
-                            color: armColorOf(ref, goals[i].partnershipArmId),
-                            label: armName(goals[i].partnershipArmId),
-                            value: goals[i].currentAmountCedis,
-                            target: goals[i].targetAmountCedis,
-                            valueText: money(goals[i].currentAmountCedis),
-                            targetText: money(goals[i].targetAmountCedis),
-                          ),
+                          child: Consumer(builder: (context, ref, _) {
+                            final reached = ref.watch(goalReachedCedisProvider(goals[i]));
+                            final armId = goals[i].partnershipArmId;
+                            final subs = tree.childrenOf(armId);
+                            final main = tree.mainOf(armId);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SelGoalLine(
+                                  color: armColorOf(ref, armId),
+                                  label: armName(armId),
+                                  value: reached,
+                                  target: goals[i].targetAmountCedis,
+                                  valueText: money(reached),
+                                  targetText: money(goals[i].targetAmountCedis),
+                                ),
+                                if (subs.isNotEmpty) ...[
+                                  const SizedBox(height: SelSpace.x2),
+                                  Text(
+                                    'Includes ${subs.map((a) => a.name).join(', ')}',
+                                    style: SelType.small,
+                                  ),
+                                ] else if (main != null) ...[
+                                  const SizedBox(height: SelSpace.x2),
+                                  Text('Counts toward ${main.name}', style: SelType.small),
+                                ],
+                              ],
+                            );
+                          }),
                         ),
                         if (canEdit) ...[
                           const SizedBox(width: SelSpace.x6),
@@ -137,8 +160,8 @@ Future<void> _goalDialog(
   final amount = TextEditingController(
     text: existing == null ? '' : existing.targetAmountCedis.toStringAsFixed(0),
   );
-  var armId = existing?.partnershipArmId ??
-      (arms.isNotEmpty ? arms.first.id as String : null);
+  final mains = ref.read(armTreeProvider).mains;
+  var armId = existing?.partnershipArmId ?? (mains.isNotEmpty ? mains.first.id : null);
 
   final saved = await showDialog<bool>(
     context: context,
@@ -167,10 +190,10 @@ Future<void> _goalDialog(
                 label: 'Partnership arm',
                 onChanged: (v) => setState(() => armId = v),
                 items: [
-                  for (final a in arms)
+                  for (final row in ref.read(armTreeProvider).flattened)
                     DropdownMenuItem(
-                      value: a.id as String,
-                      child: Text(a.name as String),
+                      value: row.arm.id,
+                      child: armMenuLabel(row.arm.name, isSub: row.isSub),
                     ),
                 ],
               ),

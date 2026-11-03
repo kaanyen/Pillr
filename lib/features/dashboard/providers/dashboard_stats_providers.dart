@@ -122,13 +122,13 @@ final staffMyEntryStatsProvider = Provider<StaffEntryStats>((ref) {
 
 /// Weighted goal progress for the **active** period (all arms), or null if no targets.
 final pastorGoalProgressPercentProvider = Provider<double?>((ref) {
-  final goals = ref.watch(activePeriodGoalsProvider);
+  final goals = ref.watch(countedActivePeriodGoalsProvider);
   if (goals.isEmpty) return null;
   var target = 0.0;
   var current = 0.0;
   for (final g in goals) {
     target += g.targetAmountCedis;
-    current += g.currentAmountCedis;
+    current += ref.watch(goalReachedCedisProvider(g));
   }
   if (target <= 0) return null;
   return (current / target * 100).clamp(0, 100);
