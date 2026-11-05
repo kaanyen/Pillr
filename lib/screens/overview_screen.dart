@@ -11,8 +11,6 @@ import '../features/activity/domain/activity_log_row.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/dashboard/providers/dashboard_stats_providers.dart';
-import '../features/entries/domain/partnership_entry.dart';
-import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/bulk_import/bulk_import_draft_provider.dart';
 import '../features/entries/bulk_import/bulk_import_session_store.dart';
 import '../features/entries/bulk_import/bulk_import_screen.dart' show describeWhen;
@@ -25,6 +23,7 @@ import '../features/users/providers/users_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
 import 'arm_palette.dart';
+import 'views/overview_pastor.dart';
 import 'views/overview_shortcuts.dart';
 
 /// Overview — one screen for every role.
@@ -40,17 +39,13 @@ class OverviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
-    final church = ref.watch(churchNameProvider) ?? 'your church';
-
-    final full = profile?.fullName.trim() ?? '';
-    final first = full.isEmpty
-        ? 'there'
-        : TextCaseUtils.toTitleCase(full.split(RegExp(r'\s+')).first);
 
     final isPastor = idx?.isPastor ?? false;
     final isAdmin = idx?.isAdmin ?? false;
+    final pendingCount = isPastor
+        ? (ref.watch(pendingEntriesProvider).valueOrNull?.length ?? 0)
+        : 0;
 
     return SelPageBody(
       onRefresh: () async {
@@ -61,17 +56,23 @@ class OverviewScreen extends ConsumerWidget {
         ref.invalidate(activityLogsPreviewProvider);
       },
       children: [
-        SelPageTitle.hero(
-          title: _greeting(),
-          highlight: first,
-          subtitle: 'Partnership activity across $church, updating live.',
+        SelPageTitle(
+          title: 'Overview',
+          subtitle: overviewSubtitle(ref.watch(activePeriodProvider)?.name),
           actions: [
             if (isPastor || (idx?.isStaff ?? false))
-              SelButton.cyan(
+              SelButton(
                 label: 'New entry',
                 icon: LucideIcons.plus,
                 onPressed: () => showEntryFormPanel(context),
               ),
+            if (isPastor && pendingCount > 0) ...[
+              const SizedBox(width: SelSpace.x2),
+              SelButton.cyan(
+                label: 'Review $pendingCount waiting',
+                onPressed: () => context.go('/queue?filter=pending'),
+              ),
+            ],
           ],
         ),
 
@@ -84,193 +85,73 @@ class OverviewScreen extends ConsumerWidget {
 
         if (isAdmin)
           const _AdminBlocks()
-        else if (isPastor)
-          _PastorBlocks(money: money)
-        else
+        else if (isPastor) ...[
+          const PastorOverview(extra: _ActivityBlock(card: true)),
+          _PastorGoals(money: money),
+        ] else
           _StaffBlocks(money: money),
 
-        const SelSectionGap(factor: 0.5),
-        const _ActivityBlock(),
+        if (!isPastor) ...[
+          const SelSectionGap(factor: 0.5),
+          const _ActivityBlock(),
+        ],
       ],
     );
   }
 
-  String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Good morning, ';
-    if (h < 17) return 'Good afternoon, ';
-    return 'Good evening, ';
-  }
 }
 
 // ---------------------------------------------------------------------------
 // Pastor
 // ---------------------------------------------------------------------------
 
-class _PastorBlocks extends ConsumerWidget {
-  const _PastorBlocks({required this.money});
+/// The church's goals for the period, under the Overview cards.
+class _PastorGoals extends ConsumerWidget {
+  const _PastorGoals({required this.money});
 
   final String Function(num) money;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(pastorEntryStatsProvider);
-    final compactMoney = ref.watch(churchCompactMoneyProvider);
-    final partners = ref.watch(activePartnerCountProvider);
-    final goalPct = ref.watch(pastorGoalProgressPercentProvider);
     final goals = ref.watch(countedActivePeriodGoalsProvider);
     final period = ref.watch(activePeriodProvider);
-    final pending = ref.watch(pendingEntriesProvider).valueOrNull ?? [];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SelStatRow(stats: [
-          // A failed count is not a zero count: say so rather than print ₵0.
-          if (stats.totalsFailed)
-            const SelStat(
-              label: 'Approved',
-              value: '—',
-              footnote: 'Couldn’t load totals',
-            )
-          else
-            SelStat(
-              label: 'Approved',
-              value: compactMoney(stats.totalApprovedCedis),
-              exactValue: money(stats.totalApprovedCedis),
-              footnote: '${stats.approvedCount} entries',
-            ),
-          SelStat(
-            label: 'Awaiting review',
-            value: '${stats.pendingCount}',
-            footnote: stats.pendingCount == 0 ? 'Queue is clear' : 'In your queue',
-            onTap: () => context.go('/queue'),
-          ),
-          SelStat(
-            label: 'Active partners',
-            value: '$partners',
-            footnote: 'Giving records',
-            onTap: () => context.go('/partners'),
-          ),
-          SelStat(
-            label: 'Goal progress',
-            value: goalPct == null ? '—' : '${goalPct.round()}%',
-            footnote: period?.name ?? 'No active period',
-          ),
-        ]),
-
-        if (pending.isNotEmpty) ...[
-          const SelSectionGap(factor: 0.5),
-          _PendingPreview(entries: pending, money: money),
-        ],
-
-        if (goals.isNotEmpty) ...[
-          const SelSectionGap(factor: 0.5),
-          SelPanel(
-            title: 'Goals',
-            subtitle: period?.name,
-            trailing: SelButton(
-              label: 'Manage',
-              kind: SelButtonKind.quiet,
-              dense: true,
-              onPressed: () => context.go('/goals'),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < goals.length; i++) ...[
-                  if (i > 0) const SizedBox(height: SelSpace.x6),
-                  Consumer(builder: (context, ref, _) {
-                    final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
-                    final arm = arms
-                        .where((a) => a.id == goals[i].partnershipArmId)
-                        .firstOrNull;
-                    final reached = ref.watch(goalReachedCedisProvider(goals[i]));
-                    return SelGoalLine(
-                      color: armColorOf(ref, goals[i].partnershipArmId),
-                      label: arm?.name ?? 'Partnership arm',
-                      value: reached,
-                      target: goals[i].targetAmountCedis,
-                      valueText: money(reached),
-                      targetText: money(goals[i].targetAmountCedis),
-                    );
-                  }),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// The top of the review queue, inline. A pastor's most common next action is
-/// "approve the oldest pending thing", so it lives on the Overview rather than
-/// one navigation step away.
-class _PendingPreview extends ConsumerWidget {
-  const _PendingPreview({required this.entries, required this.money});
-
-  final List<PartnershipEntry> entries;
-  final String Function(num) money;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final show = entries.take(4).toList();
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(SelRadius.card),
-        border: const Border(left: BorderSide(color: Sel.warning, width: 3)),
-      ),
+    if (goals.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: SelSpace.x4),
       child: SelPanel(
-      title: 'Waiting on you',
-      subtitle: '${entries.length} ${entries.length == 1 ? "entry" : "entries"} still open — the queue is waiting',
-      trailing: SelButton(
-        label: 'Open queue',
-        kind: SelButtonKind.quiet,
-        dense: true,
-        trailingIcon: LucideIcons.arrowRight,
-        onPressed: () => context.go('/queue'),
-      ),
-      contentPadding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (var i = 0; i < show.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: Sel.border),
-            InkWell(
-              onTap: () => context.go('/entries/${show[i].id}'),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: SelSpace.cardPad,
-                  vertical: SelSpace.x3,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: SelCell.stacked(
-                        show[i].partnerSnapshot['fullName']?.toString() ?? '—',
-                        ref.watch(armTreeProvider).shownNameOf(show[i].partnershipArmId) ??
-                            show[i].armSnapshot['name']?.toString() ??
-                            '',
-                      ),
-                    ),
-                    EntryAmountCell(
-                      entry: show[i],
-                      formattedAmount: money(show[i].amountCedis),
-                    ),
-                    const SizedBox(width: SelSpace.x6),
-                    const SelStatusMark(
-                      status: SelStatus.pending,
-                      label: 'Pending',
-                      iconOnly: true,
-                    ),
-                  ],
-                ),
+        title: 'Goals',
+        subtitle: period?.name,
+        trailing: SelButton(
+          label: 'Manage',
+          kind: SelButtonKind.quiet,
+          dense: true,
+          onPressed: () => context.go('/goals'),
+        ),
+        child: Column(
+          children: [
+            for (var i = 0; i < goals.length; i++) ...[
+              if (i > 0) const SizedBox(height: SelSpace.x6),
+              Consumer(
+                builder: (context, ref, _) {
+                  final arms = ref.watch(armsStreamProvider).valueOrNull ?? [];
+                  final arm = arms
+                      .where((a) => a.id == goals[i].partnershipArmId)
+                      .firstOrNull;
+                  final reached = ref.watch(goalReachedCedisProvider(goals[i]));
+                  return SelGoalLine(
+                    color: armColorOf(ref, goals[i].partnershipArmId),
+                    label: arm?.name ?? 'Partnership arm',
+                    value: reached,
+                    target: goals[i].targetAmountCedis,
+                    valueText: money(reached),
+                    targetText: money(goals[i].targetAmountCedis),
+                  );
+                },
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -366,16 +247,19 @@ class _StaffBlocks extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _ActivityBlock extends ConsumerWidget {
-  const _ActivityBlock();
+  const _ActivityBlock({this.card = false});
+
+  /// The Overview's third card: shorter, titled Recent changes.
+  final bool card;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = ref.watch(activityLogsPreviewProvider).valueOrNull ?? [];
-    if (rows.isEmpty) return const SizedBox.shrink();
+    if (rows.isEmpty && !card) return const SizedBox.shrink();
 
-    final show = rows.take(6).toList();
+    final show = rows.take(card ? 4 : 6).toList();
     return SelPanel(
-      title: 'Recent activity',
+      title: card ? 'Recent changes' : 'Recent activity',
       contentPadding: EdgeInsets.zero,
       child: Column(
         children: [
