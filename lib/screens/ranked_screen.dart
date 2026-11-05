@@ -11,6 +11,7 @@ import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_providers.dart';
+import '../features/periods/providers/periods_providers.dart';
 import 'export_actions.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
@@ -45,9 +46,9 @@ class _RankedScreenState extends ConsumerState<RankedScreen> {
           title: 'Ranked',
           subtitle: switch (_scope) {
             _RankedScope.overall =>
-              'Partners by approved giving in the active period.',
+              'Partners by approved giving · ${ref.watch(activePeriodProvider)?.name ?? 'the active period'}',
             _RankedScope.byArm =>
-              'Partners by approved giving within each partnership arm.',
+              'Partners by approved giving within each arm',
           },
           actions: [
             EntryExportButtons(
@@ -69,7 +70,7 @@ class _RankedScreenState extends ConsumerState<RankedScreen> {
           onChanged: (v) => setState(() => _scope = v),
           options: const [
             (_RankedScope.overall, 'All partners'),
-            (_RankedScope.byArm, 'Partnership arm'),
+            (_RankedScope.byArm, 'Arm'),
           ],
         ),
         const SizedBox(height: SelSpace.x6),
@@ -130,7 +131,7 @@ class _RankedView extends ConsumerWidget {
       children: [
         RecordFilterBar(entries: all, arms: arms),
         const SizedBox(height: SelSpace.x4),
-        PartnerRankedLedger(rows: rows, money: money),
+        PartnerRankedLedger(rows: rows, money: money, entries: all),
       ],
     );
   }

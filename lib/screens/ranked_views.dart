@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -7,6 +8,7 @@ import '../features/arms/domain/partnership_arm.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_models.dart';
+import '../features/partners/providers/partners_providers.dart';
 import 'record_filter_bar.dart';
 
 class RankGroupSection {
@@ -135,42 +137,120 @@ class RankGroupSectionView extends StatelessWidget {
   }
 }
 
-class PartnerRankedLedger extends StatelessWidget {
+/// The ranking table, as on the canvas: a rank badge (navy for the first
+/// three), the partner's initials and name, their fellowship, how many
+/// approved entries they have in the scope, and what they gave.
+class PartnerRankedLedger extends ConsumerWidget {
   const PartnerRankedLedger({
-    super.key,required this.rows, required this.money});
+    super.key,
+    required this.rows,
+    required this.money,
+    this.entries,
+  });
 
   final List<LeaderboardRow> rows;
   final String Function(num) money;
 
+  /// The entries the ranking was made from. When given, the table counts each
+  /// partner's approved entries in them.
+  final List<PartnershipEntry>? entries;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fellowshipOf = ref.watch(partnerFellowshipByIdProvider);
+    final counts = <String, int>{};
+    for (final e in entries ?? const <PartnershipEntry>[]) {
+      if (e.status == 'approved') {
+        counts[e.partnerId] = (counts[e.partnerId] ?? 0) + 1;
+      }
+    }
+    final showCount = entries != null;
     // Builder rather than a finished list: this renders the whole partner
     // ranking, and short per-arm sections still lay out at their natural
     // height because the virtual height clamps to the row count.
     return SelLedger.builder(
-      minWidth: 520,
+      minWidth: 620,
       maxVirtualHeight: 640,
-      columns: const [
-        SelColumn('Rank', fit: SelColFit.fixed, width: 70),
-        SelColumn('Partner', flex: 3),
-        SelColumn.numeric('Approved giving', width: 170),
+      columns: [
+        const SelColumn('Rank', fit: SelColFit.fixed, width: 64),
+        const SelColumn('Partner', flex: 3),
+        const SelColumn('Fellowship', flex: 2),
+        if (showCount) const SelColumn.numeric('Entries', width: 90),
+        const SelColumn.numeric('Given this period', width: 170),
       ],
       itemCount: rows.length,
       itemBuilder: (context, i) {
         final r = rows[i];
+        final top = r.rank <= 3;
+        final words = r.partnerName
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty);
         return SelRow(
           onTap: () => context.go('/partners/${r.partnerId}'),
           cells: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 30,
+                height: 30,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: top ? Sel.ink : Sel.track,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${r.rank}',
+                  style: SelType.small.copyWith(
+                    color: top ? Sel.card : Sel.ink,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: Sel.skyWash,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    words.take(2).map((w) => w[0].toUpperCase()).join(),
+                    style: SelType.small.copyWith(
+                      color: Sel.ink,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: SelSpace.x3),
+                Expanded(
+                  child: Text(
+                    r.partnerName,
+                    overflow: TextOverflow.ellipsis,
+                    style: SelType.body.copyWith(
+                      color: Sel.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SelCell.secondary(fellowshipOf[r.partnerId] ?? ''),
+            if (showCount) SelCell.numeric('${counts[r.partnerId] ?? 0}'),
             Text(
-              '${r.rank}',
+              money(r.totalCedis),
+              textAlign: TextAlign.right,
               style: SelType.body.copyWith(
-                color: r.rank <= 3 ? Sel.ink : Sel.ash,
-                fontWeight: r.rank <= 3 ? FontWeight.w500 : FontWeight.w400,
+                color: Sel.ink,
+                fontWeight: FontWeight.w800,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-            SelCell.primary(r.partnerName),
-            SelCell.numeric(money(r.totalCedis)),
           ],
         );
       },
