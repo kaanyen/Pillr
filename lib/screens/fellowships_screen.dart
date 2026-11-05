@@ -15,9 +15,10 @@ import '../features/entries/providers/record_filters.dart';
 import '../features/leaderboard/leaderboard_models.dart';
 import '../features/leaderboard/leaderboard_providers.dart';
 import '../features/partners/domain/partner.dart';
+import '../features/leaderboard/giving_view.dart';
 import '../features/partners/providers/partners_providers.dart';
+import 'views/view_common.dart';
 import '../features/periods/providers/periods_providers.dart';
-import 'export_actions.dart';
 import 'fellowship_manage_view.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
@@ -44,6 +45,18 @@ class FellowshipsScreen extends ConsumerStatefulWidget {
 }
 
 class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
+  /// "4 fellowships · 45 partners · 2026 partnership year".
+  String _summary(WidgetRef ref) {
+    final view = ref.watch(givingViewProvider);
+    final partners = view.fellowships.fold<int>(0, (s, f) => s + f.partners);
+    final period = ref.watch(activePeriodProvider)?.name;
+    return [
+      '${view.fellowships.length} fellowships',
+      '$partners partners',
+      ?period,
+    ].join(' · ');
+  }
+
   late _View _view = switch (widget.initialView) {
     'ranked' => _View.ranked,
     'manage' => _View.manage,
@@ -97,11 +110,6 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     final canManage = idx?.canManageFellowships ?? false;
     final adminOnly = idx?.isAdmin ?? false;
     final view = adminOnly ? _View.manage : _view;
-    final filters = ref.watch(recordFiltersProvider);
-    final fellowshipFilter = filters.fellowship?.toLowerCase();
-    final showingMembers =
-        view == _View.ranked && fellowshipFilter != null && fellowshipFilter.isNotEmpty;
-
     return SelPageBody(
       onRefresh: () async {
         ref.invalidate(partnersStreamProvider(false));
@@ -111,53 +119,35 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
       children: [
         SelPageTitle(
           title: 'Fellowships',
-          subtitle: view == _View.directory
-              ? 'Every fellowship group in your church and what they have given this period.'
-              : view == _View.manage
-                  ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
-                  : showingMembers
-                      ? 'Partners ranked within this fellowship group.'
-                      : 'Fellowships ranked by total approved giving.',
+          subtitle: view == _View.manage
+              ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
+              : _summary(ref),
           actions: [
-            if (view == _View.ranked)
-              EntryExportButtons(
-                entriesLoader: () => loadEntriesForExport(ref),
-                title: showingMembers
-                    ? 'Fellowship member ranking'
-                    : 'Fellowship ranking',
-                subtitle: showingMembers
-                    ? 'Partners ranked within this fellowship'
-                    : 'Fellowships ranked by approved giving',
+            if (canManage && view != _View.manage)
+              SelButton.cyan(
+                label: 'New fellowship',
+                icon: LucideIcons.plus,
+                onPressed: () => setState(() => _view = _View.manage),
               ),
-            if (view == _View.ranked) const SizedBox(width: SelSpace.x2),
-          ],
-        ),
-        Row(
-          children: [
-            if (!adminOnly)
-              SelPillGroup<_View>(
-                selected: _view,
-                onChanged: (v) => setState(() => _view = v),
-                options: [
-                  (_View.directory, 'Directory'),
-                  (_View.ranked, 'Ranked'),
-                  if (canManage) (_View.manage, 'Manage'),
-                ],
-              ),
-            const Spacer(),
-            if (view == _View.directory)
-              SizedBox(
-                width: 240,
-                child: SelField(
-                  hint: 'Search fellowship',
-                  prefixIcon: LucideIcons.search,
-                  onChanged: (v) =>
-                      setState(() => _query = v.trim().toLowerCase()),
-                ),
+            if (view == _View.manage && !adminOnly)
+              SelButton(
+                label: 'Back to the list',
+                icon: LucideIcons.arrowLeft,
+                onPressed: () => setState(() => _view = _View.directory),
               ),
           ],
         ),
-        const SizedBox(height: SelSpace.x6),
+        if (view == _View.directory) ...[
+          SizedBox(
+            width: 320,
+            child: SelField(
+              hint: 'Find a fellowship',
+              prefixIcon: LucideIcons.search,
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+            ),
+          ),
+        ],
+        const SizedBox(height: SelSpace.x4),
         if (view == _View.directory)
           _FellowshipDirectory(
             query: _query,
@@ -198,46 +188,39 @@ class _FellowshipDirectory extends ConsumerWidget {
   }
 
   Widget _directoryTable(WidgetRef ref, List<Partner> partners) {
-    late final String Function(num) money;
-    try {
-      money = ref.watch(churchMoneyFormatProvider);
-    } catch (_) {
-      money = (n) => n.toStringAsFixed(2);
-    }
-
-    List<PartnershipEntry> entries = const [];
-    try {
-      entries = ref.watch(filteredEntriesProvider);
-    } catch (_) {}
-
-    final period = ref.watch(activePeriodProvider);
-    final catalog =
-        ref.watch(churchSettingsProvider).valueOrNull?.fellowshipNames ??
-            const [];
-    late final List<FellowshipDirectoryRow> computed;
-    try {
-      computed = FellowshipDirectoryRow.fromPartnersAndEntries(
-        partners.map((p) => p.fellowship),
-        entries,
-        periodId: period?.id,
-        fellowshipByPartnerId: {for (final p in partners) p.id: p.fellowship},
-        catalog: catalog,
-      );
-    } catch (e) {
-      return SelError(message: '$e');
-    }
+    final money = ref.watch(churchMoneyFormatProvider);
+    final view = ref.watch(givingViewProvider);
     final rows = [
-      for (final row in computed)
-        if (query.isEmpty || row.fellowshipName.toLowerCase().contains(query))
-          row,
+      for (final f in view.fellowships)
+        if (query.isEmpty || f.name.toLowerCase().contains(query)) f,
     ];
+    Widget amountWithPlace(double v, int place) => Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          money(v),
+          style: SelType.body.copyWith(
+            color: Sel.text,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 28,
+          child: Text(place > 0 ? ordinal(place) : '', style: SelType.small),
+        ),
+      ],
+    );
 
     return SelLedger(
-      minWidth: 640,
-      columns: const [
-        SelColumn('Fellowship', flex: 3),
-        SelColumn.numeric('Partners', width: 110),
-        SelColumn.numeric('Approved this period', width: 190),
+      minWidth: 200.0 + view.arms.length * 170 + 150,
+      columns: [
+        const SelColumn('Fellowship', flex: 2),
+        const SelColumn.numeric('Partners', width: 90),
+        for (final a in view.arms) SelColumn.numeric(a.name, width: 170),
+        const SelColumn.numeric('Total', width: 150),
       ],
       emptyState: SelEmpty(
         title: query.isEmpty ? 'No fellowships yet' : 'No matches',
@@ -247,13 +230,36 @@ class _FellowshipDirectory extends ConsumerWidget {
         icon: LucideIcons.users,
       ),
       rows: [
-        for (final row in rows)
+        for (final f in rows)
           SelRow(
-            onTap: () => onOpenFellowship(row.fellowshipKey),
+            onTap: () => onOpenFellowship(f.key),
             cells: [
-              SelCell.primary(row.fellowshipName),
-              SelCell.numeric('${row.partnerCount}'),
-              SelCell.numeric(money(row.periodTotalCedis)),
+              SelCell.primary(f.name),
+              SelCell.numeric('${f.partners}', strong: false),
+              for (final a in view.arms)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: amountWithPlace(
+                    f.byArm[a.id] ?? 0,
+                    (f.byArm[a.id] ?? 0) > 0
+                        ? view.placeOf(f.key, armId: a.id)
+                        : 0,
+                  ),
+                ),
+              SelCell.numeric(money(f.total)),
+            ],
+          ),
+        if (rows.isNotEmpty && query.isEmpty)
+          SelRow(
+            cells: [
+              Text('All', style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w800)),
+              SelCell.numeric('${view.fellowships.fold<int>(0, (s, f) => s + f.partners)}'),
+              for (final a in view.arms)
+                Padding(
+                  padding: const EdgeInsets.only(right: 34),
+                  child: SelCell.numeric(money(view.armTotal(a.id))),
+                ),
+              SelCell.numeric(money(view.total)),
             ],
           ),
       ],
