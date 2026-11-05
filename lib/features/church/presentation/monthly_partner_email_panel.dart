@@ -17,10 +17,14 @@ class MonthlyPartnerEmailPanel extends ConsumerStatefulWidget {
     super.key,
     required this.idx,
     required this.settings,
+    this.bare = false,
   });
 
   final UserChurchIndex idx;
   final ChurchSettings settings;
+
+  /// Without its own card, for Settings' two-column sections.
+  final bool bare;
 
   @override
   ConsumerState<MonthlyPartnerEmailPanel> createState() =>
@@ -160,6 +164,7 @@ class _MonthlyPartnerEmailPanelState
         : null;
 
     return SelPanel(
+      bare: widget.bare,
       title: 'Monthly partner emails',
       subtitle:
           'On the 15th, partners who gave the month before get a letter from '

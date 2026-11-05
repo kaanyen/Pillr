@@ -109,6 +109,7 @@ class SelPanel extends StatelessWidget {
     this.trailing,
     this.lift = SelLift.card,
     this.contentPadding,
+    this.bare = false,
   });
 
   final String title;
@@ -118,8 +119,12 @@ class SelPanel extends StatelessWidget {
   final SelLift lift;
   final EdgeInsetsGeometry? contentPadding;
 
+  /// Only the content, for a page that sets the title beside it itself.
+  final bool bare;
+
   @override
   Widget build(BuildContext context) {
+    if (bare) return child;
     return SelCard(
       lift: lift,
       padding: EdgeInsets.zero,

@@ -16,10 +16,14 @@ class ExchangeRatesSettingsPanel extends ConsumerStatefulWidget {
     super.key,
     required this.churchId,
     required this.initialRates,
+    this.bare = false,
   });
 
   final String churchId;
   final ChurchExchangeRates initialRates;
+
+  /// Without its own card, for Settings' two-column sections.
+  final bool bare;
 
   @override
   ConsumerState<ExchangeRatesSettingsPanel> createState() =>
@@ -203,6 +207,7 @@ class _ExchangeRatesSettingsPanelState
     final canRecalculate =
         ref.watch(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
     return SelPanel(
+      bare: widget.bare,
       title: 'Exchange rates',
       subtitle:
           'Base currency is Ghana cedi (${BaseCurrency.code}). '
