@@ -47,10 +47,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
     setState(() => _busy = true);
     try {
-      await ref.read(authRepositoryProvider).signInWithEmail(
-            email: _email.text.trim(),
-            password: _password.text,
-          );
+      await ref
+          .read(authRepositoryProvider)
+          .signInWithEmail(email: _email.text.trim(), password: _password.text);
       if (mounted) context.go('/overview');
     } catch (e) {
       if (mounted) setState(() => _error = humanizeAuthException(e));
@@ -61,7 +60,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   Future<void> _forgot() async {
     if (!isValidEmail(_email.text)) {
-      setState(() => _error = 'Enter your email above, then tap Forgot password.');
+      setState(
+        () => _error = 'Enter your email above, then tap Forgot password.',
+      );
       return;
     }
     try {
@@ -69,7 +70,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           .read(authRepositoryProvider)
           .sendPasswordResetEmail(_email.text);
       if (mounted) {
-        setState(() => _notice = 'Password reset sent to ${_email.text.trim()}.');
+        setState(
+          () => _notice = 'Password reset sent to ${_email.text.trim()}.',
+        );
       }
     } catch (e) {
       if (mounted) setState(() => _error = humanizeAuthException(e));

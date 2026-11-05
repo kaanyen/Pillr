@@ -150,7 +150,11 @@ class AuthShell extends StatelessWidget {
 
 /// Tells the panel's contents whether they have the full height to fill.
 class AuthPanelScope extends InheritedWidget {
-  const AuthPanelScope({super.key, required this.compact, required super.child});
+  const AuthPanelScope({
+    super.key,
+    required this.compact,
+    required super.child,
+  });
 
   final bool compact;
 
@@ -173,7 +177,12 @@ class _NavyPanel extends StatelessWidget {
     return Container(
       color: Sel.ink,
       padding: compact
-          ? const EdgeInsets.fromLTRB(SelSpace.x4, SelSpace.x6, SelSpace.x4, SelSpace.x6)
+          ? const EdgeInsets.fromLTRB(
+              SelSpace.x4,
+              SelSpace.x6,
+              SelSpace.x4,
+              SelSpace.x6,
+            )
           : const EdgeInsets.fromLTRB(48, 40, 48, 36),
       child: SafeArea(
         bottom: false,
@@ -289,7 +298,8 @@ class AuthPanelFoot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final list = items ??
+    final list =
+        items ??
         const [
           (LucideIcons.shieldCheck, 'Only your church sees its giving'),
           (LucideIcons.lock, 'Signed in on this device only'),
