@@ -1,99 +1,167 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
+import '../core/extensions/async_value_ext.dart';
 import '../design/seline.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/providers/entries_providers.dart';
-import '../features/entries/providers/monthly_records_entries_provider.dart';
-import '../l10n/app_localizations.dart';
-import 'monthly_records_view.dart';
+import '../features/leaderboard/giving_view.dart';
+import '../features/periods/providers/periods_providers.dart';
+import 'views/view_common.dart';
 
-/// Records — browse approved giving grouped by month.
-class MonthlyRecordsScreen extends ConsumerStatefulWidget {
+/// Records · By month, as on the canvas: one row per month of the period
+/// (entries, approved, still waiting) and the year so far. A month opens who
+/// gave in it.
+class MonthlyRecordsScreen extends ConsumerWidget {
   const MonthlyRecordsScreen({super.key});
 
   @override
-  ConsumerState<MonthlyRecordsScreen> createState() =>
-      _MonthlyRecordsScreenState();
-}
-
-class _MonthlyRecordsScreenState extends ConsumerState<MonthlyRecordsScreen> {
-  final _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollController.addListener(_onScroll);
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    final entriesState = ref.read(monthlyRecordsEntriesProvider);
-    if (entriesState.loading ||
-        entriesState.loadingMore ||
-        !entriesState.hasMore) {
-      return;
-    }
-    final pos = _scrollController.position;
-    if (pos.pixels >= pos.maxScrollExtent - 320) {
-      ref.read(monthlyRecordsEntriesProvider.notifier).loadMore();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+  Widget build(BuildContext context, WidgetRef ref) {
     final money = ref.watch(churchMoneyFormatProvider);
-    final entriesState = ref.watch(monthlyRecordsEntriesProvider);
-    final index = ref.watch(monthlyRecordsIndexProvider);
+    final view = ref.watch(givingViewProvider);
+    final loading = ref.watch(givingViewLoadingProvider);
+    final period = ref.watch(activePeriodProvider);
+    final pending =
+        ref.watch(pendingEntriesProvider).valueOrNull ?? const [];
+    final waiting = <int, double>{};
+    for (final e in pending) {
+      final m = GivingView.monthKey(e.dateGiven);
+      waiting[m] = (waiting[m] ?? 0) + e.amountCedis;
+    }
+    final now = GivingView.monthKey(DateTime.now());
+    final months = view.months.where((m) => m <= now).toList();
+    final waitingTotal = waiting.values.fold<double>(0, (s, v) => s + v);
+
+    Widget waitingCell(double v) => Align(
+      alignment: Alignment.centerRight,
+      child: v == 0
+          ? Text('None', style: SelType.small)
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Sel.skyWash,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Text(money(v), style: SelType.tag),
+            ),
+    );
 
     return SelPageBody(
-      controller: _scrollController,
-      onRefresh: () async =>
-          ref.read(monthlyRecordsEntriesProvider.notifier).refresh(),
       children: [
         SelPageTitle(
-          title: l10n.recordsMonthlyTitle,
-          subtitle: l10n.recordsMonthlySubtitle,
+          title: 'By month',
+          subtitle:
+              '${period?.name ?? 'This period'} · counted by the date giving was given',
           actions: [
             SelButton(
-              label: l10n.navRecordsAll,
-              icon: LucideIcons.list,
+              label: 'All records',
               kind: SelButtonKind.quiet,
               onPressed: () => context.go('/records'),
             ),
           ],
         ),
-        if (entriesState.error != null && entriesState.initialized)
-          Padding(
-            padding: const EdgeInsets.only(bottom: SelSpace.x4),
-            child: SelError(
-              message: entriesState.error!,
-              onRetry: () =>
-                  ref.read(monthlyRecordsEntriesProvider.notifier).refresh(),
-            ),
-          ),
-        if (entriesState.loading && !entriesState.initialized)
-          const SelCard(child: SelSkeletonRows())
+        if (loading)
+          const ViewLoading()
         else
-          MonthlyRecordsView(
-            index: index,
-            money: money,
-            loadedEntryCount: entriesState.entries.length,
-            hasMore: entriesState.hasMore,
-            loadingMore: entriesState.loadingMore,
-            onLoadMore: () =>
-                ref.read(monthlyRecordsEntriesProvider.notifier).loadMore(),
+          SelLedger(
+            minWidth: 640,
+            columns: const [
+              SelColumn('Month', flex: 3),
+              SelColumn('Entries', flex: 2),
+              SelColumn.numeric('Approved', width: 180),
+              SelColumn.numeric('Waiting', width: 160),
+            ],
+            emptyState: const SelEmpty(
+              title: 'No months yet',
+              message: 'Open a giving period to count giving by month.',
+            ),
+            rows: [
+              for (final m in months)
+                SelRow(
+                  onTap: () => _showMonth(context, view, m, money),
+                  cells: [
+                    Row(
+                      children: [
+                        Text(
+                          monthLong(m).split(' ').first,
+                          style: SelType.body.copyWith(color: Sel.text),
+                        ),
+                        if (m == now)
+                          Text(' · so far', style: SelType.small),
+                      ],
+                    ),
+                    SelCell.secondary('${view.entriesByMonth[m] ?? 0}'),
+                    SelCell.numeric(money(view.monthTotal(m))),
+                    waitingCell(waiting[m] ?? 0),
+                  ],
+                ),
+              if (months.isNotEmpty)
+                SelRow(
+                  cells: [
+                    Text(
+                      'Year so far',
+                      style: SelType.body.copyWith(
+                        color: Sel.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text('${view.entryCount}', style: SelType.bodyMedium.copyWith(color: Sel.text)),
+                    Text(
+                      money(view.total),
+                      textAlign: TextAlign.right,
+                      style: SelType.subtitleSm.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(money(waitingTotal), style: SelType.bodyMedium.copyWith(color: Sel.text)),
+                    ),
+                  ],
+                ),
+            ],
           ),
       ],
+    );
+  }
+
+  /// Who gave in [month], biggest first.
+  void _showMonth(
+    BuildContext context,
+    GivingView view,
+    int month,
+    String Function(num) money,
+  ) {
+    final gave = view.partners.where((p) => (p.byMonth[month] ?? 0) > 0).toList()
+      ..sort((a, b) => (b.byMonth[month] ?? 0).compareTo(a.byMonth[month] ?? 0));
+    showSelSideSheet<void>(
+      context,
+      title: monthLong(month),
+      subtitle:
+          '${gave.length} partners · ${money(view.monthTotal(month))} approved',
+      child: SelLedger(
+        minWidth: 360,
+        columns: const [
+          SelColumn('Partner', flex: 3),
+          SelColumn.numeric('Gave', width: 140),
+        ],
+        emptyState: const SelEmpty(
+          title: 'Nobody yet',
+          message: 'No approved giving in this month.',
+        ),
+        rows: [
+          for (final p in gave)
+            SelRow(
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go('/partners/${p.partnerId}');
+              },
+              cells: [
+                SelCell.stacked(p.name, p.fellowship),
+                SelCell.numeric(money(p.byMonth[month] ?? 0)),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

@@ -67,6 +67,7 @@ class GivingView {
     this.entryCount,
     this.armEntries,
     this.armByMonth,
+    this.entriesByMonth,
   );
 
   final List<PartnershipArm> arms;
@@ -89,6 +90,9 @@ class GivingView {
 
   /// Giving per month per main arm.
   final Map<int, Map<String, double>> armByMonth;
+
+  /// Approved entries per month.
+  final Map<int, int> entriesByMonth;
 
   FellowshipGiving? fellowship(String key) {
     for (final f in fellowships) {
@@ -137,6 +141,7 @@ class GivingView {
     }
 
     final armEntries = <String, int>{};
+    final entriesByMonth = <int, int>{};
     final armByMonth = <int, Map<String, double>>{};
     var total = 0.0;
     var count = 0;
@@ -176,6 +181,7 @@ class GivingView {
       f.byMonth[month] = (f.byMonth[month] ?? 0) + e.amountCedis;
 
       armEntries[armId] = (armEntries[armId] ?? 0) + 1;
+      entriesByMonth[month] = (entriesByMonth[month] ?? 0) + 1;
       final row = armByMonth.putIfAbsent(month, () => {});
       row[armId] = (row[armId] ?? 0) + e.amountCedis;
 
@@ -196,6 +202,7 @@ class GivingView {
       count,
       armEntries,
       armByMonth,
+      entriesByMonth,
     );
   }
 }
