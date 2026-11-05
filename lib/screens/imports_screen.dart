@@ -38,6 +38,7 @@ class ImportsScreen extends ConsumerStatefulWidget {
 class _ImportsScreenState extends ConsumerState<ImportsScreen> {
   final _scrollController = ScrollController();
   String? _busyBatchId;
+  String? _openId;
 
   @override
   void initState() {
@@ -70,20 +71,21 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       controller: _scrollController,
       onRefresh: () => ref.read(importHistoryProvider.notifier).refresh(),
       children: [
+        Row(
+          children: [
+            SelLink(label: 'Records', onTap: () => context.go('/records')),
+            Text('  /  ', style: SelType.bodySm),
+            Text('Imports', style: SelType.bodySm),
+          ],
+        ),
+        const SizedBox(height: SelSpace.x3),
         SelPageTitle(
           title: 'Imports',
-          subtitle: 'Every spreadsheet brought into Pillr, and what it created.',
+          subtitle:
+              'Every sheet brought into Pillr, and what it created. Clear or move a whole import in one step.',
           actions: [
-            SelButton(
-              label: 'Records',
-              icon: LucideIcons.list,
-              kind: SelButtonKind.quiet,
-              onPressed: () => context.go('/records'),
-            ),
-            const SizedBox(width: SelSpace.x2),
             SelButton.cyan(
-              label: 'New import',
-              icon: LucideIcons.upload,
+              label: 'Bring in a sheet',
               onPressed: () => context.go('/entries/bulk-import'),
             ),
           ],
@@ -113,26 +115,32 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final b in state.batches) ...[
-                _BatchCard(
-                  batch: b,
-                  money: money,
-                  canManage: canManage,
-                  busy: _busyBatchId == b.id,
-                  onOpenRows: () => context.go('/records?import=${b.id}'),
-                  onEdit: () => context.go('/records/imports/${b.id}/edit'),
-                  canEdit: idx?.isPastor ?? false,
-                  onRename: () => _rename(b),
-                  onReassign: () => _reassign(b),
-                  onClear: () => _clear(b),
-                  onUndo: () => _undo(b),
-                  onRestore: () => _restore(b),
-                  onUndoMove: () => _undoMove(b),
-                  onUndoRename: () => _undoRename(b),
-                  onRevertEdits: () => _revertEdits(b),
-                ),
-                const SizedBox(height: SelSpace.x3),
-              ],
+              _ImportsTable(
+                batches: state.batches,
+                money: money,
+                openId: _openId ?? state.batches.first.id,
+                onOpen: (b) => setState(() => _openId = b.id),
+              ),
+              const SizedBox(height: SelSpace.x4),
+              for (final b in state.batches)
+                if (b.id == (_openId ?? state.batches.first.id))
+                  _BatchCard(
+                    batch: b,
+                    money: money,
+                    canManage: canManage,
+                    busy: _busyBatchId == b.id,
+                    onOpenRows: () => context.go('/records?import=${b.id}'),
+                    onEdit: () => context.go('/records/imports/${b.id}/edit'),
+                    canEdit: idx?.isPastor ?? false,
+                    onRename: () => _rename(b),
+                    onReassign: () => _reassign(b),
+                    onClear: () => _clear(b),
+                    onUndo: () => _undo(b),
+                    onRestore: () => _restore(b),
+                    onUndoMove: () => _undoMove(b),
+                    onUndoRename: () => _undoRename(b),
+                    onRevertEdits: () => _revertEdits(b),
+                  ),
               if (state.loadingMore)
                 const Padding(
                   padding: EdgeInsets.only(top: SelSpace.x4),
@@ -568,6 +576,28 @@ class _BatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settled = batch.isVoided || batch.isUndone;
+    final actions = <(String, String, String, VoidCallback, bool)>[
+      // (title, help, button, action, primary-looking)
+      ('See its rows', 'Every entry this import created, in Records.', 'Open', onOpenRows, false),
+      if (canEdit && !settled)
+        ('Correct its rows', 'Fix amounts, arms or partners across the import.', 'Edit', onEdit, false),
+      if (canManage && !settled)
+        ('Move to another period', 'For a sheet brought into the wrong year. Every entry it created moves with it.', 'Move', onReassign, true),
+      if (canManage && !settled && batch.canUndoMove)
+        ('Move it back', 'Puts its entries back where they were before the last move.', 'Undo move', onUndoMove, false),
+      if (!settled)
+        ('Take back what is still waiting', 'Removes its entries that no pastor has approved yet.', 'Undo', onUndo, false),
+      if (canEdit && !settled && batch.canRevertEdits)
+        ('Revert the last corrections', 'Puts the rows back as they were before the last edit.', 'Revert', onRevertEdits, false),
+      if (canManage && !batch.isVoided)
+        ('Clear this import', 'Voids all ${batch.entryCount} entries. Approved ones leave the totals; nothing is deleted.', 'Clear', onClear, true),
+      if (canManage && batch.isVoided)
+        ('Restore this import', 'Brings its entries back, as they were before it was cleared.', 'Restore', onRestore, true),
+      if (canManage)
+        ('Rename', 'A file name says little six months later.', 'Rename', onRename, false),
+      if (canManage && batch.canUndoRename)
+        ('Undo the name', 'Goes back to the name it had before.', 'Undo name', onUndoRename, false),
+    ];
 
     return SelCard(
       child: Column(
@@ -576,192 +606,128 @@ class _BatchCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(batch.displayName, style: SelType.subtitleSm),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      '${batch.periodName} · uploaded '
-                      '${formatFirestoreDate(batch.createdAt, pattern: "d MMM y")} '
-                      'by ${batch.createdByName}',
-                      style: SelType.small,
+              Expanded(child: Text(batch.displayName, style: SelType.subtitle)),
+              Text(
+                '${batch.entryCount} entries · ${money(batch.totalCedis)} · ${batch.periodName}',
+                style: SelType.small,
+              ),
+            ],
+          ),
+          if (batch.note != null) ...[
+            const SizedBox(height: SelSpace.x1),
+            Text(batch.note!, style: SelType.bodySm),
+          ],
+          const SizedBox(height: SelSpace.x2),
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0) const Divider(height: 1, color: Sel.rowLine),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          actions[i].$1,
+                          style: SelType.body.copyWith(
+                            color: Sel.text,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(actions[i].$2, style: SelType.small),
+                      ],
                     ),
-                    if (batch.preparedBy != null) ...[
-                      const SizedBox(height: SelSpace.x1),
-                      Text('Prepared by ${batch.preparedBy}',
-                          style: SelType.small),
-                    ],
-                    // The file name is how it was identified before it was
-                    // named; keep it visible once it is not the title any more.
-                    if (batch.label != null && batch.fileName.isNotEmpty) ...[
-                      const SizedBox(height: SelSpace.x1),
-                      Text(batch.fileName, style: SelType.small),
-                    ],
-                    if (batch.note != null) ...[
-                      const SizedBox(height: SelSpace.x2),
-                      Text(batch.note!, style: SelType.bodyMuted),
-                    ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: SelSpace.x4),
+                  if (actions[i].$5)
+                    SelButton(
+                      label: actions[i].$3,
+                      onPressed: busy ? null : actions[i].$4,
+                    )
+                  else
+                    SelLink(
+                      label: actions[i].$3,
+                      onTap: busy ? null : actions[i].$4,
+                    ),
+                ],
               ),
-              if (batch.isIncomplete)
-                const SelStatusMark(status: SelStatus.pending, label: 'Did not finish')
-              else if (batch.isVoided)
-                const SelStatusMark(status: SelStatus.voided, label: 'Cleared')
-              else if (batch.isUndone)
-                const SelStatusMark(status: SelStatus.voided, label: 'Undone'),
-            ],
-          ),
-
-          const SizedBox(height: SelSpace.x4),
-
-          Wrap(
-            spacing: SelSpace.x8,
-            runSpacing: SelSpace.x3,
-            children: [
-              _Stat(label: 'Entries', value: '${batch.entryCount}'),
-              _Stat(label: 'Total', value: money(batch.totalCedis)),
-              _Stat(
-                label: 'Prepared by',
-                value: batch.preparedBy ?? 'Not recorded',
-              ),
-              _Stat(label: 'Uploaded by', value: batch.createdByName),
-              if (batch.partnersCreated > 0)
-                _Stat(
-                  label: 'Partners added',
-                  value: '${batch.partnersCreated}',
-                ),
-              if (batch.skippedCount > 0)
-                _Stat(label: 'Skipped', value: '${batch.skippedCount}'),
-              if (batch.isVoided)
-                _Stat(label: 'Voided', value: '${batch.voidedCount}'),
-              if (batch.isUndone) ...[
-                _Stat(label: 'Removed', value: '${batch.removedCount}'),
-                _Stat(label: 'Kept', value: '${batch.keptCount}'),
-              ],
-            ],
-          ),
-
-          const SizedBox(height: SelSpace.x4),
-          const Divider(height: 1, color: Sel.border),
-          const SizedBox(height: SelSpace.x3),
-
-          Wrap(
-            spacing: SelSpace.x2,
-            runSpacing: SelSpace.x2,
-            children: [
-              SelButton(
-                label: 'See its rows',
-                icon: LucideIcons.list,
-                kind: SelButtonKind.quiet,
-                dense: true,
-                onPressed: onOpenRows,
-              ),
-              if (canEdit && !settled)
-                SelButton(
-                  label: 'Edit this import',
-                  icon: LucideIcons.pencil,
-                  kind: SelButtonKind.quiet,
-                  dense: true,
-                  onPressed: busy ? null : onEdit,
-                ),
-              if (!batch.isUndone && !batch.isVoided)
-                SelButton(
-                  label: 'Undo pending rows',
-                  icon: LucideIcons.undo2,
-                  kind: SelButtonKind.quiet,
-                  dense: true,
-                  onPressed: busy ? null : onUndo,
-                ),
-              if (canManage) ...[
-                SelButton(
-                  label: 'Rename',
-                  icon: LucideIcons.pencil,
-                  kind: SelButtonKind.quiet,
-                  dense: true,
-                  onPressed: busy ? null : onRename,
-                ),
-                if (batch.canUndoRename)
-                  SelButton(
-                    label: 'Undo name',
-                    icon: LucideIcons.undo2,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onUndoRename,
-                  ),
-                // A settled import has no money left to move.
-                if (!settled)
-                  SelButton(
-                    label: 'Move to another period',
-                    icon: LucideIcons.arrowRightLeft,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onReassign,
-                  ),
-                if (!settled && batch.canUndoMove)
-                  SelButton(
-                    label: 'Undo move',
-                    icon: LucideIcons.undo2,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onUndoMove,
-                  ),
-                if (canEdit && !settled && batch.canRevertEdits)
-                  SelButton(
-                    label: 'Revert last corrections',
-                    icon: LucideIcons.undo2,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onRevertEdits,
-                  ),
-                if (!batch.isVoided)
-                  SelButton(
-                    label: 'Clear this import',
-                    icon: LucideIcons.ban,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onClear,
-                  ),
-                if (batch.isVoided)
-                  SelButton(
-                    label: 'Restore this import',
-                    icon: LucideIcons.rotateCcw,
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: busy ? null : onRestore,
-                  ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-  final String label;
-  final String value;
+/// Every import as one table row: what it was, when and by whom, what it
+/// created and where it stands. Open shows its actions below the table.
+class _ImportsTable extends StatelessWidget {
+  const _ImportsTable({
+    required this.batches,
+    required this.money,
+    required this.openId,
+    required this.onOpen,
+  });
+
+  final List<BulkImportBatch> batches;
+  final String Function(num) money;
+  final String openId;
+  final ValueChanged<BulkImportBatch> onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label.toUpperCase(), style: SelType.caption),
-        const SizedBox(height: 2),
-        Text(value, style: SelType.bodyMedium),
+    return SelLedger(
+      minWidth: 860,
+      rowExtent: kSelLedgerStackedRowExtent,
+      columns: const [
+        SelColumn('Import', flex: 3),
+        SelColumn('Brought in', flex: 2),
+        SelColumn.numeric('Entries', width: 80),
+        SelColumn.numeric('Giving', width: 140),
+        SelColumn('Also', flex: 2),
+        SelColumn('Status', fit: SelColFit.fixed, width: 130),
+        SelColumn('', fit: SelColFit.fixed, width: 70),
+      ],
+      rows: [
+        for (final b in batches)
+          SelRow(
+            selected: b.id == openId,
+            onTap: () => onOpen(b),
+            cells: [
+              SelCell.stacked(b.displayName, b.fileName),
+              SelCell.stacked(
+                formatFirestoreDate(b.createdAt, pattern: 'd MMM, HH:mm'),
+                b.createdByName,
+              ),
+              SelCell.numeric(b.entryCount == 0 ? '—' : '${b.entryCount}', strong: false),
+              SelCell.numeric(b.entryCount == 0 ? '—' : money(b.totalCedis)),
+              SelCell.secondary(
+                b.isVoided
+                    ? 'Every row left out'
+                    : b.partnersCreated > 0
+                    ? '${b.partnersCreated} new ${b.partnersCreated == 1 ? 'partner' : 'partners'}'
+                    : b.skippedCount > 0
+                    ? '${b.skippedCount} rows skipped'
+                    : b.periodName,
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: b.isIncomplete
+                    ? const SelStatusMark(status: SelStatus.pending, label: 'Not finished')
+                    : b.isVoided
+                    ? const SelStatusMark(status: SelStatus.voided, label: 'Cleared')
+                    : b.isUndone
+                    ? const SelStatusMark(status: SelStatus.voided, label: 'Undone')
+                    : const SelStatusMark(status: SelStatus.approved, label: 'Brought in'),
+              ),
+              SelLink(label: 'Open', onTap: () => onOpen(b)),
+            ],
+          ),
       ],
     );
   }
 }
-
-// -------------------------------------------------------------------- dialogs
 
 class _RenameDialog extends StatefulWidget {
   const _RenameDialog({required this.batch});
