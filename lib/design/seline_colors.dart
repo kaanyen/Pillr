@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Seline — quiet analyst's desk on warm paper.
+/// Relief — navy and sky on a near-white page (the canvas design).
+///
+/// The names stay Seline's so every screen picks up the new values at once.
 ///
 /// The whole palette is the Tailwind stone scale plus exactly one cyan. That
 /// restraint is the design: because nothing else is chromatic, the cyan CTA
@@ -15,44 +17,68 @@ abstract final class Sel {
   // -------------------------------------------------------------------
 
   /// Page background. Warm off-white that reads as paper, not screen-white.
-  static const Color canvas = Color(0xFFFAFAF9);
+  static const Color canvas = Color(0xFFFEFEFD);
+
+  /// The sidebar: a faint baby blue, so navigation reads apart from the page.
+  static const Color rail = Color(0xFFF3F8FD);
+
+  /// The sidebar's edge and its quiet dividers.
+  static const Color railEdge = Color(0xFFE2EDF8);
+
+  /// The selected sidebar item.
+  static const Color railSelected = Color(0xFFD9EBFC);
+
+  /// Hovered sidebar item.
+  static const Color railHover = Color(0xFFE7F1FB);
+
+  /// Light grey for tab tracks, pill fills and quiet chips.
+  static const Color track = Color(0xFFF1F5F9);
 
   /// Card surfaces, nav fills, input fills. One elevation step above canvas.
   static const Color card = Color(0xFFFFFFFF);
 
   /// The primary structural device — hairline borders on cards and inputs.
-  static const Color border = Color(0xFFE8E6E5);
+  static const Color border = Color(0xFFE3E8EE);
 
   /// Secondary borders, subtle tints, decorative separators.
-  static const Color borderMuted = Color(0xFFD6D3D1);
+  static const Color borderMuted = Color(0xFFD0D5DD);
 
   /// Disabled and decorative strokes only. About 2.4:1 on [canvas] — too
   /// light for captions, chevrons, or any text a person must read. Those
   /// use [warm] (~4.6:1).
-  static const Color ash = Color(0xFFA8A29E);
+  static const Color ash = Color(0xFF9AA6B8);
 
   /// Body text, nav links, secondary copy. Warm neutral that softens body type.
-  static const Color warm = Color(0xFF78716C);
+  static const Color warm = Color(0xFF616C8A);
 
   /// Primary headings, emphasised body, strong icons.
-  static const Color ink = Color(0xFF0C0A09);
+  static const Color ink = Color(0xFF13426F);
+
+  /// Running text: near-black, softer than navy for long reading.
+  static const Color text = Color(0xFF333333);
 
   /// Inverted surfaces — active tab pills, dark panels. Used sparingly.
-  static const Color soot = Color(0xFF1C1917);
+  static const Color soot = Color(0xFF13426F);
 
   // -------------------------------------------------------------------
   // The single chromatic voice.
   // -------------------------------------------------------------------
 
   /// Primary CTA fill, active links, brand strokes. The only filled colour.
-  static const Color cyan = Color(0xFF3BA6F1);
+  static const Color cyan = Color(0xFF0F6FD6);
+
+  /// The brand sky: the logo's capital, highlights, the loader.
+  static const Color sky = Color(0xFF2E96FF);
 
   /// Outlined action borders, linked labels, lightweight emphasis.
   /// Never promote this to a primary CTA fill.
-  static const Color cyanEdge = Color(0xFF3398E1);
+  static const Color cyanEdge = Color(0xFF0254A5);
 
   /// Soft wash behind highlighted text spans. Pairs with [cyanEdge] text.
-  static const Color skyWash = Color(0xFFC1E1F7);
+  static const Color skyWash = Color(0xFFBDE1F9);
+
+  /// Faint sky fill for selected rows, chosen options and icon tiles.
+  static const Color skyTint = Color(0xFFEEF6FE);
 
   // -------------------------------------------------------------------
   // Semantic state.
@@ -69,7 +95,7 @@ abstract final class Sel {
   // -------------------------------------------------------------------
 
   /// Settled, correct, complete. Moss.
-  static const Color success = Color(0xFF4D7C5F);
+  static const Color success = Color(0xFF1D6B43);
 
   /// Waiting, in progress, needs a decision. Ochre.
   static const Color warning = Color(0xFFB8862B);
@@ -82,7 +108,7 @@ abstract final class Sel {
 
   /// Chip and banner backgrounds for the four states above. Low-chroma so a
   /// column of them stays calm; the text and icon carry the signal.
-  static const Color successWash = Color(0xFFE8F0EA);
+  static const Color successWash = Color(0xFFE4F4EA);
   static const Color warningWash = Color(0xFFF7EFDC);
   static const Color dangerWash = Color(0xFFF5E6E3);
   static const Color infoWash = skyWash;
@@ -148,20 +174,12 @@ abstract final class Sel {
 abstract final class SelShadow {
   /// Content cards. Soft 16px blur at 5% — lift without weight.
   static const List<BoxShadow> card = [
-    BoxShadow(
-      color: Color(0x0D000000),
-      blurRadius: 16,
-      offset: Offset(0, 4),
-    ),
+    BoxShadow(color: Color(0x0A000000), offset: Offset(0, 3)),
   ];
 
   /// Nav strips and buttons — barely there.
   static const List<BoxShadow> hairline = [
-    BoxShadow(
-      color: Color(0x0D000000),
-      blurRadius: 2,
-      offset: Offset(0, 1),
-    ),
+    BoxShadow(color: Color(0x0A000000), offset: Offset(0, 2)),
   ];
 
   /// Small chips and decorative icons.
@@ -173,10 +191,11 @@ abstract final class SelShadow {
   /// The one deep shadow in the system. Hero surfaces only — at most one per
   /// screen, and never on a list row or an ordinary card.
   static const List<BoxShadow> floating = [
-    BoxShadow(
-      color: Color(0x1F110C2E),
-      blurRadius: 45,
-      offset: Offset(0, 12),
-    ),
+    BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 12), spreadRadius: -10),
+  ];
+
+  /// The primary button's flat light-sky block underneath.
+  static const List<BoxShadow> pop = [
+    BoxShadow(color: Color(0x809ACFF6), offset: Offset(0, 6)),
   ];
 }

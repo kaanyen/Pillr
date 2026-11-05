@@ -101,7 +101,7 @@ class BulkImportDropZone extends StatelessWidget {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: PillrLoader(size: 20),
                           )
                         : Text(
                             l10n.bulkImportBrowseFiles,

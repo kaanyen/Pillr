@@ -57,12 +57,7 @@ class SelShell extends ConsumerWidget {
                         : Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  left: SelSpace.x6,
-                                ),
-                                child: SelRail(currentPath: path),
-                              ),
+                              SelRail(currentPath: path),
                               Expanded(child: child),
                             ],
                           ),

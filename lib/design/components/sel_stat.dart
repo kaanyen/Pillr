@@ -44,7 +44,7 @@ class SelStat extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    label.toUpperCase(),
+                    label,
                     style: SelType.caption,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

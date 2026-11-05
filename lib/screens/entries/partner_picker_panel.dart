@@ -97,7 +97,7 @@ class _PartnerPickerPanelState extends ConsumerState<PartnerPickerPanel> {
         SizedBox(
           height: 360,
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const Center(child: PillrLoader(size: 40))
               : ListView(
                   children: [
                     for (final p in _results)

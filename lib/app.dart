@@ -29,10 +29,12 @@ class PillrApp extends ConsumerWidget {
       theme: SelTheme.light(seedColor: seed),
       routerConfig: appRouter,
       builder: (context, child) {
-        return SelNoticeHost(
-          child: SessionIdleListener(
-            child: BulkImportCommitProgressOverlay(
-              child: child ?? const SizedBox.shrink(),
+        return PillrBootSplash(
+          child: SelNoticeHost(
+            child: SessionIdleListener(
+              child: BulkImportCommitProgressOverlay(
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

@@ -10,6 +10,8 @@
 library;
 
 export 'components/pillr_logo.dart';
+export 'components/pillr_mark.dart';
+export 'components/pillr_splash.dart';
 export 'components/sel_button.dart';
 export 'components/sel_card.dart';
 export 'components/sel_dialog.dart';

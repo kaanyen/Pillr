@@ -53,8 +53,13 @@ class SelRail extends ConsumerWidget {
       platformAdmin: isPlatform,
     );
 
-    return SizedBox(
+    return Container(
       width: SelLayout.railWidth,
+      decoration: const BoxDecoration(
+        color: Sel.rail,
+        border: Border(right: BorderSide(color: Sel.railEdge)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -68,12 +73,16 @@ class SelRail extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                const PillrLogo(height: 22),
-                const SizedBox(width: SelSpace.x2),
+                const PillrMark(size: 32),
+                const SizedBox(width: SelSpace.x3),
                 Expanded(
                   child: Text(
-                    'The Pillr',
-                    style: SelType.bodyMedium.copyWith(color: Sel.ink),
+                    'pillr',
+                    style: SelType.hero.copyWith(
+                      fontSize: 24,
+                      height: 1,
+                      letterSpacing: -1,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -88,11 +97,30 @@ class SelRail extends ConsumerWidget {
               SelSpace.x3,
               SelSpace.x6,
             ),
-            child: Text(
-              churchName,
-              style: SelType.small,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(6, 6, SelSpace.x4, 6),
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+                border: Border.all(color: Sel.border),
+              ),
+              child: Row(
+                children: [
+                  _Initials(churchName, size: 38),
+                  const SizedBox(width: SelSpace.x3),
+                  Expanded(
+                    child: Text(
+                      churchName,
+                      style: SelType.bodySm.copyWith(
+                        color: Sel.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -109,10 +137,7 @@ class SelRail extends ConsumerWidget {
                         SelSpace.x3,
                         SelSpace.x2,
                       ),
-                      child: Text(
-                        g.title!.toUpperCase(),
-                        style: SelType.caption,
-                      ),
+                      child: Text(g.title!, style: SelType.caption),
                     )
                   else
                     const SizedBox(height: SelSpace.x2),
@@ -146,27 +171,8 @@ class SelRail extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    height: 24,
-                    width: 24,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Sel.card,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Sel.border),
-                    ),
-                    child: Text(
-                      profile.fullName.isNotEmpty
-                          ? profile.fullName[0].toUpperCase()
-                          : '?',
-                      style: SelType.small.copyWith(
-                        color: Sel.ink,
-                        fontWeight: FontWeight.w500,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: SelSpace.x2),
+                  _Initials(profile.fullName, size: 38),
+                  const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,9 +180,9 @@ class SelRail extends ConsumerWidget {
                       children: [
                         Text(
                           profile.fullName,
-                          style: SelType.small.copyWith(
+                          style: SelType.bodySm.copyWith(
                             color: Sel.ink,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -184,7 +190,7 @@ class SelRail extends ConsumerWidget {
                         Text(
                           profile.role[0].toUpperCase() +
                               profile.role.substring(1),
-                          style: SelType.small.copyWith(fontSize: 11),
+                          style: SelType.small,
                           maxLines: 1,
                         ),
                       ],
@@ -291,9 +297,14 @@ class _RailSectionHeaderState extends State<_RailSectionHeader> {
           onTap: widget.onTap,
           child: SelFocusRing(
             focused: _focused,
-            radius: SelRadius.input,
-            child: ConstrainedBox(
+            radius: SelRadius.pill,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
               constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              decoration: BoxDecoration(
+                color: _hover ? Sel.railHover : Colors.transparent,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
               child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: SelSpace.x3,
@@ -301,18 +312,14 @@ class _RailSectionHeaderState extends State<_RailSectionHeader> {
             ),
             child: Row(
               children: [
-                Icon(
-                  widget.item.icon,
-                  size: 15,
-                  color: _hover ? Sel.ink : Sel.warm,
-                ),
-                const SizedBox(width: SelSpace.x2 + 2),
+                Icon(widget.item.icon, size: 18, color: Sel.ink),
+                const SizedBox(width: SelSpace.x3),
                 Expanded(
                   child: Text(
                     widget.item.label,
                     style: SelType.body.copyWith(
-                      color: _hover ? Sel.ink : Sel.warm,
-                      fontWeight: FontWeight.w500,
+                      color: Sel.ink,
+                      fontWeight: FontWeight.w700,
                       height: 1.2,
                     ),
                     maxLines: 1,
@@ -358,7 +365,7 @@ class _RailLinkState extends State<_RailLink> {
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.warm);
+    final fg = active || _hover ? Sel.ink : Sel.warm;
 
     return Semantics(
       link: true,
@@ -381,7 +388,7 @@ class _RailLinkState extends State<_RailLink> {
             onTap: widget.onTap,
             child: SelFocusRing(
               focused: _focused,
-              radius: SelRadius.input,
+              radius: SelRadius.pill,
               child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
@@ -391,26 +398,22 @@ class _RailLinkState extends State<_RailLink> {
               ),
               decoration: BoxDecoration(
                 color: active
-                    ? Sel.card
+                    ? Sel.railSelected
                     : _hover
-                    ? Sel.card.withValues(alpha: 0.6)
+                    ? Sel.railHover
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(SelRadius.input),
-                border: Border.all(
-                  color: active ? Sel.border : Colors.transparent,
-                ),
-                boxShadow: active ? SelShadow.hairline : null,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
               ),
               child: Row(
                 children: [
-                  Icon(widget.item.icon, size: 15, color: fg),
-                  const SizedBox(width: SelSpace.x2 + 2),
+                  Icon(widget.item.icon, size: 18, color: fg),
+                  const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Text(
                       widget.item.label,
                       style: SelType.body.copyWith(
                         color: fg,
-                        fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -449,12 +452,12 @@ class _RailSubLinkState extends State<_RailSubLink> {
   bool _hover = false;
   bool _focused = false;
 
-  static const _iconColumn = 15.0 + SelSpace.x2 + 2;
+  static const _iconColumn = 18.0 + SelSpace.x3;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.warm);
+    final fg = active || _hover ? Sel.ink : Sel.warm;
 
     return Semantics(
       link: true,
@@ -481,7 +484,7 @@ class _RailSubLinkState extends State<_RailSubLink> {
             onTap: widget.onTap,
             child: SelFocusRing(
               focused: _focused,
-              radius: SelRadius.input,
+              radius: SelRadius.pill,
               child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
@@ -493,21 +496,17 @@ class _RailSubLinkState extends State<_RailSubLink> {
               ),
               decoration: BoxDecoration(
                 color: active
-                    ? Sel.card
+                    ? Sel.railSelected
                     : _hover
-                        ? Sel.card.withValues(alpha: 0.45)
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(SelRadius.input),
-                border: Border.all(
-                  color: active ? Sel.border : Colors.transparent,
-                ),
-                boxShadow: active ? SelShadow.hairline : null,
+                    ? Sel.railHover
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
               ),
               child: Text(
                 widget.label,
-                style: SelType.small.copyWith(
+                style: SelType.bodySm.copyWith(
                   color: fg,
-                  fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                   height: 1.2,
                 ),
                 maxLines: 1,
@@ -517,6 +516,33 @@ class _RailSubLinkState extends State<_RailSubLink> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A round light-sky disc with up to two initials.
+class _Initials extends StatelessWidget {
+  const _Initials(this.name, {required this.size});
+
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final initials = words.take(2).map((w) => w[0].toUpperCase()).join();
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Sel.skyWash,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials.isEmpty ? '?' : initials,
+        style: SelType.tag.copyWith(fontWeight: FontWeight.w800, height: 1),
       ),
     );
   }

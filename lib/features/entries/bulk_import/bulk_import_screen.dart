@@ -873,7 +873,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           const SizedBox(
             height: 14,
             width: 14,
-            child: CircularProgressIndicator(strokeWidth: 1.5),
+            child: PillrLoader(size: 20),
           ),
         _buildCompactSheetCurrencySelector(),
         SelButton(
@@ -1642,7 +1642,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             const SizedBox(
               width: 28,
               height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
+              child: PillrLoader(size: 20),
             ),
             const SizedBox(height: SelSpace.x4),
             Text(

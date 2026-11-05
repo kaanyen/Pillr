@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// Tracks whether Firebase has reported an initial auth state yet.
 ///
@@ -22,6 +23,9 @@ abstract final class AuthBootGate {
   static StreamSubscription<User?>? _sub;
   static Timer? _failsafe;
 
+  /// Flips to true with [settled]; the boot splash listens to it.
+  static final ValueNotifier<bool> ready = ValueNotifier(false);
+
   /// True once an auth state has actually been reported, or the failsafe has
   /// elapsed. Redirects should not make sign-in decisions before this.
   static bool get settled => _settled;
@@ -40,6 +44,7 @@ abstract final class AuthBootGate {
   static void _markSettled() {
     if (_settled) return;
     _settled = true;
+    ready.value = true;
     _failsafe?.cancel();
     _failsafe = null;
   }
@@ -47,6 +52,7 @@ abstract final class AuthBootGate {
   /// Test seam.
   static void resetForTest({bool settled = false}) {
     _settled = settled;
+    ready.value = settled;
     _sub?.cancel();
     _sub = null;
     _failsafe?.cancel();

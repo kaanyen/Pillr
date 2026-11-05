@@ -36,13 +36,13 @@ abstract final class SelRadius {
   static const double icon = 4;
 
   /// Inputs and form fields.
-  static const double input = 6;
+  static const double input = 40;
 
   /// Cards, panels, list containers.
-  static const double card = 10;
+  static const double card = 24;
 
   /// Hero/feature surfaces only.
-  static const double feature = 16;
+  static const double feature = 28;
 
   /// Buttons, tags, avatars — fully round.
   static const double pill = 9999;
@@ -61,7 +61,7 @@ abstract final class SelLayout {
 
   /// Width of the bare nav rail. It has no fill or border — this is just the
   /// column the links occupy.
-  static const double railWidth = 200;
+  static const double railWidth = 248;
 
   static const double compact = 600;
   static const double medium = 1024;

@@ -289,7 +289,7 @@ class _CaptionRow extends StatelessWidget {
             _cell(
               c,
               Text(
-                c.label.toUpperCase(),
+                c.label,
                 style: SelType.caption,
                 textAlign: c.align,
                 maxLines: 1,

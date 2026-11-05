@@ -85,11 +85,16 @@ class SelField extends StatelessWidget {
           prefixIcon: prefixIcon == null
               ? null
               : Padding(
-                  padding: const EdgeInsets.only(left: SelSpace.x3, right: SelSpace.x2),
-                  child: Icon(prefixIcon, size: 15, color: Sel.warm),
+                  padding: const EdgeInsets.only(left: 18, right: SelSpace.x3),
+                  child: Icon(prefixIcon, size: 18, color: Sel.warm),
                 ),
           prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
           suffixIcon: suffixIcon,
+          // Single lines are pills; a box for several lines keeps a softer
+          // corner so its text never runs into the curve.
+          border: maxLines == 1 ? null : _box(Sel.border),
+          enabledBorder: maxLines == 1 ? null : _box(Sel.border),
+          focusedBorder: maxLines == 1 ? null : _box(Sel.sky, width: 1.5),
         ),
       ),
     );
@@ -329,3 +334,8 @@ class _PillState extends State<_Pill> {
     );
   }
 }
+
+OutlineInputBorder _box(Color c, {double width = 1}) => OutlineInputBorder(
+  borderRadius: BorderRadius.circular(20),
+  borderSide: BorderSide(color: c, width: width),
+);

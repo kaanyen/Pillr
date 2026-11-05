@@ -148,7 +148,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
         title: const Text('Platform · Churches'),
       ),
       body: list.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: PillrLoader(size: 40)),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (rows) {
           return RefreshIndicator(
@@ -196,7 +196,7 @@ class _PlatformChurchesScreenState extends ConsumerState<PlatformChurchesScreen>
                               ? const SizedBox(
                                   height: 22,
                                   width: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: PillrLoader(size: 20),
                                 )
                               : const Text('Send bootstrap invite'),
                         ),

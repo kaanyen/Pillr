@@ -140,7 +140,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                     child: SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: PillrLoader(size: 20),
                     ),
                   ),
                 ),

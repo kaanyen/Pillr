@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
+import 'pillr_mark.dart';
 import 'sel_focus.dart';
 
 /// Button hierarchy in Seline.
@@ -81,8 +82,8 @@ class SelButton extends StatelessWidget {
     if (_disabled) return Sel.ash;
     return switch (kind) {
       SelButtonKind.cyan => Sel.card,
-      SelButtonKind.ghost => Sel.ink,
-      SelButtonKind.quiet => Sel.warm,
+      SelButtonKind.ghost => Sel.text,
+      SelButtonKind.quiet => Sel.cyanEdge,
       SelButtonKind.edge => Sel.cyanEdge,
     };
   }
@@ -95,7 +96,7 @@ class SelButton extends StatelessWidget {
             vertical: SelSpace.x1,
           )
         : const EdgeInsets.symmetric(
-            horizontal: SelSpace.x4,
+            horizontal: SelSpace.x6,
             vertical: SelSpace.x2,
           );
     // Inside a [SelCompactScope] (the sign-in screens) buttons keep their
@@ -105,17 +106,16 @@ class SelButton extends StatelessWidget {
         : (dense ? SelLayout.tapTargetDense : SelLayout.tapTarget);
 
     final body = loading
-        ? SizedBox(
-            height: 14,
-            width: 14,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: _fg),
+        ? PillrLoader(
+            size: 18,
+            onColor: kind == SelButtonKind.cyan,
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 14, color: _fg),
+                Icon(icon, size: 16, color: _fg),
                 const SizedBox(width: SelSpace.x2),
               ],
               Flexible(
@@ -128,7 +128,7 @@ class SelButton extends StatelessWidget {
               ),
               if (trailingIcon != null) ...[
                 const SizedBox(width: SelSpace.x2),
-                Icon(trailingIcon, size: 14, color: _fg),
+                Icon(trailingIcon, size: 16, color: _fg),
               ],
             ],
           );
@@ -186,9 +186,9 @@ class _SelPillState extends State<_SelPill> {
       SelButtonKind.cyan =>
         widget.disabled
             ? (Sel.borderMuted, null)
-            : (h ? Sel.cyanEdge : Sel.cyan, Sel.cyanEdge),
-      SelButtonKind.ghost => (h ? Sel.card : Colors.transparent, Sel.border),
-      SelButtonKind.quiet => (h ? Sel.card : Colors.transparent, null),
+            : (h ? const Color(0xFF0B5FBA) : Sel.cyan, null),
+      SelButtonKind.ghost => (h ? Sel.track : Sel.card, Sel.borderMuted),
+      SelButtonKind.quiet => (h ? Sel.track : Colors.transparent, null),
       SelButtonKind.edge => (
         h ? Sel.skyWash : Colors.transparent,
         Sel.cyanEdge,
@@ -229,7 +229,12 @@ class _SelPillState extends State<_SelPill> {
               decoration: BoxDecoration(
                 color: bg,
                 borderRadius: BorderRadius.circular(SelRadius.pill),
-                border: bd == null ? null : Border.all(color: bd),
+                border: bd == null ? null : Border.all(color: bd, width: 1.5),
+                // The primary action sits on a flat light-sky block.
+                boxShadow:
+                    widget.kind == SelButtonKind.cyan && !widget.disabled
+                    ? SelShadow.pop
+                    : null,
               ),
               child: Center(widthFactor: 1, child: widget.child),
             ),

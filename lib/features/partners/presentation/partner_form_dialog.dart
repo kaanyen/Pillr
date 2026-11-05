@@ -173,7 +173,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: PillrLoader(size: 20),
                 )
               : Text(isEdit ? 'Save' : 'Create'),
         ),

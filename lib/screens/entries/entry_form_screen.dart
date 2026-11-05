@@ -164,7 +164,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       final armsAsync = ref.watch(armsStreamProvider);
       final periodsAsync = ref.watch(periodsStreamProvider);
       return entryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: PillrLoader(size: 40)),
         error: (e, _) => Center(child: Text('$e')),
         data: (entry) {
           if (entry == null) {
@@ -176,10 +176,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             );
           }
           return armsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: PillrLoader(size: 40)),
             error: (e, _) => Center(child: Text('$e')),
             data: (armList) => periodsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: PillrLoader(size: 40)),
               error: (e, _) => Center(child: Text('$e')),
               data: (periodList) {
                 if (!_seeded) {
@@ -214,7 +214,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     _period ??= active;
 
     return arms.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: PillrLoader(size: 40)),
       error: (e, _) => Center(child: Text('$e')),
       data: (armList) => _buildForm(
         context,

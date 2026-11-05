@@ -127,12 +127,12 @@ abstract final class SelTheme {
         floatingLabelBehavior: FloatingLabelBehavior.never,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: SelSpace.x3,
-          vertical: 13,
+          horizontal: 18,
+          vertical: 14,
         ),
-        border: _inputBorder(Sel.borderMuted),
-        enabledBorder: _inputBorder(Sel.borderMuted),
-        focusedBorder: _inputBorder(Sel.cyan, width: 2),
+        border: _inputBorder(Sel.border),
+        enabledBorder: _inputBorder(Sel.border),
+        focusedBorder: _inputBorder(Sel.sky, width: 1.5),
         disabledBorder: _inputBorder(Sel.border),
         // Errors read through weight, not colour.
         errorBorder: _inputBorder(Sel.ink, width: 1.5),

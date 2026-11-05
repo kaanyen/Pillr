@@ -57,66 +57,34 @@
   
   
   <style id="splash-screen-style">
-    html {
-      height: 100%
-    }
-
-    body {
-      margin: 0;
-      min-height: 100%;
-      background-color: #3BA6F1;
-          background-size: 100% 100%;
-    }
-
-    .center {
-      margin: 0;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      -ms-transform: translate(-50%, -50%);
-      transform: translate(-50%, -50%);
-    }
-
-    #splash img.center {
-      width: min(28vw, 160px);
-      height: auto;
-    }
-
-    .contain {
-      display:block;
-      width:100%; height:100%;
-      object-fit: contain;
-    }
-
-    .stretch {
-      display:block;
-      width:100%; height:100%;
-    }
-
-    .cover {
-      display:block;
-      width:100%; height:100%;
-      object-fit: cover;
-    }
-
-    .bottom {
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      -ms-transform: translate(-50%, 0);
-      transform: translate(-50%, 0);
-    }
-
-    .bottomLeft {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-    }
-
-    .bottomRight {
-      position: absolute;
-      bottom: 0;
-      right: 0;
+    /* The splash from the canvas board "Splash and loader": the mark builds
+       once on the app's page colour; still loading after 1.1 s, it loops as
+       the loader. Flutter takes over with the same mark (PillrBootSplash). */
+    @font-face { font-family: Manrope; font-weight: 800; src: url("assets/assets/fonts/Manrope-ExtraBold.ttf") format("truetype"); font-display: swap; }
+    html { height: 100% }
+    body { margin: 0; min-height: 100%; background-color: #FEFEFD; }
+    #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #FEFEFD; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+    #splash .word { font-size: 44px; font-weight: 800; letter-spacing: -0.055em; color: #13426F; line-height: 1; animation: sp-fade 200ms var(--ease-out) 560ms both; }
+    #splash .hint { position: absolute; bottom: 15%; font-size: 13px; font-weight: 500; color: #616C8A; opacity: 0; animation: sp-show 200ms ease 1100ms forwards; }
+    #splash svg rect { transform-box: fill-box; transform-origin: 50% 100%; }
+    #splash .sq { animation: sp-sq 200ms var(--ease-out) both; }
+    #splash .c1 { animation: sp-rise 220ms var(--ease-out) 120ms both, sp-b1 1400ms var(--ease-out) 1100ms infinite; }
+    #splash .c2 { animation: sp-rise 220ms var(--ease-out) 190ms both, sp-b2 1400ms var(--ease-out) 1100ms infinite; }
+    #splash .c3 { animation: sp-rise 220ms var(--ease-out) 260ms both, sp-b3 1400ms var(--ease-out) 1100ms infinite; }
+    #splash .c4 { animation: sp-lay 260ms var(--ease-out) 330ms both, sp-b4 1400ms var(--ease-out) 1100ms infinite; }
+    @keyframes sp-sq { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: none } }
+    @keyframes sp-rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+    @keyframes sp-lay { from { opacity: 0; transform: translateY(-10px) } to { opacity: 1; transform: none } }
+    @keyframes sp-fade { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+    @keyframes sp-show { to { opacity: 1 } }
+    @keyframes sp-b1 { 0% { opacity: 0; transform: translateY(5px) } 12%, 78% { opacity: 1; transform: none } 92%, 100% { opacity: 0 } }
+    @keyframes sp-b2 { 0%, 12% { opacity: 0; transform: translateY(5px) } 24%, 78% { opacity: 1; transform: none } 92%, 100% { opacity: 0 } }
+    @keyframes sp-b3 { 0%, 24% { opacity: 0; transform: translateY(5px) } 36%, 78% { opacity: 1; transform: none } 92%, 100% { opacity: 0 } }
+    @keyframes sp-b4 { 0%, 36% { opacity: 0; transform: translateY(-8px) } 52%, 78% { opacity: 1; transform: none } 92%, 100% { opacity: 0 } }
+    @keyframes sp-calm { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
+    @media (prefers-reduced-motion: reduce) {
+      #splash .sq, #splash .c1, #splash .c2, #splash .c3, #splash .c4, #splash .word { animation: sp-show 200ms ease forwards; opacity: 0; transform: none; }
+      #splash svg { animation: sp-calm 1600ms ease-in-out 1100ms infinite; }
     }
   </style>
   <script id="splash-screen-script">
@@ -128,11 +96,11 @@
   </script>
 </head>
 <body>
-  <picture id="splash">
-      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
-      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
-      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
-  </picture>
+  <div id="splash" role="img" aria-label="Pillr is loading">
+    <svg width="120" height="120" viewBox="0 0 48 48" aria-hidden="true"><rect class="sq" width="48" height="48" rx="12" fill="#13426F"></rect><rect class="c4" x="11" y="8" width="26" height="5" rx="2.5" fill="#2E96FF"></rect><rect class="c3" x="16" y="16" width="16" height="7" rx="3.5" fill="#FFFFFF"></rect><rect class="c2" x="16" y="26" width="16" height="7" rx="3.5" fill="#FFFFFF"></rect><rect class="c1" x="11" y="36" width="26" height="5" rx="2.5" fill="#FFFFFF"></rect></svg>
+    <span class="word">pillr</span>
+    <span class="hint">Still loading your church…</span>
+  </div>
   
   
   

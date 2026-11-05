@@ -531,7 +531,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         child: SizedBox(
                           height: 18,
                           width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: PillrLoader(size: 20),
                         ),
                       ),
                     ),

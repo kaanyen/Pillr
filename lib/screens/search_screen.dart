@@ -152,10 +152,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? const SizedBox(
                         height: 14,
                         width: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Sel.ash,
-                        ),
+                        child: PillrLoader(size: 20),
                       )
                     : const SizedBox.shrink(),
               ),
