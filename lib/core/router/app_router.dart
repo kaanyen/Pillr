@@ -119,6 +119,7 @@ GoRouter createRouter() {
             path: '/queue',
             pageBuilder: (context, state) => NoTransitionPage(
               child: QueueScreen(
+                key: const ValueKey('queue'),
                 initialFilter: state.uri.queryParameters['filter'],
               ),
             ),
@@ -127,6 +128,7 @@ GoRouter createRouter() {
             path: '/records',
             pageBuilder: (context, state) => NoTransitionPage(
               child: QueueScreen(
+                key: const ValueKey('records'),
                 mode: QueueMode.records,
                 initialFilter: state.uri.queryParameters['filter'],
                 importBatchId: state.uri.queryParameters['import'],
