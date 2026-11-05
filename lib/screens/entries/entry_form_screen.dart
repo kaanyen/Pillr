@@ -11,6 +11,7 @@ import '../../core/utils/date_utils.dart';
 import '../../core/utils/entry_duplicate_utils.dart';
 import '../../core/utils/money.dart';
 import '../../design/seline.dart';
+import '../../features/leaderboard/giving_view.dart';
 import '../../features/church/domain/exchange_rates.dart';
 import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/activity/activity_log_helper.dart';
@@ -86,7 +87,6 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   bool _loading = false;
   String? _error;
   bool _seeded = false;
-  bool _showMore = false;
 
   bool get _isEdit => widget.entryId != null;
 
@@ -186,9 +186,6 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted || _seeded) return;
                     _seedFromEntry(entry, armList, periodList);
-                    _showMore =
-                        _notes.text.trim().isNotEmpty ||
-                        _sourceCurrency != SelectableCurrency.ghs;
                     setState(() => _seeded = true);
                   });
                 }
@@ -245,253 +242,442 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final period = _period ?? activePeriodFallback;
     final money = ref.watch(churchMoneyFormatProvider);
 
-    return SelPageBody(
-      maxWidth: widget.embedded ? double.infinity : 640,
-      children: [
-        if (!widget.embedded)
-          SelPageTitle(
-            title: _isEdit ? 'Edit entry' : 'Record ',
-            highlight: _isEdit ? null : 'giving',
-            subtitle: _isEdit
-                ? 'Changes are re-recorded in the activity log.'
-                : 'Who gave, how much, and toward what.',
-          ),
-        if (_error != null) ...[
-          SelCard(
-            lift: SelLift.flat,
-            padding: const EdgeInsets.symmetric(
-              horizontal: SelSpace.x4,
-              vertical: SelSpace.x3,
-            ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.alertCircle, size: 14, color: Sel.ink),
-                const SizedBox(width: SelSpace.x2),
-                Expanded(
-                  child: Text(
-                    _error!,
-                    style: SelType.bodySm.copyWith(color: Sel.ink),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: SelSpace.x4),
-        ],
+    final tree = ref.watch(armTreeProvider);
+    final mainId = _arm == null ? null : tree.shownArmIdOf(_arm!.id);
+    final mains = [
+      for (final m in tree.mains)
+        if (arms.any((a) => a.id == m.id)) m,
+    ];
+    final subs = mainId == null
+        ? const <PartnershipArm>[]
+        : [
+            for (final c in tree.childrenOf(mainId))
+              if (arms.any((a) => a.id == c.id)) c,
+          ];
+    final mainName = mainId == null ? '' : tree.byId(mainId)?.name ?? '';
+    final today = DateTime.now();
+    final lastSunday = DateTime(today.year, today.month, today.day)
+        .subtract(Duration(days: today.weekday % 7 == 0 ? 7 : today.weekday % 7));
+    bool sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+    final isPastor = idx?.isPastor ?? false;
+    final amount =
+        _resolveConversion(ref)?.amountBase ?? parseAmountInput(_amount.text) ?? 0;
 
-        SelPanel(
-          title: 'Partner',
-          subtitle: 'Who this giving is from.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _PartnerTile(
-                partner: _partner,
-                onTap: churchId == null || uid == null
-                    ? null
-                    : () => _pickPartner(context, churchId, uid),
+    Widget label(String t, {String? note}) => Padding(
+      padding: const EdgeInsets.only(bottom: SelSpace.x2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(t, style: SelType.bodyMedium),
+          if (note != null) Text(note, style: SelType.small),
+        ],
+      ),
+    );
+    Widget pill(String text, bool on, VoidCallback onTap) => Padding(
+      padding: const EdgeInsets.only(right: SelSpace.x2, bottom: SelSpace.x2),
+      child: Material(
+        color: on ? Sel.ink : Sel.card,
+        shape: StadiumBorder(
+          side: BorderSide(color: on ? Sel.ink : Sel.borderMuted, width: 1.5),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+            child: Text(
+              text,
+              style: SelType.body.copyWith(
+                color: on ? Sel.card : Sel.text,
+                fontWeight: FontWeight.w600,
               ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
 
-        const SizedBox(height: SelSpace.x4),
-
-        SelPanel(
-          title: 'Partnership details',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    final form = SelCard(
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SelSpace.x4,
+                vertical: SelSpace.x3,
+              ),
+              decoration: BoxDecoration(
+                color: Sel.skyTint,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _error!,
+                style: SelType.bodySm.copyWith(color: Sel.ink),
+              ),
+            ),
+            const SizedBox(height: SelSpace.x4),
+          ],
+          label('Partner'),
+          _PartnerTile(
+            partner: _partner,
+            onTap: churchId == null || uid == null
+                ? null
+                : () => _pickPartner(context, churchId, uid),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Text(
+            'Search by name, member ID or fellowship.',
+            style: SelType.small,
+          ),
+          const SizedBox(height: SelSpace.x6),
+          Wrap(
+            spacing: SelSpace.x6,
+            runSpacing: SelSpace.x4,
             children: [
-              // Main arm first; if it has sub-arms, which part of it. The
-              // entry keeps its exact arm, but everywhere outside this form
-              // and Configuration it shows under the main arm.
-              Builder(builder: (context) {
-                final tree = ref.watch(armTreeProvider);
-                final mainId = _arm == null ? null : tree.shownArmIdOf(_arm!.id);
-                final subs = mainId == null
-                    ? const <PartnershipArm>[]
-                    : [
-                        for (final c in tree.childrenOf(mainId))
-                          if (arms.any((a) => a.id == c.id)) c,
-                      ];
-                final mainName = mainId == null ? '' : tree.byId(mainId)?.name ?? '';
-                return Column(
+              SizedBox(
+                width: 420,
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SelSelect<String>(
-                      value: mainId,
-                      label: 'Partnership arm',
-                      hint: Text('Select an arm', style: SelType.bodyMuted),
-                      onChanged: (v) => setState(() {
-                        _arm = arms.where((a) => a.id == v).firstOrNull ??
-                            (v == null ? null : tree.byId(v));
-                      }),
-                      items: [
-                        for (final m in tree.mains)
-                          if (arms.any((a) => a.id == m.id))
-                            DropdownMenuItem(value: m.id, child: Text(m.name)),
-                      ],
-                    ),
-                    if (subs.isNotEmpty) ...[
-                      const SizedBox(height: SelSpace.x4),
-                      SelSelect<String>(
-                        value: _arm?.id,
-                        label: 'Which part of $mainName?',
-                        onChanged: (v) => setState(() {
-                          _arm = arms.where((a) => a.id == v).firstOrNull ?? _arm;
-                        }),
-                        items: [
-                          DropdownMenuItem(
-                            value: mainId,
-                            child: Text('$mainName (general)'),
-                          ),
-                          for (final c in subs)
-                            DropdownMenuItem(value: c.id, child: Text(c.name)),
-                        ],
+                    label('Amount'),
+                    SelField(
+                      controller: _amount,
+                      hint: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
-                    ],
-                  ],
-                );
-              }),
-              const SizedBox(height: SelSpace.x4),
-              if (_isEdit)
-                SelSelect<String>(
-                  value: period?.id,
-                  label: 'Period',
-                  onChanged: (v) => setState(() {
-                    _period = periodList.where((p) => p.id == v).firstOrNull;
-                  }),
-                  items: [
-                    for (final p in periodList)
-                      DropdownMenuItem(value: p.id, child: Text(p.name)),
-                  ],
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Period', style: SelType.bodyMedium),
-                    const SizedBox(height: SelSpace.x2),
-                    Text(
-                      period?.name ?? 'No active period',
-                      style: SelType.bodyMuted,
+                      onChanged: (_) => setState(() {}),
                     ),
                   ],
                 ),
-              const SizedBox(height: SelSpace.x4),
-              SelField(
-                controller: _amount,
-                label: 'Amount',
-                hint: '500',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (_) => setState(() {}),
               ),
-              if (_conversionPreview(money, ref) != null) ...[
-                const SizedBox(height: SelSpace.x2),
-                Text(_conversionPreview(money, ref)!, style: SelType.small),
-              ],
-              const SizedBox(height: SelSpace.x4),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Date given', style: SelType.bodyMedium),
-                  const SizedBox(height: SelSpace.x2),
-                  SelButton(
-                    label: formatFirestoreDate(_dateGiven, pattern: 'd MMMM y'),
-                    icon: LucideIcons.calendar,
-                    onPressed: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: _dateGiven,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now().add(const Duration(days: 1)),
-                      );
-                      if (d != null) setState(() => _dateGiven = d);
-                    },
+                  label('Currency'),
+                  Wrap(
+                    children: [
+                      for (final code in SelectableCurrency.all)
+                        pill(
+                          SelectableCurrency.label(code),
+                          _sourceCurrency == code,
+                          () => setState(() => _sourceCurrency = code),
+                        ),
+                    ],
+                  ),
+                  if (_conversionPreview(money, ref) != null)
+                    Text(_conversionPreview(money, ref)!, style: SelType.small),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          label('Partnership arm'),
+          Wrap(
+            children: [
+              for (final m in mains)
+                pill(
+                  m.name,
+                  m.id == mainId,
+                  () => setState(() => _arm = arms.where((a) => a.id == m.id).firstOrNull ?? m),
+                ),
+            ],
+          ),
+          if (subs.isNotEmpty) ...[
+            const SizedBox(height: SelSpace.x2),
+            label('Which part of $mainName?'),
+            Wrap(
+              children: [
+                pill(
+                  '$mainName (general)',
+                  _arm?.id == mainId,
+                  () => setState(() => _arm = tree.byId(mainId!) ?? _arm),
+                ),
+                for (final c in subs)
+                  pill(c.name, _arm?.id == c.id, () => setState(() => _arm = c)),
+              ],
+            ),
+          ],
+          const SizedBox(height: SelSpace.x6),
+          Wrap(
+            spacing: SelSpace.x6,
+            runSpacing: SelSpace.x4,
+            children: [
+              SizedBox(
+                width: 340,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    label('Date given'),
+                    SelButton(
+                      label: formatFirestoreDate(_dateGiven, pattern: 'd MMM y'),
+                      icon: LucideIcons.calendar,
+                      expanded: true,
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _dateGiven,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                        );
+                        if (d != null) setState(() => _dateGiven = d);
+                      },
+                    ),
+                    const SizedBox(height: SelSpace.x2),
+                    Wrap(
+                      children: [
+                        pill('Today', sameDay(_dateGiven, today),
+                            () => setState(() => _dateGiven = today)),
+                        pill(
+                          formatFirestoreDate(lastSunday, pattern: 'EEEE, d MMM'),
+                          sameDay(_dateGiven, lastSunday),
+                          () => setState(() => _dateGiven = lastSunday),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 340,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    label('Period'),
+                    if (_isEdit)
+                      SelSelect<String>(
+                        value: period?.id,
+                        onChanged: (v) => setState(() {
+                          _period =
+                              periodList.where((p) => p.id == v).firstOrNull;
+                        }),
+                        items: [
+                          for (final p in periodList)
+                            DropdownMenuItem(value: p.id, child: Text(p.name)),
+                        ],
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+                        decoration: BoxDecoration(
+                          color: Sel.track,
+                          borderRadius: BorderRadius.circular(SelRadius.pill),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                period?.name ?? 'No active period',
+                                style: SelType.body.copyWith(color: Sel.text),
+                              ),
+                            ),
+                            if (period != null)
+                              const SelStatusTag(
+                                status: SelStatus.active,
+                                label: 'Active',
+                              ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: SelSpace.x2),
+                    Text(
+                      'Giving goes to the active period. Change it in Configuration.',
+                      style: SelType.small,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          label('Notes', note: 'Optional'),
+          SelField(controller: _notes, hint: 'MoMo ref, cheque number…', maxLines: 3),
+          const SizedBox(height: SelSpace.x6),
+          const Divider(height: 1, color: Sel.border),
+          const SizedBox(height: SelSpace.x4),
+          Row(
+            children: [
+              SelButton.cyan(
+                label: _isEdit
+                    ? 'Save changes'
+                    : isPastor
+                    ? 'Record and approve'
+                    : 'Record giving',
+                loading: _loading,
+                onPressed: churchId == null || profile == null
+                    ? null
+                    : () => _submit(churchId, profile, entry),
+              ),
+              const Spacer(),
+              SelButton(
+                label: 'Cancel',
+                kind: SelButtonKind.quiet,
+                onPressed: widget.embedded
+                    ? () => Navigator.of(context).pop()
+                    : () => context.go('/records'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final armBefore = mainId == null
+        ? 0.0
+        : ref.watch(givingViewProvider).armTotal(mainId);
+    final when = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('When you save', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x2),
+          Text.rich(
+            TextSpan(
+              style: SelType.body.copyWith(color: Sel.text),
+              children: [
+                TextSpan(
+                  text: money(amount),
+                  style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800),
+                ),
+                TextSpan(
+                  text: _partner == null ? '' : ' from ${_partner!.fullName}',
+                ),
+                TextSpan(
+                  text: isPastor
+                      ? ' counts toward ${mainName.isEmpty ? 'its arm' : mainName} straight away, because you\'re a pastor.'
+                      : ' waits in the queue until a pastor approves it.',
+                ),
+              ],
+            ),
+          ),
+          if (isPastor && mainId != null) ...[
+            const Divider(height: SelSpace.x6, color: Sel.border),
+            Text('$mainName this period', style: SelType.small),
+            Text.rich(
+              TextSpan(
+                text: '${money(armBefore)} → ',
+                style: SelType.body.copyWith(color: Sel.warm),
+                children: [
+                  TextSpan(
+                    text: money(armBefore + amount),
+                    style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
-              const SizedBox(height: SelSpace.x3),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SelButton(
-                  label: _showMore ? 'Less' : 'More',
-                  kind: SelButtonKind.quiet,
-                  dense: true,
-                  trailingIcon: _showMore
-                      ? LucideIcons.chevronUp
-                      : LucideIcons.chevronDown,
-                  onPressed: () => setState(() => _showMore = !_showMore),
-                ),
-              ),
-              if (_showMore) ...[
-                const SizedBox(height: SelSpace.x3),
-                SelSelect<String>(
-                  value: _sourceCurrency,
-                  label: 'Currency',
-                  onChanged: (v) => setState(() {
-                    _sourceCurrency = v ?? SelectableCurrency.ghs;
-                  }),
-                  items: [
-                    for (final code in SelectableCurrency.all)
-                      DropdownMenuItem(
-                        value: code,
-                        child: Text(SelectableCurrency.label(code)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: SelSpace.x4),
-                SelField(
-                  controller: _notes,
-                  label: 'Notes',
-                  hint: 'Optional',
-                  maxLines: 3,
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: SelSpace.x6),
-
-        Row(
-          children: [
-            SelButton(
-              label: 'Cancel',
-              kind: SelButtonKind.quiet,
-              onPressed: widget.embedded
-                  ? () => Navigator.of(context).pop()
-                  : () => context.go('/queue'),
-            ),
-            const Spacer(),
-            SelButton.cyan(
-              label: _isEdit ? 'Save changes' : 'Record giving',
-              loading: _loading,
-              onPressed: churchId == null || profile == null
-                  ? null
-                  : () => _submit(churchId, profile, entry),
             ),
           ],
-        ),
+          const SizedBox(height: SelSpace.x3),
+          Container(
+            padding: const EdgeInsets.all(SelSpace.x4),
+            decoration: BoxDecoration(
+              color: Sel.skyTint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              'Staff entries wait in the queue until a pastor approves them.',
+              style: SelType.bodySm.copyWith(color: Sel.ink),
+            ),
+          ),
+        ],
+      ),
+    );
 
-        if (!_isEdit && idx?.isStaff == true) ...[
-          const SizedBox(height: SelSpace.x4),
-          Text(
-            'Your entry goes to a pastor for review before it counts toward '
-            'totals.',
-            style: SelType.small,
-          ),
-        ],
-        if (_partner != null && _amount.text.isNotEmpty) ...[
-          const SizedBox(height: SelSpace.x4),
-          Text(
-            'Recording ${money(_resolveConversion(ref)?.amountBase ?? parseAmountInput(_amount.text) ?? 0)} '
-            'for ${_partner!.fullName}.',
-            style: SelType.small,
-          ),
-        ],
+    final recent = _partner == null
+        ? null
+        : Consumer(
+            builder: (context, ref, _) {
+              final es = (ref.watch(partnerEntriesProvider(_partner!.id)).valueOrNull ?? const [])
+                  .take(3)
+                  .toList();
+              return SelCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "${_partner!.fullName.split(' ').first}'s recent giving",
+                      style: SelType.subtitle,
+                    ),
+                    const SizedBox(height: SelSpace.x2),
+                    if (es.isEmpty) Text('Nothing yet.', style: SelType.bodySm),
+                    for (var i = 0; i < es.length; i++) ...[
+                      if (i > 0) const Divider(height: 1, color: Sel.rowLine),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${tree.shownNameOf(es[i].partnershipArmId) ?? ''} · ${formatFirestoreDate(es[i].dateGiven, pattern: 'd MMM')}',
+                                    style: SelType.body.copyWith(color: Sel.text),
+                                  ),
+                                  Text(
+                                    es[i].status == 'approved' ? 'Approved' : 'Waiting',
+                                    style: SelType.small,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(money(es[i].amountCedis), style: SelType.bodyMedium),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          );
+
+    if (widget.embedded) {
+      return SelPageBody(maxWidth: double.infinity, children: [form]);
+    }
+
+    return SelPageBody(
+      children: [
+        Row(
+          children: [
+            SelLink(label: 'Records', onTap: () => context.go('/records')),
+            Text('  /  ', style: SelType.bodySm),
+            Text(_isEdit ? 'Edit entry' : 'Record giving', style: SelType.bodySm),
+          ],
+        ),
+        const SizedBox(height: SelSpace.x4),
+        SelPageTitle(
+          title: _isEdit ? 'Edit entry' : 'Record giving',
+          subtitle: _isEdit
+              ? 'Changes are kept in the entry\'s history.'
+              : 'Who gave, how much, and toward what.',
+        ),
+        LayoutBuilder(
+          builder: (context, c) => c.maxWidth < 980
+              ? form
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: form),
+                    const SizedBox(width: SelSpace.x4),
+                    SizedBox(
+                      width: 320,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          when,
+                          if (recent != null) ...[
+                            const SizedBox(height: SelSpace.x4),
+                            recent,
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ],
     );
   }
@@ -783,13 +969,16 @@ class _PartnerTile extends StatelessWidget {
             : SystemMouseCursors.click,
         child: Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: SelSpace.x3,
-            vertical: SelSpace.x3,
+            horizontal: 18,
+            vertical: 10,
           ),
           decoration: BoxDecoration(
-            color: Sel.canvas,
-            borderRadius: BorderRadius.circular(SelRadius.input),
-            border: Border.all(color: Sel.borderMuted),
+            color: Sel.card,
+            borderRadius: BorderRadius.circular(SelRadius.pill),
+            border: Border.all(
+              color: partner == null ? Sel.border : Sel.ink,
+              width: partner == null ? 1 : 1.5,
+            ),
           ),
           child: Row(
             children: [
