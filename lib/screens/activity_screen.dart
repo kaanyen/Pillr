@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
@@ -10,66 +11,317 @@ import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
 import '../features/activity/providers/activity_log_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
+import '../features/church/providers/church_settings_providers.dart';
 
-/// Activity — the church's audit trail.
-class ActivityScreen extends ConsumerWidget {
+enum _Kind { everything, giving, partners, repairs, settings }
+
+/// Activity — the church's audit trail, as on the canvas: a search, kinds as
+/// pills, and the changes grouped by day with who made them and what changed.
+class ActivityScreen extends ConsumerStatefulWidget {
   const ActivityScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
+}
+
+class _ActivityScreenState extends ConsumerState<ActivityScreen> {
+  final _search = TextEditingController();
+  _Kind _kind = _Kind.everything;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  bool _ofKind(ActivityLogRow r) => switch (_kind) {
+    _Kind.everything => true,
+    _Kind.giving =>
+      r.action.startsWith('entry.') || r.action.startsWith('import.'),
+    _Kind.partners =>
+      r.action.startsWith('partner.') && r.action != 'partner.tidy' ||
+          r.action.startsWith('fellowship.'),
+    _Kind.repairs =>
+      r.action.startsWith('totals.') || r.action == 'partner.tidy',
+    _Kind.settings => r.action.startsWith('settings.'),
+  };
+
+  bool _matches(ActivityLogRow r, String q) {
+    if (q.isEmpty) return true;
+    final snap = r.entitySnapshot ?? const {};
+    return [
+      r.actorName,
+      snap['partnerName'],
+      snap['memberId'],
+      snap['name'],
+    ].whereType<Object>().any((v) => v.toString().toLowerCase().contains(q));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     if (idx == null) return const SizedBox.shrink();
-
+    final money = ref.watch(churchMoneyFormatProvider);
     final logs = ref.watch(activityLogsFullProvider);
+    final q = _search.text.trim().toLowerCase();
+
+    Widget pill(_Kind k, String label) => Padding(
+      padding: const EdgeInsets.only(left: SelSpace.x2),
+      child: Material(
+        color: _kind == k ? Sel.ink : Sel.card,
+        shape: StadiumBorder(
+          side: BorderSide(color: _kind == k ? Sel.ink : Sel.border),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () => setState(() => _kind = k),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            child: Text(
+              label,
+              style: SelType.bodySm.copyWith(
+                color: _kind == k ? Sel.card : Sel.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
 
     return SelPageBody(
       onRefresh: () async => ref.invalidate(activityLogsFullProvider),
       children: [
         const SelPageTitle(
           title: 'Activity',
-          subtitle: 'Who changed what, most recent first.',
+          subtitle:
+              'Who changed what, most recent first. Kept for as long as the church uses Pillr.',
         ),
+        Wrap(
+          runSpacing: SelSpace.x2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: 320,
+              child: SelField(
+                controller: _search,
+                hint: 'Search names or member IDs',
+                prefixIcon: LucideIcons.search,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            pill(_Kind.everything, 'Everything'),
+            pill(_Kind.giving, 'Giving'),
+            pill(_Kind.partners, 'Partners'),
+            pill(_Kind.repairs, 'Repairs'),
+            pill(_Kind.settings, 'Church settings'),
+          ],
+        ),
+        const SizedBox(height: SelSpace.x4),
         logs.when(
           loading: () => const SelCard(child: SelSkeletonRows(count: 8)),
           error: (e, _) => SelError(message: '$e'),
-          data: (rows) => SelLedger.builder(
-            minWidth: 680,
-            maxVirtualHeight: 640,
-            // "Who" is two lines (name, role).
-            rowExtent: kSelLedgerStackedRowExtent,
-            columns: const [
-              SelColumn('Who', flex: 2),
-              SelColumn('Did what', flex: 3),
-              SelColumn('On', flex: 2),
-              SelColumn('When', fit: SelColFit.fixed, width: 150),
-            ],
-            emptyState: const SelEmpty(
-              title: 'Nothing logged yet',
-              message: 'Actions your team takes will be recorded here.',
-              icon: LucideIcons.history,
-            ),
-            itemCount: rows.length,
-            itemBuilder: (context, i) {
-              final r = rows[i];
-              return SelRow(
-                cells: [
-                  SelCell.stacked(
-                    TextCaseUtils.toTitleCase(r.actorName),
-                    r.actorRole,
-                  ),
-                  SelCell.secondary(
-                    activityActionLabel(r.action),
-                  ),
-                  SelCell.secondary(_activityOn(r)),
-                  SelCell.secondary(
-                    formatFirestoreDate(r.createdAt, pattern: 'd MMM, HH:mm'),
-                  ),
-                ],
+          data: (all) {
+            final rows = [
+              for (final r in all)
+                if (_ofKind(r) && _matches(r, q)) r,
+            ];
+            if (rows.isEmpty) {
+              return const SelCard(
+                child: SelEmpty(
+                  title: 'Nothing logged yet',
+                  message: 'Changes your team makes will be listed here.',
+                  icon: LucideIcons.history,
+                ),
               );
-            },
-          ),
+            }
+            final today = DateTime.now();
+            String dayLabel(DateTime d) {
+              final day = DateTime(d.year, d.month, d.day);
+              final diff = DateTime(today.year, today.month, today.day)
+                  .difference(day)
+                  .inDays;
+              final full = formatFirestoreDate(d, pattern: 'EEEE, d MMMM');
+              if (diff == 0) {
+                return 'Today, ${formatFirestoreDate(d, pattern: 'd MMMM')}';
+              }
+              if (diff == 1) {
+                return 'Yesterday, ${formatFirestoreDate(d, pattern: 'd MMMM')}';
+              }
+              return d.year == today.year
+                  ? full
+                  : formatFirestoreDate(d, pattern: 'EEEE, d MMMM y');
+            }
+
+            final children = <Widget>[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: _Line(
+                  when: Text('When', style: SelType.small),
+                  who: Text('Who', style: SelType.small),
+                  what: Text('Did what', style: SelType.small),
+                  on: Text('On', style: SelType.small),
+                ),
+              ),
+            ];
+            String? lastDay;
+            for (final r in rows) {
+              final label = dayLabel(r.createdAt);
+              if (label != lastDay) {
+                lastDay = label;
+                children
+                  ..add(const Divider(height: 1, color: Sel.rowLine))
+                  ..add(
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+                      child: Text(
+                        label,
+                        style: SelType.small.copyWith(
+                          color: Sel.ink,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  );
+              }
+              children
+                ..add(const Divider(height: 1, color: Sel.rowLine))
+                ..add(_ActivityRow(row: r, money: money));
+            }
+            return SelCard(
+              padding: const EdgeInsets.fromLTRB(18, 22, 18, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            );
+          },
         ),
       ],
+    );
+  }
+}
+
+class _Line extends StatelessWidget {
+  const _Line({
+    required this.when,
+    required this.who,
+    required this.what,
+    required this.on,
+  });
+
+  final Widget when;
+  final Widget who;
+  final Widget what;
+  final Widget on;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      SizedBox(width: 76, child: when),
+      SizedBox(width: 180, child: who),
+      Expanded(child: what),
+      const SizedBox(width: SelSpace.x4),
+      SizedBox(width: 160, child: on),
+    ],
+  );
+}
+
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({required this.row, required this.money});
+
+  final ActivityLogRow row;
+  final String Function(num) money;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = row;
+    final name = TextCaseUtils.toTitleCase(r.actorName);
+    final words = name.split(' ').where((w) => w.isNotEmpty);
+    final role = r.actorRole.toLowerCase();
+    final snap = r.entitySnapshot ?? const <String, dynamic>{};
+    final amount = snap['amountCedis'];
+    final partner = snap['partnerName']?.toString();
+    final arm = snap['armName']?.toString();
+    final strong = SelType.body.copyWith(
+      color: Sel.ink,
+      fontWeight: FontWeight.w800,
+    );
+
+    final spans = <InlineSpan>[];
+    if (r.action == 'entry.create' && amount is num && partner != null) {
+      spans.addAll([
+        const TextSpan(text: 'Recorded '),
+        TextSpan(text: money(amount), style: strong),
+        if (arm != null) TextSpan(text: ' to $arm'),
+        const TextSpan(text: ' for '),
+      ]);
+    } else {
+      spans.add(TextSpan(text: activityActionLabel(r.action)));
+      if (partner != null) spans.add(const TextSpan(text: ' for '));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: _Line(
+        when: Text(
+          formatFirestoreDate(r.createdAt, pattern: 'HH:mm'),
+          style: SelType.bodySm.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        who: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: role == 'pastor'
+                    ? Sel.ink
+                    : role == 'staff'
+                    ? Sel.skyWash
+                    : Sel.track,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                words.take(2).map((w) => w[0].toUpperCase()).join(),
+                style: SelType.small.copyWith(
+                  color: role == 'pastor' ? Sel.card : Sel.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: SelSpace.x2),
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: SelType.body.copyWith(color: Sel.text),
+              ),
+            ),
+          ],
+        ),
+        what: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text.rich(
+              TextSpan(
+                style: SelType.body.copyWith(color: Sel.text),
+                children: spans,
+              ),
+            ),
+            if (partner != null)
+              SelLink(
+                label: partner,
+                onTap: snap['partnerId'] == null
+                    ? null
+                    : () => context.go('/partners/${snap['partnerId']}'),
+              ),
+          ],
+        ),
+        on: Text(_activityOn(r), style: SelType.bodySm),
+      ),
     );
   }
 }
@@ -83,7 +335,15 @@ String _activityOn(ActivityLogRow r) {
     if (name != null && name.isNotEmpty) return name;
     return 'Fellowship';
   }
-  return r.entityType;
+  final name = snap?['name']?.toString().trim();
+  if (name != null && name.isNotEmpty) return name;
+  return switch (r.entityType) {
+    'entry' => snap?['periodName']?.toString() ?? 'Giving',
+    'partner' => 'Partner',
+    'import' => 'A sheet',
+    'settings' || 'church' => 'Church',
+    final t => t[0].toUpperCase() + t.substring(1),
+  };
 }
 
 /// Full log, distinct from the short dashboard preview.
