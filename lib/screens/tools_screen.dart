@@ -35,6 +35,9 @@ class ToolsScreen extends ConsumerStatefulWidget {
 class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   String? _running;
 
+  /// The tool open on the right.
+  String _tool = 'dupPartners';
+
   TotalsAuditReport? _totals;
   List<DuplicatePartnerPair>? _dupPartners;
   List<DuplicateEntryPair>? _dupEntries;
@@ -60,15 +63,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       );
     }
 
-    return SelPageBody(
-      children: [
-        const SelPageTitle(
-          title: 'Tools',
-          subtitle:
-              'Checks and repairs for the ledger. Nothing changes until you say so.',
-        ),
-
-        _ToolCard(
+    final cards = <String, Widget>{
+        'totals': _ToolCard(
           icon: LucideIcons.scale,
           title: 'Check the totals',
           blurb:
@@ -126,20 +122,12 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                 ),
         ),
 
-        const SizedBox(height: SelSpace.x4),
-
-        const RecentChangesCard(),
-
-        const SizedBox(height: SelSpace.x4),
-
-        _SeparateCard(
+        'separate': _SeparateCard(
           busy: _running == 'separate',
           onSeparate: (id) => _separate(id, idx!.churchId),
         ),
 
-        const SizedBox(height: SelSpace.x4),
-
-        _ToolCard(
+        'dupPartners': _ToolCard(
           icon: LucideIcons.users,
           title: 'Merge duplicate partners',
           blurb:
@@ -169,9 +157,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                 ),
         ),
 
-        const SizedBox(height: SelSpace.x4),
-
-        _ToolCard(
+        'dupEntries': _ToolCard(
           icon: LucideIcons.copy,
           title: 'Find duplicate entries',
           blurb:
@@ -204,9 +190,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                 ),
         ),
 
-        const SizedBox(height: SelSpace.x4),
-
-        _ToolCard(
+        'partnerData': _ToolCard(
           icon: LucideIcons.userCheck,
           title: 'Tidy the partner list',
           blurb:
@@ -248,6 +232,82 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                       'Corrected $n ${n == 1 ? "name" : "names"}.',
                     );
                   }),
+                ),
+        ),
+    };
+
+    final dupes = ref.watch(duplicateHealthProvider).valueOrNull?.open ?? 0;
+    final tools = [
+      ('dupPartners', 'Possible duplicates', 'The same person on the book twice', dupes),
+      ('dupEntries', 'Giving entered twice', 'Same partner, amount and day', _dupEntries?.length ?? 0),
+      ('partnerData', 'Names and fellowships', 'Capitals and missing details', _partnerIssues?.length ?? 0),
+      ('totals', 'Totals', 'Add the entries up again', 0),
+      ('separate', 'Take someone out of a merge', 'By their old member ID', 0),
+    ];
+    final list = SelCard(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (id, title, note, n) in tools)
+            Material(
+              color: id == _tool ? Sel.skyTint : Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => setState(() => _tool = id),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: SelType.bodyMedium),
+                            Text(note, style: SelType.small),
+                          ],
+                        ),
+                      ),
+                      if (n > 0) SelCountTag(label: '$n', emphasised: true),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    final detail = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        cards[_tool]!,
+        const SizedBox(height: SelSpace.x4),
+        const RecentChangesCard(),
+      ],
+    );
+
+    return SelPageBody(
+      children: [
+        const SelPageTitle(
+          title: 'Tools',
+          subtitle:
+              'Checks and repairs for the book. Nothing changes until you say '
+              'so, and every repair can be undone.',
+        ),
+        LayoutBuilder(
+          builder: (context, c) => c.maxWidth < 900
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [list, const SizedBox(height: SelSpace.x4), detail],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 280, child: list),
+                    const SizedBox(width: SelSpace.x4),
+                    Expanded(child: detail),
+                  ],
                 ),
         ),
       ],
