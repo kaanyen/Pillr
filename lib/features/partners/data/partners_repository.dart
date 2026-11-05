@@ -191,6 +191,19 @@ class PartnersRepository {
     });
   }
 
+  /// Notes why a partner has gone quiet. Blank clears it.
+  Future<void> setFollowUpReason({
+    required String churchId,
+    required String partnerId,
+    required String reason,
+  }) async {
+    final r = reason.trim();
+    await _partners(churchId).doc(partnerId).update({
+      'followUpReason': r.isEmpty ? null : r,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Prefix search via Firestore (`memberId`, `fullNameLower`, `fellowshipLower`) plus
   /// client fallback for partners missing lowercase fields (legacy) or fuzzy match.
   Future<List<Partner>> searchPartners(

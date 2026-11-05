@@ -65,14 +65,9 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     }
   }
 
+  /// A fellowship opens its own page: Overview, People, Arms, Month by month.
   void _openFellowshipMembers(String fellowshipKey) {
-    ref
-        .read(recordFiltersProvider.notifier)
-        .set(RecordFilters.empty.withFellowship(fellowshipKey));
-    context.go(
-      '/fellowships?view=ranked&fellowship=${Uri.encodeComponent(fellowshipKey)}',
-    );
-    setState(() => _view = _View.ranked);
+    context.go('/fellowships/${Uri.encodeComponent(fellowshipKey)}');
   }
 
   void _backToAllFellowships() {

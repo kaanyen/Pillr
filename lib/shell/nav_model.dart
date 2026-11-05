@@ -109,19 +109,11 @@ List<SelNavGroup> navGroupsFor(
           LucideIcons.inbox,
           badgeKey: 'pending',
         ),
-        SelNavItem(
-          '/records',
-          l10n.navRecords,
-          LucideIcons.fileText,
-          children: [
-            SelNavSubItem('/records', l10n.navRecordsAll),
-            SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
-            SelNavSubItem('/records/imports', l10n.navRecordsImports),
-          ],
-        ),
+        _records(l10n),
       ]),
       SelNavGroup(l10n.navSectionPartnership, [
-        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+        _partners(l10n),
+        _ranked(l10n),
         SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
         SelNavItem('/goals', l10n.navGoals, LucideIcons.target),
       ]),
@@ -139,17 +131,13 @@ List<SelNavGroup> navGroupsFor(
       SelNavGroup(null, [
         SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
         SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
-        SelNavItem(
-          '/records',
-          l10n.navRecords,
-          LucideIcons.fileText,
-          children: [
-            SelNavSubItem('/records', l10n.navRecordsAll),
-            SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
-            SelNavSubItem('/records/imports', l10n.navRecordsImports),
-          ],
-        ),
-        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+        _records(l10n),
+      ]),
+      // Staff look after partners as much as pastors do, so they get the same
+      // Partnership group, without Goals.
+      SelNavGroup(l10n.navSectionPartnership, [
+        _partners(l10n),
+        _ranked(l10n),
         SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
       ]),
     ]);
@@ -172,6 +160,39 @@ List<SelNavGroup> navGroupsFor(
 
   return groups;
 }
+
+/// Records and its views. The parent opens All records and shows the rest.
+SelNavItem _records(AppLocalizations l10n) => SelNavItem(
+  '/records',
+  l10n.navRecords,
+  LucideIcons.fileText,
+  children: [
+    SelNavSubItem('/records', l10n.navRecordsAll),
+    SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
+    SelNavSubItem('/records/by-arm', l10n.navRecordsByArm),
+    SelNavSubItem('/records/by-fellowship', l10n.navRecordsByFellowship),
+    SelNavSubItem('/records/by-partner', l10n.navRecordsByPartner),
+    SelNavSubItem('/records/imports', l10n.navRecordsImports),
+  ],
+);
+
+/// Partners and its views, the same way.
+SelNavItem _partners(AppLocalizations l10n) => SelNavItem(
+  '/partners',
+  l10n.navPartners,
+  LucideIcons.users,
+  children: [
+    SelNavSubItem('/partners', l10n.navPartnersAll),
+    SelNavSubItem('/partners/by-fellowship', l10n.navPartnersByFellowship),
+    SelNavSubItem('/partners/new', l10n.navPartnersNew),
+    SelNavSubItem('/partners/rhythm', l10n.navPartnersRhythm),
+    SelNavSubItem('/partners/follow-up', l10n.navPartnersFollowUp),
+  ],
+);
+
+/// Ranked is its own destination, straight after Partners.
+SelNavItem _ranked(AppLocalizations l10n) =>
+    SelNavItem('/ranked', l10n.navRanked, LucideIcons.trophy);
 
 /// Compact-width destinations. Caps at five so the bar never wraps.
 List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
@@ -196,7 +217,7 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
       ),
       SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
       SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
-      SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
+      _ranked(l10n),
     ];
   }
   return [
@@ -204,6 +225,6 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
     SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
     SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
-    SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
+    _ranked(l10n),
   ];
 }

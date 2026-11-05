@@ -26,6 +26,7 @@ class Partner {
     this.emails = const [],
     this.address,
     this.notes,
+    this.followUpReason,
   });
 
   final String id;
@@ -63,6 +64,10 @@ class Partner {
 
   /// Anything the church wants to remember about this person.
   final String? notes;
+
+  /// Why this partner has gone quiet, as last noted on Follow up
+  /// ("Called 12 Oct, travelling").
+  final String? followUpReason;
 
   /// [phones] with [phone] first, each once — what to show and compare.
   List<String> get allPhones => _distinctContacts([phone ?? '', ...phones]);
@@ -105,6 +110,7 @@ class Partner {
       emails: _strings(m['emails']),
       address: m['address'] as String?,
       notes: m['notes'] as String?,
+      followUpReason: m['followUpReason'] as String?,
     );
   }
 }

@@ -241,7 +241,9 @@ class _RailSection extends StatelessWidget {
           for (final child in item.children)
             _RailSubLink(
               label: child.label,
-              active: currentPath == child.path,
+              active: currentPath == child.path ||
+                  (child.path != item.path &&
+                      currentPath.startsWith('${child.path}/')),
               onTap: () => onNavigate(child.path),
             ),
         ],

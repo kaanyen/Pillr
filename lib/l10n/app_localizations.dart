@@ -1247,7 +1247,7 @@ abstract class AppLocalizations {
   /// No description provided for @entriesNoEntriesMessage.
   ///
   /// In en, this message translates to:
-  /// **'Record a gift.'**
+  /// **'Record giving.'**
   String get entriesNoEntriesMessage;
 
   /// No description provided for @entriesNoMatchesTitle.
@@ -1574,6 +1574,60 @@ abstract class AppLocalizations {
   /// **'Imports'**
   String get navRecordsImports;
 
+  /// No description provided for @navRecordsByArm.
+  ///
+  /// In en, this message translates to:
+  /// **'By arm'**
+  String get navRecordsByArm;
+
+  /// No description provided for @navRecordsByFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'By fellowship'**
+  String get navRecordsByFellowship;
+
+  /// No description provided for @navRecordsByPartner.
+  ///
+  /// In en, this message translates to:
+  /// **'By partner'**
+  String get navRecordsByPartner;
+
+  /// No description provided for @navPartnersAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All partners'**
+  String get navPartnersAll;
+
+  /// No description provided for @navPartnersByFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'By fellowship'**
+  String get navPartnersByFellowship;
+
+  /// No description provided for @navPartnersNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New this year'**
+  String get navPartnersNew;
+
+  /// No description provided for @navPartnersRhythm.
+  ///
+  /// In en, this message translates to:
+  /// **'Giving rhythm'**
+  String get navPartnersRhythm;
+
+  /// No description provided for @navPartnersFollowUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow up'**
+  String get navPartnersFollowUp;
+
+  /// No description provided for @navRanked.
+  ///
+  /// In en, this message translates to:
+  /// **'Ranked'**
+  String get navRanked;
+
   /// No description provided for @navPeople.
   ///
   /// In en, this message translates to:
@@ -1703,7 +1757,7 @@ abstract class AppLocalizations {
   /// No description provided for @recordsEmptyAction.
   ///
   /// In en, this message translates to:
-  /// **'Record the first gift'**
+  /// **'Record the first giving'**
   String get recordsEmptyAction;
 
   /// No description provided for @statusPending.

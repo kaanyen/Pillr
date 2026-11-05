@@ -25,6 +25,7 @@ import '../features/users/providers/users_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
 import 'arm_palette.dart';
+import 'views/overview_shortcuts.dart';
 
 /// Overview — one screen for every role.
 ///
@@ -73,6 +74,11 @@ class OverviewScreen extends ConsumerWidget {
               ),
           ],
         ),
+
+        if (isPastor || (idx?.isStaff ?? false)) ...[
+          OverviewShortcuts(isPastor: isPastor),
+          const SelSectionGap(factor: 0.5),
+        ],
 
         const _UnfinishedImport(),
 

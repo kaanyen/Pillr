@@ -661,7 +661,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entriesNoEntriesTitle => 'No entries yet';
 
   @override
-  String get entriesNoEntriesMessage => 'Record a gift.';
+  String get entriesNoEntriesMessage => 'Record giving.';
 
   @override
   String get entriesNoMatchesTitle => 'No matches';
@@ -838,6 +838,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navRecordsImports => 'Imports';
 
   @override
+  String get navRecordsByArm => 'By arm';
+
+  @override
+  String get navRecordsByFellowship => 'By fellowship';
+
+  @override
+  String get navRecordsByPartner => 'By partner';
+
+  @override
+  String get navPartnersAll => 'All partners';
+
+  @override
+  String get navPartnersByFellowship => 'By fellowship';
+
+  @override
+  String get navPartnersNew => 'New this year';
+
+  @override
+  String get navPartnersRhythm => 'Giving rhythm';
+
+  @override
+  String get navPartnersFollowUp => 'Follow up';
+
+  @override
+  String get navRanked => 'Ranked';
+
+  @override
   String get navPeople => 'People';
 
   @override
@@ -905,7 +932,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Partnership entries will appear as your team records them.';
 
   @override
-  String get recordsEmptyAction => 'Record the first gift';
+  String get recordsEmptyAction => 'Record the first giving';
 
   @override
   String get statusPending => 'Pending';

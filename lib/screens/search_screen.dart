@@ -15,9 +15,11 @@ import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/partners/domain/partner.dart';
+import '../features/leaderboard/giving_view.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../features/shortcuts/shortcuts.dart';
 
-/// Global search across partners and entries. Pastor only.
+/// Global search across fellowships, partners, entries and pages.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -171,12 +173,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: SelEmpty(
               title: l10n.searchIdleTitle,
               message:
-                  'Type a name, a member ID or a status. '
+                  'Type a name, a fellowship, a page or a member ID. '
                   'Results appear as you go.',
               icon: LucideIcons.search,
             ),
           )
         else ...[
+          ..._fellowshipsAndPages(context, money),
           SelSectionLabel(
             label: 'Partners',
             trailing: Text('${_partners.length}', style: SelType.bodyMuted),
@@ -252,5 +255,85 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ],
       ],
     );
+  }
+
+  /// Fellowships and pages match on name as you type, with no round trip:
+  /// both are already on the device.
+  List<Widget> _fellowshipsAndPages(
+    BuildContext context,
+    String Function(num) money,
+  ) {
+    final q = _q.text.trim().toLowerCase();
+    if (q.length < 2) return const [];
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    final view = ref.watch(givingViewProvider);
+    final fellowships = view.fellowships
+        .where((f) => f.name.toLowerCase().contains(q))
+        .toList();
+    final pages = [
+      for (final s in shortcutsFor(isPastor: idx?.isPastor ?? false))
+        if (s.label.toLowerCase().contains(q)) (s.label, s.group, s.path),
+      for (final f in fellowships)
+        for (final (tab, label) in const [
+          ('people', 'People'),
+          ('arms', 'Arms'),
+          ('months', 'Month by month'),
+        ])
+          (
+            '${f.name} · $label',
+            'Fellowships › ${f.name}',
+            '/fellowships/${Uri.encodeComponent(f.key)}?tab=$tab',
+          ),
+    ];
+    return [
+      if (fellowships.isNotEmpty) ...[
+        SelSectionLabel(
+          label: 'Fellowships',
+          trailing: Text('${fellowships.length}', style: SelType.bodyMuted),
+        ),
+        SelLedger(
+          minWidth: 520,
+          columns: const [
+            SelColumn('Fellowship', flex: 2),
+            SelColumn.numeric('Partners', width: 100),
+            SelColumn.numeric('This period', width: 150),
+          ],
+          rows: [
+            for (final f in fellowships)
+              SelRow(
+                onTap: () =>
+                    context.go('/fellowships/${Uri.encodeComponent(f.key)}'),
+                cells: [
+                  SelCell.primary(f.name),
+                  SelCell.numeric('${f.partners}', strong: false),
+                  SelCell.numeric(money(f.total)),
+                ],
+              ),
+          ],
+        ),
+        const SelSectionGap(factor: 0.5),
+      ],
+      if (pages.isNotEmpty) ...[
+        SelSectionLabel(
+          label: 'Pages',
+          trailing: Text('${pages.length}', style: SelType.bodyMuted),
+        ),
+        SelLedger(
+          minWidth: 520,
+          columns: const [
+            SelColumn('Page', flex: 2),
+            SelColumn('Where', flex: 2),
+          ],
+          rows: [
+            for (final (label, where, path) in pages)
+              SelRow(
+                onTap: () => context.go(path),
+                cells: [SelCell.primary(label), SelCell.secondary(where)],
+              ),
+          ],
+        ),
+        const SelSectionGap(factor: 0.5),
+      ],
+    ];
   }
 }

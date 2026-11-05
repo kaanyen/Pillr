@@ -84,6 +84,8 @@ class SelShell extends ConsumerWidget {
             child: RoutePersistenceListener(
               child: Scaffold(
                 backgroundColor: Sel.canvas,
+                // The pill floats over the page, so the page runs under it.
+                extendBody: true,
                 body: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -261,40 +263,122 @@ class _AccountChip extends ConsumerWidget {
   }
 }
 
-class _BottomBar extends StatelessWidget {
+/// Phones get a floating pill instead of a full-width bar: five places, the
+/// current one filled, sitting over the page so the content runs underneath.
+class _BottomBar extends ConsumerWidget {
   const _BottomBar({required this.path, required this.idx});
 
   final String path;
   final dynamic idx;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = mobileNavFor(idx, AppLocalizations.of(context));
     if (items.isEmpty) return const SizedBox.shrink();
+    final pending = ref.watch(pendingApprovalCountProvider);
 
     final current = items.indexWhere(
       (e) => path == e.path || path.startsWith('${e.path}/'),
     );
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Sel.card,
-        border: Border(top: BorderSide(color: Sel.border)),
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(
+        SelSpace.x4,
+        0,
+        SelSpace.x4,
+        SelSpace.x4,
       ),
-      child: SafeArea(
-        top: false,
-        child: NavigationBar(
-          selectedIndex: current >= 0 ? current : 0,
-          backgroundColor: Sel.card,
-          onDestinationSelected: (i) => context.go(items[i].path),
-          destinations: [
-            for (final it in items)
-              NavigationDestination(
-                icon: Icon(it.icon, size: 18, color: Sel.ash),
-                selectedIcon: Icon(it.icon, size: 18, color: Sel.ink),
-                label: it.label,
-              ),
-          ],
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Sel.card,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              border: Border.all(color: Sel.border),
+              boxShadow: SelShadow.floating,
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _PillTab(
+                      item: items[i],
+                      selected: i == current,
+                      badge: items[i].badgeKey == 'pending' ? pending : null,
+                      onTap: () => context.go(items[i].path),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PillTab extends StatelessWidget {
+  const _PillTab({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final SelNavItem item;
+  final bool selected;
+  final int? badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Sel.card : Sel.warm;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: item.label,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(SelRadius.pill),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            height: 52,
+            decoration: BoxDecoration(
+              color: selected ? Sel.ink : Colors.transparent,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Badge(
+                  isLabelVisible: (badge ?? 0) > 0,
+                  label: Text('${badge ?? 0}'),
+                  backgroundColor: Sel.cyan,
+                  child: Icon(item.icon, size: 18, color: fg),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SelType.small.copyWith(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

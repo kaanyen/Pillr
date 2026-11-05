@@ -48,6 +48,46 @@ void main() {
     expect(labels, isNot(contains('Overview')));
   });
 
+  testWidgets('Ranked sits straight after Partners, for pastor and staff', (
+    tester,
+  ) async {
+    final l10n = await localisationsFor(tester, const Locale('en'));
+    final staff = UserChurchIndex(uid: 's', churchId: 'c1', role: 'staff');
+    for (final who in [pastor, staff]) {
+      final labels = navGroupsFor(
+        who,
+        l10n,
+      ).expand((g) => g.items).map((i) => i.label).toList();
+      expect(labels.indexOf('Ranked'), labels.indexOf('Partners') + 1);
+    }
+  });
+
+  testWidgets('Records and Partners carry their views', (tester) async {
+    final l10n = await localisationsFor(tester, const Locale('en'));
+    final items = navGroupsFor(pastor, l10n).expand((g) => g.items);
+    final records = items.firstWhere((i) => i.path == '/records');
+    final partners = items.firstWhere((i) => i.path == '/partners');
+    expect(records.children.first.label, 'All records');
+    expect(records.children.map((c) => c.path), contains('/records/by-arm'));
+    expect(
+      partners.children.map((c) => c.path),
+      contains('/partners/follow-up'),
+    );
+  });
+
+  testWidgets('the phone bar is Overview, Queue, Records, Partners, Ranked', (
+    tester,
+  ) async {
+    final l10n = await localisationsFor(tester, const Locale('en'));
+    expect(mobileNavFor(pastor, l10n).map((i) => i.label), [
+      'Overview',
+      'Queue',
+      'Records',
+      'Partners',
+      'Ranked',
+    ]);
+  });
+
   testWidgets('the compact bar translates too', (tester) async {
     final l10n = await localisationsFor(tester, const Locale('fr'));
     expect(mobileNavFor(pastor, l10n).map((i) => i.label), contains('Registres'));

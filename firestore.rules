@@ -162,6 +162,7 @@ service cloud.firestore {
                            .hasOnly(['fullName', 'fullNameLower', 'memberId',
                                      'formerMemberIds', 'email', 'phone',
                                      'phones', 'emails', 'address', 'notes',
+                                     'followUpReason',
                                      'fellowship', 'fellowshipLower',
                                      'updatedAt'])
                       && sameIgnoringCase('fellowship')

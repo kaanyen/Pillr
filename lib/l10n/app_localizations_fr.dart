@@ -835,6 +835,33 @@ class AppLocalizationsFr extends AppLocalizations {
   String get navRecordsImports => 'Imports';
 
   @override
+  String get navRecordsByArm => 'Par bras';
+
+  @override
+  String get navRecordsByFellowship => 'Par fraternité';
+
+  @override
+  String get navRecordsByPartner => 'Par partenaire';
+
+  @override
+  String get navPartnersAll => 'Tous les partenaires';
+
+  @override
+  String get navPartnersByFellowship => 'Par fraternité';
+
+  @override
+  String get navPartnersNew => 'Nouveaux cette année';
+
+  @override
+  String get navPartnersRhythm => 'Rythme des dons';
+
+  @override
+  String get navPartnersFollowUp => 'À relancer';
+
+  @override
+  String get navRanked => 'Classement';
+
+  @override
   String get navPeople => 'Personnes';
 
   @override
