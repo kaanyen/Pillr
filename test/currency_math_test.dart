@@ -136,7 +136,7 @@ void moneyTests() {
     });
 
     test(
-      'adding and removing the same gifts in pesewas leaves exactly zero',
+      'adding and removing the same giving in pesewas leaves exactly zero',
       () {
         // The same round trip in cedi doubles leaves ~2.3e-13 behind.
         final amounts = [33.33, 33.33, 33.34, 0.01, 1234.57, 0.1, 0.2];

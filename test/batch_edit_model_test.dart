@@ -60,7 +60,7 @@ void main() {
       expect(d.dateChanged, isFalse);
     });
 
-    test('moving a gift to another partner moves no money overall', () {
+    test('moving giving to another partner moves no money overall', () {
       final d = BatchRowDraft.from(row())
         ..partnerId = 'ama'
         ..partnerName = 'Ama Serwaa';

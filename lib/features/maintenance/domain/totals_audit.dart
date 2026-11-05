@@ -112,7 +112,7 @@ ExpectedTotals expectedTotalsBy(
 /// Compares stored totals against what the entries add up to.
 ///
 /// Reports a row per disagreement, including documents whose total should be
-/// zero but is not — a partner whose only gift was voided still holds the old
+/// zero but is not — a partner whose only entry was voided still holds the old
 /// figure until something puts it back to nothing, and that is exactly the
 /// case a naive "recompute what's there" pass would miss.
 List<TotalsDrift> findTotalsDrift({

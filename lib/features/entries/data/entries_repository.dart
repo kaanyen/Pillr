@@ -152,7 +152,7 @@ class EntriesRepository {
     return total;
   }
 
-  /// One partner's giving history, most recent gift first.
+  /// One partner's giving history, most recent entry first.
   ///
   /// By `dateGiven` for the same reason the paged lists are: this is a record
   /// of giving, and the date on the row is the date it should sort by.
@@ -182,14 +182,14 @@ class EntriesRepository {
   /// `declined` | `voided`. [importBatchId] narrows to one import run.
   /// [newestFirst] false = oldest first.
   ///
-  /// Ordered by `dateGiven` — when the gift was given — not by `createdAt`,
+  /// Ordered by `dateGiven` — when the giving was given — not by `createdAt`,
   /// when somebody typed it in. Those are the same moment for an entry a
   /// pastor records, and they are not for one a staff member submits and a
   /// pastor approves days later: approving does not touch `createdAt`, so
-  /// ordering by it filed the newly approved gift back under the day it was
+  /// ordering by it filed the newly approved entry back under the day it was
   /// keyed in, below everything entered since and often past the end of the
   /// first page. A pastor reading a giving record wants it under the day of
-  /// the gift, which is also the field the monthly view groups by — so the
+  /// the giving, which is also the field the monthly view groups by — so the
   /// order the pages arrive in and the order they are read in now agree.
   Future<({
     List<PartnershipEntry> items,

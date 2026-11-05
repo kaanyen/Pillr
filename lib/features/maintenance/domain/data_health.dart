@@ -1,7 +1,7 @@
 /// Finds the things that go wrong in a giving ledger over time.
 ///
 /// All pure. Each detector takes what it needs and returns candidates — it
-/// never decides anything. Merging two partners or clearing a gift is a
+/// never decides anything. Merging two partners or clearing an entry is a
 /// judgement about real people's records, so every one of these is a proposal
 /// for someone to confirm, not a fix to apply.
 library;
@@ -457,7 +457,7 @@ List<DuplicatePartnerPair> findDuplicatePartners(
 class DuplicateGroup {
   const DuplicateGroup({required this.partners, required this.pairs});
 
-  /// Most gifts first, then oldest: the first is the suggested one to keep.
+  /// Most entries first, then oldest: the first is the suggested one to keep.
   final List<Partner> partners;
 
   /// The pairs that link them, for the reasons shown.
@@ -614,9 +614,9 @@ PartnerMergePlan planPartnerMerge({
   );
 }
 
-// ----------------------------------------------------------- duplicate gifts
+// ----------------------------------------------------------- duplicate giving
 
-/// The same gift, recorded twice.
+/// The same giving, recorded twice.
 class DuplicateEntryPair {
   const DuplicateEntryPair({
     required this.original,
@@ -630,7 +630,7 @@ class DuplicateEntryPair {
   final String reason;
 }
 
-/// Finds gifts recorded more than once.
+/// Finds giving recorded more than once.
 ///
 /// The importer catches these at import time; nothing catches the ones typed in
 /// by hand, or created by two staff members recording the same envelope. Match

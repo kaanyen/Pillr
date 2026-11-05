@@ -37,8 +37,8 @@ class PartnershipEntry {
     this.mergedFromPartnerId,
   });
 
-  /// The partner record this gift first belonged to, when a merge moved it.
-  /// Taking that record back out of the merge sends the gift back.
+  /// The partner record this entry first belonged to, when a merge moved it.
+  /// Taking that record back out of the merge sends the entry back.
   final String? mergedFromPartnerId;
 
   final String id;

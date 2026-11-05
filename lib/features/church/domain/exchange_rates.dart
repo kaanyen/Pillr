@@ -63,7 +63,7 @@ class ChurchExchangeRates {
   /// Whether [currencyCode] has a rate the church actually set.
   ///
   /// [rateFor] falls back to 1.0 so a conversion always produces a number, but
-  /// for a foreign currency that fallback is a lie: it records a $100 gift as
+  /// for a foreign currency that fallback is a lie: it records $100 of giving as
   /// ₵100. Callers offering a currency the church has not configured must ask
   /// this first and refuse, rather than bank the fallback.
   bool hasRateFor(String currencyCode) {

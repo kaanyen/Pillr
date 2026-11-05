@@ -321,7 +321,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
             '${keep.fullName} stays. '
             '${others.length == 1 ? "The other record closes" : "The other ${others.length} records close"}'
             ' — nothing is deleted.\n\n'
-            '• $moving ${moving == 1 ? "gift moves" : "gifts move"} to ${keep.fullName}. '
+            '• $moving ${moving == 1 ? "entry moves" : "entries move"} to ${keep.fullName}. '
             'Their total becomes ${money(total)}.\n'
             '• Every phone number and email from these records stays with '
             '${keep.fullName}.\n'
@@ -333,7 +333,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       );
       if (!ok) return;
 
-      // The count the person just confirmed: if a gift lands on any of these
+      // The count the person just confirmed: if an entry lands on any of these
       // records before the server runs, it refuses rather than move a
       // different set.
       final r = await ref
@@ -353,7 +353,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       selNotice(
         context,
         'Done. ${keep.fullName} is now ${r.newMemberId}. '
-        '${r.moved} ${r.moved == 1 ? "gift" : "gifts"} moved'
+        '${r.moved} ${r.moved == 1 ? "entry" : "entries"} moved'
         '${r.filled.isEmpty ? "" : ", ${r.filled.join(" and ")} copied over"}.',
         kind: SelNoticeKind.success,
       );
@@ -367,7 +367,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       context,
       title: 'Take $id out of its merge?',
       message:
-          'The record with ID $id opens again with its own gifts. Everyone '
+          'The record with ID $id opens again with its own giving. Everyone '
           'else stays merged. You can undo this too.',
       confirmLabel: 'Take it out',
     );
@@ -382,7 +382,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       if (!mounted) return;
       selNotice(
         context,
-        '$id is its own record again. ${r.moved} ${r.moved == 1 ? "gift" : "gifts"} went back to it.',
+        '$id is its own record again. ${r.moved} ${r.moved == 1 ? "entry" : "entries"} went back to it.',
         kind: SelNoticeKind.success,
       );
     });
@@ -794,7 +794,7 @@ class _GroupCase extends StatelessWidget {
           Text(reasons, style: SelType.small),
           const SizedBox(height: SelSpace.x2),
           Text(
-            'Pick the record to keep. The others close and their gifts move to it.',
+            'Pick the record to keep. The others close and their giving moves to it.',
             style: SelType.bodyMuted,
           ),
           const SizedBox(height: SelSpace.x2),
@@ -865,7 +865,7 @@ class _SeparateCardState extends State<_SeparateCard> {
                     Text(
                       'Merged two people by mistake? Type the old member ID '
                       'of the one to take out. It opens again with its own '
-                      'gifts; the rest stay merged.',
+                      'giving; the rest stay merged.',
                       style: SelType.bodyMuted,
                     ),
                   ],

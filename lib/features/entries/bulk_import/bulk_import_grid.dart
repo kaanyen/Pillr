@@ -136,7 +136,7 @@ BulkImportColumn? columnForIssue(BulkImportIssueCode code) => switch (code) {
       BulkImportIssueCode.memberIdMerged => (
         title: 'Old member ID',
         help:
-            'This person has a new member ID now. The gift goes to them — '
+            'This person has a new member ID now. The giving goes to them — '
             'nothing to fix. Use the new ID on future sheets.',
       ),
       BulkImportIssueCode.possibleDuplicatePartner => (

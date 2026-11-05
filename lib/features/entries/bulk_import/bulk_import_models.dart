@@ -38,10 +38,10 @@ enum BulkImportIssueCode {
   staffPastorYesPending,
 
   /// The row is in a currency the church has set no rate for. Converting it
-  /// would fall back to 1:1 and bank a $100 gift as ₵100.
+  /// would fall back to 1:1 and bank $100 of giving as ₵100.
   missingExchangeRate,
 
-  /// A line that is part of the sheet's furniture rather than a gift — the
+  /// A line that is part of the sheet's furniture rather than giving — the
   /// TOTAL at the bottom, or a note typed under the table.
   ignoredNonDataRow,
 }

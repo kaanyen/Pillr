@@ -360,7 +360,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       title: 'Restore this import?',
       message:
           'Puts the voided entries back to the status they had before they '
-          'were cleared. Approved gifts return to the totals.',
+          'were cleared. Approved giving returns to the totals.',
       confirmLabel: 'Restore import',
     );
     if (!ok) return;

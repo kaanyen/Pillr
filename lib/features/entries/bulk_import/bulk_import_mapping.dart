@@ -132,7 +132,7 @@ BulkImportHeaderDetection detectBulkImportHeaders(List<List<String?>> grid) {
 
   final ignored = <BulkRawRow>[];
 
-  // A total line is not a gift. Every church sheet ends with one, and it
+  // A total line is not giving. Every church sheet ends with one, and it
   // carries a very large amount, so importing it silently doubles the month.
   rows.removeWhere((row) {
     if (!_looksLikeTotalRow(row)) return false;
@@ -155,7 +155,7 @@ BulkImportHeaderDetection detectBulkImportHeaders(List<List<String?>> grid) {
         code: BulkImportIssueCode.ignoredNonDataRow,
         severity: BulkImportSeverity.warning,
         message: ignored.length == 1
-            ? 'Row $numbers looks like a total or a note rather than a gift, '
+            ? 'Row $numbers looks like a total or a note rather than giving, '
                   'so it was left out.'
             : 'Rows $numbers look like totals or notes rather than giving, so '
                   'they were left out.',
@@ -199,7 +199,7 @@ bool _looksLikeTotalRow(BulkRawRow row) {
   return true;
 }
 
-/// A line with nothing that makes it a gift — no date, no amount, and nothing
+/// A line with nothing that makes it giving — no date, no amount, and nothing
 /// that identifies a person. Only meaningful at the end of a sheet.
 bool _looksLikeTrailingNote(BulkRawRow row) {
   for (final c in const [

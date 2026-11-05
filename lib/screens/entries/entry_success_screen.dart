@@ -47,7 +47,7 @@ class EntrySuccessScreen extends ConsumerWidget {
         ),
         const SizedBox(height: SelSpace.x6),
         Text(
-          'Gift recorded',
+          'Giving recorded',
           style: SelType.title,
           textAlign: TextAlign.center,
         ),

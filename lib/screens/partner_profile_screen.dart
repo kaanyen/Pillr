@@ -402,7 +402,7 @@ class _MergedRecordsPanel extends ConsumerStatefulWidget {
   final List<String> formerMemberIds;
   final List<MergedRecord> records;
 
-  /// This person's gifts. Each knows the record it came from, so every
+  /// This person's giving. Each knows the record it came from, so every
   /// record below can show its own.
   final List<PartnershipEntry> entries;
   final bool canSeparate;
@@ -416,13 +416,13 @@ class _MergedRecordsPanel extends ConsumerStatefulWidget {
 class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
   String? _busy;
 
-  Future<void> _separate(MergedRecord r, int gifts) async {
+  Future<void> _separate(MergedRecord r, int entries) async {
     final ok = await selConfirm(
       context,
       title: 'Take ${r.fullName} (${r.memberId}) out?',
       message:
           '${r.fullName} becomes a separate person again with member ID '
-          '${r.memberId}. Their $gifts ${gifts == 1 ? "gift goes" : "gifts go"} '
+          '${r.memberId}. Their $entries ${entries == 1 ? "entry goes" : "entries go"} '
           'back to them, with their own phone and email. Everyone else stays '
           'merged. You can undo this.',
       confirmLabel: 'Take them out',
@@ -440,7 +440,7 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
       selNotice(
         context,
         '${r.fullName} (${r.memberId}) is a separate person again. ${res.moved} '
-        '${res.moved == 1 ? "gift" : "gifts"} went back to them.',
+        '${res.moved == 1 ? "entry" : "entries"} went back to them.',
         kind: SelNoticeKind.success,
       );
     } catch (e) {
@@ -471,7 +471,7 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
           Text(
             'This person was made from ${widget.records.length} records. If one '
             'of them is really someone else, take that record out by its member '
-            'ID. Only its own gifts go with it.',
+            'ID. Only its own giving goes with it.',
             style: SelType.bodyMuted,
           ),
           const SizedBox(height: SelSpace.x3),
@@ -491,8 +491,8 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
                   for (final p in r.phones) ending(p),
                   if (r.emails.isNotEmpty) r.emails.join(', '),
                   mine.isEmpty
-                      ? 'no gifts'
-                      : '${mine.length} ${mine.length == 1 ? "gift" : "gifts"} · ${money(total)}'
+                      ? 'no giving'
+                      : '${mine.length} ${mine.length == 1 ? "entry" : "entries"} · ${money(total)}'
                             ' · ${formatFirestoreDate(mine.first.dateGiven, pattern: 'd MMM y')}'
                             '${mine.length > 1 ? " to ${formatFirestoreDate(mine.last.dateGiven, pattern: 'd MMM y')}" : ""}',
                 ];

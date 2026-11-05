@@ -778,10 +778,10 @@ function impliedStamp(
  *
  * Totals are kept twice. `totalApprovedPesewas` (and a goal's
  * `currentAmountPesewas`) is the real one: a whole number of pesewas, moved by
- * whole numbers, so a gift that goes in and comes back out leaves exactly
+ * whole numbers, so giving that goes in and comes back out leaves exactly
  * nothing behind. `totalApprovedAmount` in cedis is the same figure in a
  * double, and a double cannot hold most sums of money exactly — reverse a few
- * hundred gifts and a partner who owes nothing is left holding 2.3e-13. Small
+ * hundred entries and a partner who owes nothing is left holding 2.3e-13. Small
  * enough never to show, never small enough to be zero, and it only ever grows.
  *
  * The cedi field stays because documents and readers that predate the pesewa

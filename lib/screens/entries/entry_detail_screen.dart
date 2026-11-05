@@ -431,7 +431,7 @@ class _Actions extends ConsumerWidget {
               title: 'Restore this entry?',
               message:
                   'Puts it back to the status it had before it was voided. '
-                  'Approved gifts return to the totals.',
+                  'Approved giving returns to the totals.',
               confirmLabel: 'Restore',
             );
             if (!ok || !context.mounted) return;

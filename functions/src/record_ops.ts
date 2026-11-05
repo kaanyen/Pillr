@@ -528,7 +528,7 @@ function aliasOf(snap: FirebaseFirestore.DocumentSnapshot, memberId: string, sel
  * the kept record's and each duplicate's — is kept on them as
  * `formerMemberIds`, and every phone number and email from every record is
  * kept in `phones` and `emails`. The duplicates are closed, not deleted, and
- * keep their own IDs. The kept record's own details and gifts are recorded
+ * keep their own IDs. The kept record's own details and giving are recorded
  * too, so any one of the records — the kept one included — can be taken out
  * again by its ID ([partnerUnmerge]), or the whole merge undone.
  */
@@ -589,7 +589,7 @@ export const partnerMerge = onCall(
         memberId: newMemberId,
       };
 
-      // The kept record's own gifts: their snapshot follows it to the new ID,
+      // The kept record's own giving: its snapshot follows it to the new ID,
       // and each is marked as the kept record's, so the kept record can be
       // taken out again too.
       const keepEntries = await entriesCol.where("partnerId", "==", keepId).get();
@@ -598,7 +598,7 @@ export const partnerMerge = onCall(
         mergedFromPartnerId: str(e.get("mergedFromPartnerId")) || keepId,
       }));
 
-      // Each moved gift remembers the record it first came from. A chain of
+      // Each moved entry remembers the record it first came from. A chain of
       // merges keeps the original, so any record can be taken out again.
       absorbs.forEach((a, i) => {
         for (const e of entrySets[i].docs) {
@@ -690,7 +690,7 @@ export const partnerMerge = onCall(
 /**
  * Takes one person back out of a merge, found by the member ID they had.
  *
- * Their gifts — the ones that came from their record — go back to them,
+ * Their giving — the entries that came from their record — go back to them,
  * their record opens again with its own ID, phones and emails, and the merged
  * person loses only what came from them. The rest stays merged.
  *

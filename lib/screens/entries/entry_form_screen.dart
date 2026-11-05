@@ -250,8 +250,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       children: [
         if (!widget.embedded)
           SelPageTitle(
-            title: _isEdit ? 'Edit entry' : 'Record a ',
-            highlight: _isEdit ? null : 'gift',
+            title: _isEdit ? 'Edit entry' : 'Record ',
+            highlight: _isEdit ? null : 'giving',
             subtitle: _isEdit
                 ? 'Changes are re-recorded in the activity log.'
                 : 'Who gave, how much, and toward what.',
@@ -281,7 +281,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
         SelPanel(
           title: 'Partner',
-          subtitle: 'Who this gift is from.',
+          subtitle: 'Who this giving is from.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -467,7 +467,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             ),
             const Spacer(),
             SelButton.cyan(
-              label: _isEdit ? 'Save changes' : 'Record gift',
+              label: _isEdit ? 'Save changes' : 'Record giving',
               loading: _loading,
               onPressed: churchId == null || profile == null
                   ? null
@@ -551,7 +551,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       return;
     }
     if (!conversion.rateAvailable) {
-      // Without a rate the conversion is 1:1, which would bank a $100 gift as
+      // Without a rate the conversion is 1:1, which would bank $100 of giving as
       // ₵100. Better to stop here than to record a number nobody meant.
       setState(
         () => _error =

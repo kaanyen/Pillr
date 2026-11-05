@@ -40,7 +40,7 @@ List<String> names(List<BulkRawRow> rows) =>
     [for (final r in rows) r.valuesByColumn[BulkImportColumn.name] ?? ''];
 
 void main() {
-  final gift = row(
+  final giving = row(
     date: '2026-08-03',
     name: 'Ama Boateng',
     phone: '0244000101',
@@ -51,20 +51,20 @@ void main() {
   );
 
   group('summary rows', () {
-    test('a TOTAL line at the bottom is not a gift', () {
-      final out = parse([gift, row(name: 'TOTAL', amount: '78,450')]);
+    test('a TOTAL line at the bottom is not giving', () {
+      final out = parse([giving, row(name: 'TOTAL', amount: '78,450')]);
       expect(names(out.rows), ['Ama Boateng']);
     });
 
     test('the wording varies from sheet to sheet', () {
       for (final word in ['Total', 'TOTALS', 'Grand Total', 'Sub Total', 'SUM']) {
-        final out = parse([gift, row(name: word, amount: '1000')]);
+        final out = parse([giving, row(name: word, amount: '1000')]);
         expect(names(out.rows), ['Ama Boateng'], reason: word);
       }
     });
 
     test('and it is skipped wherever it appears, not only at the end', () {
-      final out = parse([gift, row(name: 'TOTAL', amount: '500'), gift]);
+      final out = parse([giving, row(name: 'TOTAL', amount: '500'), giving]);
       expect(out.rows.length, 2);
     });
 
@@ -72,7 +72,7 @@ void main() {
       // Contrived, but the guard matters: anything that identifies a person
       // means the line is data.
       final out = parse([
-        gift,
+        giving,
         row(name: 'Total', phone: '0244555000', amount: '900', date: '2026-08-04'),
       ]);
       expect(out.rows.length, 2);
@@ -81,13 +81,13 @@ void main() {
 
   group('notes under the table', () {
     test('a trailing note is left out', () {
-      final out = parse([gift, row(name: 'Prepared by Sis. Cindy')]);
+      final out = parse([giving, row(name: 'Prepared by Sis. Cindy')]);
       expect(names(out.rows), ['Ama Boateng']);
     });
 
     test('several trailing notes are all left out', () {
       final out = parse([
-        gift,
+        giving,
         row(name: 'Prepared by Sis. Cindy'),
         row(name: 'Checked by Pastor'),
       ]);
@@ -96,17 +96,17 @@ void main() {
 
     test('an incomplete row in the MIDDLE is kept, so the mistake shows', () {
       // Someone typed a name and stopped. That is a row to fix, not furniture.
-      final out = parse([gift, row(name: 'Kofi Asare'), gift]);
+      final out = parse([giving, row(name: 'Kofi Asare'), giving]);
       expect(names(out.rows), ['Ama Boateng', 'Kofi Asare', 'Ama Boateng']);
     });
 
-    test('a trailing row with an amount is kept — it is a gift missing a date', () {
-      final out = parse([gift, row(name: 'Kofi Asare', amount: '300')]);
+    test('a trailing row with an amount is kept — it is giving missing a date', () {
+      final out = parse([giving, row(name: 'Kofi Asare', amount: '300')]);
       expect(names(out.rows), ['Ama Boateng', 'Kofi Asare']);
     });
 
     test('a trailing row with a phone is kept', () {
-      final out = parse([gift, row(name: 'Kofi Asare', phone: '0244000102')]);
+      final out = parse([giving, row(name: 'Kofi Asare', phone: '0244000102')]);
       expect(names(out.rows), ['Ama Boateng', 'Kofi Asare']);
     });
   });
@@ -114,7 +114,7 @@ void main() {
   group('what the user is told', () {
     test('skipping is reported, never silent', () {
       final out = parse([
-        gift,
+        giving,
         row(name: 'TOTAL', amount: '78,450'),
         row(name: 'Prepared by Sis. Cindy'),
       ]);
@@ -128,7 +128,7 @@ void main() {
     });
 
     test('a clean sheet says nothing', () {
-      final out = parse([gift, gift]);
+      final out = parse([giving, giving]);
       expect(out.fileIssues, isEmpty);
     });
   });

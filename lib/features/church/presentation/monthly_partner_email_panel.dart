@@ -175,7 +175,7 @@ class _MonthlyPartnerEmailPanelState
                   children: [
                     Text('Send monthly letters', style: SelType.bodyMedium),
                     Text(
-                      'Approved gifts only. Partners with no email are skipped.',
+                      'Approved giving only. Partners with no email are skipped.',
                       style: SelType.small,
                     ),
                   ],

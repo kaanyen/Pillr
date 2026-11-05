@@ -455,7 +455,7 @@ void main() {
   });
 
   group('duplicate entries', () {
-    test('the same gift recorded twice is found, oldest kept', () {
+    test('the same giving recorded twice is found, oldest kept', () {
       final pairs = findDuplicateEntries([
         _entry(id: 'first', partnerId: 'yaw', created: DateTime(2026, 3, 1)),
         _entry(id: 'second', partnerId: 'yaw', created: DateTime(2026, 3, 5)),
@@ -465,7 +465,7 @@ void main() {
       expect(pairs.single.duplicate.id, 'second');
     });
 
-    test('a different amount is a different gift', () {
+    test('a different amount is different giving', () {
       final pairs = findDuplicateEntries([
         _entry(id: 'a', partnerId: 'yaw', amount: 100),
         _entry(id: 'b', partnerId: 'yaw', amount: 101),
@@ -473,7 +473,7 @@ void main() {
       expect(pairs, isEmpty);
     });
 
-    test('the same amount on a different day is a different gift', () {
+    test('the same amount on a different day is different giving', () {
       final pairs = findDuplicateEntries([
         _entry(id: 'a', partnerId: 'yaw', given: DateTime(2026, 3, 1)),
         _entry(id: 'b', partnerId: 'yaw', given: DateTime(2026, 3, 2)),
@@ -502,7 +502,7 @@ void main() {
   });
 
   group('duplicate groups', () {
-    test('records linked by name become one group, most gifts first', () {
+    test('records linked by name become one group, most entries first', () {
       final pairs = findDuplicatePartners([
         _partner(id: 'a', fullName: 'Precious Adedeji', count: 1),
         _partner(id: 'b', fullName: 'Precious Adedeji', count: 4),

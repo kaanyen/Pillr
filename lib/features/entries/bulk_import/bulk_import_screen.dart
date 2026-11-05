@@ -2569,7 +2569,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
   String _issueLabel(AppLocalizations l10n, BulkImportIssueCode c) {
     return switch (c) {
-      BulkImportIssueCode.ignoredNonDataRow => 'Left out — not a gift',
+      BulkImportIssueCode.ignoredNonDataRow => 'Left out — not giving',
       BulkImportIssueCode.missingName => l10n.bulkImportIssueMissingName,
       BulkImportIssueCode.missingFellowship =>
         l10n.bulkImportIssueMissingFellowship,

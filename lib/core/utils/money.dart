@@ -2,7 +2,7 @@
 ///
 /// A cedi amount in a double is fine to show and hopeless to accumulate: no
 /// binary double holds 0.10 exactly, so a total that has had a few hundred
-/// gifts added and taken away again lands near zero rather than on it. The
+/// entries of giving added and taken away again lands near zero rather than on it. The
 /// aggregate trigger therefore keeps running totals as a whole number of
 /// pesewas and moves them by whole numbers, which is exact whatever order the
 /// moves arrive in.

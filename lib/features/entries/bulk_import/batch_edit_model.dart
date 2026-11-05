@@ -63,7 +63,7 @@ class BatchRowDraft {
       !isLocked && (amountChanged || dateChanged || partnerChanged || armChanged);
 
   /// What moves, in pesewas, if this row is saved. Zero unless the amount
-  /// changed — moving a gift to another partner moves the whole amount between
+  /// changed — moving giving to another partner moves the whole amount between
   /// two totals but changes neither the church's nor the period's.
   int get pesewasDelta =>
       amountChanged ? toPesewas(amountCedis) - toPesewas(original.amountCedis) : 0;

@@ -41,7 +41,7 @@ Future<void> showEntryFormPanel(BuildContext context, {String? entryId}) {
   final isEdit = entryId != null;
   return showSelSideSheet<void>(
     context,
-    title: isEdit ? 'Edit entry' : 'Record a gift',
+    title: isEdit ? 'Edit entry' : 'Record giving',
     subtitle: isEdit
         ? 'Changes are re-recorded in the activity log.'
         : 'Who gave, how much, and toward what.',
