@@ -50,11 +50,15 @@ class PillrMark extends StatefulWidget {
     this.size = 48,
     this.mode = PillrMarkMode.still,
     this.onColor = false,
+    this.onNavy = false,
   });
 
   final double size;
   final PillrMarkMode mode;
   final bool onColor;
+
+  /// On a navy surface the tile is a soft white wash instead of navy.
+  final bool onNavy;
 
   @override
   State<PillrMark> createState() => _PillrMarkState();
@@ -112,6 +116,7 @@ class _PillrMarkState extends State<PillrMark>
             painter: _MarkPainter(
               poses: _poses(widget.mode, _c.value, reduce),
               onColor: widget.onColor,
+              onNavy: widget.onNavy,
             ),
           ),
         ),
@@ -180,10 +185,15 @@ List<_Pose> _poses(PillrMarkMode mode, double t, bool reduce) {
 }
 
 class _MarkPainter extends CustomPainter {
-  _MarkPainter({required this.poses, required this.onColor});
+  _MarkPainter({
+    required this.poses,
+    required this.onColor,
+    required this.onNavy,
+  });
 
   final List<_Pose> poses;
   final bool onColor;
+  final bool onNavy;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -206,7 +216,12 @@ class _MarkPainter extends CustomPainter {
     }
 
     if (!onColor) {
-      rrect(const Rect.fromLTWH(0, 0, 48, 48), 12, Sel.ink, poses[0]);
+      rrect(
+        const Rect.fromLTWH(0, 0, 48, 48),
+        12,
+        onNavy ? const Color(0x1FFFFFFF) : Sel.ink,
+        poses[0],
+      );
     }
     const white = Color(0xFFFFFFFF);
     rrect(const Rect.fromLTWH(11, 36, 26, 5), 2.5, white, poses[1]);
@@ -222,7 +237,7 @@ class _MarkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MarkPainter old) =>
-      old.onColor != onColor || old.poses != poses;
+      old.onColor != onColor || old.onNavy != onNavy || old.poses != poses;
 }
 
 /// The loader: the mark building on a loop. It replaces the spinning circle

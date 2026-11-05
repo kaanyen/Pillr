@@ -80,67 +80,89 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Widget build(BuildContext context) {
     return AuthShell(
       title: 'Welcome back',
-      subtitle: 'Sign in to your church workspace.',
-      footer: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      subtitle: 'Sign in to your church on Pillr.',
+      topLink: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Have an invite code instead?'),
+          Text('New to Pillr?', style: SelType.bodySm),
+          const SizedBox(width: SelSpace.x2),
           SelLink(
-            label: 'Join a church',
+            label: 'Join with an invite code',
             onTap: () => context.go('/join'),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_error != null) AuthNotice(message: _error!),
-          if (_notice != null) AuthNotice(message: _notice!),
-          SelField(
-            controller: _email,
-            label: 'Email',
-            hint: 'you@church.org',
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            prefixIcon: LucideIcons.mail,
-          ),
-          const SizedBox(height: SelSpace.x4),
-          SelField(
-            controller: _password,
-            label: 'Password',
-            hint: 'Your password',
-            obscureText: _obscure,
-            autofillHints: const [AutofillHints.password],
-            prefixIcon: LucideIcons.lock,
-            onSubmitted: (_) => _submit(),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _obscure ? LucideIcons.eye : LucideIcons.eyeOff,
-                size: 15,
-                color: Sel.ash,
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_error != null) AuthNotice(message: _error!),
+            if (_notice != null) AuthNotice(message: _notice!),
+            SelField(
+              controller: _email,
+              label: 'Email',
+              hint: 'you@church.org',
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              prefixIcon: LucideIcons.mail,
+            ),
+            const SizedBox(height: SelSpace.x4),
+            SelField(
+              controller: _password,
+              label: 'Password',
+              hint: 'Your password',
+              obscureText: _obscure,
+              autofillHints: const [AutofillHints.password],
+              prefixIcon: LucideIcons.lock,
+              onSubmitted: (_) => _submit(),
+              suffixIcon: Padding(
+                padding: const EdgeInsets.only(right: SelSpace.x1),
+                child: SelButton(
+                  label: _obscure ? 'Show' : 'Hide',
+                  icon: _obscure ? LucideIcons.eye : LucideIcons.eyeOff,
+                  kind: SelButtonKind.quiet,
+                  dense: true,
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
               ),
-              onPressed: () => setState(() => _obscure = !_obscure),
             ),
-          ),
-          const SizedBox(height: SelSpace.x3),
-          Align(
-            alignment: Alignment.centerRight,
-            child: SelButton(
-              label: 'Forgot password?',
-              kind: SelButtonKind.quiet,
-              dense: true,
-              onPressed: _forgot,
+            const SizedBox(height: SelSpace.x2),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SelButton(
+                label: 'Forgot password?',
+                kind: SelButtonKind.quiet,
+                dense: true,
+                onPressed: _forgot,
+              ),
             ),
-          ),
-          const SizedBox(height: SelSpace.x4),
-          SelButton.cyan(
-            label: 'Sign in',
-            expanded: true,
-            loading: _busy,
-            onPressed: _submit,
-          ),
-        ],
+            const SizedBox(height: SelSpace.x4),
+            SelButton.cyan(
+              label: 'Sign in',
+              trailingIcon: LucideIcons.arrowRight,
+              expanded: true,
+              loading: _busy,
+              onPressed: _submit,
+            ),
+            const SizedBox(height: SelSpace.x8),
+            const AuthDivider(label: 'New here?'),
+            const SizedBox(height: SelSpace.x4),
+            AuthChoice(
+              icon: LucideIcons.key,
+              title: 'I have an invite code',
+              body: 'Your church emailed it when they added you',
+              onTap: () => context.go('/join'),
+            ),
+            const SizedBox(height: SelSpace.x3),
+            AuthChoice(
+              icon: LucideIcons.church,
+              title: "I'm starting Pillr for my church",
+              body: 'Use the setup code Pillr sent you',
+              onTap: () => context.go('/bootstrap-join'),
+            ),
+          ],
+        ),
       ),
     );
   }
