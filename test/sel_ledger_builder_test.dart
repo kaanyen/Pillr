@@ -115,7 +115,7 @@ void main() {
     // Three rows, not a 640px box with whitespace under them.
     expect(
       tester.getSize(find.byType(SelLedger)).height,
-      closeTo(3 * kSelLedgerRowExtent, 4),
+      closeTo(3 * kSelLedgerRowExtent + kSelLedgerFrame, 4),
     );
   });
 

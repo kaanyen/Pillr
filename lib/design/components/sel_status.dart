@@ -118,27 +118,47 @@ class SelStatusMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mark = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(status.icon, size: 13, color: status.color),
-        if (!iconOnly) ...[
-          const SizedBox(width: SelSpace.x1 + 2),
-          Text(
-            label,
-            style: SelType.body.copyWith(
-              color: status.color,
-              fontWeight: status.weight,
-            ),
-          ),
-        ],
-      ],
+    final tag = SelStatusTag(status: status, label: label);
+    if (!iconOnly) return tag;
+    return Tooltip(
+      message: label,
+      child: Icon(status.icon, size: 14, color: status.color),
     );
-    return iconOnly ? Tooltip(message: label, child: mark) : mark;
   }
 }
 
-/// Bordered variant, for cases where the status must survive on a busy row.
+/// The canvas's status tag: a small pill. Settled states are a quiet grey,
+/// waiting is light sky, refused is outlined navy.
+class SelStatusTag extends StatelessWidget {
+  const SelStatusTag({super.key, required this.status, required this.label});
+
+  final SelStatus status;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color bg, Color fg, Color? edge) = switch (status) {
+      SelStatus.pending || SelStatus.info => (Sel.skyWash, Sel.ink, null),
+      SelStatus.declined || SelStatus.blocked => (Sel.card, Sel.ink, Sel.ink),
+      SelStatus.inactive || SelStatus.voided => (Sel.track, Sel.warm, null),
+      _ => (Sel.track, Sel.text, null),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(SelRadius.pill),
+        border: edge == null ? null : Border.all(color: edge),
+      ),
+      child: Text(
+        label,
+        style: SelType.tag.copyWith(color: fg),
+        maxLines: 1,
+      ),
+    );
+  }
+}
+
 class SelStatusChip extends StatelessWidget {
   const SelStatusChip({super.key, required this.status, required this.label});
 

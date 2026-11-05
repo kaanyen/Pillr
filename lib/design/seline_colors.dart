@@ -31,6 +31,13 @@ abstract final class Sel {
   /// Hovered sidebar item.
   static const Color railHover = Color(0xFFE7F1FB);
 
+  /// Lines between table rows: lighter than [border], which sits under the
+  /// header.
+  static const Color rowLine = Color(0xFFEDF1F5);
+
+  /// A table row under the pointer.
+  static const Color rowHover = Color(0xFFF5F8FB);
+
   /// Light grey for tab tracks, pill fills and quiet chips.
   static const Color track = Color(0xFFF1F5F9);
 

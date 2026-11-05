@@ -22,6 +22,7 @@ import '../features/entries/presentation/entry_amount_cell.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/entries/providers/record_filters.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../features/entries/fellowship_of.dart';
 import 'record_filter_bar.dart';
 import 'arm_palette.dart';
 import 'approval_playback.dart';
@@ -267,7 +268,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     // every time something is approved.
     final cursor = rows.isEmpty ? -1 : _cursor.clamp(0, rows.length - 1);
     final canReview = isPastor && widget.mode == QueueMode.queue;
-    final compact = SelLayout.isCompact(MediaQuery.sizeOf(context).width);
 
     // What was decided in the last day, newest first. The queue proper is
     // pending only — this sits under it so a pastor can see the batch they
@@ -299,10 +299,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
             SelPageTitle(
               title: widget.mode == QueueMode.queue
                   ? l10n.queueTitle
-                  : l10n.recordsTitle,
+                  : l10n.navRecordsAll,
               subtitle: widget.mode == QueueMode.queue
                   ? l10n.queueSubtitle
-                  : l10n.recordsSubtitle,
+                  : 'Every giving entry, newest first',
               actions: [
                 if (widget.mode == QueueMode.records)
                   EntryExportButtons(
@@ -310,24 +310,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     title: 'Records',
                     subtitle: _filterDescription(rows.length),
                   ),
-                if (widget.mode == QueueMode.records && compact) ...[
-                  const SizedBox(width: SelSpace.x2),
-                  SelButton(
-                    label: l10n.navRecordsMonthly,
-                    icon: LucideIcons.calendar,
-                    kind: SelButtonKind.quiet,
-                    onPressed: () => context.go('/records/monthly'),
-                  ),
-                ],
-                if (widget.mode == QueueMode.records) ...[
-                  const SizedBox(width: SelSpace.x2),
-                  SelButton(
-                    label: 'Imports',
-                    icon: LucideIcons.upload,
-                    kind: SelButtonKind.quiet,
-                    onPressed: () => context.go('/records/imports'),
-                  ),
-                ],
                 if (widget.mode == QueueMode.records)
                   const SizedBox(width: SelSpace.x2),
                 if (widget.mode == QueueMode.queue)
@@ -338,20 +320,23 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                   ),
                 if (widget.mode == QueueMode.queue)
                   const SizedBox(width: SelSpace.x2),
-                if (idx?.isStaff == true || isPastor)
+                SelButton(
+                  label: 'Import a sheet',
+                  icon: LucideIcons.upload,
+                  onPressed: () => context.go('/entries/bulk-import'),
+                ),
+                if (idx?.isStaff == true || isPastor) ...[
+                  const SizedBox(width: SelSpace.x2),
                   SelButton.cyan(
                     label: l10n.actionNewEntry,
                     icon: LucideIcons.plus,
                     onPressed: () => showEntryFormPanel(context),
                   ),
-                SelButton(
-                  label: l10n.actionImport,
-                  icon: LucideIcons.upload,
-                  onPressed: () => context.go('/entries/bulk-import'),
-                ),
+                ],
               ],
             ),
 
+            if (widget.mode == QueueMode.queue)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -406,10 +391,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               ],
             ),
 
-            if (widget.mode == QueueMode.records) ...[
-              const SizedBox(height: SelSpace.x3),
-              RecordFilterBar(entries: all, arms: arms),
-            ],
 
             // Shortcuts nobody is told about are folklore.
             if (canReview && rows.isNotEmpty) ...[
@@ -449,93 +430,24 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                 onRetry: () => _loadRecordsPage(reset: true),
               )
             else if (widget.mode == QueueMode.records)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SelLedger.builder(
-                    scrollController: _recordsScrollController,
-                    maxVirtualHeight: 640,
-                    // Partner cell is two lines (name, who recorded it).
-                    rowExtent: kSelLedgerStackedRowExtent,
-                    minWidth: 760,
-                    columns: [
-                      SelColumn(l10n.queueColPartner, flex: 3),
-                      SelColumn(l10n.queueColArm, flex: 2),
-                      SelColumn.numeric(l10n.queueColAmount, width: 130),
-                      SelColumn(
-                        l10n.queueColStatus,
-                        fit: SelColFit.fixed,
-                        width: 120,
-                      ),
-                      SelColumn(
-                        isPastor ? l10n.queueColReview : l10n.queueColSubmitted,
-                        fit: SelColFit.fixed,
-                        width: isPastor ? 170 : 110,
-                        align: TextAlign.right,
-                      ),
-                    ],
-                    emptyState: SelEmpty(
-                      title: _filter == _Filter.all
-                          ? l10n.recordsEmptyTitle
-                          : 'Nothing here',
-                      message: _filter == _Filter.all
-                          ? l10n.recordsEmptyMessage
-                          : 'Nothing matches what you picked above.',
-                      actionLabel: _filter == _Filter.all
-                          ? l10n.recordsEmptyAction
-                          : null,
-                      onAction: _filter == _Filter.all
-                          ? () => showEntryFormPanel(context)
-                          : null,
-                    ),
-                    itemCount: rows.length,
-                    itemBuilder: (context, i) {
-                      final e = rows[i];
-                      return SelRow(
-                        onTap: () {
-                          setState(() => _cursor = i);
-                          context.go('/entries/${e.id}');
-                        },
-                        selected: _selected.contains(e.id),
-                        cursor: i == cursor,
-                        cells: [
-                          SelCell.stacked(
-                            e.partnerSnapshot['fullName']?.toString() ?? '—',
-                            e.createdBySnapshot['fullName']?.toString() ?? '',
-                          ),
-                          ArmLabel(
-                            armId: e.partnershipArmId,
-                            name: e.armSnapshot['name']?.toString() ?? '—',
-                            color: armColors[e.partnershipArmId],
-                          ),
-                          EntryAmountCell(
-                            entry: e,
-                            formattedAmount: money(e.amountCedis),
-                            tone: _amountTone(e.status),
-                          ),
-                          SelStatusMark.fromString(
-                            status: e.status,
-                            label: _statusLabel(e.status),
-                          ),
-                          SelCell.secondary(
-                            formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  if (_recordsLoadingMore)
-                    const Padding(
-                      padding: EdgeInsets.only(top: SelSpace.x4),
-                      child: Center(
-                        child: SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: PillrLoader(size: 20),
-                        ),
-                      ),
-                    ),
-                ],
+              _RecordsCard(
+                all: scoped,
+                rows: rows,
+                arms: arms,
+                pool: all,
+                filter: _filter,
+                onFilter: (f) => setState(() {
+                  _filter = f;
+                  _selected.clear();
+                }),
+                money: money,
+                hasMore: _recordsHasMore,
+                loadingMore: _recordsLoadingMore,
+                onMore: () => _loadRecordsPage(),
+                scrollController: _recordsScrollController,
+                emptyAction: _filter == _Filter.all
+                    ? () => showEntryFormPanel(context)
+                    : null,
               )
             else
               entriesAsync.when(
@@ -1181,6 +1093,228 @@ class _BulkBar extends StatelessWidget {
               loading: busy,
               onPressed: onApprove,
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Records, as on the canvas: the status totals as tabs, the filters, the
+/// table (Given, Partner, Fellowship, Arm, Amount, Status, Entered by) and
+/// the pager, all in one card.
+class _RecordsCard extends ConsumerWidget {
+  const _RecordsCard({
+    required this.all,
+    required this.rows,
+    required this.arms,
+    required this.pool,
+    required this.filter,
+    required this.onFilter,
+    required this.money,
+    required this.hasMore,
+    required this.loadingMore,
+    required this.onMore,
+    required this.scrollController,
+    this.emptyAction,
+  });
+
+  final List<PartnershipEntry> all;
+  final List<PartnershipEntry> rows;
+  final List<dynamic> arms;
+  final List<PartnershipEntry> pool;
+  final _Filter filter;
+  final ValueChanged<_Filter> onFilter;
+  final String Function(num) money;
+  final bool hasMore;
+  final bool loadingMore;
+  final VoidCallback onMore;
+  final ScrollController scrollController;
+  final VoidCallback? emptyAction;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tree = ref.watch(armTreeProvider);
+    final byPartner = ref.watch(partnerFellowshipByIdProvider);
+    (int, double) sum(bool Function(PartnershipEntry) f) {
+      final list = all.where(f);
+      return (list.length, list.fold(0.0, (s, e) => s + e.amountCedis));
+    }
+
+    final tabs = [
+      (_Filter.all, 'All', sum((_) => true)),
+      (_Filter.approved, 'Approved', sum((e) => e.status == 'approved')),
+      (_Filter.pending, 'Waiting', sum((e) => e.status == 'pending')),
+      (_Filter.declined, 'Declined', sum((e) => e.status == 'declined')),
+    ];
+
+    return SelCard(
+      padding: EdgeInsets.zero,
+      clip: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Sel.border)),
+            ),
+            child: Row(
+              children: [
+                for (final (f, label, (n, total)) in tabs)
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => onFilter(f),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(24, 22, 16, 18),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: f == filter ? Sel.ink : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              f == _Filter.all
+                                  ? '$label · $n entries'
+                                  : '$label · $n',
+                              style: SelType.small.copyWith(
+                                color: f == filter ? Sel.ink : Sel.warm,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              money(total),
+                              style: SelType.subtitle.copyWith(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: f == filter ? Sel.ink : Sel.ink.withValues(alpha: 0.85),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+            child: RecordFilterBar(entries: pool, arms: arms.cast()),
+          ),
+          SelLedger.builder(
+            bare: true,
+            scrollController: scrollController,
+            maxVirtualHeight: 720,
+            rowExtent: kSelLedgerStackedRowExtent,
+            minWidth: 900,
+            columns: const [
+              SelColumn('Given', fit: SelColFit.fixed, width: 96),
+              SelColumn('Partner', flex: 3),
+              SelColumn('Fellowship', flex: 2),
+              SelColumn('Arm', flex: 2),
+              SelColumn.numeric('Amount', width: 150),
+              SelColumn('Status', fit: SelColFit.fixed, width: 130),
+              SelColumn('Entered by', flex: 2),
+            ],
+            emptyState: SelEmpty(
+              title: filter == _Filter.all ? 'No entries yet' : 'Nothing here',
+              message: filter == _Filter.all
+                  ? 'Record giving or bring in a sheet to start.'
+                  : 'Nothing matches what you picked above.',
+              actionLabel: emptyAction == null ? null : 'Record giving',
+              onAction: emptyAction,
+            ),
+            itemCount: rows.length,
+            itemBuilder: (context, i) {
+              final e = rows[i];
+              final memberId = e.partnerSnapshot['memberId']?.toString() ?? '';
+              return SelRow(
+                onTap: () => context.go('/entries/${e.id}'),
+                cells: [
+                  SelCell.secondary(
+                    formatFirestoreDate(e.dateGiven, pattern: 'd MMM'),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        e.partnerSnapshot['fullName']?.toString() ?? '—',
+                        style: SelType.body.copyWith(
+                          color: Sel.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (memberId.isNotEmpty)
+                        Text(
+                          memberId,
+                          style: SelType.small.copyWith(
+                            fontFamily: 'monospace',
+                            fontSize: 12,
+                          ),
+                        ),
+                    ],
+                  ),
+                  SelCell.secondary(fellowshipLabelOf(e, byPartner)),
+                  SelCell.secondary(
+                    tree.shownNameOf(e.partnershipArmId) ??
+                        e.armSnapshot['name']?.toString() ??
+                        '—',
+                  ),
+                  EntryAmountCell(
+                    entry: e,
+                    formattedAmount: money(e.amountCedis),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SelStatusMark.fromString(
+                      status: e.status,
+                      label: switch (e.status) {
+                        'approved' => 'Approved',
+                        'declined' => 'Declined',
+                        'voided' => 'Voided',
+                        _ => 'Waiting',
+                      },
+                    ),
+                  ),
+                  Text(
+                    e.importBatchId != null
+                        ? 'Brought in from a sheet'
+                        : e.createdBySnapshot['fullName']?.toString() ?? '',
+                    style: SelType.small,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              );
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
+            child: Row(
+              children: [
+                Text(
+                  rows.isEmpty
+                      ? 'No entries'
+                      : '1–${rows.length} of ${hasMore ? '${all.length}+' : all.length}',
+                  style: SelType.small,
+                ),
+                const Spacer(),
+                if (loadingMore)
+                  const PillrLoader(size: 22)
+                else if (hasMore)
+                  SelButton(label: 'Load more', dense: true, onPressed: onMore),
+              ],
+            ),
+          ),
         ],
       ),
     );
