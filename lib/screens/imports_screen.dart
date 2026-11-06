@@ -687,7 +687,7 @@ class _ImportsTable extends StatelessWidget {
         SelColumn.numeric('Giving', width: 140),
         SelColumn('Also', flex: 2),
         SelColumn('Status', fit: SelColFit.fixed, width: 130),
-        SelColumn('', fit: SelColFit.fixed, width: 70),
+        SelColumn('', fit: SelColFit.fixed, width: 90),
       ],
       rows: [
         for (final b in batches)
