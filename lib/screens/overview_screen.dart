@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../features/activity/activity_action_label.dart';
 import '../core/navigation/panel_flows.dart';
 import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
@@ -312,7 +313,7 @@ class _ActivityLine extends StatelessWidget {
                   ),
                   const TextSpan(text: '  '),
                   TextSpan(
-                    text: row.action.replaceAll('.', ' ').replaceAll('_', ' '),
+                    text: activityActionLabel(row.action).toLowerCase(),
                     style: SelType.bodyMuted,
                   ),
                 ],
