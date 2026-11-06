@@ -42,6 +42,7 @@ import 'bulk_import_sources.dart';
 import 'bulk_import_template.dart';
 import 'bulk_import_commit.dart';
 import 'bulk_import_drop_zone.dart';
+import 'bulk_import_review.dart';
 import 'bulk_import_models.dart';
 import 'bulk_import_parser.dart';
 import 'bulk_import_resolver.dart';
@@ -147,6 +148,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   List<PartnershipPeriod>? _cachedPeriods;
   PartnershipPeriod? _cachedActivePeriod;
   PartnershipPeriod? _importPeriod;
+
+  /// Step 3 shows the rows to settle; this switches to the whole sheet.
+  bool _sheetView = false;
+
+  /// What the last import brought in, kept for the finished screen.
+  List<BulkResolvedRow> _resultRows = const [];
+  String? _resultFile;
   final Map<String, List<PartnershipEntry>> _duplicateEntryCache = {};
   final Map<int, Partner> _partnerOverrides = {};
 
@@ -390,7 +398,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
     if (_result != null) {
       return SelPageBody(
-        maxWidth: 720,
         children: [_buildResult(context, l10n, _result!)],
       );
     }
@@ -1128,8 +1135,17 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 ),
                 const SizedBox(height: SelSpace.x4),
               ],
+              Align(
+                alignment: Alignment.centerRight,
+                child: SelLink(
+                  label: _sheetView ? 'Show the rows to settle' : 'See the whole sheet',
+                  onTap: () => setState(() => _sheetView = !_sheetView),
+                ),
+              ),
+              const SizedBox(height: SelSpace.x2),
               Expanded(
-                child: BulkImportGrid(
+                child: _sheetView
+                    ? BulkImportGrid(
                   rawRows: _rawRows ?? const [],
                   resolved: resolved,
                   columns: _gridColumns(columns),
@@ -1153,7 +1169,36 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     ..._acceptedFellowships,
                   ],
                   onBulkResolveFellowship: _bulkResolveFellowship,
-                ),
+                )
+                    : SingleChildScrollView(
+                        child: BulkImportReview(
+                          rawRows: _rawRows ?? const [],
+                          resolved: resolved,
+                          columns: _gridColumns(columns),
+                          arms: arms,
+                          dayFirst: _dayFirst,
+                          busy: _loadingPartners || _committing,
+                          money: money,
+                          keptSheetRows: _duplicateAcknowledgedSheetRows,
+                          droppedSheetRows: _droppedSheetRows,
+                          knownFellowships: [
+                            ...ref.watch(knownFellowshipsProvider),
+                            ..._acceptedFellowships,
+                          ],
+                          onEditCell: _editRawCell,
+                          onApplyFixes: _applyFixes,
+                          onKeepRow: _keepRow,
+                          onDropRow: _dropRow,
+                          onUndoDecision: _undoRowDecision,
+                          onBulkMapArm: _bulkMapArm,
+                          onBulkResolveFellowship: _bulkResolveFellowship,
+                          onPickPartner: () => showPartnerPickerPanel(
+                            context,
+                            churchId: idx.churchId,
+                            uid: idx.uid,
+                          ),
+                        ),
+                      ),
               ),
               const SizedBox(height: SelSpace.x3),
               Builder(
@@ -1472,7 +1517,31 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSummary(context, l10n, resolved, idx.isStaff),
+        Builder(
+          builder: (context) {
+            final sum = summarize(resolved, viewerIsStaff: idx.isStaff);
+            final money = ref.watch(churchMoneyFormatProvider);
+            Widget fig(String k, String v) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(k, style: SelType.small),
+                Text(v, style: SelType.subtitle.copyWith(fontWeight: FontWeight.w800)),
+              ],
+            );
+            return SelCard(
+              child: Wrap(
+                spacing: SelSpace.x10,
+                runSpacing: SelSpace.x4,
+                children: [
+                  fig('Giving to bring in', money(sum.totalAmount)),
+                  fig('Rows', '${sum.totalRows}'),
+                  fig('Partners already on the book', '${sum.existingPartners}'),
+                  fig('New partners', '${sum.newPartners}'),
+                ],
+              ),
+            );
+          },
+        ),
         const SizedBox(height: SelSpace.x4),
         SelCard(
           child: Column(
@@ -1546,274 +1615,57 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             ],
           ),
         ),
-        const SizedBox(height: SelSpace.x6),
-        Row(
-          children: [
-            SelButton(
-              label: 'Back',
-              kind: SelButtonKind.quiet,
-              onPressed: _committing
-                  ? null
-                  : () => setState(() => _step = _Step.resolve),
-            ),
-            const Spacer(),
-            SelButton.cyan(
-              label:
-                  'Import ${resolved.length} '
-                  '${resolved.length == 1 ? "entry" : "entries"}',
-              loading: _committing,
-              onPressed: _committing
-                  ? null
-                  : () => _commit(context, idx.churchId, idx.isPastor),
-            ),
-          ],
+        const SizedBox(height: SelSpace.x4),
+        Container(
+          padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
+          decoration: BoxDecoration(
+            color: Sel.ink,
+            borderRadius: BorderRadius.circular(SelRadius.card),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  idx.isStaff
+                      ? 'They go to the queue for a pastor to approve.'
+                      : 'They count as soon as they are in.',
+                  style: SelType.bodySm.copyWith(color: const Color(0xFFC9DEF3)),
+                ),
+              ),
+              TextButton(
+                onPressed: _committing
+                    ? null
+                    : () => setState(() => _step = _Step.resolve),
+                child: Text('Back', style: SelType.button.copyWith(color: Sel.card)),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              Material(
+                color: Sel.card,
+                shape: const StadiumBorder(),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: _committing
+                      ? null
+                      : () => _commit(context, idx.churchId, idx.isPastor),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                    child: _committing
+                        ? const PillrLoader(size: 18)
+                        : Text(
+                            'Bring in ${resolved.length} '
+                            '${resolved.length == 1 ? "entry" : "entries"}',
+                            style: SelType.button.copyWith(color: Sel.ink),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildSummary(
-    BuildContext context,
-    AppLocalizations l10n,
-    List<BulkResolvedRow> rows,
-    bool viewerIsStaff,
-  ) {
-    final s = summarize(rows, viewerIsStaff: viewerIsStaff);
-    final fmt = NumberFormat.currency(symbol: 'GHS ', decimalDigits: 2);
-    const totalBg = Sel.card;
-    const totalIconCircle = Sel.canvas;
-    const pendingBg = Sel.card;
-    const pendingIconCircle = Sel.canvas;
-    const partnersBg = Sel.card;
-    const partnersIconCircle = Sel.canvas;
-    const goalBg = Sel.card;
-    const goalIconCircle = Sel.canvas;
-
-    Widget compactTile({
-      required String label,
-      required String valueText,
-      required IconData icon,
-      required Color bg,
-      required Color iconCircle,
-      required Color iconColor,
-    }) {
-      return Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: SelSpace.x2,
-          vertical: SelSpace.x2,
-        ),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(SelRadius.card),
-          border: Border.all(color: Sel.border),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: iconCircle,
-                borderRadius: BorderRadius.circular(SelRadius.pill),
-              ),
-              child: Icon(icon, size: 16, color: iconColor),
-            ),
-            const SizedBox(width: SelSpace.x2),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: SelType.small.copyWith(fontWeight: FontWeight.w500),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    valueText,
-                    style: SelType.bodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final row1 = <Widget>[
-      compactTile(
-        label: l10n.bulkImportPreview,
-        valueText: '${s.totalRows}',
-        icon: LucideIcons.list,
-        bg: totalBg,
-        iconCircle: totalIconCircle,
-        iconColor: Sel.soot,
-      ),
-      compactTile(
-        label: l10n.bulkImportStatNewPartners(0).split(':').first.trim(),
-        valueText: '${s.newPartners}',
-        icon: LucideIcons.userPlus,
-        bg: partnersBg,
-        iconCircle: partnersIconCircle,
-        iconColor: Sel.warm,
-      ),
-      compactTile(
-        label: l10n.bulkImportStatExistingPartners(0).split(':').first.trim(),
-        valueText: '${s.existingPartners}',
-        icon: LucideIcons.userCheck,
-        bg: goalBg,
-        iconCircle: goalIconCircle,
-        iconColor: Sel.soot,
-      ),
-      compactTile(
-        label: l10n.bulkImportStatTotal('').split(':').first.trim(),
-        valueText: fmt.format(s.totalAmount),
-        icon: LucideIcons.wallet,
-        bg: totalBg,
-        iconCircle: totalIconCircle,
-        iconColor: Sel.soot,
-      ),
-    ];
-
-    final row2 = <Widget>[
-      compactTile(
-        label: l10n.bulkImportStatWarnings(0).split(':').first.trim(),
-        valueText: '${s.warningCount}',
-        icon: LucideIcons.alertTriangle,
-        bg: pendingBg,
-        iconCircle: pendingIconCircle,
-        iconColor: Sel.warm,
-      ),
-      compactTile(
-        label: l10n.bulkImportStatErrors(0).split(':').first.trim(),
-        valueText: '${s.blockingCount}',
-        icon: LucideIcons.xCircle,
-        bg: Sel.card,
-        iconCircle: Sel.canvas,
-        iconColor: Sel.ink,
-      ),
-      if (s.pastorYesCount > 0)
-        compactTile(
-          label: l10n.bulkImportStatPastorYes(0).split(':').first.trim(),
-          valueText: '${s.pastorYesCount}',
-          icon: LucideIcons.check,
-          bg: Sel.card,
-          iconCircle: Sel.canvas,
-          iconColor: Sel.warm,
-        ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          l10n.bulkImportSummary,
-          style: SelType.bodyMedium.copyWith(
-            color: Sel.warm,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: SelSpace.x2),
-        LayoutBuilder(
-          builder: (context, c) {
-            if (c.maxWidth < 520) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < row1.length; i++) ...[
-                          SizedBox(width: 168, child: row1[i]),
-                          if (i < row1.length - 1)
-                            const SizedBox(width: SelSpace.x2),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: SelSpace.x2),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (var i = 0; i < row2.length; i++) ...[
-                          SizedBox(width: 168, child: row2[i]),
-                          if (i < row2.length - 1)
-                            const SizedBox(width: SelSpace.x2),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < row1.length; i++) ...[
-                      Expanded(child: row1[i]),
-                      if (i < row1.length - 1)
-                        const SizedBox(width: SelSpace.x2),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: SelSpace.x2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: row2[0]),
-                    const SizedBox(width: SelSpace.x2),
-                    Expanded(child: row2[1]),
-                    const SizedBox(width: SelSpace.x2),
-                    if (row2.length > 2) Expanded(child: row2[2]),
-                    if (row2.length > 2) const SizedBox(width: SelSpace.x2),
-                    if (row2.length > 2)
-                      const Expanded(child: SizedBox.shrink()),
-                    if (row2.length == 2) ...[
-                      const Expanded(child: SizedBox.shrink()),
-                      const SizedBox(width: SelSpace.x2),
-                      const Expanded(child: SizedBox.shrink()),
-                    ],
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-        if (viewerIsStaff && s.staffPastorYesCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: SelSpace.x4),
-            child: Text(
-              l10n.bulkImportStaffPastorNote,
-              style: SelType.small.copyWith(
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Issue-first review.
-  ///
-  /// A bulk importer's failures are bulk failures: one misspelled arm name in
-  /// the source spreadsheet blocks every row that uses it. Listing rows and
-  /// asking someone to expand and fix each one turns a single mistake into
-  /// forty corrections.
-  ///
-  /// So this leads with the *problems*, grouped, each with the fix attached —
-  /// map every unmatched "Super Sunday" to a real arm once, and every row
-  /// carrying it clears at the same time. Rows that are already fine collapse
-  /// into a single line, because they need no attention.
   Widget _buildIssueReview(
     BuildContext context,
     AppLocalizations l10n,
@@ -2034,69 +1886,254 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     AppLocalizations l10n,
     BulkImportCommitResult r,
   ) {
+    final money = ref.watch(churchMoneyFormatProvider);
+    final me = ref.watch(userChurchIndexProvider).valueOrNull;
+    final waiting = r.entriesCreated - r.entriesApproved;
     final title = r.incomplete
-        ? 'Import stopped partway'
-        : r.isPartial
-        ? 'Import finished, with rows left out'
-        : l10n.bulkImportResultTitle;
-    final summary = r.incomplete || r.isPartial
-        ? '${r.entriesCreated} of ${r.rowsAttempted} recorded'
-              '${r.rowsSkipped > 0 ? ", ${r.rowsSkipped} skipped" : ""}'
-              '${r.partnersCreated > 0 ? ", ${r.partnersCreated} new partners" : ""}.'
-        : null;
+        ? 'The import stopped partway'
+        : waiting > 0
+        ? '${r.entriesCreated} ${r.entriesCreated == 1 ? 'entry is' : 'entries are'} in the queue'
+        : '${r.entriesCreated} ${r.entriesCreated == 1 ? 'entry' : 'entries'} brought in';
 
-    return SelCard(
-      child: Padding(
-        padding: const EdgeInsets.all(SelSpace.x6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: SelType.subtitle),
-            const SizedBox(height: SelSpace.x2),
-            if (summary != null)
-              Text(summary, style: SelType.body)
-            else ...[
-              Text(l10n.bulkImportEntriesCreated(r.entriesCreated)),
-              Text(l10n.bulkImportPartnersCreated(r.partnersCreated)),
-              Text(l10n.bulkImportApproved(r.entriesApproved)),
-              Text(l10n.bulkImportSkipped(r.rowsSkipped)),
-            ],
-            if (r.errors.isNotEmpty) ...[
-              const SizedBox(height: SelSpace.x4),
-              Text('What was left out', style: SelType.bodyMedium),
-              const SizedBox(height: SelSpace.x2),
-              ...r.errors.map((e) => Text('• $e', style: SelType.small)),
-            ],
-            const SizedBox(height: SelSpace.x6),
-            Wrap(
-              spacing: SelSpace.x2,
-              runSpacing: SelSpace.x2,
+    // What came in, by arm, from the rows that were brought in.
+    final came = _resultRows;
+    final byArm = <String, double>{};
+    for (final row in came) {
+      byArm[row.armName] = (byArm[row.armName] ?? 0) + row.amountCedis;
+    }
+    final arms = byArm.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final total = byArm.values.fold<double>(0, (s, v) => s + v);
+    const tones = [Sel.ink, Sel.sky, Sel.skyWash, Sel.border];
+    final partners = came.map((x) => x.partnerId ?? x.fullName).toSet().length;
+
+    Widget line(bool ok, String head, String body) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: ok ? Sel.skyWash : Sel.card,
+              shape: BoxShape.circle,
+              border: Border.all(color: ok ? Sel.skyWash : Sel.cyan, width: 1.5),
+            ),
+            child: Icon(
+              ok ? LucideIcons.check : LucideIcons.info,
+              size: 12,
+              color: ok ? Sel.ink : Sel.cyan,
+            ),
+          ),
+          const SizedBox(width: SelSpace.x3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SelButton.cyan(
-                  label: 'View this import',
-                  icon: LucideIcons.list,
-                  onPressed: () => context.go('/records?import=${r.batchId}'),
+                Text(
+                  head,
+                  style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
                 ),
-                SelButton(
-                  label: 'Imports',
-                  icon: LucideIcons.upload,
-                  onPressed: () => context.go('/records/imports'),
+                if (body.isNotEmpty) Text(body, style: SelType.bodySm),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final lines = <Widget>[
+      line(
+        true,
+        '${r.entriesCreated} ${r.entriesCreated == 1 ? 'row' : 'rows'} came in',
+        waiting > 0
+            ? 'Waiting for a pastor, like entries typed one by one'
+            : 'Approved, and already counted in the totals',
+      ),
+      if (r.partnersCreated > 0)
+        line(
+          true,
+          '${r.partnersCreated} new ${r.partnersCreated == 1 ? 'partner' : 'partners'}',
+          'Added to the partner book from this sheet',
+        ),
+      if (r.rowsSkipped > 0 && r.errors.isEmpty)
+        line(false, '${r.rowsSkipped} ${r.rowsSkipped == 1 ? 'row' : 'rows'} left out', ''),
+      for (final e in r.errors) line(false, 'Left out', e),
+    ];
+
+    final giving = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: SelSpace.x3,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Giving brought in', style: SelType.small),
+                  Text(money(total), style: SelType.hero.copyWith(fontSize: 36)),
+                  Text(
+                    'from $partners ${partners == 1 ? 'partner' : 'partners'}'
+                    '${r.partnersCreated > 0 ? ', ${r.partnersCreated} of them new' : ''}',
+                    style: SelType.bodySm,
+                  ),
+                ],
+              ),
+              Wrap(
+                spacing: SelSpace.x2,
+                runSpacing: SelSpace.x2,
+                children: [
+                  if (waiting > 0 && (me?.isPastor ?? false))
+                    SelButton.cyan(
+                      label: 'Review in the queue',
+                      onPressed: () => context.go('/queue'),
+                    ),
+                  SelButton(
+                    label: 'View this import',
+                    onPressed: () => context.go('/records?import=${r.batchId}'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (total > 0) ...[
+            const SizedBox(height: SelSpace.x6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              child: SizedBox(
+                height: 10,
+                child: Row(
+                  children: [
+                    for (var k = 0; k < arms.length; k++)
+                      Expanded(
+                        flex: (1000 * arms[k].value / total).round().clamp(1, 1000),
+                        child: Container(
+                          margin: EdgeInsets.only(right: k == arms.length - 1 ? 0 : 2),
+                          color: tones[k.clamp(0, tones.length - 1)],
+                        ),
+                      ),
+                  ],
                 ),
-                SelButton(
-                  label: l10n.bulkImportBack,
-                  kind: SelButtonKind.quiet,
-                  onPressed: () => context.go('/queue'),
+              ),
+            ),
+            const SizedBox(height: SelSpace.x3),
+            Wrap(
+              spacing: SelSpace.x4,
+              runSpacing: SelSpace.x1,
+              children: [
+                for (var k = 0; k < arms.length; k++)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 10, height: 10, color: tones[k.clamp(0, tones.length - 1)]),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${arms[k].key} ${money(arms[k].value)}',
+                        style: SelType.small.copyWith(color: Sel.ink),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final happened = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('What happened to every row', style: SelType.subtitle),
+          for (var k = 0; k < lines.length; k++) ...[
+            if (k > 0) const Divider(height: 1, color: Sel.rowLine),
+            lines[k],
+          ],
+        ],
+      ),
+    );
+
+    final wrong = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Brought in the wrong sheet?', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x2),
+          Text(
+            waiting > 0
+                ? 'Undo takes the entries still waiting back out. Nothing has been approved yet, so no totals change. You can also clear the whole import.'
+                : 'Clear the import to take every entry it created back out of the totals. Nothing is deleted.',
+            style: SelType.bodySm,
+          ),
+          const SizedBox(height: SelSpace.x4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SelButton(
+              label: 'Undo it from Imports',
+              onPressed: () => context.go('/records/imports'),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SelButton(
+            label: 'Back to Imports',
+            onPressed: () => context.go('/records/imports'),
+          ),
+        ),
+        const SizedBox(height: SelSpace.x4),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.end,
+          runSpacing: SelSpace.x3,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: SelType.title),
+                const SizedBox(height: SelSpace.x1),
+                Text(
+                  '${_resultFile ?? 'Your sheet'} · brought in by ${ref.watch(churchUserProfileProvider).valueOrNull?.fullName ?? 'you'} just now',
+                  style: SelType.body.copyWith(color: Sel.warm),
                 ),
               ],
             ),
-            const SizedBox(height: SelSpace.x3),
-            Text(
-              'Undo pending rows, or clear the whole import, from Imports.',
-              style: SelType.small,
-            ),
+            const _StepBar(current: _Step.confirm, done: true),
           ],
         ),
-      ),
+        const SizedBox(height: SelSpace.x6),
+        LayoutBuilder(
+          builder: (context, c) {
+            final main = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [giving, const SizedBox(height: SelSpace.x4), happened],
+            );
+            if (c.maxWidth < 900) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [main, const SizedBox(height: SelSpace.x4), wrong],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: main),
+                const SizedBox(width: SelSpace.x4),
+                SizedBox(width: 320, child: wrong),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -2906,6 +2943,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       );
       setState(() {
         _result = r;
+        // The finished screen still shows what came in and from which file.
+        _resultRows = _liveRows;
+        _resultFile = _fileName;
         _committing = false;
         _rawRows = null;
         _resolved = null;
@@ -3535,9 +3575,12 @@ class _SpellingCluster {
 /// could not — there was no finish line, only a long scroll ending in a
 /// disabled button.
 class _StepBar extends StatelessWidget {
-  const _StepBar({required this.current});
+  const _StepBar({required this.current, this.done = false});
 
   final _Step current;
+
+  /// Every step finished: all four show a tick.
+  final bool done;
 
   @override
   Widget build(BuildContext context) {
@@ -3554,14 +3597,14 @@ class _StepBar extends StatelessWidget {
                 height: 26,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: s == current
+                  color: s == current && !done
                       ? Sel.ink
-                      : s.index < current.index
+                      : s.index < current.index || done
                       ? Sel.skyWash
                       : Sel.track,
                   shape: BoxShape.circle,
                 ),
-                child: s.index < current.index
+                child: s.index < current.index || done
                     ? const Icon(LucideIcons.check, size: 13, color: Sel.ink)
                     : Text(
                         '${s.index + 1}',
