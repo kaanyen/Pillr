@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +32,8 @@ class RecordsByArmScreen extends ConsumerWidget {
     final period = ref.watch(activePeriodProvider);
     final tree = ref.watch(armTreeProvider);
     final pending =
-        ref.watch(pendingEntriesProvider).valueOrNull ?? const <PartnershipEntry>[];
+        ref.watch(pendingEntriesProvider).valueOrNull ??
+        const <PartnershipEntry>[];
     final waiting = <String, double>{};
     for (final e in pending) {
       final id = tree.shownArmIdOf(e.partnershipArmId);
@@ -42,7 +45,8 @@ class RecordsByArmScreen extends ConsumerWidget {
     int? bestMonth(String arm) {
       int? best;
       for (final m in view.months) {
-        if (inMonth(arm, m) > 0 && (best == null || inMonth(arm, m) > inMonth(arm, best))) {
+        if (inMonth(arm, m) > 0 &&
+            (best == null || inMonth(arm, m) > inMonth(arm, best))) {
           best = m;
         }
       }
@@ -50,7 +54,10 @@ class RecordsByArmScreen extends ConsumerWidget {
     }
 
     double usual(String arm) {
-      final given = [for (final m in view.months) if (inMonth(arm, m) > 0) inMonth(arm, m)];
+      final given = [
+        for (final m in view.months)
+          if (inMonth(arm, m) > 0) inMonth(arm, m),
+      ];
       return given.isEmpty ? 0 : given.reduce((x, y) => x + y) / given.length;
     }
 
@@ -76,13 +83,19 @@ class RecordsByArmScreen extends ConsumerWidget {
 
     Widget armCard(PartnershipArm a) {
       final best = bestMonth(a.id);
-      final peak = [for (final m in view.months) inMonth(a.id, m), 1.0].reduce((x, y) => x > y ? x : y);
+      final peak = [
+        for (final m in view.months) inMonth(a.id, m),
+        1.0,
+      ].reduce((x, y) => x > y ? x : y);
       final gave = view.partners.where((p) => (p.byArm[a.id] ?? 0) > 0).length;
       Widget fig(String k, String v) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(k, style: SelType.small),
-          Text(v, style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w800)),
+          Text(
+            v,
+            style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w800),
+          ),
         ],
       );
       return SelCard(
@@ -93,12 +106,18 @@ class RecordsByArmScreen extends ConsumerWidget {
               children: [
                 Expanded(child: Text(a.name, style: SelType.subtitle)),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Sel.track,
                     borderRadius: BorderRadius.circular(SelRadius.pill),
                   ),
-                  child: Text(pct(view.armTotal(a.id)), style: SelType.small.copyWith(color: Sel.text)),
+                  child: Text(
+                    pct(view.armTotal(a.id)),
+                    style: SelType.small.copyWith(color: Sel.text),
+                  ),
                 ),
               ],
             ),
@@ -106,7 +125,10 @@ class RecordsByArmScreen extends ConsumerWidget {
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text(money(view.armTotal(a.id)), style: SelType.hero.copyWith(fontSize: 28)),
+              child: Text(
+                money(view.armTotal(a.id)),
+                style: SelType.hero.copyWith(fontSize: 28),
+              ),
             ),
             const SizedBox(height: SelSpace.x3),
             SizedBox(
@@ -119,7 +141,11 @@ class RecordsByArmScreen extends ConsumerWidget {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 1.5),
                         child: Container(
-                          height: inMonth(a.id, m) == 0 ? 2 : (44 * inMonth(a.id, m) / peak).clamp(4, 44).toDouble(),
+                          height: inMonth(a.id, m) == 0
+                              ? 2
+                              : (44 * inMonth(a.id, m) / peak)
+                                    .clamp(4, 44)
+                                    .toDouble(),
                           color: m == best ? Sel.ink : Sel.skyWash,
                         ),
                       ),
@@ -153,9 +179,13 @@ class RecordsByArmScreen extends ConsumerWidget {
     }
 
     final top = arms.take(3).toList();
-    final sa = standout == null ? null : arms.firstWhere((a) => a.id == standout);
+    final sa = standout == null
+        ? null
+        : arms.firstWhere((a) => a.id == standout);
     final sm = sa == null ? null : bestMonth(sa.id);
-    final monthName = sm == null ? '' : DateFormat.MMMM().format(GivingView.monthOf(sm));
+    final monthName = sm == null
+        ? ''
+        : DateFormat.MMMM().format(GivingView.monthOf(sm));
 
     return SelPageBody(
       children: [
@@ -181,7 +211,9 @@ class RecordsByArmScreen extends ConsumerWidget {
               return Wrap(
                 spacing: SelSpace.x4,
                 runSpacing: SelSpace.x4,
-                children: [for (final a in top) SizedBox(width: w, child: armCard(a))],
+                children: [
+                  for (final a in top) SizedBox(width: w, child: armCard(a)),
+                ],
               );
             },
           ),
@@ -197,7 +229,10 @@ class RecordsByArmScreen extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${sa.name} had its biggest month in $monthName', style: SelType.subtitle),
+                      Text(
+                        '${sa.name} had its biggest month in $monthName',
+                        style: SelType.subtitle,
+                      ),
                       const SizedBox(height: SelSpace.x1),
                       Text(
                         '${money(inMonth(sa.id, sm))} against a usual ${money(usual(sa.id))}.',
@@ -234,7 +269,9 @@ class RecordsByArmScreen extends ConsumerWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: view.total == 0 ? 0 : view.armTotal(a.id) / view.total,
+                          value: view.total == 0
+                              ? 0
+                              : view.armTotal(a.id) / view.total,
                           minHeight: 8,
                           color: Sel.sky,
                           backgroundColor: Sel.track,
@@ -243,11 +280,19 @@ class RecordsByArmScreen extends ConsumerWidget {
                     ),
                     SelCell.numeric(money(view.armTotal(a.id))),
                     SelCell.numeric(
-                      money((view.armEntries[a.id] ?? 0) == 0 ? 0 : view.armTotal(a.id) / view.armEntries[a.id]!),
+                      money(
+                        (view.armEntries[a.id] ?? 0) == 0
+                            ? 0
+                            : view.armTotal(a.id) / view.armEntries[a.id]!,
+                      ),
                       strong: false,
                     ),
                     SelCell.numeric(
-                      bestMonth(a.id) == null ? '—' : DateFormat.MMMM().format(GivingView.monthOf(bestMonth(a.id)!)),
+                      bestMonth(a.id) == null
+                          ? '—'
+                          : DateFormat.MMMM().format(
+                              GivingView.monthOf(bestMonth(a.id)!),
+                            ),
                       strong: false,
                     ),
                     SelCell.numeric(money(waiting[a.id] ?? 0), strong: false),
@@ -259,15 +304,24 @@ class RecordsByArmScreen extends ConsumerWidget {
                   const SizedBox.shrink(),
                   SelCell.numeric(money(view.total)),
                   SelCell.numeric(
-                    money(view.entryCount == 0 ? 0 : view.total / view.entryCount),
+                    money(
+                      view.entryCount == 0 ? 0 : view.total / view.entryCount,
+                    ),
                     strong: false,
                   ),
                   SelCell.numeric(
                     view.months.isEmpty
                         ? '—'
-                        : DateFormat.MMMM().format(GivingView.monthOf(
-                            view.months.reduce((x, y) => view.monthTotal(x) >= view.monthTotal(y) ? x : y),
-                          )),
+                        : DateFormat.MMMM().format(
+                            GivingView.monthOf(
+                              view.months.reduce(
+                                (x, y) =>
+                                    view.monthTotal(x) >= view.monthTotal(y)
+                                    ? x
+                                    : y,
+                              ),
+                            ),
+                          ),
                     strong: false,
                   ),
                   SelCell.numeric(money(totalWaiting), strong: false),
@@ -326,11 +380,17 @@ class _RecordsByFellowshipState
     final view = ref.watch(givingViewProvider);
     final loading = ref.watch(givingViewLoadingProvider);
     final now = GivingView.monthKey(DateTime.now());
+    // The latest month that has giving in it, not an empty month just begun.
+    final given = [
+      for (final m in view.months)
+        if (m <= now && view.monthTotal(m) > 0) m,
+    ];
     final month =
         _month ??
-        (view.months.contains(now)
-            ? now
+        (given.isNotEmpty
+            ? given.last
             : (view.months.isEmpty ? now : view.months.last));
+    final period = ref.watch(activePeriodProvider);
 
     final rows = view.fellowships
         .where((f) => _query.isEmpty || f.name.toLowerCase().contains(_query))
@@ -344,84 +404,140 @@ class _RecordsByFellowshipState
         SelPageTitle(
           title: 'By fellowship',
           subtitle:
-              '${view.fellowships.length} fellowships · approved giving in this period',
+              '${view.fellowships.length} fellowships · ${period?.name ?? 'this period'} · approved giving',
         ),
-        Wrap(
-          spacing: SelSpace.x3,
-          runSpacing: SelSpace.x3,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            ViewSearch(
-              hint: 'Find a fellowship',
-              onChanged: (v) => setState(() => _query = v),
-            ),
-            if (view.months.isNotEmpty)
-              DropdownButton<int>(
-                value: view.months.contains(month) ? month : view.months.last,
-                underline: const SizedBox.shrink(),
-                borderRadius: BorderRadius.circular(SelRadius.card),
-                items: [
-                  for (final m in view.months.reversed)
-                    DropdownMenuItem(value: m, child: Text(monthLong(m))),
-                ],
-                onChanged: (m) => setState(() => _month = m),
-              ),
-            SelPillGroup<_FellowshipSort>(
-              selected: _sort,
-              onChanged: (v) => setState(() => _sort = v),
-              options: const [
-                (_FellowshipSort.biggest, 'Biggest first'),
-                (_FellowshipSort.name, 'A to Z'),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: SelSpace.x4),
-        if (loading)
-          const ViewLoading()
-        else
-          SelLedger.builder(
-            minWidth: 680,
-            maxVirtualHeight: 720,
-            columns: [
-              const SelColumn('Fellowship', flex: 3),
-              const SelColumn.numeric('Partners', width: 100),
-              const SelColumn.numeric('Gave this period', width: 150),
-              SelColumn.numeric(monthShort(month), width: 140),
-              const SelColumn.numeric('Year so far', width: 160),
-            ],
-            emptyState: SelEmpty(
-              title: _query.isEmpty ? 'No fellowships yet' : 'No matches',
-              message: _query.isEmpty
-                  ? 'Fellowships appear once partners belong to one.'
-                  : 'No fellowship matches “$_query”.',
-              icon: LucideIcons.users2,
-            ),
-            itemCount: rows.length,
-            itemBuilder: (context, i) {
-              final f = rows[i];
-              return SelRow(
-                onTap: () =>
-                    context.go('/fellowships/${Uri.encodeComponent(f.key)}'),
-                cells: [
-                  SelCell.primary(f.name),
-                  SelCell.numeric('${f.partners}', strong: false),
-                  SelCell.numeric(
-                    '${f.gave.length} of ${f.partners}',
-                    strong: false,
+        SelCard(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: SelSpace.x3,
+                runSpacing: SelSpace.x3,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  ViewSearch(
+                    hint: 'Find a fellowship',
+                    onChanged: (v) => setState(() => _query = v),
                   ),
-                  SelCell.numeric(money(f.byMonth[month] ?? 0), strong: false),
-                  SelCell.numeric(money(f.total)),
+                  if (view.months.isNotEmpty)
+                    DropdownButton<int>(
+                      value: view.months.contains(month)
+                          ? month
+                          : view.months.last,
+                      underline: const SizedBox.shrink(),
+                      borderRadius: BorderRadius.circular(SelRadius.card),
+                      items: [
+                        for (final m in view.months.reversed)
+                          DropdownMenuItem(
+                            value: m,
+                            child: Text(
+                              'Month: ${monthLong(m)}',
+                              style: SelType.bodySm.copyWith(color: Sel.text),
+                            ),
+                          ),
+                      ],
+                      onChanged: (m) => setState(() => _month = m),
+                    ),
+                  SelPillGroup<_FellowshipSort>(
+                    selected: _sort,
+                    onChanged: (v) => setState(() => _sort = v),
+                    options: const [
+                      (_FellowshipSort.biggest, 'Biggest first'),
+                      (_FellowshipSort.name, 'A to Z'),
+                    ],
+                  ),
                 ],
-              );
-            },
+              ),
+              const SizedBox(height: SelSpace.x3),
+              if (loading)
+                const ViewLoading()
+              else
+                SelLedger.builder(
+                  bare: true,
+                  minWidth: 680,
+                  maxVirtualHeight: 720,
+                  columns: [
+                    const SelColumn('Fellowship', flex: 3),
+                    const SelColumn.numeric('Partners', width: 100),
+                    const SelColumn.numeric('Gave this period', width: 150),
+                    SelColumn.numeric(monthShort(month), width: 140),
+                    const SelColumn.numeric('Year so far', width: 160),
+                  ],
+                  emptyState: SelEmpty(
+                    title: _query.isEmpty ? 'No fellowships yet' : 'No matches',
+                    message: _query.isEmpty
+                        ? 'Fellowships appear once partners belong to one.'
+                        : 'No fellowship matches “$_query”.',
+                    icon: LucideIcons.users2,
+                  ),
+                  itemCount: rows.isEmpty ? 0 : rows.length + 1,
+                  itemBuilder: (context, i) {
+                    if (i == rows.length) {
+                      final partners = rows.fold<int>(
+                        0,
+                        (s, f) => s + f.partners,
+                      );
+                      final gave = rows.fold<int>(
+                        0,
+                        (s, f) => s + f.gave.length,
+                      );
+                      return SelRow(
+                        cells: [
+                          SelCell.primary('All ${rows.length}'),
+                          SelCell.numeric('$partners'),
+                          SelCell.numeric('$gave of $partners'),
+                          SelCell.numeric(
+                            money(
+                              rows.fold<double>(
+                                0,
+                                (s, f) => s + (f.byMonth[month] ?? 0),
+                              ),
+                            ),
+                          ),
+                          SelCell.numeric(
+                            money(rows.fold<double>(0, (s, f) => s + f.total)),
+                          ),
+                        ],
+                      );
+                    }
+                    final f = rows[i];
+                    return SelRow(
+                      onTap: () => context.go(
+                        '/fellowships/${Uri.encodeComponent(f.key)}',
+                      ),
+                      cells: [
+                        SelCell.primary(f.name),
+                        SelCell.numeric('${f.partners}', strong: false),
+                        SelCell.numeric(
+                          '${f.gave.length} of ${f.partners}',
+                          strong: false,
+                        ),
+                        SelCell.numeric(
+                          money(f.byMonth[month] ?? 0),
+                          strong: false,
+                        ),
+                        SelCell.numeric(money(f.total)),
+                      ],
+                    );
+                  },
+                ),
+              const SizedBox(height: SelSpace.x3),
+              Text(
+                'Showing ${rows.length} of ${view.fellowships.length}',
+                style: SelType.small,
+              ),
+            ],
           ),
+        ),
       ],
     );
   }
 }
 
-/// Records · By partner: each partner's year, split by main arm.
+/// Records · By partner, as on the canvas: each partner's approved giving
+/// month by month, shaded by size so the steady givers and the gaps show at a
+/// glance. Sorted by most given, name or months given; 25 a page.
 class RecordsByPartnerScreen extends ConsumerStatefulWidget {
   const RecordsByPartnerScreen({super.key});
 
@@ -430,14 +546,34 @@ class RecordsByPartnerScreen extends ConsumerStatefulWidget {
       _RecordsByPartnerState();
 }
 
+enum _PartnerSort { most, name, months }
+
 class _RecordsByPartnerState extends ConsumerState<RecordsByPartnerScreen> {
+  static const _page = 25;
   String _query = '';
+  _PartnerSort _sort = _PartnerSort.most;
+  int _start = 0;
 
   @override
   Widget build(BuildContext context) {
     final money = ref.watch(churchMoneyFormatProvider);
+    final symbol = money(0).replaceAll(RegExp(r'[0-9.,\s]'), '');
+    // Short enough for a month cell: ₵840, ₵1.3k, ₵15k, ₵2.9M.
+    String compact(double v) {
+      String trim(double x) {
+        final t = x >= 10 ? x.round().toString() : x.toStringAsFixed(1);
+        return t.endsWith('.0') ? t.substring(0, t.length - 2) : t;
+      }
+
+      if (v >= 1e6) return '$symbol${trim(v / 1e6)}M';
+      if (v >= 1e3) return '$symbol${trim(v / 1e3)}k';
+      return '$symbol${v.round()}';
+    }
     final view = ref.watch(givingViewProvider);
     final loading = ref.watch(givingViewLoadingProvider);
+    final period = ref.watch(activePeriodProvider);
+    int monthsGiven(PartnerGiving p) =>
+        p.byMonth.values.where((v) => v > 0).length;
     final rows = view.partners
         .where(
           (p) =>
@@ -446,54 +582,271 @@ class _RecordsByPartnerState extends ConsumerState<RecordsByPartnerScreen> {
               p.fellowshipKey.contains(_query),
         )
         .toList();
+    switch (_sort) {
+      case _PartnerSort.most:
+        break; // already biggest first
+      case _PartnerSort.name:
+        rows.sort((a, b) => a.name.compareTo(b.name));
+      case _PartnerSort.months:
+        rows.sort((a, b) => monthsGiven(b).compareTo(monthsGiven(a)));
+    }
+    final start = _start >= rows.length ? 0 : _start;
+    final shown = rows.skip(start).take(_page).toList();
+    final peak = [
+      for (final p in view.partners) ...p.byMonth.values,
+      1.0,
+    ].reduce((x, y) => x > y ? x : y);
+    final now = GivingView.monthKey(DateTime.now());
+
+    Color shade(double v) {
+      if (v <= 0) return Colors.transparent;
+      final t = (v / peak).clamp(0.0, 1.0);
+      // From a faint sky tint to the light sky of the bars, by square root so
+      // smaller givers still read.
+      return Color.lerp(
+        const Color(0xFFE6F2FD),
+        const Color(0xFF7FC0F6),
+        math.sqrt(t),
+      )!;
+    }
+
+    Widget pill(_PartnerSort k, String label) => Padding(
+      padding: const EdgeInsets.only(left: SelSpace.x2),
+      child: Material(
+        color: _sort == k ? Sel.ink : Sel.card,
+        shape: StadiumBorder(
+          side: BorderSide(color: _sort == k ? Sel.ink : Sel.border),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () => setState(() {
+            _sort = k;
+            _start = 0;
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Text(
+              label,
+              style: SelType.bodySm.copyWith(
+                color: _sort == k ? Sel.card : Sel.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    const nameW = 160.0, yearW = 150.0;
+    Widget head(String t, double w, {TextAlign align = TextAlign.right}) =>
+        SizedBox(
+          width: w,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            child: Text(t, textAlign: align, style: SelType.small),
+          ),
+        );
+
+    Widget tableFor(double cellW) => SizedBox(
+      width: nameW + yearW + view.months.length * cellW,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              head('Partner', nameW, align: TextAlign.left),
+              for (final m in view.months) head(monthShort(m), cellW),
+              head('Year', yearW),
+            ],
+          ),
+          const Divider(height: 1, color: Sel.rowLine),
+          for (final p in shown) ...[
+            InkWell(
+              onTap: () => context.go('/partners/${p.partnerId}'),
+              child: SizedBox(
+                height: 56,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: nameW,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: SelType.bodySm.copyWith(color: Sel.text),
+                            ),
+                            Text(p.fellowship, style: SelType.small),
+                          ],
+                        ),
+                      ),
+                    ),
+                    for (final m in view.months)
+                      Container(
+                        width: cellW,
+                        margin: const EdgeInsets.only(right: 1),
+                        color: shade(p.byMonth[m] ?? 0),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          (p.byMonth[m] ?? 0) > 0
+                              ? compact(p.byMonth[m]!)
+                              : m > now
+                              ? '·'
+                              : '–',
+                          style: SelType.small.copyWith(
+                            color: (p.byMonth[m] ?? 0) > 0 ? Sel.ink : Sel.warm,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    SizedBox(
+                      width: yearW - view.months.length.toDouble(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            money(p.total),
+                            style: SelType.bodySm.copyWith(
+                              color: Sel.ink,
+                              fontWeight: FontWeight.w800,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: Sel.rowLine),
+          ],
+        ],
+      ),
+    );
 
     return SelPageBody(
       children: [
         SelPageTitle(
           title: 'By partner',
           subtitle:
-              '${view.partners.length} partners gave in this period · biggest first',
+              "${period?.name ?? 'This period'} · each partner's approved giving, month by month",
         ),
-        ViewSearch(
-          hint: 'Find a partner or fellowship',
-          onChanged: (v) => setState(() => _query = v),
-        ),
-        const SizedBox(height: SelSpace.x4),
         if (loading)
           const ViewLoading()
         else
-          SelLedger.builder(
-            minWidth: 360.0 + view.arms.length * 130 + 150,
-            maxVirtualHeight: 720,
-            columns: [
-              const SelColumn('Partner', flex: 3),
-              const SelColumn('Fellowship', flex: 2),
-              for (final a in view.arms) SelColumn.numeric(a.name, width: 130),
-              const SelColumn.numeric('Total', width: 150),
-            ],
-            emptyState: SelEmpty(
-              title: _query.isEmpty ? 'No giving yet' : 'No matches',
-              message: _query.isEmpty
-                  ? 'Partners appear here once their giving is approved.'
-                  : 'Nothing matches “$_query”.',
-            ),
-            itemCount: rows.length,
-            itemBuilder: (context, i) {
-              final p = rows[i];
-              return SelRow(
-                onTap: () => context.go('/partners/${p.partnerId}'),
-                cells: [
-                  SelCell.primary(p.name),
-                  SelCell.secondary(p.fellowship),
-                  for (final a in view.arms)
-                    SelCell.numeric(
-                      (p.byArm[a.id] ?? 0) == 0 ? '–' : money(p.byArm[a.id]!),
-                      strong: false,
+          SelCard(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  runSpacing: SelSpace.x2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  alignment: WrapAlignment.spaceBetween,
+                  children: [
+                    SizedBox(
+                      width: 320,
+                      child: ViewSearch(
+                        hint: 'Find a partner or fellowship',
+                        onChanged: (v) => setState(() {
+                          _query = v;
+                          _start = 0;
+                        }),
+                      ),
                     ),
-                  SelCell.numeric(money(p.total)),
-                ],
-              );
-            },
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Sort', style: SelType.small),
+                        pill(_PartnerSort.most, 'Most given'),
+                        pill(_PartnerSort.name, 'Name'),
+                        pill(_PartnerSort.months, 'Months given'),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: SelSpace.x3),
+                if (rows.isEmpty)
+                  SelEmpty(
+                    title: _query.isEmpty ? 'Nobody has given yet' : 'No matches',
+                    message: _query.isEmpty
+                        ? 'Partners appear here once their giving is approved.'
+                        : 'No partner or fellowship matches “$_query”.',
+                  )
+                else
+                  LayoutBuilder(
+                    builder: (context, c) {
+                      final fit = view.months.isEmpty
+                          ? 70.0
+                          : (c.maxWidth - nameW - yearW) / view.months.length;
+                      // Months share the width; below 58 a cell cannot hold
+                      // ₵12.3k, so the table scrolls sideways instead.
+                      return fit >= 58
+                          ? tableFor(fit.clamp(58.0, 96.0))
+                          : SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: tableFor(58),
+                            );
+                    },
+                  ),
+                const SizedBox(height: SelSpace.x3),
+                Wrap(
+                  runSpacing: SelSpace.x2,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Less ', style: SelType.small),
+                        for (final t in const [0.02, 0.1, 0.3, 0.6, 1.0])
+                          Container(
+                            width: 18,
+                            height: 10,
+                            margin: const EdgeInsets.only(right: 2),
+                            color: shade(t * peak),
+                          ),
+                        Text(' More · – nothing given', style: SelType.small),
+                      ],
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          rows.isEmpty
+                              ? ''
+                              : '${start + 1}–${start + shown.length} of ${rows.length} who gave',
+                          style: SelType.small,
+                        ),
+                        if (start > 0) ...[
+                          const SizedBox(width: SelSpace.x3),
+                          SelButton(
+                            label: 'Previous',
+                            dense: true,
+                            onPressed: () => setState(() => _start = start - _page),
+                          ),
+                        ],
+                        if (start + _page < rows.length) ...[
+                          const SizedBox(width: SelSpace.x2),
+                          SelButton(
+                            label: 'Next',
+                            dense: true,
+                            onPressed: () => setState(() => _start = start + _page),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
       ],
     );
