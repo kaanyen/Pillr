@@ -1069,43 +1069,48 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              compact
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            _closeImport(),
-                            Expanded(
-                              child: _sheetTitle(
-                                compact: true,
-                                resolved: resolved,
-                                live: live,
-                              ),
-                            ),
-                          ],
+              Wrap(
+                spacing: SelSpace.x3,
+                runSpacing: SelSpace.x2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SelButton(
+                    label: '← Leave import',
+                    onPressed: _committing
+                        ? null
+                        : () => context.go('/records/imports'),
+                  ),
+                  Text(
+                    '${_fileName ?? 'This import'} · saved on this device as you go.',
+                    style: SelType.small,
+                  ),
+                  SelLink(
+                    label: 'Start over',
+                    onTap: _committing ? null : _startOver,
+                  ),
+                ],
+              ),
+              const SizedBox(height: SelSpace.x3),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.end,
+                runSpacing: SelSpace.x2,
+                children: [
+                  _sheetTitle(compact: compact, resolved: resolved, live: live),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCompactSheetCurrencySelector(),
+                      if (_loadingPartners)
+                        const Padding(
+                          padding: EdgeInsets.only(right: SelSpace.x3),
+                          child: PillrLoader(size: 18),
                         ),
-                        const SizedBox(height: SelSpace.x2),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _sheetActions(),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        _closeImport(),
-                        Expanded(
-                          child: _sheetTitle(
-                            compact: false,
-                            resolved: resolved,
-                            live: live,
-                          ),
-                        ),
-                        _sheetActions(),
-                      ],
-                    ),
+                      _StepBar(current: _step),
+                    ],
+                  ),
+                ],
+              ),
               SizedBox(height: compact ? SelSpace.x2 : SelSpace.x3),
               if (_error != null) ...[
                 _Notice(message: _error!, status: SelStatus.blocked),
@@ -1151,49 +1156,68 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 ),
               ),
               const SizedBox(height: SelSpace.x3),
-              Row(
-                children: [
-                  SelButton(
-                    label: 'Back',
-                    kind: SelButtonKind.quiet,
-                    onPressed: () => setState(() => _step = _Step.columns),
-                  ),
-                  const Spacer(),
-                  if (blocking)
-                    Padding(
-                      padding: const EdgeInsets.only(right: SelSpace.x3),
-                      child: Text(
-                        l10n.bulkImportBlocking,
-                        style: SelType.small,
-                      ),
-                    )
-                  else if (duplicatesPending)
-                    Padding(
-                      padding: const EdgeInsets.only(right: SelSpace.x3),
-                      child: Text(
-                        'Say keep or drop for the rows that might already exist.',
-                        style: SelType.small,
-                      ),
-                    )
-                  else if (live.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(right: SelSpace.x3),
-                      child: Text(
-                        'Every row was left out.',
-                        style: SelType.small,
-                      ),
+              Builder(
+                builder: (context) {
+                  final ready = live.where((r) => !r.isBlocking).toList();
+                  final total = ready.fold<double>(0, (s, r) => s + r.amountCedis);
+                  final needYou = live.where((r) => r.isBlocking).length;
+                  final note = blocking
+                      ? '$needYou ${needYou == 1 ? 'row needs' : 'rows need'} you'
+                      : duplicatesPending
+                      ? 'Say keep or leave out for the rows that might already be in Pillr'
+                      : live.isEmpty
+                      ? 'Every row was left out'
+                      : 'Nothing is saved until you bring them in';
+                  final canGo = !(blocking || duplicatesPending || _loadingPartners || live.isEmpty);
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
+                    decoration: BoxDecoration(
+                      color: Sel.ink,
+                      borderRadius: BorderRadius.circular(SelRadius.card),
                     ),
-                  SelButton.cyan(
-                    label: 'Continue',
-                    onPressed:
-                        blocking ||
-                            duplicatesPending ||
-                            _loadingPartners ||
-                            live.isEmpty
-                        ? null
-                        : () => setState(() => _step = _Step.confirm),
-                  ),
-                ],
+                    child: Row(
+                      children: [
+                        Text(
+                          '${ready.length} ready · ${money(total)}',
+                          style: SelType.body.copyWith(
+                            color: Sel.card,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: SelSpace.x4),
+                        Expanded(
+                          child: Text(
+                            note,
+                            overflow: TextOverflow.ellipsis,
+                            style: SelType.bodySm.copyWith(color: const Color(0xFFC9DEF3)),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => setState(() => _step = _Step.columns),
+                          child: Text('Back', style: SelType.button.copyWith(color: Sel.card)),
+                        ),
+                        const SizedBox(width: SelSpace.x2),
+                        Material(
+                          color: canGo ? Sel.card : const Color(0xFF2A5884),
+                          shape: const StadiumBorder(),
+                          child: InkWell(
+                            customBorder: const StadiumBorder(),
+                            onTap: canGo ? () => setState(() => _step = _Step.confirm) : null,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                              child: Text(
+                                'Continue',
+                                style: SelType.button.copyWith(
+                                  color: canGo ? Sel.ink : const Color(0xFF9DB8D3),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -1202,15 +1226,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     );
   }
 
-  Widget _closeImport() {
-    return IconButton(
-      tooltip: 'Close',
-      onPressed: _committing ? null : () => context.go('/records/imports'),
-      icon: const Icon(LucideIcons.x, size: 18),
-      color: Sel.ink,
-      visualDensity: VisualDensity.compact,
-    );
-  }
 
   Widget _sheetTitle({
     required bool compact,
@@ -1218,21 +1233,15 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     required List<BulkResolvedRow> live,
   }) {
     final meta = live.length == resolved.length
-        ? '${resolved.length} rows from ${_fileName ?? "your file"}'
-        : '${live.length} of ${resolved.length} rows will be imported';
+        ? '${_fileName ?? "Your file"} · ${resolved.length} rows · nothing is saved until you bring them in'
+        : '${_fileName ?? "Your file"} · ${live.length} of ${resolved.length} rows coming in';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Check the sheet',
-          style: SelType.subtitle.copyWith(
-            fontSize: compact ? 18 : 20,
-            letterSpacing: compact ? -0.1 : -0.2,
-          ),
-        ),
+        Text('Check the rows', style: SelType.title),
         Text(
           meta,
-          style: SelType.small,
+          style: SelType.body.copyWith(color: Sel.warm),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -1240,28 +1249,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     );
   }
 
-  Widget _sheetActions() {
-    return Wrap(
-      alignment: WrapAlignment.end,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: SelSpace.x2,
-      runSpacing: SelSpace.x2,
-      children: [
-        if (_loadingPartners)
-          const SizedBox(
-            height: 14,
-            width: 14,
-            child: PillrLoader(size: 20),
-          ),
-        _buildCompactSheetCurrencySelector(),
-        SelButton(
-          label: 'Start over',
-          kind: SelButtonKind.quiet,
-          onPressed: _committing ? null : _startOver,
-        ),
-      ],
-    );
-  }
 
   /// Writes one cell back to the raw sheet and re-runs resolution.
   ///

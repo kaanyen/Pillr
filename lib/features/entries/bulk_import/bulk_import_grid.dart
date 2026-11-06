@@ -921,12 +921,8 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
                 : inHoveredGroup
                 ? (rowColor ?? Sel.cyan).withValues(alpha: 0.08)
                 : null,
-            border: Border(
-              bottom: const BorderSide(color: Sel.borderMuted),
-              left: BorderSide(
-                color: flashed ? Sel.cyanEdge : Colors.transparent,
-                width: 2,
-              ),
+            border: const Border(
+              bottom: BorderSide(color: Sel.borderMuted),
             ),
           ),
           child: Row(
@@ -934,21 +930,22 @@ class _BulkImportGridState extends ConsumerState<BulkImportGrid> {
               SizedBox(
                 width: _gutterWidth,
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // The colour bar is the link back to the panel: same hue,
-                    // same problem.
+                    // The dot is the link back to the panel: same hue, same
+                    // problem. A dot rather than an edge stripe.
                     Container(
-                      width: 3,
-                      height: _rowHeight,
-                      color: rowColor ?? Colors.transparent,
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          '${raw.sheetRowNumber}',
-                          style: SelType.small.copyWith(color: Sel.ash),
-                        ),
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: rowColor ?? Colors.transparent,
+                        shape: BoxShape.circle,
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${raw.sheetRowNumber}',
+                      style: SelType.small.copyWith(color: Sel.ash),
                     ),
                   ],
                 ),
@@ -2515,12 +2512,6 @@ class _HoverRowState extends State<_HoverRow> {
               color: _hovering || widget.highlighted
                   ? widget.tint.withValues(alpha: widget.strength)
                   : Colors.transparent,
-              border: Border(
-                left: BorderSide(
-                  color: widget.highlighted ? widget.tint : Colors.transparent,
-                  width: 2,
-                ),
-              ),
               borderRadius: BorderRadius.circular(SelRadius.card),
             ),
             child: widget.child ?? widget.builder!(_hovering),
