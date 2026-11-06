@@ -409,7 +409,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     }
 
     return SelPageBody(
-      maxWidth: _step == _Step.upload ? double.infinity : 900,
+      maxWidth: _step == _Step.upload || _step == _Step.columns
+          ? double.infinity
+          : 900,
       children: [
         Wrap(
           spacing: SelSpace.x3,
@@ -441,10 +443,22 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             final title = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Bring in a sheet', style: SelType.title),
+                Text(
+                  switch (_step) {
+                    _Step.upload => 'Bring in a sheet',
+                    _Step.columns => 'Match the columns',
+                    _Step.resolve => 'Check the rows',
+                    _Step.confirm => 'Bring them in',
+                  },
+                  style: SelType.title,
+                ),
                 const SizedBox(height: SelSpace.x1),
                 Text(
-                  'Turn a month of giving in a spreadsheet into entries, without typing each one',
+                  _step == _Step.upload || _fileName == null
+                      ? 'Turn a month of giving in a spreadsheet into entries, without typing each one'
+                      : _detection == null
+                      ? _fileName!
+                      : '$_fileName · headings found on row ${_detection!.headerRowIndex + 1}',
                   style: SelType.body.copyWith(color: Sel.warm),
                 ),
               ],
@@ -728,73 +742,261 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     final missing = BulkImportHeaderDetection.required
         .where((c) => !_mapping.containsKey(c))
         .toList();
+    final first = detection.headerRowIndex + 1;
+    final dataRows = [
+      for (var r = first; r < grid.length; r++)
+        if (grid[r].any((v) => (v ?? '').trim().isNotEmpty)) r,
+    ];
 
-    // One preview value per column, so the reader can tell which is which
+    // A few real values per column, so the reader can tell which is which
     // without going back to the spreadsheet.
-    String sample(int col) {
-      for (
-        var r = detection.headerRowIndex + 1;
-        r < grid.length && r < detection.headerRowIndex + 6;
-        r++
-      ) {
+    String samples(int col) {
+      final seen = <String>[];
+      for (final r in dataRows) {
         if (col < grid[r].length) {
           final v = (grid[r][col] ?? '').trim();
-          if (v.isNotEmpty) return v;
+          if (v.isNotEmpty && !seen.contains(v)) seen.add(v);
         }
+        if (seen.length == 3) break;
       }
-      return '—';
+      return seen.isEmpty ? '—' : seen.join(' · ');
     }
+
+    String valueAt(int row, BulkImportColumn field) {
+      final col = _mapping[field];
+      if (col == null || col >= grid[row].length) return '';
+      return (grid[row][col] ?? '').trim();
+    }
+
+    final columns = [
+      for (var c = 0; c < detection.labels.length; c++)
+        if (detection.labels[c].isNotEmpty) c,
+    ];
+
+    final table = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: SelSpace.x1,
+            children: [
+              Text('${columns.length} columns in your sheet', style: SelType.subtitle),
+              Text(
+                'Pillr matched ${_mapping.length}. Change any that are wrong.',
+                style: SelType.small,
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x3),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(flex: 3, child: Text('Your column', style: SelType.small)),
+                Expanded(flex: 4, child: Text('First values', style: SelType.small)),
+                SizedBox(width: 190, child: Text('Goes to', style: SelType.small)),
+              ],
+            ),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          for (final c in columns) ...[
+            const Divider(height: 1, color: Sel.rowLine),
+            _ColumnRow(
+              header: detection.labels[c],
+              sample: samples(c),
+              value: _fieldForColumn(c),
+              onChanged: (field) => _assignColumn(c, field),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    Widget need(String label, BulkImportColumn field, {bool required = true}) {
+      final col = _mapping[field];
+      final ok = col != null;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: ok ? Sel.skyWash : (required ? Sel.ink : Sel.track),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                ok ? LucideIcons.check : (required ? LucideIcons.alertCircle : LucideIcons.minus),
+                size: 13,
+                color: ok ? Sel.ink : (required ? Sel.card : Sel.warm),
+              ),
+            ),
+            const SizedBox(width: SelSpace.x3),
+            Expanded(
+              child: Text(
+                label,
+                style: SelType.body.copyWith(
+                  color: Sel.ink,
+                  fontWeight: ok ? FontWeight.w500 : FontWeight.w700,
+                ),
+              ),
+            ),
+            Flexible(
+              child: Text(
+                ok
+                    ? 'from “${detection.labels[col]}”'
+                    : required
+                    ? 'Pick its column'
+                    : 'Not in the sheet',
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                style: SelType.small,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final needs = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('What every entry needs', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x1),
+          need('Date', BulkImportColumn.date),
+          const Divider(height: 1, color: Sel.rowLine),
+          need('Name', BulkImportColumn.name),
+          const Divider(height: 1, color: Sel.rowLine),
+          need('Amount', BulkImportColumn.amount),
+          const Divider(height: 1, color: Sel.rowLine),
+          need('Fellowship', BulkImportColumn.fellowship, required: false),
+          const Divider(height: 1, color: Sel.rowLine),
+          need('Arm', BulkImportColumn.category, required: false),
+          if (!_mapping.containsKey(BulkImportColumn.category)) ...[
+            const SizedBox(height: SelSpace.x1),
+            Text(
+              'Without an arm column, you pick the arm for each row on the next step.',
+              style: SelType.small,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final preview = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: SelSpace.x1,
+            children: [
+              Text("The first rows, as they'll come in", style: SelType.subtitle),
+              Text('Updates as you change a column', style: SelType.small),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x3),
+          Table(
+            columnWidths: const {0: FixedColumnWidth(70)},
+            border: const TableBorder(horizontalInside: BorderSide(color: Sel.rowLine)),
+            children: [
+              TableRow(
+                children: [
+                  for (final h in const ['Row', 'Date', 'Name', 'Fellowship', 'Arm'])
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Text(h, style: SelType.small),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Text('Amount', textAlign: TextAlign.right, style: SelType.small),
+                  ),
+                ],
+              ),
+              for (final r in dataRows.take(3))
+                TableRow(
+                  children: [
+                    for (final v in [
+                      '${r + 1}',
+                      valueAt(r, BulkImportColumn.date),
+                      valueAt(r, BulkImportColumn.name),
+                      valueAt(r, BulkImportColumn.fellowship),
+                      valueAt(r, BulkImportColumn.category),
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        child: Text(
+                          v.isEmpty ? '—' : v,
+                          style: SelType.bodySm.copyWith(color: Sel.text),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      child: Text(
+                        valueAt(r, BulkImportColumn.amount).isEmpty
+                            ? '—'
+                            : valueAt(r, BulkImportColumn.amount),
+                        textAlign: TextAlign.right,
+                        style: SelType.bodySm.copyWith(color: Sel.text),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          if (missing.isNotEmpty) ...[
+            const SizedBox(height: SelSpace.x3),
+            _Notice(
+              status: SelStatus.blocked,
+              message:
+                  'Still needed: '
+                  '${missing.map(bulkImportFieldLabel).join(', ')}. '
+                  'Pick the column that holds each.',
+            ),
+          ],
+          const Divider(height: SelSpace.x8, color: Sel.border),
+          Row(
+            children: [
+              SelLink(
+                label: 'Back',
+                onTap: () => setState(() => _step = _Step.upload),
+              ),
+              const Spacer(),
+              SelButton.cyan(
+                label: 'Check ${dataRows.length} ${dataRows.length == 1 ? 'row' : 'rows'}',
+                loading: _parsing,
+                onPressed: missing.isEmpty ? _applyMappingAndResolve : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SelPanel(
-          title: 'Check columns',
-          subtitle:
-              'We found ${detection.labels.where((l) => l.isNotEmpty).length} '
-              'columns. Point each one at the right field.',
-          contentPadding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              for (var c = 0; c < detection.labels.length; c++)
-                if (detection.labels[c].isNotEmpty) ...[
-                  if (c > 0) const Divider(height: 1, color: Sel.border),
-                  _ColumnRow(
-                    header: detection.labels[c],
-                    sample: sample(c),
-                    value: _fieldForColumn(c),
-                    onChanged: (field) => _assignColumn(c, field),
-                  ),
-                ],
-            ],
-          ),
+        LayoutBuilder(
+          builder: (context, c) => c.maxWidth < 900
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [table, const SizedBox(height: SelSpace.x4), needs],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: table),
+                    const SizedBox(width: SelSpace.x4),
+                    SizedBox(width: 320, child: needs),
+                  ],
+                ),
         ),
-        if (missing.isNotEmpty) ...[
-          const SizedBox(height: SelSpace.x4),
-          _Notice(
-            status: SelStatus.blocked,
-            message:
-                'Still needed: '
-                '${missing.map(bulkImportFieldLabel).join(', ')}. '
-                'Pick the column that holds each.',
-          ),
-        ],
-        const SizedBox(height: SelSpace.x6),
-        Row(
-          children: [
-            SelButton(
-              label: 'Back',
-              kind: SelButtonKind.quiet,
-              onPressed: () => setState(() => _step = _Step.upload),
-            ),
-            const Spacer(),
-            SelButton.cyan(
-              label: 'Continue',
-              loading: _parsing,
-              onPressed: missing.isEmpty ? _applyMappingAndResolve : null,
-            ),
-          ],
-        ),
+        const SizedBox(height: SelSpace.x4),
+        preview,
       ],
     );
   }
@@ -3365,16 +3567,22 @@ class _StepBar extends StatelessWidget {
                 height: 26,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: s.index <= current.index ? Sel.ink : Sel.track,
+                  color: s == current
+                      ? Sel.ink
+                      : s.index < current.index
+                      ? Sel.skyWash
+                      : Sel.track,
                   shape: BoxShape.circle,
                 ),
-                child: Text(
-                  '${s.index + 1}',
-                  style: SelType.small.copyWith(
-                    color: s.index <= current.index ? Sel.card : Sel.ink,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                child: s.index < current.index
+                    ? const Icon(LucideIcons.check, size: 13, color: Sel.ink)
+                    : Text(
+                        '${s.index + 1}',
+                        style: SelType.small.copyWith(
+                          color: s == current ? Sel.card : Sel.ink,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
               ),
               const SizedBox(width: SelSpace.x2),
               Text(
@@ -3402,7 +3610,7 @@ class _ColumnRow extends StatelessWidget {
 
   final String header;
 
-  /// A real value from the sheet, so the reader can identify the column
+  /// Real values from the sheet, so the reader can identify the column
   /// without switching back to the spreadsheet.
   final String sample;
 
@@ -3412,35 +3620,45 @@ class _ColumnRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: SelSpace.cardPad,
-        vertical: SelSpace.x3,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
           Expanded(
+            flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(header, style: SelType.bodyMedium),
-                Text('e.g. $sample', style: SelType.small),
+                Text(
+                  header,
+                  style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  value == null ? 'Left out' : 'Matched',
+                  style: SelType.small,
+                ),
               ],
             ),
           ),
-          const SizedBox(width: SelSpace.x4),
-          const Icon(LucideIcons.arrowRight, size: 14, color: Sel.ash),
-          const SizedBox(width: SelSpace.x4),
+          Expanded(
+            flex: 4,
+            child: Text(
+              sample,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SelType.bodySm,
+            ),
+          ),
           SizedBox(
-            width: 200,
+            width: 190,
             child: SelSelect<BulkImportColumn?>(
               value: value,
-              hint: Text('Ignore this column', style: SelType.bodyMuted),
+              hint: Text('Leave out', style: SelType.bodyMuted),
               onChanged: onChanged,
               items: [
                 DropdownMenuItem(
                   value: null,
-                  child: Text('Ignore', style: SelType.bodyMuted),
+                  child: Text('Leave out', style: SelType.bodyMuted),
                 ),
                 for (final f in bulkImportMappableFields)
                   DropdownMenuItem(
