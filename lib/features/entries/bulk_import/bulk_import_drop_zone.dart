@@ -7,107 +7,96 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 import '../../../design/seline.dart';
 
 
-/// Dashed drop zone + cloud icon + Browse (reference: upload panel).
+/// The drop zone, as on the canvas: a light-sky field with a dashed edge,
+/// Choose a file and Paste rows, and a line pointing to the template.
 class BulkImportDropZone extends StatelessWidget {
   const BulkImportDropZone({
     super.key,
     required this.onPick,
     required this.loading,
+    this.onPaste,
+    this.onTemplate,
     this.fileName,
   });
 
   final VoidCallback onPick;
+  final VoidCallback? onPaste;
+  final VoidCallback? onTemplate;
   final bool loading;
   final String? fileName;
 
-  static const _cornerRadius = 16.0;
+  static const _cornerRadius = 18.0;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final hasFile = fileName != null && fileName!.isNotEmpty;
     return CustomPaint(
       foregroundPainter: const _DashedRRectPainter(
-        color: Sel.border,
+        color: Color(0xFF9ACFF6),
         strokeWidth: 1.5,
         radius: _cornerRadius,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(_cornerRadius),
         child: Material(
-          color: Sel.canvas,
+          color: Sel.skyTint,
           child: InkWell(
             onTap: loading ? null : onPick,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: SelSpace.x6),
+              padding: const EdgeInsets.symmetric(vertical: 44, horizontal: SelSpace.x6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    LucideIcons.uploadCloud,
-                    size: 48,
-                    color: Sel.ash,
+                    hasFile ? LucideIcons.fileSpreadsheet : LucideIcons.fileText,
+                    size: 44,
+                    color: Sel.cyan,
                   ),
                   const SizedBox(height: SelSpace.x4),
-                  if (fileName != null && fileName!.isNotEmpty) ...[
-                    Icon(LucideIcons.fileSpreadsheet, size: 32, color: Sel.soot),
-                    const SizedBox(height: SelSpace.x2),
-                    Text(
-                      fileName!,
-                      textAlign: TextAlign.center,
-                      style: SelType.body.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: Sel.ink,
-                      ),
-                    ),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      l10n.bulkImportDropResumeHint,
-                      textAlign: TextAlign.center,
-                      style: SelType.small.copyWith(color: Sel.warm),
-                    ),
-                  ] else
-                    Text(
-                      l10n.bulkImportDropPrimary,
-                      textAlign: TextAlign.center,
-                      style: SelType.body.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: Sel.ink,
-                      ),
-                    ),
-                  const SizedBox(height: SelSpace.x2),
                   Text(
-                    l10n.bulkImportDropFormats,
+                    hasFile ? fileName! : 'Drop your spreadsheet here',
                     textAlign: TextAlign.center,
-                    style: SelType.small.copyWith(
-                      color: Sel.warm,
-                      height: 1.45,
-                    ),
+                    style: SelType.subtitle,
+                  ),
+                  const SizedBox(height: SelSpace.x1),
+                  Text(
+                    hasFile
+                        ? l10n.bulkImportDropResumeHint
+                        : 'Excel (.xlsx) or CSV, up to 5,000 rows. One sheet at a time.',
+                    textAlign: TextAlign.center,
+                    style: SelType.body.copyWith(color: Sel.warm),
                   ),
                   const SizedBox(height: SelSpace.x6),
-                  OutlinedButton(
-                    onPressed: loading ? null : onPick,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Sel.ink,
-                      side: const BorderSide(color: Sel.border),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: SelSpace.x6,
-                        vertical: SelSpace.x4,
+                  Wrap(
+                    spacing: SelSpace.x3,
+                    runSpacing: SelSpace.x2,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      SelButton.cyan(
+                        label: 'Choose a file',
+                        loading: loading,
+                        onPressed: loading ? null : onPick,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(SelRadius.pill),
-                      ),
-                    ),
-                    child: loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: PillrLoader(size: 20),
-                          )
-                        : Text(
-                            l10n.bulkImportBrowseFiles,
-                            style: SelType.body.copyWith(fontWeight: FontWeight.w600),
-                          ),
+                      if (onPaste != null)
+                        SelButton(
+                          label: 'Paste rows',
+                          onPressed: loading ? null : onPaste,
+                        ),
+                    ],
                   ),
+                  if (onTemplate != null) ...[
+                    const SizedBox(height: SelSpace.x6),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text('No spreadsheet handy? ', style: SelType.bodySm),
+                        SelLink(label: 'Download the template', onTap: onTemplate),
+                        Text(', it has the columns already named.', style: SelType.bodySm),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

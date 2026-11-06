@@ -59,10 +59,10 @@ import '../providers/entries_providers.dart';
 /// the stages lets the UI show one decision at a time and say how far in you
 /// are.
 enum _Step {
-  upload('Upload'),
-  columns('Check columns'),
-  resolve('Resolve'),
-  confirm('Import');
+  upload('File'),
+  columns('Columns'),
+  resolve('Check'),
+  confirm('Bring in');
 
   const _Step(this.label);
   final String label;
@@ -409,32 +409,66 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     }
 
     return SelPageBody(
-      maxWidth: 900,
+      maxWidth: _step == _Step.upload ? double.infinity : 900,
       children: [
-        SelPageTitle(
-          title: 'Import entries',
-          subtitle: _fileName == null
-              ? 'Bring a spreadsheet of giving into Pillr.'
-              : _fileName!,
-          actions: [
+        Wrap(
+          spacing: SelSpace.x3,
+          runSpacing: SelSpace.x2,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
             SelButton(
-              label: 'Close',
-              kind: SelButtonKind.quiet,
+              label: '← Leave import',
               onPressed: _committing
                   ? null
                   : () => context.go('/records/imports'),
             ),
+            Text(
+              _fileName == null
+                  ? 'New import · saved on this device as you go.'
+                  : '$_fileName · saved on this device as you go.',
+              style: SelType.small,
+            ),
             if (_step != _Step.upload)
-              SelButton(
+              SelLink(
                 label: 'Start over',
-                kind: SelButtonKind.quiet,
-                onPressed: _committing ? null : _startOver,
+                onTap: _committing ? null : _startOver,
               ),
           ],
         ),
-
-        _StepBar(current: _step),
-        const SizedBox(height: SelSpace.x8),
+        const SizedBox(height: SelSpace.x4),
+        LayoutBuilder(
+          builder: (context, c) {
+            final title = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Bring in a sheet', style: SelType.title),
+                const SizedBox(height: SelSpace.x1),
+                Text(
+                  'Turn a month of giving in a spreadsheet into entries, without typing each one',
+                  style: SelType.body.copyWith(color: Sel.warm),
+                ),
+              ],
+            );
+            if (c.maxWidth < 860) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  title,
+                  const SizedBox(height: SelSpace.x4),
+                  _StepBar(current: _step),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(child: title),
+                _StepBar(current: _step),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: SelSpace.x6),
 
         if (_error != null) ...[
           _Notice(message: _error!, status: SelStatus.blocked),
@@ -482,6 +516,166 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   // ---------------------------------------------------------------- step 1
   Widget _buildUploadStep(BuildContext context, AppLocalizations l10n) {
     final draft = _pendingDraft;
+    final period = ref.watch(activePeriodProvider);
+
+    final drop = SelCard(
+      padding: const EdgeInsets.all(14),
+      child: BulkImportDropZone(
+        onPick: () => _pickAndParse(context),
+        onPaste: () => _pasteRows(context),
+        onTemplate: _downloadTemplate,
+        loading: _parsing,
+        fileName: _fileName,
+      ),
+    );
+
+    Widget cellText(String t, {bool right = false}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Text(
+        t,
+        textAlign: right ? TextAlign.right : TextAlign.left,
+        style: SelType.bodySm.copyWith(color: Sel.text),
+      ),
+    );
+    Widget tag(String t, Color fill, Color ink) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(SelRadius.pill),
+      ),
+      child: Text(t, style: SelType.small.copyWith(color: ink)),
+    );
+    final looksFor = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: SelSpace.x1,
+            children: [
+              Text('What Pillr looks for', style: SelType.subtitle),
+              Text(
+                "Column names don't have to match. You'll confirm them next.",
+                style: SelType.small,
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x3),
+          Table(
+            border: const TableBorder(
+              horizontalInside: BorderSide(color: Sel.rowLine),
+            ),
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Sel.rowLine)),
+                ),
+                children: [
+                  for (final h in const ['Date', 'Name', 'Fellowship', 'Arm'])
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      child: Text(h, style: SelType.small),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Text('Amount', textAlign: TextAlign.right, style: SelType.small),
+                  ),
+                ],
+              ),
+              TableRow(
+                children: [
+                  cellText('1 Nov 2026'),
+                  cellText('Ama Boateng'),
+                  cellText('Bethel'),
+                  cellText('Tithe'),
+                  cellText('500.00', right: true),
+                ],
+              ),
+              TableRow(
+                children: [
+                  cellText('01/11/26'),
+                  cellText('Kofi Mensah'),
+                  cellText('Bethel'),
+                  cellText('Building'),
+                  cellText('GHS 1,250', right: true),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x3),
+          Wrap(
+            spacing: SelSpace.x2,
+            runSpacing: SelSpace.x2,
+            children: [
+              tag('Needed: Date · Name · Amount', Sel.ink, Sel.card),
+              tag('Arm and fellowship: in the sheet, or one for every row', Sel.skyWash, Sel.ink),
+              tag('Optional: Phone · Notes', Sel.track, Sel.text),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final forEveryRow = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('For every row', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x3),
+          Text('Period', style: SelType.bodyMedium),
+          const SizedBox(height: SelSpace.x2),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+            decoration: BoxDecoration(
+              color: Sel.track,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+            ),
+            child: Text(
+              (_importPeriod ?? period)?.name ?? 'No active period',
+              style: SelType.body.copyWith(color: Sel.text),
+            ),
+          ),
+          const SizedBox(height: SelSpace.x1),
+          Text(
+            'The active period. You can pick another on the last step.',
+            style: SelType.small,
+          ),
+          const SizedBox(height: SelSpace.x4),
+          Text('Plain amounts are in', style: SelType.bodyMedium),
+          const SizedBox(height: SelSpace.x2),
+          SelSelect<String>(
+            value: _importDefaultCurrency,
+            onChanged: _parsing
+                ? null
+                : (v) {
+                    if (v == null) return;
+                    setState(() => _importDefaultCurrency = v);
+                  },
+            items: [
+              for (final code in SelectableCurrency.all)
+                DropdownMenuItem(
+                  value: code,
+                  child: Text(SelectableCurrency.label(code)),
+                ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x1),
+          Text(
+            'Used when an amount has no ₵, \$, £ or currency code.',
+            style: SelType.small,
+          ),
+          const SizedBox(height: SelSpace.x4),
+          SelField(
+            controller: _preparedBy,
+            label: 'Prepared by',
+            hint: 'e.g. Bethel finance desk',
+          ),
+          const SizedBox(height: SelSpace.x1),
+          Text('Optional. Kept with the import so it can be traced.', style: SelType.small),
+        ],
+      ),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -495,50 +689,32 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           ),
           const SizedBox(height: SelSpace.x4),
         ],
-        BulkImportDropZone(
-          onPick: () => _pickAndParse(context),
-          loading: _parsing,
-          fileName: _fileName,
+        LayoutBuilder(
+          builder: (context, c) {
+            final main = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [drop, const SizedBox(height: SelSpace.x4), looksFor],
+            );
+            final side = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [forEveryRow, const _RecentImports()],
+            );
+            if (c.maxWidth < 900) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [main, const SizedBox(height: SelSpace.x4), side],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: main),
+                const SizedBox(width: SelSpace.x4),
+                SizedBox(width: 300, child: side),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: SelSpace.x4),
-        SelCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('No spreadsheet handy?', style: SelType.bodyMedium),
-                    Text(
-                      'Paste rows straight from Excel or Google Sheets, or '
-                      'start from a template with your own arms already listed.',
-                      style: SelType.bodySm,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: SelSpace.x4),
-              SelButton(
-                label: 'Paste rows',
-                icon: LucideIcons.clipboard,
-                onPressed: _parsing ? null : () => _pasteRows(context),
-              ),
-              const SizedBox(width: SelSpace.x2),
-              SelButton(
-                label: 'Template',
-                icon: LucideIcons.download,
-                onPressed: _parsing ? null : _downloadTemplate,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: SelSpace.x4),
-        Text(
-          '.xlsx or .csv. The active giving period is applied to every row.',
-          style: SelType.small,
-        ),
-        const _RecentImports(),
       ],
     );
   }
@@ -3176,46 +3352,41 @@ class _StepBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final compact = c.maxWidth < 620;
-        return Row(
-          children: [
-            for (final s in _Step.ordered) ...[
-              if (s.index > 0) const SizedBox(width: SelSpace.x2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: s.index <= current.index ? Sel.soot : Sel.border,
-                        borderRadius: BorderRadius.circular(SelRadius.pill),
-                      ),
-                    ),
-                    if (!compact) ...[
-                      const SizedBox(height: SelSpace.x2),
-                      Text(
-                        '${s.index + 1}. ${s.label}',
-                        style: SelType.small.copyWith(
-                          color: s == current ? Sel.ink : Sel.warm,
-                          fontWeight: s == current
-                              ? FontWeight.w500
-                              : FontWeight.w400,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
+    return Wrap(
+      spacing: SelSpace.x4,
+      runSpacing: SelSpace.x2,
+      children: [
+        for (final s in _Step.ordered)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: s.index <= current.index ? Sel.ink : Sel.track,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '${s.index + 1}',
+                  style: SelType.small.copyWith(
+                    color: s.index <= current.index ? Sel.card : Sel.ink,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              Text(
+                s.label,
+                style: SelType.bodySm.copyWith(
+                  color: s == current ? Sel.ink : Sel.warm,
+                  fontWeight: s == current ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
             ],
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 }
@@ -3343,7 +3514,12 @@ class _DraftCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SelCard(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: Sel.skyTint,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -3364,13 +3540,9 @@ class _DraftCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: SelSpace.x4),
-          SelButton(
-            label: 'Clear',
-            kind: SelButtonKind.quiet,
-            onPressed: onClear,
-          ),
-          const SizedBox(width: SelSpace.x2),
-          SelButton.cyan(label: 'Continue', onPressed: onContinue),
+          SelLink(label: 'Discard', onTap: onClear),
+          const SizedBox(width: SelSpace.x4),
+          SelButton(label: 'Continue', onPressed: onContinue),
         ],
       ),
     );
@@ -3408,23 +3580,57 @@ class _RecentImports extends ConsumerWidget {
     final money = ref.watch(churchMoneyFormatProvider);
 
     return Padding(
-      padding: const EdgeInsets.only(top: SelSpace.x8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SelSectionLabel(label: 'Recent imports'),
-          SelCard(
-            padding: EdgeInsets.zero,
-            child: Column(
+      padding: const EdgeInsets.only(top: SelSpace.x4),
+      child: SelCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                for (var i = 0; i < batches.length; i++) ...[
-                  if (i > 0) const Divider(height: 1, color: Sel.borderMuted),
-                  _ImportRow(batch: batches[i], money: money),
-                ],
+                Expanded(child: Text('Recent imports', style: SelType.subtitle)),
+                SelLink(
+                  label: 'All imports',
+                  onTap: () => context.go('/records/imports'),
+                ),
               ],
             ),
-          ),
-        ],
+            for (var i = 0; i < batches.length && i < 3; i++) ...[
+              if (i > 0) const Divider(height: 1, color: Sel.rowLine),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            batches[i].displayName,
+                            style: SelType.bodySm.copyWith(
+                              color: Sel.ink,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${DateFormat('d MMM').format(batches[i].createdAt)} · ${batches[i].createdByName}',
+                            style: SelType.small,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    Text(
+                      '${batches[i].entryCount} entries\n${money(batches[i].totalCedis)}',
+                      textAlign: TextAlign.right,
+                      style: SelType.small,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
