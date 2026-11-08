@@ -179,7 +179,12 @@ final partnerEntriesProvider =
     StreamProvider.autoDispose.family<List<PartnershipEntry>, String>((ref, partnerId) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
   if (idx == null) return Stream.value([]);
-  return ref.watch(entriesRepositoryProvider).watchPartnerEntries(idx.churchId, partnerId);
+  final all = ref.watch(entriesRepositoryProvider).watchPartnerEntries(idx.churchId, partnerId);
+  // Staff see the giving they recorded for this partner, not anyone else's.
+  if (idx.isStaff) {
+    return all.map((es) => [for (final e in es) if (e.createdBy == idx.uid) e]);
+  }
+  return all;
 });
 
 final entryDetailProvider =

@@ -473,7 +473,7 @@ class AdminOverview extends ConsumerWidget {
         if (i.status == 'pending') i,
     ];
     final partners =
-        ref.watch(partnersStreamProvider(false)).valueOrNull ?? const [];
+        ref.watch(visiblePartnersProvider(false)).valueOrNull ?? const [];
     final dupes = ref.watch(duplicateBadgeCountProvider);
     final pastors = users.where((u) => u.role == 'pastor').length;
     final staff = users.where((u) => u.role == 'staff').length;

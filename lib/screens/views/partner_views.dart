@@ -105,7 +105,7 @@ class _PartnersByFellowshipState
   Widget build(BuildContext context) {
     final money = ref.watch(churchMoneyFormatProvider);
     final view = ref.watch(givingViewProvider);
-    final roster = ref.watch(partnersStreamProvider(false));
+    final roster = ref.watch(visiblePartnersProvider(false));
     final givingOf = {for (final p in view.partners) p.partnerId: p.total};
     final active = (roster.valueOrNull ?? const <Partner>[]).where((p) => p.isActive).length;
 
@@ -328,7 +328,7 @@ class NewPartnersScreen extends ConsumerWidget {
     final money = ref.watch(churchMoneyFormatProvider);
     final view = ref.watch(givingViewProvider);
     final period = ref.watch(activePeriodProvider);
-    final roster = ref.watch(partnersStreamProvider(false));
+    final roster = ref.watch(visiblePartnersProvider(false));
     final users = ref.watch(churchUsersProvider).valueOrNull ?? const [];
     final nameOf = {for (final u in users) u.uid: u.fullName};
     final byId = {for (final p in view.partners) p.partnerId: p};
@@ -548,7 +548,7 @@ class _GivingRhythmState extends ConsumerState<GivingRhythmScreen> {
     final money = ref.watch(churchMoneyFormatProvider);
     final view = ref.watch(givingViewProvider);
     final loading = ref.watch(givingViewLoadingProvider);
-    final roster = ref.watch(partnersStreamProvider(false)).valueOrNull ?? const <Partner>[];
+    final roster = ref.watch(visiblePartnersProvider(false)).valueOrNull ?? const <Partner>[];
     final now = GivingView.monthKey(DateTime.now());
     final months = [for (final m in view.months) if (m <= now) m];
     final shownMonths = months.length > 12 ? months.sublist(months.length - 12) : months;
@@ -793,7 +793,7 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final roster = ref.watch(partnersStreamProvider(false));
+    final roster = ref.watch(visiblePartnersProvider(false));
     // The whole church's giving, for every role: a partner is quiet when
     // nobody has recorded giving for them, not just this person.
     final lastOf = ref.watch(churchLastGaveProvider).valueOrNull ?? const {};

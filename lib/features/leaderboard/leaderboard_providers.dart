@@ -100,7 +100,7 @@ final fellowshipDirectoryProvider =
   includeInactive,
 ) {
   final partners =
-      ref.watch(partnersStreamProvider(includeInactive)).valueOrNull ?? const [];
+      ref.watch(visiblePartnersProvider(includeInactive)).valueOrNull ?? const [];
   final entries = ref.watch(filteredEntriesProvider);
   final period = ref.watch(activePeriodProvider);
   final catalog =

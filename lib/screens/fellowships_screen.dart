@@ -203,7 +203,7 @@ class _FellowshipDirectory extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final partnersAsync = ref.watch(partnersStreamProvider(false));
+    final partnersAsync = ref.watch(visiblePartnersProvider(false));
     return partnersAsync.when(
       loading: () => const SelCard(child: SelSkeletonRows()),
       error: (e, _) => SelError(message: '$e'),

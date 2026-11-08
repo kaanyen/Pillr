@@ -217,7 +217,7 @@ String _label(String raw) {
 final givingViewProvider = Provider.autoDispose<GivingView>((ref) {
   return GivingView.build(
     entries: ref.watch(rankingEntriesProvider).valueOrNull ?? const [],
-    roster: ref.watch(partnersStreamProvider(false)).valueOrNull ?? const [],
+    roster: ref.watch(visiblePartnersProvider(false)).valueOrNull ?? const [],
     tree: ref.watch(armTreeProvider),
     period: ref.watch(activePeriodProvider),
   );
@@ -226,5 +226,5 @@ final givingViewProvider = Provider.autoDispose<GivingView>((ref) {
 /// True while the entries behind [givingViewProvider] are still loading.
 final givingViewLoadingProvider = Provider.autoDispose<bool>((ref) {
   return ref.watch(rankingEntriesProvider).isLoading ||
-      ref.watch(partnersStreamProvider(false)).isLoading;
+      ref.watch(visiblePartnersProvider(false)).isLoading;
 });

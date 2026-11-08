@@ -62,7 +62,7 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
     final view = ref.watch(givingViewProvider);
     final loading = ref.watch(givingViewLoadingProvider);
     final roster =
-        ref.watch(partnersStreamProvider(false)).valueOrNull ?? const [];
+        ref.watch(visiblePartnersProvider(false)).valueOrNull ?? const [];
     final key = widget.fellowshipKey;
     final f = view.fellowship(key);
     final members = roster

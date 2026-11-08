@@ -27,6 +27,7 @@ class ConfigurationScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final figures = ref.watch(canSeeFiguresProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
     final arms = ref.watch(armsStreamProvider);
@@ -147,22 +148,24 @@ class ConfigurationScreen extends ConsumerWidget {
                         child: Row(
                           children: [
                             Expanded(child: Text('Arm', style: SelType.caption)),
-                            SizedBox(
-                              width: 150,
-                              child: Text(
-                                'Entries this period',
-                                style: SelType.caption,
-                                textAlign: TextAlign.right,
+                            if (figures) ...[
+                              SizedBox(
+                                width: 150,
+                                child: Text(
+                                  'Entries this period',
+                                  style: SelType.caption,
+                                  textAlign: TextAlign.right,
+                                ),
                               ),
-                            ),
-                            SizedBox(
-                              width: 190,
-                              child: Text(
-                                'Approved this period',
-                                style: SelType.caption,
-                                textAlign: TextAlign.right,
+                              SizedBox(
+                                width: 190,
+                                child: Text(
+                                  'Approved this period',
+                                  style: SelType.caption,
+                                  textAlign: TextAlign.right,
+                                ),
                               ),
-                            ),
+                            ],
                             SizedBox(width: canEdit ? 260 : 0),
                           ],
                         ),
@@ -544,6 +547,7 @@ class _ArmRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final figures = ref.watch(canSeeFiguresProvider);
     final view = ref.watch(givingViewProvider);
     final money = ref.watch(churchMoneyFormatProvider);
     return Padding(
@@ -590,7 +594,7 @@ class _ArmRow extends ConsumerWidget {
               ],
             ),
           ),
-          SizedBox(
+          if (figures) SizedBox(
             width: 150,
             child: Text(
               isSub ? '' : '${view.armEntries[arm.id] ?? 0}',
@@ -598,7 +602,7 @@ class _ArmRow extends ConsumerWidget {
               style: SelType.body.copyWith(color: Sel.text),
             ),
           ),
-          SizedBox(
+          if (figures) SizedBox(
             width: 190,
             child: Text(
               isSub ? '' : money(view.armTotal(arm.id)),
@@ -654,6 +658,7 @@ class _PeriodRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final figures = ref.watch(canSeeFiguresProvider);
     final now = DateTime.now();
     final future = period.startDate.isAfter(now) && !period.isActive;
     final range =
@@ -721,12 +726,14 @@ class _PeriodRow extends ConsumerWidget {
                 valueColor: const AlwaysStoppedAnimation(Sel.sky),
               ),
             ),
-            const SizedBox(height: SelSpace.x2),
-            Text(
-              // The same sum the arms table and Overview add up.
-              '${money(ref.watch(givingViewProvider).total)} approved so far',
-              style: SelType.bodyMedium,
-            ),
+            if (figures) ...[
+              const SizedBox(height: SelSpace.x2),
+              Text(
+                // The same sum the arms table and Overview add up.
+                '${money(ref.watch(givingViewProvider).total)} approved so far',
+                style: SelType.bodyMedium,
+              ),
+            ],
           ] else if (future && canEdit)
             InkWell(
               onTap: activate,
@@ -736,10 +743,11 @@ class _PeriodRow extends ConsumerWidget {
               ),
             )
           else ...[
-            Text(
-              '${money(period.totalApprovedAmount)} approved',
-              style: SelType.bodyMedium,
-            ),
+            if (figures)
+              Text(
+                '${money(period.totalApprovedAmount)} approved',
+                style: SelType.bodyMedium,
+              ),
             if (canEdit)
               InkWell(
                 onTap: activate,

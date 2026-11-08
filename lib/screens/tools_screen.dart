@@ -47,7 +47,11 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   @override
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-    final money = ref.watch(churchMoneyFormatProvider);
+    // Only a pastor sees figures here. Staff and admins repair the book
+    // without seeing what anyone gave.
+    final pastor = idx?.isPastor ?? false;
+    final realMoney = ref.watch(churchMoneyFormatProvider);
+    final String Function(num) money = pastor ? realMoney : _noFigure;
     final canManage = idx?.canUseTools ?? false;
 
     if (!canManage) {
@@ -178,7 +182,14 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                     if (mounted) setState(() => _scanned = n);
                   },
                 );
-            if (mounted) setState(() => _dupEntries = pairs);
+            // Staff check only the entries they recorded themselves.
+            final mine = idx.isStaff
+                ? [
+                    for (final p in pairs)
+                      if (p.duplicate.createdBy == idx.uid && p.original.createdBy == idx.uid) p,
+                  ]
+                : pairs;
+            if (mounted) setState(() => _dupEntries = mine);
           }),
           result: _dupEntries == null
               ? null
@@ -369,6 +380,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
         for (final o in others)
           if (o.memberId.isNotEmpty) o.memberId,
       ];
+      final pastor = ref.read(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
       final money = ref.read(churchMoneyFormatProvider);
 
       if (!mounted) return;
@@ -382,7 +394,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
             '${others.length == 1 ? "The other record closes" : "The other ${others.length} records close"}'
             ' — nothing is deleted.\n\n'
             '• $moving ${moving == 1 ? "entry moves" : "entries move"} to ${keep.fullName}. '
-            'Their total becomes ${money(total)}.\n'
+            '${pastor ? 'Their total becomes ${money(total)}.\n' : ''}'
             '• Every phone number and email from these records stays with '
             '${keep.fullName}.\n'
             '• ${keep.fullName} gets a new member ID. The old IDs '
@@ -978,7 +990,9 @@ class _MergeSide extends StatelessWidget {
       if (p.fellowship.trim().isNotEmpty) p.fellowship,
       if ((p.phone ?? '').trim().isNotEmpty) p.phone!.trim(),
       if ((p.email ?? '').trim().isNotEmpty) p.email!.trim(),
-      '${money(p.totalApprovedAmount)} (${p.entryCount})',
+      money(0) == _noFigure(0)
+          ? '${p.entryCount} ${p.entryCount == 1 ? 'entry' : 'entries'}'
+          : '${money(p.totalApprovedAmount)} (${p.entryCount})',
       if (!p.isActive) 'inactive',
     ];
     return Row(
@@ -1170,3 +1184,7 @@ String _nightlyNote(DuplicateHealth? h) {
   return '\n\nLast night\'s check found ${h.open} likely '
       '${h.open == 1 ? "duplicate" : "duplicates"}$groups. Run the check to see them.';
 }
+
+/// What a figure shows to someone who may not see figures.
+String _noFigure(num _) => '—';
+

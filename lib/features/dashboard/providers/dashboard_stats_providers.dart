@@ -80,7 +80,7 @@ final pastorEntryStatsProvider = Provider<PastorEntryStats>((ref) {
 
 /// Active partners count (excludes inactive).
 final activePartnerCountProvider = Provider<int>((ref) {
-  return ref.watch(partnersStreamProvider(false)).maybeWhen(
+  return ref.watch(visiblePartnersProvider(false)).maybeWhen(
         data: (p) => p.length,
         orElse: () => 0,
       );

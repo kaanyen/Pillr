@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
@@ -11,7 +10,6 @@ import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
 import '../features/activity/providers/activity_log_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
-import '../features/church/providers/church_settings_providers.dart';
 
 enum _Kind { everything, giving, partners, repairs, settings }
 
@@ -46,22 +44,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     _Kind.settings => r.action.startsWith('settings.'),
   };
 
-  bool _matches(ActivityLogRow r, String q) {
-    if (q.isEmpty) return true;
-    final snap = r.entitySnapshot ?? const {};
-    return [
-      r.actorName,
-      snap['partnerName'],
-      snap['memberId'],
-      snap['name'],
-    ].whereType<Object>().any((v) => v.toString().toLowerCase().contains(q));
-  }
+  /// Search finds who did something, never what it was done to: the log
+  /// is read by admins, who see no partner and no figure.
+  bool _matches(ActivityLogRow r, String q) =>
+      q.isEmpty || r.actorName.toLowerCase().contains(q);
 
   @override
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     if (idx == null) return const SizedBox.shrink();
-    final money = ref.watch(churchMoneyFormatProvider);
     final logs = ref.watch(activityLogsFullProvider);
     final q = _search.text.trim().toLowerCase();
 
@@ -95,7 +86,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         const SelPageTitle(
           title: 'Activity',
           subtitle:
-              'Who changed what, most recent first. Kept for as long as the church uses Pillr.',
+              'Who did what, most recent first. It says what kind of change it was, never who it was for or how much.',
         ),
         Wrap(
           runSpacing: SelSpace.x2,
@@ -105,7 +96,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
               width: 320,
               child: SelField(
                 controller: _search,
-                hint: 'Search names or member IDs',
+                hint: 'Search by who did it',
                 prefixIcon: LucideIcons.search,
                 onChanged: (_) => setState(() {}),
               ),
@@ -186,7 +177,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
               }
               children
                 ..add(const Divider(height: 1, color: Sel.rowLine))
-                ..add(_ActivityRow(row: r, money: money));
+                ..add(_ActivityRow(row: r));
             }
             return SelCard(
               padding: const EdgeInsets.fromLTRB(18, 22, 18, 10),
@@ -228,10 +219,9 @@ class _Line extends StatelessWidget {
 }
 
 class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({required this.row, required this.money});
+  const _ActivityRow({required this.row});
 
   final ActivityLogRow row;
-  final String Function(num) money;
 
   @override
   Widget build(BuildContext context) {
@@ -239,27 +229,6 @@ class _ActivityRow extends StatelessWidget {
     final name = TextCaseUtils.toTitleCase(r.actorName);
     final words = name.split(' ').where((w) => w.isNotEmpty);
     final role = r.actorRole.toLowerCase();
-    final snap = r.entitySnapshot ?? const <String, dynamic>{};
-    final amount = snap['amountCedis'];
-    final partner = snap['partnerName']?.toString();
-    final arm = snap['armName']?.toString();
-    final strong = SelType.body.copyWith(
-      color: Sel.ink,
-      fontWeight: FontWeight.w800,
-    );
-
-    final spans = <InlineSpan>[];
-    if (r.action == 'entry.create' && amount is num && partner != null) {
-      spans.addAll([
-        const TextSpan(text: 'Recorded '),
-        TextSpan(text: money(amount), style: strong),
-        if (arm != null) TextSpan(text: ' to $arm'),
-        const TextSpan(text: ' for '),
-      ]);
-    } else {
-      spans.add(TextSpan(text: activityActionLabel(r.action)));
-      if (partner != null) spans.add(const TextSpan(text: ' for '));
-    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -302,23 +271,9 @@ class _ActivityRow extends StatelessWidget {
             ),
           ],
         ),
-        what: Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text.rich(
-              TextSpan(
-                style: SelType.body.copyWith(color: Sel.text),
-                children: spans,
-              ),
-            ),
-            if (partner != null)
-              SelLink(
-                label: partner,
-                onTap: snap['partnerId'] == null
-                    ? null
-                    : () => context.go('/partners/${snap['partnerId']}'),
-              ),
-          ],
+        what: Text(
+          activityActionLabel(r.action),
+          style: SelType.body.copyWith(color: Sel.text),
         ),
         on: Text(_activityOn(r), style: SelType.bodySm),
       ),
@@ -326,25 +281,19 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
-String _activityOn(ActivityLogRow r) {
-  final snap = r.entitySnapshot;
-  if (r.entityType == 'fellowship') {
-    final to = snap?['to']?.toString().trim();
-    if (to != null && to.isNotEmpty) return to;
-    final name = snap?['name']?.toString().trim();
-    if (name != null && name.isNotEmpty) return name;
-    return 'Fellowship';
-  }
-  final name = snap?['name']?.toString().trim();
-  if (name != null && name.isNotEmpty) return name;
-  return switch (r.entityType) {
-    'entry' => snap?['periodName']?.toString() ?? 'Giving',
-    'partner' => 'Partner',
-    'import' => 'A sheet',
-    'settings' || 'church' => 'Church',
-    final t => t[0].toUpperCase() + t.substring(1),
-  };
-}
+/// What kind of thing changed, never which one: no partner, fellowship or
+/// period name, and no amount.
+String _activityOn(ActivityLogRow r) => switch (r.entityType) {
+  'entry' => 'Giving',
+  'partner' => 'Partner',
+  'fellowship' => 'Fellowship',
+  'import' => 'A sheet',
+  'settings' || 'church' => 'Church',
+  'arm' || 'partnership_arm' => 'Arm',
+  'period' || 'partnership_period' => 'Period',
+  final t when t.isEmpty => 'Church',
+  final t => t[0].toUpperCase() + t.substring(1).replaceAll('_', ' '),
+};
 
 /// Full log, distinct from the short dashboard preview.
 final activityLogsFullProvider = StreamProvider.autoDispose((ref) {

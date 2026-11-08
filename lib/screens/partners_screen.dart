@@ -32,9 +32,14 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
-    final partnersAsync = ref.watch(partnersStreamProvider(_includeInactive));
-    final active = ref.watch(partnersStreamProvider(false)).valueOrNull ?? const [];
-    final everyone = ref.watch(partnersStreamProvider(true)).valueOrNull;
+    // Staff browse the partners they work with; typing a name searches the
+    // whole book, so they can find someone new to record for.
+    final staff = idx?.isStaff ?? false;
+    final partnersAsync = staff && _query.isNotEmpty
+        ? ref.watch(partnersStreamProvider(_includeInactive))
+        : ref.watch(visiblePartnersProvider(_includeInactive));
+    final active = ref.watch(visiblePartnersProvider(false)).valueOrNull ?? const [];
+    final everyone = ref.watch(visiblePartnersProvider(true)).valueOrNull;
     final closed = everyone == null ? 0 : everyone.length - active.length;
     final view = ref.watch(givingViewProvider);
     final giving = {for (final p in view.partners) p.partnerId: p};
@@ -49,7 +54,9 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
       children: [
         SelPageTitle(
           title: 'Partners',
-          subtitle: '${active.length} active · $closed closed',
+          subtitle: staff
+              ? '${active.length} you have recorded giving for. Type a name to find anyone else.'
+              : '${active.length} active · $closed closed',
           actions: [
             SelButton.cyan(
               label: 'Add partner',

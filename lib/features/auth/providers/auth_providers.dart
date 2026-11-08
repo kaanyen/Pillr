@@ -78,3 +78,11 @@ final lastActiveRecorderProvider = Provider<void>((ref) {
 
 final _recordedActive = <String>{};
 
+/// Whether this person may see what anyone gave. Pastors see the church's
+/// figures and staff the ones they recorded; an admin runs the church
+/// without seeing any.
+final canSeeFiguresProvider = Provider<bool>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  return idx != null && !idx.isAdmin;
+});
+

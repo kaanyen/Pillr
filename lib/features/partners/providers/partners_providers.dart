@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../church/providers/church_settings_providers.dart';
+import '../../entries/providers/entries_providers.dart';
 import '../../fellowships/fellowship_match.dart';
 import '../data/partners_repository.dart';
 import '../domain/partner.dart';
@@ -18,6 +19,31 @@ final partnersStreamProvider = StreamProvider.autoDispose
       return ref
           .watch(partnersRepositoryProvider)
           .watchPartners(idx.churchId, includeInactive: includeInactive);
+    });
+
+/// For staff, the partners they have recorded giving for, in any state.
+/// Null for everyone else, who see the whole book.
+final myPartnerIdsProvider = StreamProvider.autoDispose<Set<String>?>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isStaff) return Stream.value(null);
+  return ref
+      .watch(entriesRepositoryProvider)
+      .watchMyEntries(idx.churchId, idx.uid)
+      .map((es) => {for (final e in es) e.partnerId});
+});
+
+/// The partners this person browses in lists: the whole book for pastors and
+/// admins; for staff, only those they work with — the partners they have
+/// recorded giving for. Finding someone new to record for still searches the
+/// whole book (the partner picker, search, an import's matching).
+final visiblePartnersProvider = Provider.autoDispose
+    .family<AsyncValue<List<Partner>>, bool>((ref, includeInactive) {
+      final all = ref.watch(partnersStreamProvider(includeInactive));
+      final mine = ref.watch(myPartnerIdsProvider);
+      if (mine.isLoading && !mine.hasValue) return const AsyncLoading();
+      final ids = mine.valueOrNull;
+      if (ids == null) return all;
+      return all.whenData((ps) => [for (final p in ps) if (ids.contains(p.id)) p]);
     });
 
 /// Current fellowship per partner id — used when an entry snapshot omitted it.

@@ -584,16 +584,20 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 ],
               ),
             ),
-            SelButton(
-              label: 'Statement',
-              onPressed: () => sharePartnerStatement(
-                context,
-                ref,
-                partner: partner,
-                entries: all,
+            // A statement covers everything the partner gave, so only a
+            // pastor, who sees all of it, can make one.
+            if (idx?.isPastor == true) ...[
+              SelButton(
+                label: 'Statement',
+                onPressed: () => sharePartnerStatement(
+                  context,
+                  ref,
+                  partner: partner,
+                  entries: all,
+                ),
               ),
-            ),
-            const SizedBox(width: SelSpace.x2),
+              const SizedBox(width: SelSpace.x2),
+            ],
             if (idx?.isPastor == true || idx?.role == 'staff') ...[
               SelButton(
                 label: 'Edit',
