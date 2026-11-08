@@ -130,6 +130,8 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
     final church = ref.watch(churchNameProvider) ?? 'Church';
     final armTree = ref.watch(armTreeProvider);
     final logoUrl = ref.watch(churchSettingsProvider).valueOrNull?.logoUrl;
+    final markColorHex =
+        ref.watch(churchSettingsProvider).valueOrNull?.primaryColorHex;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final now = DateTime.now();
     final when = DateFormat.yMMMd(
@@ -167,6 +169,7 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
                     // Sub-arms appear under their main arm on the PDF; the
                     // CSV keeps each entry's exact arm.
                     armNameOf: (e) => armTree.shownNameOf(e.partnershipArmId),
+                    markColorHex: markColorHex,
                     filename: pillrExportFileName(
                       report: widget.title,
                       scope: scope,

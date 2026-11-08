@@ -9,6 +9,10 @@ class PartnerGivingRecord {
     required this.status,
     required this.dateGiven,
     required this.amount,
+    this.partnerId = '',
+    this.memberId = '',
+    this.fellowship = '',
+    this.date,
   });
 
   final String partnerName;
@@ -16,6 +20,13 @@ class PartnerGivingRecord {
   final String status;
   final String dateGiven;
   final double amount;
+  final String partnerId;
+  final String memberId;
+  final String fellowship;
+
+  /// The date given itself, for ordering and the month figures; [dateGiven]
+  /// is how it is printed.
+  final DateTime? date;
 }
 
 /// Subtotal for one partnership arm category.
@@ -42,6 +53,7 @@ class GivingLedgerReportData {
     required this.exporterName,
     required this.verificationId,
     this.currencySymbol = 'GHS',
+    this.markColorHex,
   });
 
   final String organizationName;
@@ -56,6 +68,9 @@ class GivingLedgerReportData {
   final String exporterName;
   final String verificationId;
   final String currencySymbol;
+
+  /// The church's mark colour (#rrggbb) for its initials when it has no logo.
+  final String? markColorHex;
 }
 
 /// Maps export entries into [GivingLedgerReportData].
@@ -71,6 +86,7 @@ abstract final class GivingLedgerReportBuilder {
     String currencySymbol = 'GHS',
     DateTime? verificationSeed,
     String? Function(PartnershipEntry entry)? armNameOf,
+    String? markColorHex,
   }) {
     // The ledger shows main arms only: giving recorded to a sub-arm is listed
     // and subtotalled under its main arm. [armNameOf] maps an entry to that
@@ -85,9 +101,15 @@ abstract final class GivingLedgerReportBuilder {
           status: e.status,
           dateGiven: pdfFormatDate(e.dateGiven),
           amount: e.amountCedis,
+          partnerId: e.partnerId,
+          memberId: e.partnerSnapshot['memberId']?.toString() ?? '',
+          fellowship: e.partnerSnapshot['fellowship']?.toString() ?? '',
+          date: e.dateGiven,
         ),
     ]..sort((a, b) {
-        final byDate = b.dateGiven.compareTo(a.dateGiven);
+        // Newest first by the date itself: the printed "9 Oct" sorts after
+        // "12 Oct" as text.
+        final byDate = b.date!.compareTo(a.date!);
         if (byDate != 0) return byDate;
         return a.partnerName.compareTo(b.partnerName);
       });
@@ -124,6 +146,10 @@ abstract final class GivingLedgerReportBuilder {
       exporterName: pdfSafeText(exporterName),
       verificationId: verificationId(seed),
       currencySymbol: currencySymbol.toUpperCase(),
+      markColorHex: markColorHex != null &&
+              RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(markColorHex.trim())
+          ? markColorHex.trim()
+          : null,
     );
   }
 

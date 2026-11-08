@@ -26,6 +26,7 @@ Future<void> shareEntriesPdf({
   String? currencySymbol,
   DateTime? generatedAt,
   String? Function(PartnershipEntry entry)? armNameOf,
+  String? markColorHex,
 }) async {
   final data = GivingLedgerReportBuilder.fromEntries(
     entries: entries,
@@ -39,6 +40,7 @@ Future<void> shareEntriesPdf({
     currencySymbol: currencySymbol ?? 'GHS',
     verificationSeed: generatedAt,
     armNameOf: armNameOf,
+    markColorHex: markColorHex,
   );
 
   await shareGivingLedgerPdf(
