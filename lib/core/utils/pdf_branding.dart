@@ -3,14 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-/// Church logo from URL, then bundled Pillr main mark, then app icon.
+/// The church's logo from its URL, else the Pillr mark.
 Future<pw.ImageProvider> resolvePdfLogo(String? logoUrl) async {
   final fromUrl = await _loadPdfLogoFromUrl(logoUrl);
   if (fromUrl != null) return fromUrl;
-  for (final asset in [
-    'assets/branding/pillr_logo_main.png',
-    'assets/branding/app_icon.png',
-  ]) {
+  for (final asset in ['assets/branding/app_icon.png']) {
     try {
       final data = await rootBundle.load(asset);
       return pw.MemoryImage(data.buffer.asUint8List());

@@ -195,12 +195,12 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  web:
-    generate: true
-    image_path: assets/branding/pillr_app_logo.png
-    background_color: "#3BA6F1"
-    theme_color: "#3BA6F1"
+  # The Pillr mark on full-bleed navy; the platform rounds the corners.
   image_path: assets/branding/pillr_app_logo.png
+  remove_alpha_ios: true
+  # web/ icons are drawn from the same mark by hand, with a maskable set.
+  web:
+    generate: false
   min_sdk_android: 21
 
 flutter_native_splash:
