@@ -1076,48 +1076,42 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: SelSpace.x3,
-                runSpacing: SelSpace.x2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  SelButton(
-                    label: '← Leave import',
-                    onPressed: _committing
-                        ? null
-                        : () => context.go('/records/imports'),
-                  ),
-                  Text(
-                    '${_fileName ?? 'This import'} · saved on this device as you go.',
-                    style: SelType.small,
-                  ),
-                  SelLink(
-                    label: 'Start over',
-                    onTap: _committing ? null : _startOver,
-                  ),
-                ],
-              ),
-              const SizedBox(height: SelSpace.x3),
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                runSpacing: SelSpace.x2,
-                children: [
-                  _sheetTitle(compact: compact, resolved: resolved, live: live),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildCompactSheetCurrencySelector(),
-                      if (_loadingPartners)
-                        const Padding(
-                          padding: EdgeInsets.only(right: SelSpace.x3),
-                          child: PillrLoader(size: 18),
-                        ),
-                      _StepBar(current: _step),
-                    ],
-                  ),
-                ],
-              ),
+              // One line on a laptop: Leave, the title and file, the steps.
+              // The page fills the screen, so every row of header it saves is
+              // a row of the sheet on a 768-tall screen.
+              if (compact) ...[
+                Wrap(
+                  spacing: SelSpace.x3,
+                  runSpacing: SelSpace.x2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SelButton(
+                      label: '← Leave',
+                      onPressed: _committing ? null : () => context.go('/records/imports'),
+                    ),
+                    _StepBar(current: _step),
+                  ],
+                ),
+                const SizedBox(height: SelSpace.x2),
+                _sheetTitle(compact: compact, resolved: resolved, live: live),
+              ] else
+                Row(
+                  children: [
+                    SelButton(
+                      label: '← Leave',
+                      onPressed: _committing ? null : () => context.go('/records/imports'),
+                    ),
+                    const SizedBox(width: SelSpace.x4),
+                    Expanded(child: _sheetTitle(compact: compact, resolved: resolved, live: live)),
+                    _buildCompactSheetCurrencySelector(),
+                    if (_loadingPartners)
+                      const Padding(
+                        padding: EdgeInsets.only(right: SelSpace.x3),
+                        child: PillrLoader(size: 18),
+                      ),
+                    _StepBar(current: _step),
+                  ],
+                ),
               SizedBox(height: compact ? SelSpace.x2 : SelSpace.x3),
               if (_error != null) ...[
                 _Notice(message: _error!, status: SelStatus.blocked),
@@ -1135,12 +1129,22 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 ),
                 const SizedBox(height: SelSpace.x4),
               ],
-              Align(
-                alignment: Alignment.centerRight,
-                child: SelLink(
-                  label: _sheetView ? 'Show the rows to settle' : 'See the whole sheet',
-                  onTap: () => setState(() => _sheetView = !_sheetView),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Saved on this device as you go.',
+                      style: SelType.small,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  SelLink(label: 'Start over', onTap: _committing ? null : _startOver),
+                  const SizedBox(width: SelSpace.x4),
+                  SelLink(
+                    label: _sheetView ? 'Show the rows to settle' : 'See the whole sheet',
+                    onTap: () => setState(() => _sheetView = !_sheetView),
+                  ),
+                ],
               ),
               const SizedBox(height: SelSpace.x2),
               Expanded(
@@ -1170,8 +1174,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   ],
                   onBulkResolveFellowship: _bulkResolveFellowship,
                 )
-                    : SingleChildScrollView(
-                        child: BulkImportReview(
+                    : BulkImportReview(
                           rawRows: _rawRows ?? const [],
                           resolved: resolved,
                           columns: _gridColumns(columns),
@@ -1198,7 +1201,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                             uid: idx.uid,
                           ),
                         ),
-                      ),
               ),
               const SizedBox(height: SelSpace.x3),
               Builder(
@@ -1283,10 +1285,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Check the rows', style: SelType.title),
+        Text('Check the rows', style: SelType.title.copyWith(fontSize: 20, height: 1.2)),
         Text(
           meta,
-          style: SelType.body.copyWith(color: Sel.warm),
+          style: SelType.small,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

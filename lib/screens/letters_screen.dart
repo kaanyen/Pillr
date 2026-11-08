@@ -55,6 +55,45 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
   _Show _show = _Show.everyone;
   bool _busy = false;
 
+  /// Partners ticked to get this month's letter now.
+  final Set<String> _chosen = {};
+
+  /// Only a partner with an email whose letters are on can be ticked.
+  static bool _canChoose(_Letter l) =>
+      (l.kind == _Show.sent || l.kind == _Show.failed) && l.email.isNotEmpty && l.partnerId.isNotEmpty;
+
+  Future<void> _sendChosen(String ym, String month, List<_Letter> chosen) async {
+    final again = chosen.where((l) => l.kind == _Show.sent).length;
+    final ok = await selConfirm(
+      context,
+      title: 'Send $month\'s letter to ${chosen.length}?',
+      message: again == 0
+          ? 'It goes to the ${chosen.length == 1 ? 'partner' : 'partners'} you ticked, and nobody else.'
+          : '$again of them already got it and will get it again. Nobody else is sent anything.',
+      confirmLabel: 'Send',
+    );
+    if (!ok) return;
+    setState(() => _busy = true);
+    try {
+      final r = await ref
+          .read(churchSettingsRepositoryProvider)
+          .runMonthlyPartnerEmails(yearMonth: ym, partnerIds: [for (final l in chosen) l.partnerId]);
+      if (mounted) {
+        setState(_chosen.clear);
+        selNotice(
+          context,
+          r.failed == 0
+              ? 'Sent to ${r.sentNow} ${r.sentNow == 1 ? 'partner' : 'partners'}.'
+              : 'Sent to ${r.sentNow}, but ${r.failed} could not be sent. They are listed as Failed.',
+        );
+      }
+    } catch (e) {
+      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _preview() async {
     setState(() => _busy = true);
     try {
@@ -180,6 +219,45 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
     int count(_Show k) => k == _Show.everyone ? letters.length : letters.where((l) => l.kind == k).length;
     final shown = [for (final l in letters) if (_show == _Show.everyone || l.kind == _show) l];
     final monthName = current.monthLabel.split(' ').first;
+    final choosable = [for (final l in letters) if (_canChoose(l)) l];
+    final notSent = [for (final l in choosable) if (l.kind == _Show.failed) l];
+    final chosen = [for (final l in letters) if (_chosen.contains(l.partnerId) && _canChoose(l)) l];
+    void pick(Iterable<_Letter> ls) => setState(() {
+      _chosen
+        ..clear()
+        ..addAll(ls.map((l) => l.partnerId));
+    });
+    String chosenNote() {
+      final names = chosen.map((l) => l.name).toList();
+      final who = names.length <= 2
+          ? names.join(' and ')
+          : '${names.take(2).join(', ')} and ${names.length - 2} more';
+      final again = [for (final l in chosen) if (l.kind == _Show.sent) l.name];
+      if (again.isEmpty) return '$who.';
+      if (chosen.length == 1) return '$who already got $monthName\'s and will get it again.';
+      return again.length == 1
+          ? '$who. ${again.single} already got $monthName\'s and will get it again.'
+          : '$who. ${again.length} of them already got $monthName\'s and will get it again.';
+    }
+
+    Widget quickPick(String label, VoidCallback? onTap) => Material(
+      color: Sel.card,
+      shape: const StadiumBorder(side: BorderSide(color: Sel.border, width: 1.5)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Text(
+            label,
+            style: SelType.small.copyWith(
+              color: onTap == null ? Sel.warm : Sel.text,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
 
     Widget statusTag(_Letter l) => switch (l.kind) {
       _Show.sent => SelTag(l.why ?? 'Sent'),
@@ -190,6 +268,16 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
     };
 
     return SelPageBody(
+      bottomBar: chosen.isEmpty
+          ? null
+          : SelChoiceBar(
+              count: chosen.length,
+              note: chosenNote(),
+              busy: _busy,
+              action: 'Send $monthName\'s letter to ${chosen.length}',
+              onClear: () => setState(_chosen.clear),
+              onAction: () => _sendChosen(current.yearMonth, monthName, chosen),
+            ),
       children: [
         breadcrumb,
         const SizedBox(height: SelSpace.x3),
@@ -209,6 +297,7 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
                   onTap: () => setState(() {
                     _month = r.yearMonth;
                     _show = _Show.everyone;
+                    _chosen.clear();
                   }),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -253,6 +342,28 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
                   (_Show.off, 'Turned off', count(_Show.off)),
                 ],
               ),
+              if (choosable.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+                  child: Wrap(
+                    spacing: SelSpace.x2,
+                    runSpacing: SelSpace.x2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text('Choose:', style: SelType.small),
+                      quickPick(
+                        'Not sent yet · ${notSent.length}',
+                        notSent.isEmpty ? null : () => pick(notSent),
+                      ),
+                      quickPick('Everyone with an email · ${choosable.length}', () => pick(choosable)),
+                      if (_chosen.isNotEmpty) quickPick('Nobody', () => setState(_chosen.clear)),
+                      Text(
+                        "Tick anyone to send them $monthName's letter now, even if they already got it.",
+                        style: SelType.small,
+                      ),
+                    ],
+                  ),
+                ),
               SelLedger(
                 bare: true,
                 minWidth: 760,
@@ -268,23 +379,59 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
                   for (final l in shown)
                     SelRow(
                       onTap: l.partnerId.isEmpty ? null : () => context.go('/partners/${l.partnerId}'),
+                      selected: _chosen.contains(l.partnerId) && _canChoose(l),
+                      leading: Semantics(
+                        label: _canChoose(l) ? 'Choose ${l.name}' : '${l.name} cannot get a letter',
+                        child: Checkbox(
+                          value: _chosen.contains(l.partnerId) && _canChoose(l),
+                          activeColor: Sel.ink,
+                          onChanged: !_canChoose(l) || _busy
+                              ? null
+                              : (v) => setState(() {
+                                  if (v == true) {
+                                    _chosen.add(l.partnerId);
+                                  } else {
+                                    _chosen.remove(l.partnerId);
+                                  }
+                                }),
+                        ),
+                      ),
                       cells: [
                         Row(
                           children: [
                             SelFace(l.name),
                             const SizedBox(width: SelSpace.x3),
                             Expanded(
-                              child: Text(
-                                l.name,
-                                overflow: TextOverflow.ellipsis,
-                                style: SelType.body.copyWith(color: Sel.text, fontWeight: FontWeight.w600),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    l.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: SelType.body.copyWith(color: Sel.text, fontWeight: FontWeight.w600),
+                                  ),
+                                  if (l.kind == _Show.noEmail)
+                                    Text('No email to send to', style: SelType.small)
+                                  else if (l.kind == _Show.off)
+                                    Text('Letters turned off', style: SelType.small),
+                                ],
                               ),
                             ),
                           ],
                         ),
                         SelCell.secondary(l.email.isEmpty ? '—' : l.email),
                         SelCell.numeric(l.amount == 0 ? '—' : money(l.amount)),
-                        Align(alignment: Alignment.centerLeft, child: statusTag(l)),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _chosen.contains(l.partnerId) && l.kind == _Show.sent
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [statusTag(l), Text('Gets it again', style: SelType.small)],
+                                )
+                              : statusTag(l),
+                        ),
                         SelCell.secondary(l.at == null ? '—' : DateFormat('d MMM, HH:mm').format(l.at!)),
                       ],
                     ),

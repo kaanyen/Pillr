@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -82,6 +83,9 @@ class _BulkImportReviewState extends State<BulkImportReview> {
   ReviewTab? _picked;
   int? _open;
 
+  /// The row card moved to the edge of the screen, picture-in-picture style.
+  bool _aside = false;
+
   bool _isDuplicate(BulkResolvedRow r) => r.issues.any(
     (i) =>
         i.code == BulkImportIssueCode.duplicateInFile ||
@@ -158,16 +162,24 @@ class _BulkImportReviewState extends State<BulkImportReview> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-            child: Text(switch (tab) {
-              ReviewTab.needYou =>
-                'Rows that need a decision before they can come in. Choose one to open it on the right.',
-              ReviewTab.worthALook =>
-                'Rows that can come in as they are, with something worth a look.',
-              ReviewTab.ready => 'Rows ready to come in.',
-              ReviewTab.leftOut => 'Rows left out. They will not come in.',
-              ReviewTab.all => 'Every row in the sheet.',
-            }, style: SelType.small),
+            child: Text(
+              switch (tab) {
+                    ReviewTab.needYou =>
+                      'Rows that need a decision before they can come in. Choose one to open it on the right.',
+                    ReviewTab.worthALook =>
+                      'Rows that can come in as they are, with something worth a look.',
+                    ReviewTab.ready => 'Rows ready to come in.',
+                    ReviewTab.leftOut =>
+                      'Rows left out. They will not come in.',
+                    ReviewTab.all => 'Every row in the sheet.',
+                  } +
+                  (MediaQuery.sizeOf(context).width >= 980
+                      ? '  ·  J and K: next and previous  ·  ]: move the card aside'
+                      : ''),
+              style: SelType.small,
+            ),
           ),
+          ..._clusters(),
           _HeadRow(),
           if (shown.isEmpty)
             Padding(
@@ -196,7 +208,6 @@ class _BulkImportReviewState extends State<BulkImportReview> {
               onOpen: () => setState(() => _open = i),
               onEditCell: widget.onEditCell,
             ),
-          ..._clusters(),
         ],
       ),
     );
@@ -213,30 +224,97 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       ],
     );
 
+    void step(int by) {
+      if (settle.isEmpty) return;
+      final at = settle.indexOf(open ?? -1);
+      setState(
+        () => _open =
+            settle[((at < 0 ? 0 : at) + by + settle.length) % settle.length],
+      );
+    }
+
     return LayoutBuilder(
-      builder: (context, c) => c.maxWidth < 980
-          ? Column(
+      builder: (context, c) {
+        if (c.maxWidth < 980) {
+          return SingleChildScrollView(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 list,
                 const SizedBox(height: SelSpace.x4),
                 side,
               ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          );
+        }
+        // A laptop: the rows take the screen and the row card floats at the
+        // right like picture-in-picture. Moved aside, it leaves a flap on
+        // the edge that says how many rows still need you.
+        final fixes = _fixes;
+        final card = _FloatingCard(
+          decision: open == null
+              ? null
+              : _decision(open, settle, floating: true),
+          folds: [
+            if (settle.length > 1)
+              (
+                'Still to settle',
+                settle.length - 1,
+                _stillToSettle(settle, open, bare: true),
+              ),
+            if (fixes.isNotEmpty)
+              (
+                'Tidy up',
+                fixes.fold<int>(0, (s, g) => s + g.count),
+                _tidyBody(fixes, bare: true),
+              ),
+          ],
+        );
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.keyJ): () => step(1),
+            const SingleActivator(LogicalKeyboardKey.keyK): () => step(-1),
+            const SingleActivator(LogicalKeyboardKey.bracketRight): () =>
+                setState(() => _aside = !_aside),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Stack(
               children: [
-                Expanded(child: list),
-                const SizedBox(width: SelSpace.x4),
-                SizedBox(width: 320, child: side),
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.only(right: _aside ? 96 : 372),
+                    child: list,
+                  ),
+                ),
+                if (!_aside)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    bottom: 6,
+                    width: 356,
+                    child: card,
+                  )
+                else
+                  Positioned(
+                    right: 0,
+                    top: (c.maxHeight - 170) / 2,
+                    child: _Flap(
+                      needYou: settle.length,
+                      onTap: () => setState(() => _aside = false),
+                    ),
+                  ),
               ],
             ),
+          ),
+        );
+      },
     );
   }
 
   // ------------------------------------------------------------ decision
 
-  Widget _decision(int i, List<int> settle) {
+  Widget _decision(int i, List<int> settle, {bool floating = false}) {
     final r = widget.resolved[i];
     final sheetRow = r.sheetRowNumber;
     final issue = _mainIssue(r);
@@ -405,150 +483,154 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       );
     }
 
-    return SelCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Sel.ink,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Text(
+                pos < 0
+                    ? 'Row $sheetRow'
+                    : floating
+                    ? 'Row $sheetRow · ${pos + 1} of ${settle.length}'
+                    : 'Row $sheetRow · ${pos + 1} of ${settle.length} to settle',
+                style: SelType.small.copyWith(color: Sel.card),
+              ),
+            ),
+            const Spacer(),
+            if (settle.length > 1) ...[
+              IconButton(
+                tooltip: 'Previous',
+                icon: const Icon(LucideIcons.arrowUp, size: 16, color: Sel.ink),
+                onPressed: () => setState(() {
+                  final at = pos < 0 ? 0 : pos;
+                  _open = settle[(at - 1 + settle.length) % settle.length];
+                }),
+              ),
+              IconButton(
+                tooltip: 'Next',
+                icon: const Icon(
+                  LucideIcons.arrowDown,
+                  size: 16,
+                  color: Sel.ink,
+                ),
+                onPressed: () => setState(() {
+                  _open = settle[(pos + 1) % settle.length];
+                }),
+              ),
+            ],
+            if (floating)
+              _MoveAside(onTap: () => setState(() => _aside = true)),
+          ],
+        ),
+        const SizedBox(height: SelSpace.x3),
+        Text(title, style: SelType.subtitle),
+        const SizedBox(height: SelSpace.x1),
+        Text(
+          [
+            if (r.fullName.isNotEmpty) r.fullName,
+            if (r.fellowship.isNotEmpty) r.fellowship,
+            widget.money(r.amountCedis),
+            DateFormat('d MMM').format(r.dateGiven),
+          ].join(' · '),
+          style: SelType.small,
+        ),
+        const SizedBox(height: SelSpace.x4),
+        ...children.where((w) => !(w is Text && w.data == title)),
+      ],
+    );
+    return floating ? body : SelCard(child: body);
+  }
+
+  Widget _stillToSettle(List<int> settle, int? open, {bool bare = false}) {
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!bare) Text('Still to settle', style: SelType.subtitle),
+        for (final (n, i)
+            in settle.where((x) => x != open).take(5).indexed) ...[
+          if (!bare || n > 0)
+            const Divider(height: SelSpace.x4, color: Sel.rowLine),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Sel.ink,
-                  borderRadius: BorderRadius.circular(SelRadius.pill),
-                ),
+              const _Mark(kind: ReviewTab.needYou),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
                 child: Text(
-                  pos < 0
-                      ? 'Row $sheetRow'
-                      : 'Row $sheetRow · ${pos + 1} of ${settle.length} to settle',
-                  style: SelType.small.copyWith(color: Sel.card),
+                  'Row ${widget.resolved[i].sheetRowNumber}: ${_say(_mainIssue(widget.resolved[i]) ?? const BulkImportIssue(code: BulkImportIssueCode.duplicateInFile, severity: BulkImportSeverity.warning))}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: SelType.bodySm.copyWith(color: Sel.text),
                 ),
               ),
-              const Spacer(),
-              if (settle.length > 1) ...[
-                IconButton(
-                  tooltip: 'Previous',
-                  icon: const Icon(
-                    LucideIcons.arrowUp,
-                    size: 16,
-                    color: Sel.ink,
-                  ),
-                  onPressed: () => setState(() {
-                    final at = pos < 0 ? 0 : pos;
-                    _open = settle[(at - 1 + settle.length) % settle.length];
-                  }),
-                ),
-                IconButton(
-                  tooltip: 'Next',
-                  icon: const Icon(
-                    LucideIcons.arrowDown,
-                    size: 16,
-                    color: Sel.ink,
-                  ),
-                  onPressed: () => setState(() {
-                    _open = settle[(pos + 1) % settle.length];
-                  }),
-                ),
-              ],
+              const SizedBox(width: SelSpace.x2),
+              SelLink(label: 'Open', onTap: () => setState(() => _open = i)),
             ],
           ),
-          const SizedBox(height: SelSpace.x3),
-          Text(title, style: SelType.subtitle),
-          const SizedBox(height: SelSpace.x1),
-          Text(
-            [
-              if (r.fullName.isNotEmpty) r.fullName,
-              if (r.fellowship.isNotEmpty) r.fellowship,
-              widget.money(r.amountCedis),
-              DateFormat('d MMM').format(r.dateGiven),
-            ].join(' · '),
-            style: SelType.small,
-          ),
-          const SizedBox(height: SelSpace.x4),
-          ...children.where((w) => !(w is Text && w.data == title)),
         ],
-      ),
+      ],
     );
+    return bare ? body : SelCard(child: body);
   }
 
-  Widget _stillToSettle(List<int> settle, int? open) {
-    return SelCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Still to settle', style: SelType.subtitle),
-          for (final i in settle.where((x) => x != open).take(5)) ...[
-            const Divider(height: SelSpace.x4, color: Sel.rowLine),
-            Row(
-              children: [
-                const _Mark(kind: ReviewTab.needYou),
-                const SizedBox(width: SelSpace.x3),
-                Expanded(
-                  child: Text(
-                    'Row ${widget.resolved[i].sheetRowNumber}: ${_say(_mainIssue(widget.resolved[i]) ?? const BulkImportIssue(code: BulkImportIssueCode.duplicateInFile, severity: BulkImportSeverity.warning))}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: SelType.bodySm.copyWith(color: Sel.text),
-                  ),
-                ),
-                const SizedBox(width: SelSpace.x2),
-                SelLink(label: 'Open', onTap: () => setState(() => _open = i)),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  List<AutoFixGroup> get _fixes =>
+      detectAutoFixes(widget.rawRows, dayFirst: widget.dayFirst);
 
   List<Widget> _tidy() {
-    final groups = detectAutoFixes(widget.rawRows, dayFirst: widget.dayFirst);
+    final groups = _fixes;
     if (groups.isEmpty) return const [];
     return [
       const SizedBox(height: SelSpace.x4),
-      SelCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Tidy up · ${groups.fold<int>(0, (s, g) => s + g.count)}',
-              style: SelType.subtitle,
-            ),
-            for (final g in groups) ...[
-              const Divider(height: SelSpace.x4, color: Sel.rowLine),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '“${g.proposals.first.before}” becomes ${g.proposals.first.after}',
-                          style: SelType.bodySm.copyWith(color: Sel.text),
-                        ),
-                        Text(
-                          '${g.label} · ${g.count} ${g.count == 1 ? 'row' : 'rows'}',
-                          style: SelType.small,
-                        ),
-                      ],
+      SelCard(child: _tidyBody(groups)),
+    ];
+  }
+
+  Widget _tidyBody(List<AutoFixGroup> groups, {bool bare = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!bare)
+          Text(
+            'Tidy up · ${groups.fold<int>(0, (s, g) => s + g.count)}',
+            style: SelType.subtitle,
+          ),
+        for (final (n, g) in groups.indexed) ...[
+          if (!bare || n > 0)
+            const Divider(height: SelSpace.x4, color: Sel.rowLine),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '“${g.proposals.first.before}” becomes ${g.proposals.first.after}',
+                      style: SelType.bodySm.copyWith(color: Sel.text),
                     ),
-                  ),
-                  SelLink(
-                    label: 'Apply',
-                    onTap: widget.busy
-                        ? null
-                        : () => widget.onApplyFixes(g.proposals),
-                  ),
-                ],
+                    Text(
+                      '${g.label} · ${g.count} ${g.count == 1 ? 'row' : 'rows'}',
+                      style: SelType.small,
+                    ),
+                  ],
+                ),
+              ),
+              SelLink(
+                label: 'Apply',
+                onTap: widget.busy
+                    ? null
+                    : () => widget.onApplyFixes(g.proposals),
               ),
             ],
-          ],
-        ),
-      ),
-    ];
+          ),
+        ],
+      ],
+    );
   }
 
   /// One banner per spelling that several rows share: a fellowship that is
@@ -1137,4 +1219,260 @@ class _Banner extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// "Move aside →|" on the floating card.
+class _MoveAside extends StatelessWidget {
+  const _MoveAside({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: SelSpace.x1),
+    child: Tooltip(
+      message: 'Move the card to the edge of the screen (])',
+      child: Material(
+        color: Sel.skyTint,
+        shape: const StadiumBorder(),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Move aside',
+                  style: SelType.small.copyWith(
+                    color: Sel.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  LucideIcons.arrowRightToLine,
+                  size: 14,
+                  color: Sel.ink,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// The row card floating at the right of the rows. Its shadow is a flat
+/// light-sky edge, never a blur.
+class _FloatingCard extends StatelessWidget {
+  const _FloatingCard({required this.decision, required this.folds});
+
+  final Widget? decision;
+
+  /// Title, count and what opens under it.
+  final List<(String, int, Widget)> folds;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(
+      color: Sel.card,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: Sel.skyWash, width: 1.5),
+      boxShadow: const [BoxShadow(color: Sel.skyWash, offset: Offset(0, 4))],
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 14, 14, 16),
+            child:
+                decision ??
+                Text('Choose a row to see it here.', style: SelType.bodySm),
+          ),
+        ),
+        for (final (title, count, child) in folds)
+          _Fold(title: title, count: count, child: child),
+      ],
+    ),
+  );
+}
+
+/// A line at the foot of the floating card that opens to show its list.
+class _Fold extends StatefulWidget {
+  const _Fold({required this.title, required this.count, required this.child});
+
+  final String title;
+  final int count;
+  final Widget child;
+
+  @override
+  State<_Fold> createState() => _FoldState();
+}
+
+class _FoldState extends State<_Fold> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: const BoxDecoration(
+      border: Border(top: BorderSide(color: Sel.rowLine)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _open,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Row(
+                children: [
+                  Text(
+                    widget.title,
+                    style: SelType.bodySm.copyWith(
+                      color: Sel.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: SelSpace.x2),
+                  SelTag('${widget.count}', tone: SelTagTone.waiting),
+                  const Spacer(),
+                  Icon(
+                    _open ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    size: 16,
+                    color: Sel.warm,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_open)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+              child: widget.child,
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// What is left at the edge when the card is moved aside: an arrow, how many
+/// rows need you, and Open, in plain words.
+class _Flap extends StatelessWidget {
+  const _Flap({required this.needYou, required this.onTap});
+
+  final int needYou;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = needYou == 0
+        ? 'Open the row card'
+        : 'Open the card for the $needYou ${needYou == 1 ? 'row' : 'rows'} that need you';
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: DecoratedBox(
+          // The flat light-sky edge sits under the navy, not over it.
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
+            boxShadow: [BoxShadow(color: Sel.skyWash, offset: Offset(0, 5))],
+          ),
+          child: Material(
+            color: Sel.ink,
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(20),
+            ),
+            child: InkWell(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(20),
+              ),
+              onTap: onTap,
+              child: Container(
+                width: 84,
+                padding: const EdgeInsets.fromLTRB(10, 14, 8, 14),
+                child: ExcludeSemantics(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0x24FFFFFF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.chevronLeft,
+                          size: 16,
+                          color: Sel.card,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (needYou > 0) ...[
+                        Text(
+                          '$needYou ${needYou == 1 ? 'row' : 'rows'}',
+                          style: SelType.subtitle.copyWith(
+                            color: Sel.card,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          needYou == 1 ? 'needs you' : 'need you',
+                          style: SelType.small.copyWith(
+                            color: SelNavyCard.soft,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          'Row card',
+                          textAlign: TextAlign.center,
+                          style: SelType.small.copyWith(
+                            color: Sel.card,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Sel.card,
+                          borderRadius: BorderRadius.circular(SelRadius.pill),
+                        ),
+                        child: Text(
+                          'Open',
+                          style: SelType.small.copyWith(
+                            color: Sel.ink,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

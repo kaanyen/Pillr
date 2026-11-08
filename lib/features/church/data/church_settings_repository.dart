@@ -146,19 +146,22 @@ class ChurchSettingsRepository {
     }
   }
 
-  Future<({int sent, int skipped, int failed, bool dryRun, String yearMonth})>
-      runMonthlyPartnerEmails({String? yearMonth}) async {
+  Future<({int sent, int sentNow, int skipped, int failed, bool dryRun, String yearMonth})>
+      runMonthlyPartnerEmails({String? yearMonth, List<String>? partnerIds}) async {
     try {
       final callable = _functions.httpsCallable(
         FirebaseConstants.runMonthlyPartnerGivingSummary,
       );
-      // A month already run sends only to those not sent yet.
+      // A month already run sends only to those not sent yet; with
+      // partnerIds it sends to just those, even if they already had it.
       final result = await callable.call(<String, dynamic>{
         'yearMonth': ?yearMonth,
+        'partnerIds': ?partnerIds,
       });
       final data = Map<String, dynamic>.from(result.data as Map? ?? {});
       return (
         sent: (data['sent'] as num?)?.toInt() ?? 0,
+        sentNow: (data['sentNow'] as num?)?.toInt() ?? 0,
         skipped: (data['skippedNoEmail'] as num?)?.toInt() ?? 0,
         failed: (data['failed'] as num?)?.toInt() ?? 0,
         dryRun: data['dryRun'] == true,

@@ -547,3 +547,146 @@ class _Initials extends StatelessWidget {
     );
   }
 }
+
+/// The rail folded to icons, for pages that fill the screen such as an
+/// import: the logo at the top left, a button that opens the whole menu,
+/// then each place as an icon with its name on hover.
+class SelCompactRail extends ConsumerWidget {
+  const SelCompactRail({super.key, required this.currentPath, required this.onOpenMenu});
+
+  final String currentPath;
+  final VoidCallback onOpenMenu;
+
+  static const width = 72.0;
+
+  bool _isActive(String path) {
+    if (currentPath == path) return true;
+    return path != '/overview' && currentPath.startsWith('$path/');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    final churchName = ref.watch(churchNameProvider) ?? 'Your church';
+    final profile = ref.watch(churchUserProfileProvider).valueOrNull;
+    final pending = ref.watch(pendingApprovalCountProvider);
+    final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
+    final groups = navGroupsFor(idx, AppLocalizations.of(context), platformAdmin: isPlatform);
+
+    Widget icon(SelNavItem item) {
+      final active = _isActive(item.path) ||
+          item.children.any((c) => _isActive(c.path));
+      final badge = item.badgeKey == 'pending' ? pending : null;
+      return Tooltip(
+        message: badge != null && badge > 0 ? '${item.label} · $badge' : item.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: Semantics(
+          link: true,
+          selected: active,
+          label: item.label,
+          child: Material(
+            color: active ? Sel.railSelected : Colors.transparent,
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: () => context.go(item.path),
+              child: SizedBox(
+                width: 48,
+                height: 40,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(item.icon, size: 18, color: active ? Sel.ink : Sel.warm),
+                    if (badge != null && badge > 0)
+                      Positioned(
+                        top: 6,
+                        right: 9,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: Sel.sky, shape: BoxShape.circle),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: width,
+      decoration: const BoxDecoration(
+        color: Sel.rail,
+        border: Border(right: BorderSide(color: Sel.railEdge)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: SelSpace.x3),
+          Tooltip(
+            message: 'Pillr',
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => context.go('/overview'),
+              child: const PillrMark(size: 34),
+            ),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Tooltip(
+            message: 'Show the menu',
+            child: Semantics(
+              button: true,
+              label: 'Show the menu',
+              child: Material(
+                color: Sel.card,
+                shape: const StadiumBorder(side: BorderSide(color: Sel.border)),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: onOpenMenu,
+                  child: const SizedBox(
+                    width: 48,
+                    height: 36,
+                    child: Icon(Icons.menu_rounded, size: 18, color: Sel.ink),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Tooltip(message: churchName, child: _Initials(churchName, size: 34)),
+          const SizedBox(height: SelSpace.x2),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final (n, g) in groups.indexed) ...[
+                  if (n > 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: Divider(height: 1, color: Sel.railEdge),
+                    ),
+                  for (final item in g.items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Center(child: icon(item)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          if (profile != null)
+            Padding(
+              padding: const EdgeInsets.only(top: SelSpace.x2, bottom: SelSpace.x3),
+              child: Tooltip(
+                message: profile.fullName,
+                child: _Initials(profile.fullName, size: 34),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+

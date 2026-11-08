@@ -179,7 +179,7 @@ abstract final class Sel {
 /// and with a strict hierarchy. [card] is the everyday lift; [floating] is
 /// reserved for one element per screen at most.
 abstract final class SelShadow {
-  /// Content cards. Soft 16px blur at 5% — lift without weight.
+  /// Content cards: a flat 3px edge at 4%, no blur.
   static const List<BoxShadow> card = [
     BoxShadow(color: Color(0x0A000000), offset: Offset(0, 3)),
   ];
@@ -189,16 +189,11 @@ abstract final class SelShadow {
     BoxShadow(color: Color(0x0A000000), offset: Offset(0, 2)),
   ];
 
-  /// Small chips and decorative icons.
-  static const List<BoxShadow> chip = [
-    BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 4), spreadRadius: -1),
-    BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 2), spreadRadius: -2),
-  ];
-
-  /// The one deep shadow in the system. Hero surfaces only — at most one per
-  /// screen, and never on a list row or an ordinary card.
+  /// Anything that floats over the page (the phone menu bar, a card laid
+  /// over the rows): a flat light-sky edge like the buttons'. Relief never
+  /// blurs a shadow; a soft drop shadow reads as generic.
   static const List<BoxShadow> floating = [
-    BoxShadow(color: Color(0x40000000), blurRadius: 30, offset: Offset(0, 12), spreadRadius: -10),
+    BoxShadow(color: Color(0xFFBDE1F9), offset: Offset(0, 5)),
   ];
 
   /// The primary button's flat light-sky block underneath.

@@ -1702,9 +1702,8 @@ class _IssuesPanelState extends State<_IssuesPanel> {
           boxShadow: flashing
               ? [
                   BoxShadow(
-                    color: g.color.withValues(alpha: 0.16),
-                    blurRadius: 12,
-                    offset: const Offset(0, 2),
+                    color: g.color.withValues(alpha: 0.22),
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : SelShadow.hairline,

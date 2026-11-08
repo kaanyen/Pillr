@@ -88,6 +88,8 @@ export type ChurchRunResult = {
   skippedNoEmail: number;
   failed: number;
   dryRun: boolean;
+  /** Letters actually sent by this run (not ones sent before). */
+  sentNow: number;
 };
 
 async function resolvePastor(
@@ -131,13 +133,20 @@ export async function runChurchMonthlyEmails(opts: {
   year?: number;
   month?: number;
   liveSend: boolean;
+  /**
+   * Send only to these partners, even ones who already got this month's
+   * letter. Everyone else keeps what happened to them before.
+   */
+  onlyPartnerIds?: string[];
 }): Promise<ChurchRunResult> {
+  const only = opts.onlyPartnerIds ? new Set(opts.onlyPartnerIds) : null;
   const churchSnap = await db().doc(`churches/${opts.churchId}`).get();
   if (!churchSnap.exists) {
     return {
       churchId: opts.churchId,
       yearMonth: "",
       skipped: true,
+      sentNow: 0,
       skipReason: "church missing",
       sent: 0,
       skippedNoEmail: 0,
@@ -151,6 +160,7 @@ export async function runChurchMonthlyEmails(opts: {
       churchId: opts.churchId,
       yearMonth: "",
       skipped: true,
+      sentNow: 0,
       skipReason: "inactive",
       sent: 0,
       skippedNoEmail: 0,
@@ -164,6 +174,7 @@ export async function runChurchMonthlyEmails(opts: {
       churchId: opts.churchId,
       yearMonth: "",
       skipped: true,
+      sentNow: 0,
       skipReason: "switch off",
       sent: 0,
       skippedNoEmail: 0,
@@ -193,6 +204,7 @@ export async function runChurchMonthlyEmails(opts: {
       churchId: opts.churchId,
       yearMonth: ym,
       skipped: true,
+      sentNow: 0,
       skipReason: "missing from or pastor",
       sent: 0,
       skippedNoEmail: 0,
@@ -214,6 +226,7 @@ export async function runChurchMonthlyEmails(opts: {
       churchId: opts.churchId,
       yearMonth: ym,
       skipped: true,
+      sentNow: 0,
       skipReason: "pastor missing",
       sent: 0,
       skippedNoEmail: 0,
@@ -236,6 +249,7 @@ export async function runChurchMonthlyEmails(opts: {
       churchId: opts.churchId,
       yearMonth: ym,
       skipped: true,
+      sentNow: 0,
       skipReason: "no resend key",
       sent: 0,
       skippedNoEmail: 0,
@@ -256,7 +270,16 @@ export async function runChurchMonthlyEmails(opts: {
   const skippedOptedOut: SkipRow[] = [];
   const failed: FailRow[] = [];
   let sent = 0;
+  let sentNow = 0;
   const live = opts.liveSend && shouldSendLive();
+  // A run for chosen partners keeps everyone else's earlier failures.
+  const earlierFailed = new Map<string, FailRow>();
+  if (only) {
+    const prev = await db().doc(`churches/${opts.churchId}/monthly_email_reports/${ym}`).get();
+    for (const f of (prev.data()?.failed ?? []) as FailRow[]) {
+      if (f && f.partnerId) earlierFailed.set(f.partnerId, f);
+    }
+  }
 
   for (const [partnerId, row] of totals) {
     if (!(row.monthTotal > 0)) continue;
@@ -278,7 +301,16 @@ export async function runChurchMonthlyEmails(opts: {
       `churches/${opts.churchId}/monthly_email_deliveries/${ym}_${partnerId}`,
     );
     const existing = await deliveryRef.get();
-    if (existing.exists && existing.data()?.status === "sent") {
+    const alreadySent = existing.exists && existing.data()?.status === "sent";
+    if (only && !only.has(partnerId)) {
+      if (alreadySent) {
+        sent += 1;
+      } else if (earlierFailed.has(partnerId)) {
+        failed.push(earlierFailed.get(partnerId)!);
+      }
+      continue;
+    }
+    if (alreadySent && !only) {
       sent += 1;
       continue;
     }
@@ -318,6 +350,7 @@ export async function runChurchMonthlyEmails(opts: {
         sentAt: FieldValue.serverTimestamp(),
       });
       sent += 1;
+      sentNow += 1;
     } catch (e) {
       failed.push({
         partnerId,
@@ -345,6 +378,7 @@ export async function runChurchMonthlyEmails(opts: {
     skippedNoEmail: skippedNoEmail.length,
     failed: failed.length,
     dryRun: !live,
+    sentNow,
   };
 }
 
@@ -507,11 +541,21 @@ export const runMonthlyPartnerGivingSummary = onCall(
     if (rawYm && !parsed) {
       throw new HttpsError("invalid-argument", "yearMonth must be YYYY-MM.");
     }
+    const rawIds = request.data?.partnerIds;
+    let onlyPartnerIds: string[] | undefined;
+    if (rawIds !== undefined && rawIds !== null) {
+      if (!Array.isArray(rawIds) || rawIds.length === 0 || rawIds.length > 500 ||
+          !rawIds.every((x) => typeof x === "string" && x.length > 0 && x.length < 200)) {
+        throw new HttpsError("invalid-argument", "partnerIds must be a list of partner IDs.");
+      }
+      onlyPartnerIds = rawIds as string[];
+    }
     const result = await runChurchMonthlyEmails({
       churchId: idx.churchId,
       year: parsed?.year,
       month: parsed?.month,
       liveSend: true,
+      onlyPartnerIds,
     });
     if (result.skipped) {
       throw new HttpsError(

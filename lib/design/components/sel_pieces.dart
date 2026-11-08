@@ -443,3 +443,86 @@ class SelTrackTabs<T> extends StatelessWidget {
     );
   }
 }
+
+/// The navy bar that acts on rows someone has ticked: how many, a line
+/// saying who, Clear, and one white button. Its shadow is a flat light-sky
+/// edge, like the buttons.
+class SelChoiceBar extends StatelessWidget {
+  const SelChoiceBar({
+    super.key,
+    required this.count,
+    required this.action,
+    required this.onAction,
+    required this.onClear,
+    this.note,
+    this.busy = false,
+  });
+
+  final int count;
+  final String? note;
+  final String action;
+  final VoidCallback onAction;
+  final VoidCallback onClear;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 640;
+    return Semantics(
+      container: true,
+      label: '$count chosen',
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: Sel.ink,
+          borderRadius: BorderRadius.circular(SelRadius.pill),
+          boxShadow: const [BoxShadow(color: Sel.skyWash, offset: Offset(0, 5))],
+        ),
+        child: Row(
+          children: [
+            Text(
+              '$count chosen',
+              style: SelType.body.copyWith(color: Sel.card, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(width: SelSpace.x3),
+            Expanded(
+              child: compact || note == null
+                  ? const SizedBox.shrink()
+                  : Text(
+                      note!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: SelType.bodySm.copyWith(color: SelNavyCard.soft),
+                    ),
+            ),
+            TextButton(
+              onPressed: busy ? null : onClear,
+              style: TextButton.styleFrom(foregroundColor: Sel.card),
+              child: Text('Clear', style: SelType.button.copyWith(color: Sel.card)),
+            ),
+            const SizedBox(width: SelSpace.x2),
+            Material(
+              color: Sel.card,
+              shape: const StadiumBorder(),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: busy ? null : onAction,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                  child: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Sel.ink),
+                        )
+                      : Text(action, style: SelType.button.copyWith(color: Sel.ink)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

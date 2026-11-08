@@ -20,10 +20,11 @@ import '../features/partners/providers/partners_providers.dart';
 import 'views/view_common.dart';
 import '../features/periods/providers/periods_providers.dart';
 import 'fellowship_manage_view.dart';
+import 'fellowship_rhythm_view.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
 
-enum _View { directory, ranked, manage }
+enum _View { directory, rhythm, ranked, manage }
 
 /// Fellowships — directory of groups, with giving rankings alongside.
 ///
@@ -60,6 +61,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
   late _View _view = switch (widget.initialView) {
     'ranked' => _View.ranked,
     'manage' => _View.manage,
+    'rhythm' => _View.rhythm,
     _ => _View.directory,
   };
   String _query = '';
@@ -109,7 +111,14 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final canManage = idx?.canManageFellowships ?? false;
     final adminOnly = idx?.isAdmin ?? false;
-    final view = adminOnly ? _View.manage : _view;
+    // The rhythm counts every partner in a fellowship, so it is for pastors,
+    // who see all the church's giving; staff see only their own entries.
+    final canRhythm = idx?.isPastor ?? false;
+    final view = adminOnly
+        ? _View.manage
+        : _view == _View.rhythm && !canRhythm
+        ? _View.directory
+        : _view;
     return SelPageBody(
       onRefresh: () async {
         ref.invalidate(partnersStreamProvider(false));
@@ -121,6 +130,8 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           title: 'Fellowships',
           subtitle: view == _View.manage
               ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
+              : view == _View.rhythm
+              ? '${_summary(ref).split(' · ').take(2).join(' · ')} · how many give each month'
               : _summary(ref),
           actions: [
             if (canManage && view != _View.manage)
@@ -137,6 +148,17 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
               ),
           ],
         ),
+        if (canRhythm && (view == _View.directory || view == _View.rhythm)) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SelTrackTabs<_View>(
+              selected: view,
+              onSelect: (v) => setState(() => _view = v),
+              tabs: const [(_View.directory, 'Totals'), (_View.rhythm, 'Giving rhythm')],
+            ),
+          ),
+          const SizedBox(height: SelSpace.x4),
+        ],
         if (view == _View.directory) ...[
           SizedBox(
             width: 320,
@@ -148,7 +170,9 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           ),
         ],
         const SizedBox(height: SelSpace.x4),
-        if (view == _View.directory)
+        if (view == _View.rhythm)
+          const FellowshipRhythmView()
+        else if (view == _View.directory)
           _FellowshipDirectory(
             query: _query,
             onOpenFellowship: _openFellowshipMembers,

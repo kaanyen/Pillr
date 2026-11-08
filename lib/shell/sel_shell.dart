@@ -43,13 +43,13 @@ class SelShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final compact = c.maxWidth < 900;
-        // The sheet step is a tool, not a page: Tesler hides the rail and
-        // the top-right account cluster so the grid can take the viewport.
-        // Occam: hide chrome rather than add a collapse toggle.
+        // An import is a tool, not a page: the rail folds to icons and the
+        // top-right account cluster goes, so the rows can take the screen.
+        // The logo and the menu stay one click away.
         final fillViewport = path.startsWith('/entries/bulk-import');
 
         final body = fillViewport
-            ? child
+            ? (compact ? child : _FoldedRailFrame(path: path, child: child))
             : Stack(
                 children: [
                   Positioned.fill(
@@ -411,3 +411,70 @@ class _OfflineStrip extends StatelessWidget {
     );
   }
 }
+
+/// A full-screen tool page with the rail folded to icons at its left. The
+/// menu button lays the whole menu over the page; a tap outside it, Escape
+/// or choosing a place closes it again.
+class _FoldedRailFrame extends StatefulWidget {
+  const _FoldedRailFrame({required this.path, required this.child});
+
+  final String path;
+  final Widget child;
+
+  @override
+  State<_FoldedRailFrame> createState() => _FoldedRailFrameState();
+}
+
+class _FoldedRailFrameState extends State<_FoldedRailFrame> {
+  bool _menu = false;
+
+  @override
+  void didUpdateWidget(_FoldedRailFrame old) {
+    super.didUpdateWidget(old);
+    if (old.path != widget.path) _menu = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SelCompactRail(
+                currentPath: widget.path,
+                onOpenMenu: () => setState(() => _menu = true),
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+        ),
+        if (_menu) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _menu = false),
+              child: const ColoredBox(color: Color(0x5913426F)),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): () =>
+                    setState(() => _menu = false),
+              },
+              child: Focus(
+                autofocus: true,
+                child: SelRail(currentPath: widget.path),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
