@@ -144,7 +144,8 @@ service cloud.firestore {
                     && settingsOf(request.resource.data)
                          .diff(settingsOf(resource.data))
                          .affectedKeys()
-                         .hasOnly(['fellowshipNames', 'exchangeRates']);
+                         .hasOnly(['fellowshipNames', 'exchangeRates',
+                                   'exchangeRatesUpdatedAt', 'exchangeRatesUpdatedBy']);
 
       match /users/{uidField} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();

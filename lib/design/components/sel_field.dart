@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../seline_colors.dart';
@@ -31,7 +32,15 @@ class SelField extends StatelessWidget {
     this.readOnly = false,
     this.onTap,
     this.autofocus = false,
+    this.focusNode,
+    this.maxLength,
   });
+
+  /// Lets a page know which field has the cursor, e.g. to insert a word.
+  final FocusNode? focusNode;
+
+  /// Longest text allowed; the field stops there.
+  final int? maxLength;
 
   final TextEditingController? controller;
   final String? label;
@@ -58,6 +67,12 @@ class SelField extends StatelessWidget {
       enabled: enabled,
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
+        maxLength: maxLength,
+        maxLengthEnforcement: maxLength == null ? null : MaxLengthEnforcement.enforced,
+        buildCounter: maxLength == null
+            ? null
+            : (_, {required currentLength, required isFocused, maxLength}) => null,
         obscureText: obscureText,
         keyboardType: keyboardType,
         textCapitalization: textCapitalization,

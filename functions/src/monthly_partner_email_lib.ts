@@ -185,6 +185,45 @@ export function markColour(hex: string | undefined | null): string {
 
 const MONTH_LETTERS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
+/** The church's own words for the letter. Blank parts use Pillr's. */
+export type LetterWording = {
+  subject?: string | null;
+  heading?: string | null;
+  message?: string | null;
+  signOff?: string | null;
+};
+
+export const DEFAULT_WORDING = {
+  subject: "Your [Month] giving to [Church name]",
+  heading: "Thank you, [First name].",
+  message: "Here is your giving for [Month]. Every cedi goes to the work you gave it for, and we are grateful for each one.",
+  signOff: "With gratitude,",
+};
+
+/**
+ * Fills [First name], [Month] and [Church name] (any capitals, any spacing
+ * inside the brackets) with this partner's details. Plain text in, plain
+ * text out: escape it after, never before.
+ */
+export function fillWording(
+  text: string,
+  values: {firstName: string; month: string; churchName: string},
+): string {
+  return text
+    .replace(/\[\s*first\s*name\s*\]/gi, values.firstName)
+    .replace(/\[\s*month\s*\]/gi, values.month)
+    .replace(/\[\s*church\s*name\s*\]/gi, values.churchName);
+}
+
+/** The subject line for one partner's letter. */
+export function letterSubject(
+  wording: LetterWording | undefined,
+  values: {firstName: string; month: string; churchName: string},
+): string {
+  const raw = (wording?.subject ?? "").trim() || DEFAULT_WORDING.subject;
+  return fillWording(raw, values).replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
 /**
  * The monthly thank-you letter, as on the canvas (board 48).
  *
@@ -207,6 +246,10 @@ export function buildPartnerEmailHtml(opts: {
   ytdByMonth?: number[];
   /** The church's mark colour, #rrggbb. */
   markColor?: string;
+  /** The church's own heading, message and sign-off. */
+  wording?: LetterWording;
+  /** The church's logo, shown in place of its initials. */
+  logoUrl?: string | null;
   preview?: boolean;
 }): string {
   const sym = opts.currencySymbol || "₵";
@@ -216,6 +259,12 @@ export function buildPartnerEmailHtml(opts: {
   const font = "Manrope, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
   const first = opts.partnerName.trim().split(/\s+/)[0] || opts.partnerName;
   const monthName = opts.monthLabel.split(" ")[0];
+  const values = {firstName: first, month: monthName, churchName: opts.churchName};
+  const words = (part: "heading" | "message" | "signOff") =>
+    fillWording((opts.wording?.[part] ?? "").trim() || DEFAULT_WORDING[part], values);
+  // Line breaks the church typed stay as line breaks.
+  const para = (t: string) => esc(t).replace(/\n/g, "<br>");
+  const logo = (opts.logoUrl ?? "").trim();
   const money = (n: number) => esc(formatMoney(n, sym));
   const total = formatMoney(opts.monthTotal, sym);
   const dot = total.lastIndexOf(".");
@@ -282,7 +331,9 @@ export function buildPartnerEmailHtml(opts: {
           <td style="padding: 32px 36px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td width="40" height="40" align="center" valign="middle" style="width: 40px; height: 40px; border-radius: 12px; background: ${markColour(opts.markColor)}; color: #ffffff; font-weight: 800; font-size: 14px;">${esc(churchInitials(opts.churchName))}</td>
+                ${logo && /^https:\/\//.test(logo) ?
+    `<td height="40" valign="middle"><img src="${esc(logo)}" alt="${esc(opts.churchName)}" height="40" style="display: block; height: 40px; width: auto; max-width: 160px; border: 0;"></td>` :
+    `<td width="40" height="40" align="center" valign="middle" style="width: 40px; height: 40px; border-radius: 12px; background: ${markColour(opts.markColor)}; color: #ffffff; font-weight: 800; font-size: 14px;">${esc(churchInitials(opts.churchName))}</td>`}
                 <td style="padding-left: 12px; font-weight: 700; font-size: 15px; color: ${navy};">${esc(opts.churchName)}</td>
               </tr>
             </table>
@@ -290,8 +341,8 @@ export function buildPartnerEmailHtml(opts: {
         </tr>
         <tr>
           <td style="padding: 28px 36px 0;">
-            <h1 style="margin: 0 0 10px; font-size: 28px; line-height: 1.25; color: ${navy}; font-weight: 800;">Thank you, ${esc(first)}.</h1>
-            <p style="margin: 0; font-size: 15px;">Here is your giving for ${esc(monthName)}. Every cedi goes to the work you gave it for, and we are grateful for each one.</p>
+            <h1 style="margin: 0 0 10px; font-size: 28px; line-height: 1.25; color: ${navy}; font-weight: 800;">${para(words("heading"))}</h1>
+            <p style="margin: 0; font-size: 15px;">${para(words("message"))}</p>
           </td>
         </tr>
         <tr>
@@ -324,7 +375,7 @@ export function buildPartnerEmailHtml(opts: {
         </tr>
         <tr>
           <td style="padding: 22px 36px 0; font-size: 15px;">
-            <p style="margin: 0;">With gratitude,</p>
+            <p style="margin: 0;">${para(words("signOff"))}</p>
             <p style="margin: 0; font-weight: 700; color: ${navy};">${esc(opts.pastorName)}</p>
             <p style="margin: 0; font-size: 14px; color: ${muted};">${esc(opts.churchName)}</p>
           </td>

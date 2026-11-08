@@ -21,6 +21,13 @@ class ChurchSettings {
     this.primaryPastorUid,
     this.partnerEmailFrom,
     this.fellowshipNames = const [],
+    this.letterSubject,
+    this.letterHeading,
+    this.letterMessage,
+    this.letterSignOff,
+    this.logoAspect,
+    this.exchangeRatesUpdatedAt,
+    this.exchangeRatesUpdatedBy,
   });
 
   final String churchId;
@@ -39,6 +46,24 @@ class ChurchSettings {
 
   /// Groups the church has created, including empty ones.
   final List<String> fellowshipNames;
+
+  /// The church's own words for the monthly letter; null uses Pillr's.
+  /// [First name], [Month] and [Church name] are filled in per partner.
+  final String? letterSubject;
+  final String? letterHeading;
+  final String? letterMessage;
+  final String? letterSignOff;
+
+  /// The logo's width divided by its height, noted when it is uploaded: a
+  /// wide logo is unreadable at sidebar size, so the initials show there.
+  final double? logoAspect;
+
+  final DateTime? exchangeRatesUpdatedAt;
+  final String? exchangeRatesUpdatedBy;
+
+  /// Whether the logo is square enough to read in the sidebar.
+  bool get logoFitsSidebar =>
+      logoUrl != null && (logoAspect == null || (logoAspect! >= 0.66 && logoAspect! <= 1.5));
 
   static ChurchSettings? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();
@@ -78,9 +103,20 @@ class ChurchSettings {
       churchSetupCompletedAt: setupAt,
       isActive: data['isActive'] != false,
       sendMonthlyPartnerEmails: settings['sendMonthlyPartnerEmails'] == true,
+      letterSubject: _text(settings['letterSubject']),
+      letterHeading: _text(settings['letterHeading']),
+      letterMessage: _text(settings['letterMessage']),
+      letterSignOff: _text(settings['letterSignOff']),
+      logoAspect: (settings['logoAspect'] as num?)?.toDouble(),
+      exchangeRatesUpdatedAt: settings['exchangeRatesUpdatedAt'] is Timestamp
+          ? (settings['exchangeRatesUpdatedAt'] as Timestamp).toDate()
+          : null,
+      exchangeRatesUpdatedBy: _text(settings['exchangeRatesUpdatedBy']),
       primaryPastorUid: pastorUid == null || pastorUid.isEmpty ? null : pastorUid,
       partnerEmailFrom: from == null || from.isEmpty ? null : from,
       fellowshipNames: fellowshipNames,
     );
   }
+
+  static String? _text(Object? v) => v is String && v.trim().isNotEmpty ? v : null;
 }

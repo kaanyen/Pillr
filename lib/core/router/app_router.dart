@@ -313,7 +313,7 @@ GoRouter createRouter() {
           GoRoute(
             path: '/settings',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: SettingsScreen()),
+                NoTransitionPage(child: SettingsScreen(initialTab: state.uri.queryParameters['tab'])),
           ),
           GoRoute(
             path: '/settings/letters',

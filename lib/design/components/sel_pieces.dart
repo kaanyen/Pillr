@@ -526,3 +526,81 @@ class SelChoiceBar extends StatelessWidget {
   }
 }
 
+
+/// The bar that holds unsaved changes: what changed, Discard, and Save
+/// changes. Pinned at the foot of the page like [SelChoiceBar], so every
+/// form in Pillr saves the same way.
+class SelSaveBar extends StatelessWidget {
+  const SelSaveBar({
+    super.key,
+    required this.message,
+    required this.onSave,
+    required this.onDiscard,
+    this.busy = false,
+  });
+
+  final String message;
+  final VoidCallback onSave;
+  final VoidCallback onDiscard;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 640;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: message,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: Sel.ink,
+          borderRadius: BorderRadius.circular(SelRadius.pill),
+          boxShadow: const [BoxShadow(color: Sel.skyWash, offset: Offset(0, 5))],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: message,
+                      style: SelType.body.copyWith(color: Sel.card, fontWeight: FontWeight.w800),
+                    ),
+                    if (!compact)
+                      TextSpan(
+                        text: '   Nothing is saved until you press Save changes.',
+                        style: SelType.bodySm.copyWith(color: SelNavyCard.soft),
+                      ),
+                  ],
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: busy ? null : onDiscard,
+              child: Text('Discard', style: SelType.button.copyWith(color: Sel.card)),
+            ),
+            const SizedBox(width: SelSpace.x2),
+            Material(
+              color: Sel.card,
+              shape: const StadiumBorder(),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: busy ? null : onSave,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                  child: busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Sel.ink))
+                      : Text('Save changes', style: SelType.button.copyWith(color: Sel.ink)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

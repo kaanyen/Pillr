@@ -8,6 +8,8 @@ import {
   armTotalsFromMap,
   buildFromHeader,
   buildPartnerEmailHtml,
+  letterSubject,
+  type LetterWording,
   monthsArray,
   type EntryRow,
   isLikelyEmail,
@@ -91,6 +93,15 @@ export type ChurchRunResult = {
   /** Letters actually sent by this run (not ones sent before). */
   sentNow: number;
 };
+
+/** The church's own words for the letter, from its settings. */
+function wordingOf(settings: Record<string, unknown>): LetterWording {
+  const t = (k: string) => {
+    const v = settings[k];
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  };
+  return {subject: t("letterSubject"), heading: t("letterHeading"), message: t("letterMessage"), signOff: t("letterSignOff")};
+}
 
 async function resolvePastor(
   churchId: string,
@@ -315,6 +326,8 @@ export async function runChurchMonthlyEmails(opts: {
       continue;
     }
     const html = buildPartnerEmailHtml({
+      wording: wordingOf(settings),
+      logoUrl: (church.logoUrl as string | undefined) ?? null,
       partnerName: fullName,
       churchName,
       monthLabel: label,
@@ -336,7 +349,11 @@ export async function runChurchMonthlyEmails(opts: {
           from,
           to: email,
           replyTo: isLikelyEmail(pastor.email) ? pastor.email : undefined,
-          subject: `Your ${label} giving — ${churchName}`,
+          subject: letterSubject(wordingOf(settings), {
+            firstName: fullName.trim().split(/\s+/)[0] || fullName,
+            month: label.split(" ")[0],
+            churchName,
+          }),
           html,
         });
       }
@@ -505,7 +522,16 @@ export const previewMonthlyPartnerGivingEmail = onCall({region: REGION}, async (
   const callerSnap = await db().doc(`churches/${idx.churchId}/users/${uid}`).get();
   const previewName =
     String(callerSnap.data()?.fullName ?? "").trim() || "Partner";
+  // The words on the page, even before they are saved, so a sample can be
+  // checked first; otherwise the saved words.
+  const draft = request.data?.wording;
+  const clip = (v: unknown) => typeof v === "string" ? v.slice(0, 600) : null;
+  const wording: LetterWording = draft && typeof draft === "object" ?
+    {subject: clip(draft.subject), heading: clip(draft.heading), message: clip(draft.message), signOff: clip(draft.signOff)} :
+    wordingOf(settings);
   const html = buildPartnerEmailHtml({
+    wording,
+    logoUrl: (church.logoUrl as string | undefined) ?? null,
     partnerName: previewName,
     churchName,
     monthLabel: label,
@@ -533,7 +559,11 @@ export const previewMonthlyPartnerGivingEmail = onCall({region: REGION}, async (
     from,
     to,
     replyTo: isLikelyEmail(pastor.email) ? pastor.email : undefined,
-    subject: `Your ${label} giving — ${churchName} (preview)`,
+    subject: `${letterSubject(wording, {
+      firstName: previewName.trim().split(/\s+/)[0] || previewName,
+      month: label.split(" ")[0],
+      churchName,
+    })} (sample)`,
     html,
   });
   return {success: true, id: id ?? null, to};

@@ -28,15 +28,35 @@ class ChurchSettingsRepository {
     String? primaryColorHex,
     String? logoUrl,
     String? logoStoragePath,
+    double? logoAspect,
   }) async {
     final map = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    if (logoAspect != null) map['settings'] = {'logoAspect': logoAspect};
     if (name != null) map['name'] = TextCaseUtils.toTitleCase(name);
     if (primaryColorHex != null) map['primaryColorHex'] = primaryColorHex;
     if (logoUrl != null) map['logoUrl'] = logoUrl;
     if (logoStoragePath != null) map['logoStoragePath'] = logoStoragePath;
     await _church(churchId).set(map, SetOptions(merge: true));
+  }
+
+  /// Takes the logo off; the initials show again. The file stays in storage,
+  /// so [restoreLogo] can put it straight back.
+  Future<void> removeLogo(String churchId) async {
+    await _church(churchId).update({
+      'logoUrl': null,
+      'logoStoragePath': null,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> restoreLogo(String churchId, {required String url, required String? path}) async {
+    await _church(churchId).update({
+      'logoUrl': url,
+      'logoStoragePath': path,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<void> updateLocaleCurrency({
@@ -72,9 +92,12 @@ class ChurchSettingsRepository {
   Future<void> updateExchangeRates({
     required String churchId,
     required ChurchExchangeRates rates,
+    String? byName,
   }) async {
     await _church(churchId).update({
       'settings.exchangeRates': rates.toFirestoreMap(),
+      'settings.exchangeRatesUpdatedAt': FieldValue.serverTimestamp(),
+      'settings.exchangeRatesUpdatedBy': byName,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -84,10 +107,18 @@ class ChurchSettingsRepository {
     required bool enabled,
     required String? primaryPastorUid,
     required String? partnerEmailFrom,
+    LetterWordingDraft? wording,
   }) async {
     final from = partnerEmailFrom?.trim();
+    String? clean(String? v) => v == null || v.trim().isEmpty ? null : v.trim();
     await _church(churchId).set({
       'settings': {
+        if (wording != null) ...{
+          'letterSubject': clean(wording.subject),
+          'letterHeading': clean(wording.heading),
+          'letterMessage': clean(wording.message),
+          'letterSignOff': clean(wording.signOff),
+        },
         'sendMonthlyPartnerEmails': enabled,
         'primaryPastorUid':
             (primaryPastorUid == null || primaryPastorUid.isEmpty)
@@ -133,12 +164,20 @@ class ChurchSettingsRepository {
         .map((s) => s.docs.map(MonthlyEmailDelivery.fromDoc).toList());
   }
 
-  Future<String> previewMonthlyPartnerEmail() async {
+  Future<String> previewMonthlyPartnerEmail({LetterWordingDraft? wording}) async {
     try {
       final callable = _functions.httpsCallable(
         FirebaseConstants.previewMonthlyPartnerGivingEmail,
       );
-      final result = await callable.call(<String, dynamic>{});
+      final result = await callable.call(<String, dynamic>{
+        if (wording != null)
+          'wording': {
+            'subject': wording.subject,
+            'heading': wording.heading,
+            'message': wording.message,
+            'signOff': wording.signOff,
+          },
+      });
       final data = Map<String, dynamic>.from(result.data as Map? ?? {});
       return data['to'] as String? ?? '';
     } on FirebaseFunctionsException catch (e) {
@@ -172,3 +211,7 @@ class ChurchSettingsRepository {
     }
   }
 }
+
+/// The church's words for the monthly letter, as typed on Settings.
+typedef LetterWordingDraft = ({String subject, String heading, String message, String signOff});
+

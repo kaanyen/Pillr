@@ -119,3 +119,35 @@ describe("monthly partner email helpers", () => {
     }
   });
 });
+
+describe("the church's own words", () => {
+  const base = {
+    partnerName: "Ama Boateng", churchName: "Demo Church", monthLabel: "October 2026", year: 2026,
+    monthArms: [{name: "Tithe", amount: 100}], monthTotal: 100, ytdArms: [], ytdTotal: 100,
+    pastorName: "Demo Pastor", currencySymbol: "₵",
+  };
+  it("fills first name, month and church, whatever the capitals", () => {
+    assert.equal(lib.fillWording("Dear [first NAME], [Month] at [ Church name ]", {firstName: "Ama", month: "October", churchName: "Demo"}), "Dear Ama, October at Demo");
+  });
+  it("uses the church's heading, message and sign-off, escaped", () => {
+    const html = lib.buildPartnerEmailHtml({...base, wording: {heading: "Bless you, [First name]!", message: "Line one\nLine <two>", signOff: "Yours in Christ,"}});
+    assert.match(html, /Bless you, Ama!/);
+    assert.match(html, /Line one<br>Line &lt;two&gt;/);
+    assert.match(html, /Yours in Christ,/);
+    assert.doesNotMatch(html, /With gratitude/);
+  });
+  it("falls back to Pillr's words when a part is blank", () => {
+    const html = lib.buildPartnerEmailHtml({...base, wording: {heading: "  ", message: null}});
+    assert.match(html, /Thank you, Ama\./);
+    assert.match(html, /With gratitude,/);
+  });
+  it("builds the subject from the church's words or the default", () => {
+    const v = {firstName: "Ama", month: "October", churchName: "Demo Church"};
+    assert.equal(lib.letterSubject({subject: "[First name], your [Month] giving"}, v), "Ama, your October giving");
+    assert.equal(lib.letterSubject(undefined, v), "Your October giving to Demo Church");
+  });
+  it("shows the logo only from a secure address", () => {
+    assert.match(lib.buildPartnerEmailHtml({...base, logoUrl: "https://x.test/l.png"}), /<img src="https:\/\/x.test\/l.png"/);
+    assert.doesNotMatch(lib.buildPartnerEmailHtml({...base, logoUrl: "javascript:alert(1)"}), /<img/);
+  });
+});

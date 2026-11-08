@@ -858,6 +858,19 @@ class EntriesRepository {
 
   /// Re-applies current [rates] to every entry stored in a foreign currency.
   /// Uses each row's saved [sourceAmount]; only updates when GHS or rate changes.
+  /// How many saved entries are in dollars, euros or pounds: what a
+  /// recalculation would look at.
+  Future<int> countForeignEntries(String churchId) async {
+    final agg = await _query(churchId)
+        .where(
+          'sourceCurrency',
+          whereIn: SelectableCurrency.all.where((c) => c != BaseCurrency.code).toList(),
+        )
+        .count()
+        .get();
+    return agg.count ?? 0;
+  }
+
   Future<RecalculateForeignEntriesResult> recalculateForeignEntries({
     required String churchId,
     required ChurchExchangeRates rates,
