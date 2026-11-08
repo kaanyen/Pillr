@@ -136,9 +136,9 @@ List<SelNavGroup> navGroupsFor(
       ]),
       // Staff look after partners as much as pastors do, so they get the same
       // Partnership group, without Goals.
+      // No Ranked: staff see the giving they recorded, never a ranking.
       SelNavGroup(l10n.navSectionPartnership, [
         _partners(l10n),
-        _ranked(l10n),
         SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
       ]),
     ]);
@@ -226,6 +226,6 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
     SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
     SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
-    _ranked(l10n),
+    SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
   ];
 }

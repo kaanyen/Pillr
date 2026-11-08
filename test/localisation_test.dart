@@ -48,18 +48,15 @@ void main() {
     expect(labels, isNot(contains('Overview')));
   });
 
-  testWidgets('Ranked sits straight after Partners, for pastor and staff', (
+  testWidgets('Ranked sits straight after Partners for a pastor; staff have none', (
     tester,
   ) async {
     final l10n = await localisationsFor(tester, const Locale('en'));
     final staff = UserChurchIndex(uid: 's', churchId: 'c1', role: 'staff');
-    for (final who in [pastor, staff]) {
-      final labels = navGroupsFor(
-        who,
-        l10n,
-      ).expand((g) => g.items).map((i) => i.label).toList();
-      expect(labels.indexOf('Ranked'), labels.indexOf('Partners') + 1);
-    }
+    List<String> labels(UserChurchIndex who) =>
+        navGroupsFor(who, l10n).expand((g) => g.items).map((i) => i.label).toList();
+    expect(labels(pastor).indexOf('Ranked'), labels(pastor).indexOf('Partners') + 1);
+    expect(labels(staff), isNot(contains('Ranked')));
   });
 
   testWidgets('Records and Partners carry their views', (tester) async {

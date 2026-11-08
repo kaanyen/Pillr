@@ -71,4 +71,9 @@ void main() {
     expect(isPathForbiddenForRole('/health', 'pastor'), isFalse);
     expect(isPathForbiddenForRole('/health', 'staff'), isTrue);
   });
+
+  test('staff see no rankings', () {
+    expect(isPathForbiddenForRole('/ranked', 'staff'), isTrue);
+    expect(isPathForbiddenForRole('/ranked', 'pastor'), isFalse);
+  });
 }

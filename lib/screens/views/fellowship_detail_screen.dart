@@ -8,6 +8,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/extensions/async_value_ext.dart';
 import '../../design/seline.dart';
+import '../../features/auth/providers/auth_providers.dart';
 import '../../features/periods/providers/periods_providers.dart';
 import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/leaderboard/giving_view.dart';
@@ -121,6 +122,7 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
         .take(5)
         .toList();
     final n = view.fellowships.length;
+    final ranks = ref.watch(canSeeRanksProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -131,12 +133,13 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
               label: 'Partners who gave',
               value: '${f?.gave.length ?? 0} of ${members.length}',
             ),
-            SelStat(
-              label: 'Place among fellowships',
-              value: f == null
-                  ? '–'
-                  : '${ordinal(view.placeOf(widget.fellowshipKey))} of $n',
-            ),
+            if (ranks)
+              SelStat(
+                label: 'Place among fellowships',
+                value: f == null
+                    ? '–'
+                    : '${ordinal(view.placeOf(widget.fellowshipKey))} of $n',
+              ),
           ],
         ),
         const SizedBox(height: SelSpace.x4),
@@ -215,8 +218,9 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
                   line(
                     a.name,
                     money(f?.byArm[a.id] ?? 0),
-                    place:
-                        '${ordinal(view.placeOf(widget.fellowshipKey, armId: a.id))} of $n',
+                    place: ranks
+                        ? '${ordinal(view.placeOf(widget.fellowshipKey, armId: a.id))} of $n'
+                        : null,
                   ),
               ],
               Text('No approved giving yet.', style: SelType.bodySm),
@@ -240,6 +244,8 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
                 style: SelType.bodySm,
               ),
             );
+            // Staff see what they recorded, not who gave the most.
+            if (!ranks) return armCard;
             if (c.maxWidth < 760) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -394,7 +400,7 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
                                 ),
                                 const SizedBox(width: SelSpace.x3),
                                 Text(
-                                  f == null
+                                  f == null || !ref.watch(canSeeRanksProvider)
                                       ? ''
                                       : '${ordinal(view.placeOf(widget.fellowshipKey, armId: a.id))} of ${view.fellowships.length}',
                                   style: SelType.small,

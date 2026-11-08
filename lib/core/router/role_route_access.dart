@@ -41,6 +41,9 @@ bool isPathForbiddenForRole(String location, String role) {
     // Tools writes go to the activity log; the Activity tab stays with admin.
     case 'staff':
       if (starts('/goals')) return true;
+      // Rankings are the pastor's: staff see what they recorded, not who
+      // gave the most.
+      if (starts('/ranked') || starts('/leaderboard')) return true;
       if (starts('/configuration')) return true;
       if (starts('/people')) return true;
       if (starts('/activity')) return true;

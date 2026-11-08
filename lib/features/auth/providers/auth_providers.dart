@@ -86,3 +86,10 @@ final canSeeFiguresProvider = Provider<bool>((ref) {
   return idx != null && !idx.isAdmin;
 });
 
+/// Whether this person sees places and rankings (1st, Gave the most, the
+/// Ranked page). Pastors only: staff see the giving they recorded, never
+/// how anyone compares.
+final canSeeRanksProvider = Provider<bool>((ref) {
+  return ref.watch(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
+});
+

@@ -116,7 +116,8 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     final canRhythm = idx?.isPastor ?? false;
     final view = adminOnly
         ? _View.manage
-        : _view == _View.rhythm && !canRhythm
+        : (_view == _View.rhythm && !canRhythm) ||
+              (_view == _View.ranked && !(idx?.isPastor ?? false))
         ? _View.directory
         : _view;
     return SelPageBody(
@@ -214,10 +215,13 @@ class _FellowshipDirectory extends ConsumerWidget {
   Widget _directoryTable(WidgetRef ref, List<Partner> partners) {
     final money = ref.watch(churchMoneyFormatProvider);
     final view = ref.watch(givingViewProvider);
+    final ranks = ref.watch(canSeeRanksProvider);
     final rows = [
       for (final f in view.fellowships)
         if (query.isEmpty || f.name.toLowerCase().contains(query)) f,
     ];
+    // Staff see no places: what they recorded, not how fellowships compare.
+    if (!ranks) rows.sort((a, b) => a.name.compareTo(b.name));
     Widget amountWithPlace(double v, int place) => Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -233,7 +237,7 @@ class _FellowshipDirectory extends ConsumerWidget {
         const SizedBox(width: 6),
         SizedBox(
           width: 28,
-          child: Text(place > 0 ? ordinal(place) : '', style: SelType.small),
+          child: Text(place > 0 && ranks ? ordinal(place) : '', style: SelType.small),
         ),
       ],
     );
