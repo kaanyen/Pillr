@@ -18,6 +18,11 @@ String gaveOn(DateTime? d) {
   return DateFormat(sameYear ? 'd MMM' : 'd MMM y').format(d);
 }
 
+/// "October" this year, "December 2025" otherwise.
+String gaveOnMonth(DateTime d) => DateFormat(
+  d.year == DateTime.now().year ? 'MMMM' : 'MMMM y',
+).format(d);
+
 /// "1st", "2nd", "3rd", "4th"…
 String ordinal(int n) {
   if (n <= 0) return '–';
