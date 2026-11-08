@@ -16,15 +16,23 @@
  * Refuses to run outside the emulator. Running it on the live project needs
  * the owner's explicit yes in that conversation, and a deliberate change here.
  */
-if (!process.env.FIRESTORE_EMULATOR_HOST) {
+// The live project only with both a --live flag and PILLR_LIVE_PROJECT set
+// to its name: the owner said yes to this run on 8 November 2026.
+const live = process.argv.includes("--live") && process.env.PILLR_LIVE_PROJECT === "thepillr2";
+if (!process.env.FIRESTORE_EMULATOR_HOST && !live) {
   console.error("Refusing to run outside the emulator.");
+  process.exit(1);
+}
+if (live && process.env.FIRESTORE_EMULATOR_HOST) {
+  console.error("--live with an emulator host set: pick one.");
   process.exit(1);
 }
 
 const admin = require("firebase-admin");
 const {FieldValue} = require("firebase-admin/firestore");
 
-admin.initializeApp({projectId: process.env.GCLOUD_PROJECT || "thepillr2"});
+admin.initializeApp({projectId: "thepillr2"});
+console.log(live ? "LIVE project thepillr2" : "emulator " + process.env.FIRESTORE_EMULATOR_HOST);
 const db = admin.firestore();
 const dryRun = process.argv.includes("--dry-run");
 
