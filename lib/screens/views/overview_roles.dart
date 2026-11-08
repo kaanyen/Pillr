@@ -5,6 +5,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/extensions/async_value_ext.dart';
+import '../../core/utils/date_utils.dart';
 import '../../design/seline.dart';
 import '../../features/activity/activity_action_label.dart';
 import '../../features/arms/providers/arms_providers.dart';
@@ -923,7 +924,13 @@ class AdminOverview extends ConsumerWidget {
             initials: _initials(u.fullName),
             title: u.fullName,
             sub: '${u.role[0].toUpperCase()}${u.role.substring(1)}',
-            trailing: Text(u.email, style: SelType.small),
+            trailing: u.lastLoginAt != null &&
+                    DateTime.now().difference(u.lastLoginAt!).inDays >= 14
+                ? _tag(
+                    'Not seen in ${DateTime.now().difference(u.lastLoginAt!).inDays ~/ 7} weeks',
+                    waiting: true,
+                  )
+                : Text(lastActiveLabel(u.lastLoginAt), style: SelType.small),
           ),
       ],
     );

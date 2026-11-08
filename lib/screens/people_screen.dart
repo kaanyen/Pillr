@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/date_utils.dart';
+import '../core/notifications/sel_notice.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
@@ -101,11 +102,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
                       inactive: !u.isActive,
                     ),
                   ),
-                SelCell.secondary(
-                  u.lastLoginAt == null
-                      ? '—'
-                      : formatFirestoreDate(u.lastLoginAt!, pattern: 'd MMM'),
-                ),
+                SelCell.secondary(lastActiveLabel(u.lastLoginAt)),
                 const SizedBox.shrink(),
               ],
             ),
@@ -129,7 +126,13 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               children: [
                 for (var k = 0; k < list.length; k++) ...[
                   if (k > 0) const Divider(height: 1, color: Sel.rowLine),
-                  _InviteRow(invite: list[k], role: _role(list[k].role)),
+                  _InviteRow(
+                    invite: list[k],
+                    role: _role(list[k].role),
+                    onResend: canManage && list[k].status != 'accepted'
+                        ? () => _resend(context, ref, idx!.churchId, list[k])
+                        : null,
+                  ),
                 ],
               ],
             ),
@@ -330,11 +333,38 @@ class _RoleTag extends StatelessWidget {
   );
 }
 
+/// Sends a fresh code to the same address and role, then removes the old
+/// invite, so the list shows one invite per person.
+Future<void> _resend(
+  BuildContext context,
+  WidgetRef ref,
+  String churchId,
+  dynamic invite,
+) async {
+  final repo = ref.read(inviteRepositoryProvider);
+  try {
+    await repo.sendInvite(
+      churchId: churchId,
+      email: invite.email as String,
+      role: invite.role as String,
+    );
+    await repo.deleteInvite(churchId: churchId, inviteId: invite.id as String);
+    if (context.mounted) {
+      selNotice(context, 'A new code is on its way to ${invite.email}.');
+    }
+  } catch (e) {
+    if (context.mounted) {
+      selNotice(context, '$e', kind: SelNoticeKind.error);
+    }
+  }
+}
+
 class _InviteRow extends StatelessWidget {
-  const _InviteRow({required this.invite, required this.role});
+  const _InviteRow({required this.invite, required this.role, this.onResend});
 
   final dynamic invite;
   final String role;
+  final VoidCallback? onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +412,10 @@ class _InviteRow extends StatelessWidget {
               status: invite.status == 'accepted' ? 'accepted' : 'expired',
               label: invite.status == 'accepted' ? 'Accepted' : 'Expired',
             ),
+          if (onResend != null) ...[
+            const SizedBox(width: SelSpace.x3),
+            SelLink(label: 'Resend', onTap: onResend),
+          ],
         ],
       ),
     );

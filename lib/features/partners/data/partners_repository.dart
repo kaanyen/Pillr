@@ -204,6 +204,19 @@ class PartnersRepository {
     });
   }
 
+  /// Turns a partner's monthly thank-you letter on or off. Pastors only:
+  /// the rules let staff change contacts, not what the church sends.
+  Future<void> setMonthlyLetters({
+    required String churchId,
+    required String partnerId,
+    required bool on,
+  }) async {
+    await _partners(churchId).doc(partnerId).update({
+      'noMonthlyLetters': !on,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   /// Prefix search via Firestore (`memberId`, `fullNameLower`, `fellowshipLower`) plus
   /// client fallback for partners missing lowercase fields (legacy) or fuzzy match.
   Future<List<Partner>> searchPartners(

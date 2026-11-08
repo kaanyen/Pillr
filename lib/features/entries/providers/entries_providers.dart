@@ -38,6 +38,33 @@ final rankingEntriesProvider =
       );
 });
 
+/// When each partner last gave, from the whole church's approved giving in
+/// the active period.
+///
+/// Rankings for staff cover only what they recorded, but whether a partner
+/// has gone quiet is about the partner, not who typed their giving in; Follow
+/// up reads this for every role. The rules let staff read the church's
+/// entries.
+final churchLastGaveProvider =
+    StreamProvider.autoDispose<Map<String, DateTime>>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || idx.isAdmin) return Stream.value(const {});
+  final period = ref.watch(activePeriodProvider);
+  return ref
+      .watch(entriesRepositoryProvider)
+      .watchApprovedEntriesForRanking(idx.churchId, periodId: period?.id)
+      .map((entries) {
+        final last = <String, DateTime>{};
+        for (final e in entries) {
+          final seen = last[e.partnerId];
+          if (seen == null || e.dateGiven.isAfter(seen)) {
+            last[e.partnerId] = e.dateGiven;
+          }
+        }
+        return last;
+      });
+});
+
 /// Status counts and the approved total, from Firestore's aggregate index.
 ///
 /// Pastor: the whole church. Staff: their own submissions.

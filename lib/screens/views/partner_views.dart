@@ -8,6 +8,7 @@ import '../../core/extensions/async_value_ext.dart';
 import '../../design/seline.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/church/providers/church_settings_providers.dart';
+import '../../features/entries/providers/entries_providers.dart';
 import '../../features/leaderboard/giving_view.dart';
 import '../../features/partners/domain/partner.dart';
 import '../../features/partners/providers/partners_providers.dart';
@@ -861,9 +862,10 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final view = ref.watch(givingViewProvider);
     final roster = ref.watch(partnersStreamProvider(false));
-    final lastOf = {for (final p in view.partners) p.partnerId: p.lastGave};
+    // The whole church's giving, for every role: a partner is quiet when
+    // nobody has recorded giving for them, not just this person.
+    final lastOf = ref.watch(churchLastGaveProvider).valueOrNull ?? const {};
     final cutoff = DateTime.now().subtract(Duration(days: _days));
     final quiet =
         (roster.valueOrNull ?? const <Partner>[]).where((p) {

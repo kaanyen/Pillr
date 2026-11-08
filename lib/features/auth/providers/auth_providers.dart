@@ -56,3 +56,25 @@ final churchUserProfileProvider = StreamProvider<ChurchUser?>((ref) {
       .snapshots()
       .map(ChurchUser.fromSnapshot);
 });
+
+/// Records that this person opened Pillr, once per app run, on their own user
+/// record: People shows it as Last active, so an admin can tell who still
+/// uses the app. A failure is ignored; it never stops anyone working.
+final lastActiveRecorderProvider = Provider<void>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null) return;
+  final key = '${idx.churchId}/${idx.uid}';
+  if (_recordedActive.contains(key)) return;
+  _recordedActive.add(key);
+  ref
+      .read(firestoreProvider)
+      .collection('churches')
+      .doc(idx.churchId)
+      .collection('users')
+      .doc(idx.uid)
+      .update({'lastLoginAt': FieldValue.serverTimestamp()})
+      .catchError((_) {});
+});
+
+final _recordedActive = <String>{};
+

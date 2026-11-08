@@ -27,6 +27,7 @@ class Partner {
     this.address,
     this.notes,
     this.followUpReason,
+    this.noMonthlyLetters = false,
   });
 
   final String id;
@@ -68,6 +69,9 @@ class Partner {
   /// Why this partner has gone quiet, as last noted on Follow up
   /// ("Called 12 Oct, travelling").
   final String? followUpReason;
+
+  /// The church turned this partner's monthly thank-you letter off.
+  final bool noMonthlyLetters;
 
   /// [phones] with [phone] first, each once — what to show and compare.
   List<String> get allPhones => _distinctContacts([phone ?? '', ...phones]);
@@ -111,6 +115,7 @@ class Partner {
       address: m['address'] as String?,
       notes: m['notes'] as String?,
       followUpReason: m['followUpReason'] as String?,
+      noMonthlyLetters: m['noMonthlyLetters'] as bool? ?? false,
     );
   }
 }

@@ -414,6 +414,42 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 'Email',
                 val(partner.allEmails.isEmpty ? 'None yet' : partner.allEmails.join('\n')),
               ),
+              const Divider(height: 1, color: Sel.rowLine),
+              // Whether the monthly thank-you letter goes to this partner.
+              // Pastors switch it; everyone can see where it stands.
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: SelSpace.x3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Monthly letter', style: SelType.bodySm),
+                          val(
+                            partner.allEmails.isEmpty
+                                ? 'Needs an email'
+                                : partner.noMonthlyLetters
+                                ? 'Off'
+                                : 'On',
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (idx?.isPastor == true && partner.allEmails.isNotEmpty)
+                      Switch(
+                        value: !partner.noMonthlyLetters,
+                        onChanged: (on) => ref
+                            .read(partnersRepositoryProvider)
+                            .setMonthlyLetters(
+                              churchId: idx!.churchId,
+                              partnerId: partner.id,
+                              on: on,
+                            ),
+                      ),
+                  ],
+                ),
+              ),
               if ((partner.address ?? '').trim().isNotEmpty) ...[
                 const Divider(height: 1, color: Sel.rowLine),
                 fact('Address', val(partner.address!.trim())),
