@@ -262,7 +262,7 @@ export function buildPartnerEmailHtml(opts: {
 
   const foot = opts.preview
     ? "This is a preview from Pillr. The figures are examples, not anyone's giving."
-    : `Something not right? Reply to this email and it goes to ${esc(opts.pastorName)}. Only approved giving is listed; anything still being checked will show next month.<br>To stop these letters, reply and say so.`;
+    : `Something not right? Reply to this email and it goes to ${esc(opts.pastorName)}. Only approved giving is listed; anything still being checked will show next month.<br>To stop these letters, reply and say so, and the church will turn them off for you.`;
 
   return `<!doctype html>
 <html lang="en">

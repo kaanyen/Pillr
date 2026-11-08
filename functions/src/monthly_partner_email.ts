@@ -253,6 +253,7 @@ export async function runChurchMonthlyEmails(opts: {
   );
   const markColor = String(church.primaryColorHex || church.primaryColor || "");
   const skippedNoEmail: SkipRow[] = [];
+  const skippedOptedOut: SkipRow[] = [];
   const failed: FailRow[] = [];
   let sent = 0;
   const live = opts.liveSend && shouldSendLive();
@@ -264,6 +265,11 @@ export async function runChurchMonthlyEmails(opts: {
     const fullName = String(p.fullName || row.partnerId);
     const memberId = String(p.memberId || "");
     const email = String(p.email || "").trim();
+    // The church turned this partner's letters off on their profile.
+    if (p.noMonthlyLetters === true) {
+      skippedOptedOut.push({partnerId, fullName, memberId, amount: row.monthTotal});
+      continue;
+    }
     if (!email || !isLikelyEmail(email)) {
       skippedNoEmail.push({partnerId, fullName, memberId, amount: row.monthTotal});
       continue;
@@ -326,6 +332,7 @@ export async function runChurchMonthlyEmails(opts: {
     monthLabel: label,
     sent,
     skippedNoEmail,
+    skippedOptedOut,
     failed,
     dryRun: !live,
   });
@@ -348,6 +355,7 @@ async function writeReport(
     monthLabel: string;
     sent: number;
     skippedNoEmail: SkipRow[];
+    skippedOptedOut?: SkipRow[];
     failed: FailRow[];
     dryRun: boolean;
     skipReason?: string;
@@ -360,6 +368,8 @@ async function writeReport(
     skippedNoEmailCount: data.skippedNoEmail.length,
     failedCount: data.failed.length,
     skippedNoEmail: data.skippedNoEmail,
+    skippedOptedOutCount: (data.skippedOptedOut ?? []).length,
+    skippedOptedOut: data.skippedOptedOut ?? [],
     failed: data.failed,
     dryRun: data.dryRun,
     skipReason: data.skipReason ?? null,

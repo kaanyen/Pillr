@@ -172,7 +172,7 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
                                      'entryCount', 'updatedAt']);
-        // A partner is never deleted: their gifts point at them, and a record
+        // A partner is never deleted: their giving points at them, and a record
         // that vanishes cannot be explained or restored. Close them (isActive)
         // or merge them; both keep the record and can be undone.
         allow delete: if false;
