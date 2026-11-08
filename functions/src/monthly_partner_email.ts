@@ -8,6 +8,7 @@ import {
   armTotalsFromMap,
   buildFromHeader,
   buildPartnerEmailHtml,
+  monthsArray,
   type EntryRow,
   isLikelyEmail,
   monthLabel,
@@ -246,7 +247,11 @@ export async function runChurchMonthlyEmails(opts: {
   const churchName = String(church.name || "your church");
   const currencySymbol = String(church.currencySymbol || "₵");
   const entries = await loadApprovedEntries(opts.churchId, range.yearStart, range.end);
-  const totals = accumulateEntries(entries, range.start, range.end);
+  const monthFmt = new Intl.DateTimeFormat("en-US", {timeZone, month: "numeric"});
+  const totals = accumulateEntries(entries, range.start, range.end, (d) =>
+    Number(monthFmt.format(d)),
+  );
+  const markColor = String(church.primaryColorHex || church.primaryColor || "");
   const skippedNoEmail: SkipRow[] = [];
   const failed: FailRow[] = [];
   let sent = 0;
@@ -280,6 +285,8 @@ export async function runChurchMonthlyEmails(opts: {
       monthTotal: row.monthTotal,
       ytdArms: armTotalsFromMap(row.ytdByArm),
       ytdTotal: row.ytdTotal,
+      ytdByMonth: monthsArray(row.ytdByMonth, month),
+      markColor,
       pastorName: pastor.fullName,
       currencySymbol,
     });
@@ -456,6 +463,10 @@ export const previewMonthlyPartnerGivingEmail = onCall({region: REGION}, async (
       {name: "Building", amount: 800},
     ],
     ytdTotal: 2900,
+    ytdByMonth: Array.from({length: prev.month}, (_, i) =>
+      [240, 180, 300, 260, 220, 380, 200, 310, 450, 290, 330, 260][i] ?? 0,
+    ),
+    markColor: String(church.primaryColorHex || church.primaryColor || ""),
     pastorName: pastor.fullName,
     currencySymbol,
     preview: true,

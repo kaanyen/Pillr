@@ -52,7 +52,7 @@ describe("monthly partner email helpers", () => {
 
   it("escapes names in the letter", () => {
     const html = lib.buildPartnerEmailHtml({
-      partnerName: 'Ama <script>',
+      partnerName: '<script>Ama Boateng',
       churchName: "Airport & City",
       monthLabel: "July 2026",
       year: 2026,
@@ -64,8 +64,43 @@ describe("monthly partner email helpers", () => {
       currencySymbol: "₵",
     });
     assert.equal(html.includes("<script>"), false);
-    assert.equal(html.includes("Ama &lt;script&gt;"), true);
+    // The letter greets by first name; that name is escaped too.
+    assert.equal(html.includes("Thank you, &lt;script&gt;Ama."), true);
     assert.equal(html.includes("Airport &amp; City"), true);
+  });
+
+  it("draws the year as month bars with the last month darkest", () => {
+    const html = lib.buildPartnerEmailHtml({
+      partnerName: "Ama Boateng",
+      churchName: "Demo Community Church",
+      monthLabel: "October 2026",
+      year: 2026,
+      monthArms: [{name: "Tithe", amount: 800}],
+      monthTotal: 800,
+      ytdArms: [{name: "Tithe", amount: 1600}],
+      ytdTotal: 1600,
+      ytdByMonth: lib.monthsArray(new Map([[1, 800], [10, 800]]), 10),
+      markColor: "not-a-colour",
+      pastorName: "Demo Pastor",
+      currencySymbol: "₵",
+    });
+    assert.equal(html.includes("Thank you, Ama."), true);
+    assert.equal(html.includes("You gave in 2 of 10 months."), true);
+    assert.equal(html.includes(">DC<"), true);
+    // A malformed mark colour falls back to navy.
+    assert.equal(html.includes("background: #13426f; color: #ffffff"), true);
+    assert.equal(html.toLowerCase().includes("gift"), false);
+  });
+
+  it("totals giving by month in the church's time zone", () => {
+    const totals = lib.accumulateEntries(
+      [{partnerId: "p", amount: 50, dateGiven: new Date("2026-09-30T23:30:00Z"), armName: "Tithe"}],
+      new Date("2026-10-01T00:00:00Z"),
+      new Date("2026-11-01T00:00:00Z"),
+      () => 10,
+    );
+    assert.equal(totals.get("p").ytdByMonth.get(10), 50);
+    assert.deepEqual(lib.monthsArray(totals.get("p").ytdByMonth, 3), [0, 0, 0]);
   });
 
   it("uses the Airport City key for that domain", () => {
