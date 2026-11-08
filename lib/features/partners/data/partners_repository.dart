@@ -204,8 +204,8 @@ class PartnersRepository {
     });
   }
 
-  /// Turns a partner's monthly thank-you letter on or off. Pastors only:
-  /// the rules let staff change contacts, not what the church sends.
+  /// Turns a partner's monthly thank-you letter on or off. Pastors and staff
+  /// may; the rules allow both.
   Future<void> setMonthlyLetters({
     required String churchId,
     required String partnerId,

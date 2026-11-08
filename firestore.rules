@@ -154,7 +154,8 @@ service cloud.firestore {
                                     'mergedAliases', 'splitFrom'])
                       && keepsOldMemberId();
         // Staff edit a partner's name, member ID, contacts, address and
-        // notes. The fellowship may change only in casing — a real move goes
+        // notes, and switch their monthly letter on or off. The fellowship
+        // may change only in casing — a real move goes
         // through the recorded fellowship move — and staff never close a
         // partner.
         allow update: if belongsToChurch(churchId) && isStaff()
@@ -162,7 +163,7 @@ service cloud.firestore {
                            .hasOnly(['fullName', 'fullNameLower', 'memberId',
                                      'formerMemberIds', 'email', 'phone',
                                      'phones', 'emails', 'address', 'notes',
-                                     'followUpReason',
+                                     'followUpReason', 'noMonthlyLetters',
                                      'fellowship', 'fellowshipLower',
                                      'updatedAt'])
                       && sameIgnoringCase('fellowship')

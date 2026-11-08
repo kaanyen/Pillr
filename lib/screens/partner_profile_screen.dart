@@ -417,7 +417,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
               ),
               const Divider(height: 1, color: Sel.rowLine),
               // Whether the monthly thank-you letter goes to this partner.
-              // Pastors switch it; everyone can see where it stands.
+              // Pastors and staff switch it; everyone can see where it stands.
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: SelSpace.x3),
                 child: Row(
@@ -437,7 +437,8 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                         ],
                       ),
                     ),
-                    if (idx?.isPastor == true && partner.allEmails.isNotEmpty)
+                    if ((idx?.isPastor == true || idx?.role == 'staff') &&
+                        partner.allEmails.isNotEmpty)
                       Switch(
                         value: !partner.noMonthlyLetters,
                         onChanged: (on) => ref

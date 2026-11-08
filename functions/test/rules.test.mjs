@@ -237,6 +237,55 @@ describe("admin fellowship tools", () => {
   });
 });
 
+describe("monthly letters switch", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/partners/p2"), {
+        churchId: "c1",
+        fullName: "Kofi Owusu",
+        fellowship: "Zion",
+        fellowshipLower: "zion",
+        email: "kofi@example.com",
+        isActive: true,
+      });
+    });
+  });
+
+  it("lets staff turn a partner's letters off and on", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p2"), {
+      noMonthlyLetters: true,
+      updatedAt: new Date(),
+    }));
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p2"), {
+      noMonthlyLetters: false,
+      updatedAt: new Date(),
+    }));
+  });
+
+  it("lets a pastor switch them", async () => {
+    const db = env.authenticatedContext(PASTOR).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p2"), {
+      noMonthlyLetters: true,
+    }));
+  });
+
+  it("refuses staff closing a partner with the same write", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p2"), {
+      noMonthlyLetters: true,
+      isActive: false,
+    }));
+  });
+
+  it("refuses an admin switching them", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p2"), {
+      noMonthlyLetters: true,
+    }));
+  });
+});
+
 describe("staff ledger tools", () => {
   before(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
