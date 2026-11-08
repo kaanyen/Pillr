@@ -12,6 +12,7 @@ import '../../screens/entries/entry_form_screen.dart';
 import '../../screens/partner_profile_screen.dart';
 import '../../shell/sel_shell.dart';
 import '../../screens/activity_screen.dart';
+import '../../screens/letters_screen.dart';
 import '../../screens/help_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../screens/search_screen.dart';
@@ -301,6 +302,11 @@ GoRouter createRouter() {
             path: '/settings',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: SettingsScreen()),
+          ),
+          GoRoute(
+            path: '/settings/letters',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: LettersScreen()),
           ),
           GoRoute(
             path: '/search',

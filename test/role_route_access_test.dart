@@ -58,4 +58,11 @@ void main() {
       isTrue,
     );
   });
+
+  test('monthly letters are for pastors only', () {
+    expect(isPathForbiddenForRole('/settings/letters', 'pastor'), isFalse);
+    expect(isPathForbiddenForRole('/settings/letters', 'staff'), isTrue);
+    expect(isPathForbiddenForRole('/settings/letters', 'admin'), isTrue);
+    expect(isPathForbiddenForRole('/settings', 'staff'), isFalse);
+  });
 }

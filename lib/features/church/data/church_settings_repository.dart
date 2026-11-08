@@ -111,6 +111,28 @@ class ChurchSettingsRepository {
     });
   }
 
+  /// The last year of monthly runs, newest first.
+  Stream<List<MonthlyEmailReport>> watchMonthlyEmailReports(String churchId) {
+    return _church(churchId)
+        .collection('monthly_email_reports')
+        .orderBy('ranAt', descending: true)
+        .limit(12)
+        .snapshots()
+        .map((s) => s.docs.map(MonthlyEmailReport.fromDoc).toList());
+  }
+
+  /// Every letter recorded for one month (YYYY-MM).
+  Stream<List<MonthlyEmailDelivery>> watchMonthlyEmailDeliveries(
+    String churchId,
+    String yearMonth,
+  ) {
+    return _church(churchId)
+        .collection('monthly_email_deliveries')
+        .where('yearMonth', isEqualTo: yearMonth)
+        .snapshots()
+        .map((s) => s.docs.map(MonthlyEmailDelivery.fromDoc).toList());
+  }
+
   Future<String> previewMonthlyPartnerEmail() async {
     try {
       final callable = _functions.httpsCallable(
@@ -125,12 +147,15 @@ class ChurchSettingsRepository {
   }
 
   Future<({int sent, int skipped, int failed, bool dryRun, String yearMonth})>
-      runMonthlyPartnerEmails() async {
+      runMonthlyPartnerEmails({String? yearMonth}) async {
     try {
       final callable = _functions.httpsCallable(
         FirebaseConstants.runMonthlyPartnerGivingSummary,
       );
-      final result = await callable.call(<String, dynamic>{});
+      // A month already run sends only to those not sent yet.
+      final result = await callable.call(<String, dynamic>{
+        'yearMonth': ?yearMonth,
+      });
       final data = Map<String, dynamic>.from(result.data as Map? ?? {});
       return (
         sent: (data['sent'] as num?)?.toInt() ?? 0,

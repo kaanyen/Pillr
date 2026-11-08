@@ -11,6 +11,10 @@ bool isPathForbiddenForRole(String location, String role) {
 
   bool starts(String p) => path == p || path.startsWith('$p/');
 
+  // Who the monthly letters reached is the pastor's: the delivery records
+  // are readable by pastors only.
+  if (starts('/settings/letters')) return role != 'pastor';
+
   // Overview, Settings and Help adapt to the viewer — always allowed.
   if (starts('/overview') || starts('/settings') || starts('/help')) {
     return false;

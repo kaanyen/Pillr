@@ -8,6 +8,7 @@ import '../core/extensions/async_value_ext.dart';
 import '../core/navigation/panel_flows.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
+import 'pdf_actions.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../core/notifications/sel_notice.dart';
@@ -219,10 +220,10 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 spacing: SelSpace.x10,
                 runSpacing: SelSpace.x4,
                 children: [
-                  figure('Approved', sum(appr), '${appr.length} entries${span(appr)}'),
-                  figure('Waiting for review', sum(wait), '${wait.length} entries'),
+                  figure('Approved', sum(appr), '${appr.length} ${appr.length == 1 ? 'entry' : 'entries'}${span(appr)}'),
+                  figure('Waiting for review', sum(wait), '${wait.length} ${wait.length == 1 ? 'entry' : 'entries'}'),
                   if (previous != null)
-                    figure('All of ${previous.name}', sum(prev), '${prev.length} entries'),
+                    figure('All of ${previous.name}', sum(prev), '${prev.length} ${prev.length == 1 ? 'entry' : 'entries'}'),
                 ],
               ),
               if (months.isNotEmpty) ...[
@@ -582,6 +583,16 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
                 ],
               ),
             ),
+            SelButton(
+              label: 'Statement',
+              onPressed: () => sharePartnerStatement(
+                context,
+                ref,
+                partner: partner,
+                entries: all,
+              ),
+            ),
+            const SizedBox(width: SelSpace.x2),
             if (idx?.isPastor == true || idx?.role == 'staff') ...[
               SelButton(
                 label: 'Edit',

@@ -7,6 +7,7 @@ import '../../core/extensions/async_value_ext.dart';
 import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../design/seline.dart';
+import '../pdf_actions.dart';
 import '../../features/activity/activity_log_helper.dart';
 import '../../features/arms/providers/arms_providers.dart';
 import '../../features/auth/domain/church_user.dart';
@@ -201,6 +202,16 @@ class EntryDetailScreen extends ConsumerWidget {
               if (idx != null && profile != null) ...[
                 const SizedBox(height: SelSpace.x6),
                 _Actions(entry: entry, idx: idx, profile: profile),
+                if (entry.status == 'approved') ...[
+                  const SizedBox(height: SelSpace.x3),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SelButton(
+                      label: 'Receipt',
+                      onPressed: () => shareEntryReceipt(context, ref, entry: entry),
+                    ),
+                  ),
+                ],
               ],
             ],
           ),

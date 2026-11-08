@@ -1,5 +1,6 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -319,7 +320,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         section(
           'Thanking partners',
           'A monthly email to every partner with an email address, listing their approved giving.',
-          MonthlyPartnerEmailPanel(idx: idx, settings: settings, bare: true),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              MonthlyPartnerEmailPanel(idx: idx, settings: settings, bare: true),
+              if (idx.isPastor) ...[
+                const SizedBox(height: SelSpace.x4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SelLink(
+                    label: 'See who each month\'s letter reached',
+                    onTap: () => context.go('/settings/letters'),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       if (canRates && settings != null)
         section(
