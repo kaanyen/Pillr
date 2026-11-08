@@ -132,13 +132,15 @@ class RecordOpsRepository {
     required String churchId,
     required String keepId,
     required List<String> absorbIds,
-    required int expectEntries,
+    /// How many entries the person was told will move; null when they were
+    /// not told (staff and admins do not read every entry).
+    int? expectEntries,
   }) async {
     final r = await _call(FirebaseConstants.partnerMerge, {
       'churchId': churchId,
       'keepId': keepId,
       'absorbIds': absorbIds,
-      'expectEntries': expectEntries,
+      'expectEntries': ?expectEntries,
     });
     return PartnerMergeResult(
       opId: r['opId'] as String?,

@@ -76,6 +76,12 @@ service cloud.firestore {
       return isAuthenticated() && getUserChurchId() == churchId;
     }
 
+    // What anyone gave. Never on a record staff or admins can read.
+    function figureFields() {
+      return ['totalApprovedAmount', 'totalApprovedPesewas', 'entryCount',
+              'amountCedis', 'amount', 'totalCedis', 'originalAmount'];
+    }
+
     function isOwnEntry(entry) {
       return entry.createdBy == request.auth.uid;
     }
@@ -144,7 +150,10 @@ service cloud.firestore {
 
       match /partners/{partnerId} {
         allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
-        allow create: if belongsToChurch(churchId) && (isPastor() || isStaff());
+        // A partner record holds no figures: what they gave lives in
+        // partner_totals, which only pastors read.
+        allow create: if belongsToChurch(churchId) && (isPastor() || isStaff())
+                      && !request.resource.data.keys().hasAny(figureFields());
         // Pastor edits any partner, but not the merge record: merges, fellowship
         // merges and moves run through the fellowshipChange / partnerMerge
         // callables, which record every change so it can be undone.
@@ -168,19 +177,27 @@ service cloud.firestore {
                                      'updatedAt'])
                       && sameIgnoringCase('fellowship')
                       && keepsOldMemberId();
-        // Staff Tools: write recomputed partner totals.
-        allow update: if belongsToChurch(churchId) && isStaff()
-                      && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
-                                     'entryCount', 'updatedAt']);
         // A partner is never deleted: their giving points at them, and a record
         // that vanishes cannot be explained or restored. Close them (isActive)
         // or merge them; both keep the record and can be undone.
         allow delete: if false;
       }
 
+      // What a partner gave, kept by the server as entries are approved,
+      // edited and voided. Pastors only: staff see the giving they recorded,
+      // admins see none. A pastor may write it when repairing totals.
+      match /partner_totals/{partnerId} {
+        allow read, write: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /period_totals/{periodId} {
+        allow read, write: if belongsToChurch(churchId) && isPastor();
+      }
+
       match /entries/{entryId} {
-        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
+        // Pastors read every entry; staff only the ones they recorded.
+        allow read: if belongsToChurch(churchId)
+                    && (isPastor() || (isStaff() && isOwnEntry(resource.data)));
 
         // Pastor: may create entries as approved (self-approve) or pending.
         // Field-level review checks are enforced in app code, not rules,
@@ -211,8 +228,10 @@ service cloud.firestore {
                       && !writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.createdBy == resource.data.createdBy;
 
-        // Staff Tools: void a duplicate entry. Amount and review stay untouched.
+        // Staff Tools: void a duplicate entry they recorded. Amount and review
+        // stay untouched.
         allow update: if belongsToChurch(churchId) && isStaff()
+                      && isOwnEntry(resource.data)
                       && writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['status', 'voidedBy', 'voidedAt', 'voidReason',
@@ -234,11 +253,6 @@ service cloud.firestore {
       match /partnership_periods/{periodId} {
         allow read: if belongsToChurch(churchId);
         allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
-        // Staff Tools: write recomputed period totals.
-        allow update: if belongsToChurch(churchId) && isStaff()
-                      && request.resource.data.diff(resource.data).affectedKeys()
-                           .hasOnly(['totalApprovedAmount', 'totalApprovedPesewas',
-                                     'entryCount', 'updatedAt']);
       }
 
       match /goals/{goalId} {
@@ -259,7 +273,9 @@ service cloud.firestore {
         // provenance. What it *did* is fixed: the file name, the counts, the
         // total, and who ran it are not in either list below, so no client can
         // rewrite them.
-        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
+        // Staff see the sheets they brought in, not anyone else's.
+        allow read: if belongsToChurch(churchId)
+                    && (isPastor() || (isStaff() && resource.data.createdBy == request.auth.uid));
         allow create: if belongsToChurch(churchId) && isPastorOrStaff();
 
         // Whoever ran it may record that they undid it.
@@ -300,6 +316,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // A month's letter run as counts only (sent, failed, no email, turned
+      // off), for the admin who looks after the letters' set-up.
+      match /monthly_email_summaries/{yearMonth} {
+        allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow write: if false;
+      }
+
       match /monthly_email_deliveries/{deliveryId} {
         allow read: if belongsToChurch(churchId) && isPastor();
         allow write: if false;
@@ -337,7 +360,11 @@ service cloud.firestore {
       match /activity_logs/{logId} {
         // Admin: full audit UI. Pastor: dashboards + transparency (§15).
         allow read: if belongsToChurch(churchId) && (isAdmin() || isPastor());
-        allow create: if belongsToChurch(churchId);
+        // Admins read the log, so it never carries a figure. The app strips
+        // them at every depth; this holds the top level.
+        allow create: if belongsToChurch(churchId)
+                      && !(request.resource.data.get('entitySnapshot', {}) is map
+                           && request.resource.data.get('entitySnapshot', {}).keys().hasAny(figureFields()));
         allow update: if false;
         allow delete: if false;
       }

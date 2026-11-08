@@ -50,6 +50,7 @@ import 'bulk_import_commit_progress.dart';
 import 'bulk_import_session_store.dart';
 import 'bulk_import_xlsx_pick.dart';
 import '../data/entries_repository.dart';
+import '../data/similar_entries.dart';
 import '../providers/entries_providers.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
@@ -2474,8 +2475,46 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   Future<void> _applyDatabaseDuplicateFlags(UserChurchIndex idx) async {
     if (_resolved == null) return;
     final entriesRepo = ref.read(entriesRepositoryProvider);
-    // Always scan ALL church entries — staff can now read all entries and need
-    // to detect duplicates created by other staff members too.
+    // Staff read only their own entries, but a row may repeat one another
+    // staff member recorded: the server compares against the whole church
+    // and says only which rows look like duplicates.
+    if (idx.isStaff) {
+      try {
+        final rows = _resolved!;
+        final hits = await ref.read(similarEntriesProvider).check([
+          for (var i = 0; i < rows.length; i++)
+            if (rows[i].partnerId != null && rows[i].armId != null && rows[i].periodId != null)
+              (
+                key: '$i',
+                partnerId: rows[i].partnerId!,
+                armId: rows[i].armId!,
+                periodId: rows[i].periodId!,
+                amountCedis: rows[i].amountCedis,
+                dateGiven: rows[i].dateGiven,
+              ),
+        ]);
+        if (!mounted || _resolved == null) return;
+        final updated = <BulkResolvedRow>[];
+        for (var i = 0; i < _resolved!.length; i++) {
+          final r = _resolved![i];
+          final issues = List<BulkImportIssue>.from(r.issues)
+            ..removeWhere((x) => x.code == BulkImportIssueCode.duplicateInDatabase);
+          if (hits.contains('$i')) {
+            issues.add(const BulkImportIssue(
+              code: BulkImportIssueCode.duplicateInDatabase,
+              severity: BulkImportSeverity.warning,
+            ));
+          }
+          final block = issues.any((e) => e.severity == BulkImportSeverity.error);
+          updated.add(r.copyWith(issues: issues, isBlocking: block));
+        }
+        setState(() => _resolved = updated);
+        _schedulePersistSession();
+      } catch (e) {
+        if (mounted) setState(() => _error = 'Could not check for duplicates: $e');
+      }
+      return;
+    }
     try {
       await _warmDuplicateCache(idx, entriesRepo);
       final updated = <BulkResolvedRow>[];

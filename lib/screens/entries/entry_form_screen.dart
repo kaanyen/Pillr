@@ -23,6 +23,7 @@ import '../../features/auth/providers/auth_providers.dart';
 import '../../features/partners/domain/partner.dart';
 import '../../features/periods/domain/partnership_period.dart';
 import '../../features/periods/providers/periods_providers.dart';
+import '../../features/entries/data/similar_entries.dart';
 import '../../features/entries/domain/partnership_entry.dart';
 import '../../features/entries/providers/entries_providers.dart';
 
@@ -844,20 +845,37 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       } else {
         final idx = ref.read(userChurchIndexProvider).valueOrNull;
         if (idx != null && (idx.isPastor || idx.isStaff)) {
-          final candidates = await repo.fetchEntriesForDuplicateCheck(
-            churchId,
-            partnerId: _partner!.id,
-            allChurchEntries: idx.isPastor,
-            createdByUid: idx.isStaff ? idx.uid : null,
-          );
-          if (hasSimilarPartnershipEntryWithSameDate(
-            candidates,
-            partnerId: _partner!.id,
-            armId: _arm!.id,
-            periodId: period.id,
-            amount: amount,
-            dateGiven: _dateGiven,
-          )) {
+          // Pastors compare here; staff, who read only their own entries,
+          // ask the server, which compares against everyone's.
+          final bool similar;
+          if (idx.isPastor) {
+            final candidates = await repo.fetchEntriesForDuplicateCheck(
+              churchId,
+              partnerId: _partner!.id,
+              allChurchEntries: true,
+            );
+            similar = hasSimilarPartnershipEntryWithSameDate(
+              candidates,
+              partnerId: _partner!.id,
+              armId: _arm!.id,
+              periodId: period.id,
+              amount: amount,
+              dateGiven: _dateGiven,
+            );
+          } else {
+            final hits = await ref.read(similarEntriesProvider).check([
+              (
+                key: 'new',
+                partnerId: _partner!.id,
+                armId: _arm!.id,
+                periodId: period.id,
+                amountCedis: amount,
+                dateGiven: _dateGiven,
+              ),
+            ]);
+            similar = hits.contains('new');
+          }
+          if (similar) {
             if (!mounted) return;
             final proceed = await showDialog<bool>(
               context: context,

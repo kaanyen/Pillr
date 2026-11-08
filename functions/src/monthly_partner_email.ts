@@ -395,6 +395,18 @@ async function writeReport(
     skipReason?: string;
   },
 ): Promise<void> {
+  // The same run as counts only, for the admin who looks after the letters.
+  await db().doc(`churches/${churchId}/monthly_email_summaries/${yearMonth}`).set({
+    yearMonth,
+    monthLabel: data.monthLabel,
+    sent: data.sent,
+    failed: data.failed.length,
+    noEmail: data.skippedNoEmail.length,
+    turnedOff: (data.skippedOptedOut ?? []).length,
+    dryRun: data.dryRun,
+    skipReason: data.skipReason ?? null,
+    ranAt: FieldValue.serverTimestamp(),
+  });
   await db().doc(`churches/${churchId}/monthly_email_reports/${yearMonth}`).set({
     yearMonth,
     monthLabel: data.monthLabel,

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../totals/totals_providers.dart';
+
 import '../../../core/extensions/async_value_ext.dart';
 import '../../arms/domain/arm_tree.dart';
 import '../../arms/providers/arms_providers.dart';
@@ -36,10 +38,7 @@ final armFamilyApprovedCedisProvider = FutureProvider.autoDispose
     .family<double, ({String periodId, String armIds})>((ref, key) async {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
   if (idx == null) return 0;
-  ref.watch(periodsStreamProvider.select((v) => v.valueOrNull
-      ?.where((p) => p.id == key.periodId)
-      .firstOrNull
-      ?.totalApprovedAmount));
+  ref.watch(periodTotalsProvider.select((v) => v.valueOrNull?[key.periodId]?.cedis));
   return ref.watch(entriesRepositoryProvider).fetchApprovedCedisForArms(
         idx.churchId,
         periodId: key.periodId,

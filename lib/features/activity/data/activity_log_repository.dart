@@ -64,9 +64,26 @@ class ActivityLogRepository {
       'entityId': entityId,
       'entitySnapshot': entitySnapshot == null
           ? null
-          : TextCaseUtils.normalizeLooseEntitySnapshot(entitySnapshot),
+          : withoutFigures(TextCaseUtils.normalizeLooseEntitySnapshot(entitySnapshot)),
       'metadata': metadata,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 }
+
+/// The activity log is read by admins, who never see what anyone gave, so
+/// no amount or total is ever written into it, at any depth. The figure
+/// stays on the entry, which admins cannot read.
+Map<String, dynamic> withoutFigures(Map<String, dynamic> m) {
+  bool isFigure(String k) => RegExp('amount|total|cedis|pesewa', caseSensitive: false).hasMatch(k);
+  Object? clean(Object? v) => switch (v) {
+    final Map<dynamic, dynamic> mm => withoutFigures(Map<String, dynamic>.from(mm)),
+    final List<dynamic> l => [for (final x in l) clean(x)],
+    _ => v,
+  };
+  return {
+    for (final e in m.entries)
+      if (!isFigure(e.key)) e.key: clean(e.value),
+  };
+}
+

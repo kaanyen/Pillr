@@ -23,13 +23,22 @@ String statusBeforeVoid(PartnershipEntry e) {
 }
 
 class EntriesRepository {
-  EntriesRepository(this._firestore);
+  EntriesRepository(this._firestore, {this.onlyCreatedBy});
 
   final FirebaseFirestore _firestore;
+
+  /// A staff member's uid: every query then asks only for the entries they
+  /// recorded, which is all the rules let staff read. Null for pastors.
+  final String? onlyCreatedBy;
 
   CollectionReference<Map<String, dynamic>> _entries(String churchId) {
     return _firestore.collection('churches').doc(churchId).collection('entries');
   }
+
+  /// Where every list of entries starts: the church's, or for staff their own.
+  Query<Map<String, dynamic>> _query(String churchId) => onlyCreatedBy == null
+      ? _entries(churchId)
+      : _entries(churchId).where('createdBy', isEqualTo: onlyCreatedBy);
 
   Stream<List<PartnershipEntry>> watchMyEntries(String churchId, String uid) {
     return _entries(churchId)
@@ -65,11 +74,11 @@ class EntriesRepository {
     String? createdByUid,
   }) {
     Query<Map<String, dynamic>> q =
-        _entries(churchId).where('status', isEqualTo: 'approved');
+        _query(churchId).where('status', isEqualTo: 'approved');
     if (periodId != null && periodId.isNotEmpty) {
       q = q.where('partnershipPeriodId', isEqualTo: periodId);
     }
-    if (createdByUid != null && createdByUid.isNotEmpty) {
+    if (createdByUid != null && createdByUid.isNotEmpty && onlyCreatedBy == null) {
       q = q.where('createdBy', isEqualTo: createdByUid);
     }
     return q
@@ -102,8 +111,8 @@ class EntriesRepository {
     String churchId, {
     String? createdByUid,
   }) async {
-    Query<Map<String, dynamic>> base = _entries(churchId);
-    if (createdByUid != null && createdByUid.isNotEmpty) {
+    Query<Map<String, dynamic>> base = _query(churchId);
+    if (createdByUid != null && createdByUid.isNotEmpty && onlyCreatedBy == null) {
       base = base.where('createdBy', isEqualTo: createdByUid);
     }
 
@@ -141,7 +150,7 @@ class EntriesRepository {
     // `whereIn` takes at most 30 values.
     for (var i = 0; i < armIds.length; i += 30) {
       final chunk = armIds.sublist(i, i + 30 > armIds.length ? armIds.length : i + 30);
-      final snap = await _entries(churchId)
+      final snap = await _query(churchId)
           .where('partnershipPeriodId', isEqualTo: periodId)
           .where('status', isEqualTo: 'approved')
           .where('partnershipArmId', whereIn: chunk)
@@ -157,7 +166,7 @@ class EntriesRepository {
   /// By `dateGiven` for the same reason the paged lists are: this is a record
   /// of giving, and the date on the row is the date it should sort by.
   Stream<List<PartnershipEntry>> watchPartnerEntries(String churchId, String partnerId) {
-    return _entries(churchId)
+    return _query(churchId)
         .where('partnerId', isEqualTo: partnerId)
         .orderBy('dateGiven', descending: true)
         .snapshots()
@@ -206,8 +215,8 @@ class EntriesRepository {
     DocumentSnapshot<Map<String, dynamic>>? startAfter,
   }) async {
     assert(allChurchEntries || (createdByUid != null && createdByUid.isNotEmpty));
-    Query<Map<String, dynamic>> q = _entries(churchId);
-    if (!allChurchEntries) {
+    Query<Map<String, dynamic>> q = _query(churchId);
+    if (!allChurchEntries && onlyCreatedBy == null) {
       q = q.where('createdBy', isEqualTo: createdByUid);
     }
     if (statusFilter != null && statusFilter.isNotEmpty) {
@@ -239,8 +248,8 @@ class EntriesRepository {
     String? createdByUid,
   }) async {
     assert(allChurchEntries || (createdByUid != null && createdByUid.isNotEmpty));
-    Query<Map<String, dynamic>> q = _entries(churchId).where('partnerId', isEqualTo: partnerId);
-    if (!allChurchEntries) {
+    Query<Map<String, dynamic>> q = _query(churchId).where('partnerId', isEqualTo: partnerId);
+    if (!allChurchEntries && onlyCreatedBy == null) {
       q = q.where('createdBy', isEqualTo: createdByUid);
     }
     final snap = await q.get();
@@ -649,7 +658,7 @@ class EntriesRepository {
     String churchId,
     String batchId,
   ) async {
-    final snap = await _entries(churchId)
+    final snap = await _query(churchId)
         .where('importBatchId', isEqualTo: batchId)
         .get();
     return snap.docs.map(PartnershipEntry.fromDoc).toList();
@@ -853,7 +862,7 @@ class EntriesRepository {
     required String churchId,
     required ChurchExchangeRates rates,
   }) async {
-    final snap = await _entries(churchId)
+    final snap = await _query(churchId)
         .where(
           'sourceCurrency',
           whereIn: SelectableCurrency.all

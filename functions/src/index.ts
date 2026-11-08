@@ -799,16 +799,26 @@ async function moveAggregates(
   // does exactly that — and Firestore refuses two writes to one document in a
   // batch, so the moves are netted per document first.
   const moves = new Map<string, AggregateMove>();
-  const add = (path: string, pesewas: number, count: number) => {
+  // A partner's and a period's totals live in their own records, which only
+  // pastors can read (partner_totals, period_totals): the partner and period
+  // themselves are read by staff and admins, who must not see what anyone
+  // gave. Each totals record is written only while what it belongs to exists.
+  const owners = new Map<string, string>();
+  const add = (path: string, pesewas: number, count: number, owner?: string) => {
     const cur = moves.get(path) ?? {pesewas: 0, count: 0};
     moves.set(path, {pesewas: cur.pesewas + pesewas, count: cur.count + count});
+    if (owner) owners.set(path, owner);
   };
 
   for (const [side, sign] of [[reverse, -1], [apply, 1]] as const) {
     if (!side) continue;
-    if (side.partnerId) add(`churches/${churchId}/partners/${side.partnerId}`, sign * side.pesewas, sign);
+    if (side.partnerId) {
+      add(`churches/${churchId}/partner_totals/${side.partnerId}`, sign * side.pesewas, sign,
+        `churches/${churchId}/partners/${side.partnerId}`);
+    }
     if (side.periodId) {
-      add(`churches/${churchId}/partnership_periods/${side.periodId}`, sign * side.pesewas, sign);
+      add(`churches/${churchId}/period_totals/${side.periodId}`, sign * side.pesewas, sign,
+        `churches/${churchId}/partnership_periods/${side.periodId}`);
       const goalPath = await goalPathFor(churchId, side.periodId, side.armId);
       if (goalPath) add(goalPath, sign * side.pesewas, 0);
     }
@@ -820,9 +830,10 @@ async function moveAggregates(
   // stamped as settled. A target that no longer exists has no total left to
   // correct; the rest of the move still has to land.
   const paths = [...moves.keys()];
-  const targets = paths.length > 0 ? await db.getAll(...paths.map((p) => db.doc(p))) : [];
+  const checkPath = (p: string) => owners.get(p) ?? p;
+  const targets = paths.length > 0 ? await db.getAll(...paths.map((p) => db.doc(checkPath(p)))) : [];
   const missing = new Set(
-    targets.filter((t) => !t.exists).map((t) => t.ref.path),
+    paths.filter((_, i) => !targets[i].exists),
   );
   if (missing.size > 0) {
     console.warn("moveAggregates: skipping totals for missing documents:", [...missing].join(", "));
@@ -843,7 +854,12 @@ async function moveAggregates(
       patch.totalApprovedAmount = FieldValue.increment(move.pesewas / 100);
       if (move.count !== 0) patch.entryCount = FieldValue.increment(move.count);
     }
-    batch.update(db.doc(path), patch);
+    if (isGoal) {
+      batch.update(db.doc(path), patch);
+    } else {
+      // The totals record is made the first time anything moves.
+      batch.set(db.doc(path), patch, {merge: true});
+    }
     writes++;
   }
   if (writes > 0) await batch.commit();
@@ -1289,3 +1305,4 @@ export {
 } from "./monthly_partner_email";
 export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";
 export {nightlyDuplicateCheck} from "./duplicate_scan";
+export {findSimilarEntries, churchHealth, remindPastors} from "./privacy";

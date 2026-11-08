@@ -10,7 +10,12 @@ import '../monthly_records_index.dart';
 import 'monthly_records_entries_provider.dart';
 
 final entriesRepositoryProvider = Provider<EntriesRepository>((ref) {
-  return EntriesRepository(ref.watch(firestoreProvider));
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  return EntriesRepository(
+    ref.watch(firestoreProvider),
+    // Staff read only what they recorded; every query says so.
+    onlyCreatedBy: idx != null && idx.isStaff ? idx.uid : null,
+  );
 });
 
 /// Approved entries for the active period — the working set for every ranking.

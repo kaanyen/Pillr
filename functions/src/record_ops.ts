@@ -193,6 +193,21 @@ async function withLock<T>(churchId: string, holder: string, body: () => Promise
   }
 }
 
+/**
+ * The activity log is read by admins, who never see what anyone gave: no
+ * amount or total goes into it, at any depth.
+ */
+export function withoutFigures(v: Record<string, unknown>): Record<string, unknown> {
+  const isFigure = (k: string) => /amount|total|cedis|pesewa/i.test(k);
+  const clean = (x: unknown): unknown =>
+    Array.isArray(x) ? x.map(clean) :
+      x && typeof x === "object" && !(x instanceof Date) && x.constructor === Object ?
+        withoutFigures(x as Record<string, unknown>) : x;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v)) if (!isFigure(k)) out[k] = clean(x);
+  return out;
+}
+
 async function logActivity(
   churchId: string,
   actor: Actor,
@@ -208,7 +223,7 @@ async function logActivity(
     action,
     entityType,
     entityId,
-    entitySnapshot,
+    entitySnapshot: withoutFigures(entitySnapshot),
     metadata: {source: "server"},
     createdAt: FieldValue.serverTimestamp(),
   });
@@ -758,7 +773,7 @@ export const partnerUnmerge = onCall(
             fullNameLower: fullName.toLowerCase(), fellowshipLower: fellowship.toLowerCase(),
             phone: alias.phone, email: alias.email,
             phones: alias.phones ?? [], emails: alias.emails ?? [],
-            isActive: true, totalApprovedAmount: 0, totalApprovedPesewas: 0, entryCount: 0,
+            isActive: true,
             createdBy: actor.uid, splitFrom: survivor.id,
           },
         });

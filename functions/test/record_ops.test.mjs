@@ -153,7 +153,7 @@ describe("fellowship merge", () => {
 });
 
 describe("partner merge", () => {
-  const amount = async (id) => (await partner(id).get()).get("totalApprovedAmount") ?? 0;
+  const amount = async (id) => (await church.collection("partner_totals").doc(id).get()).get("totalApprovedAmount") ?? 0;
 
   before(async () => {
     await church.collection("partnership_periods").doc("per1").set({name: "2026", isActive: true});
@@ -233,7 +233,7 @@ describe("partner merge", () => {
 });
 
 describe("merging many records, and separating one by its member ID", () => {
-  const amount = async (id) => (await partner(id).get()).get("totalApprovedAmount") ?? 0;
+  const amount = async (id) => (await church.collection("partner_totals").doc(id).get()).get("totalApprovedAmount") ?? 0;
 
   before(async () => {
     await partner("m1").set({fullName: "Precious Adedeji", memberId: "ACC100001", isActive: true,

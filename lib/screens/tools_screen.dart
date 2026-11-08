@@ -6,6 +6,8 @@ import '../core/extensions/async_value_ext.dart';
 import '../core/notifications/sel_notice.dart';
 import '../features/activity/activity_log_helper.dart';
 import '../design/seline.dart';
+import '../features/entries/domain/partnership_entry.dart';
+import '../features/totals/totals_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/providers/entries_providers.dart';
@@ -250,9 +252,12 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     final dupes = ref.watch(duplicateHealthProvider).valueOrNull?.open ?? 0;
     final tools = [
       ('dupPartners', 'Possible duplicates', 'The same person on the book twice', dupes),
-      ('dupEntries', 'Giving entered twice', 'Same partner, amount and day', _dupEntries?.length ?? 0),
+      // Entries are read by pastors and, their own, by staff; totals by
+      // pastors alone. An admin tidies partners and merges.
+      if (!(idx?.isAdmin ?? false))
+        ('dupEntries', 'Giving entered twice', 'Same partner, amount and day', _dupEntries?.length ?? 0),
       ('partnerData', 'Names and fellowships', 'Capitals and missing details', _partnerIssues?.length ?? 0),
-      ('totals', 'Totals', 'Add the entries up again', 0),
+      if (pastor) ('totals', 'Totals', 'Add the entries up again', 0),
       ('separate', 'Take someone out of a merge', 'By their old member ID', 0),
     ];
     final list = SelCard(
@@ -362,11 +367,13 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     String churchId,
   ) async {
     await _run('merge', () async {
+      final pastor = ref.read(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
       final repo = ref.read(maintenanceRepositoryProvider);
-      final entries = await repo.entriesForPartners(churchId, [
-        keep.id,
-        for (final o in others) o.id,
-      ]);
+      // Only a pastor reads every entry, so only a pastor is told how many
+      // move and for how much. The server moves all of them either way.
+      final entries = pastor
+          ? await repo.entriesForPartners(churchId, [keep.id, for (final o in others) o.id])
+          : const <PartnershipEntry>[];
       final otherIds = {for (final o in others) o.id};
       final moving = entries
           .where((e) => otherIds.contains(e.partnerId))
@@ -380,7 +387,6 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
         for (final o in others)
           if (o.memberId.isNotEmpty) o.memberId,
       ];
-      final pastor = ref.read(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
       final money = ref.read(churchMoneyFormatProvider);
 
       if (!mounted) return;
@@ -393,8 +399,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
             '${keep.fullName} stays. '
             '${others.length == 1 ? "The other record closes" : "The other ${others.length} records close"}'
             ' — nothing is deleted.\n\n'
-            '• $moving ${moving == 1 ? "entry moves" : "entries move"} to ${keep.fullName}. '
-            '${pastor ? 'Their total becomes ${money(total)}.\n' : ''}'
+            '${pastor ? '• $moving ${moving == 1 ? "entry moves" : "entries move"} to ${keep.fullName}. Their total becomes ${money(total)}.\n' : '• All their giving moves to ${keep.fullName}.\n'}'
             '• Every phone number and email from these records stays with '
             '${keep.fullName}.\n'
             '• ${keep.fullName} gets a new member ID. The old IDs '
@@ -414,7 +419,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
             churchId: churchId,
             keepId: keep.id,
             absorbIds: [for (final o in others) o.id],
-            expectEntries: moving,
+            expectEntries: pastor ? moving : null,
           );
       if (!mounted) return;
       setState(() => _dupPartners = null);
@@ -971,7 +976,7 @@ class _SeparateCardState extends State<_SeparateCard> {
 }
 
 /// One side of a suspected pair, with everything needed to tell them apart.
-class _MergeSide extends StatelessWidget {
+class _MergeSide extends ConsumerWidget {
   const _MergeSide({
     required this.partner,
     required this.money,
@@ -983,16 +988,16 @@ class _MergeSide extends StatelessWidget {
   final VoidCallback? onKeep;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = partner;
+    final totals = ref.watch(partnerTotalsProvider).valueOrNull?[p.id] ?? StoredTotals.zero;
     final details = [
       p.memberId.isEmpty ? 'no member ID' : p.memberId,
       if (p.fellowship.trim().isNotEmpty) p.fellowship,
       if ((p.phone ?? '').trim().isNotEmpty) p.phone!.trim(),
       if ((p.email ?? '').trim().isNotEmpty) p.email!.trim(),
-      money(0) == _noFigure(0)
-          ? '${p.entryCount} ${p.entryCount == 1 ? 'entry' : 'entries'}'
-          : '${money(p.totalApprovedAmount)} (${p.entryCount})',
+      // Pastors see what each record holds; others see nothing of it.
+      if (money(0) != _noFigure(0)) '${money(totals.cedis)} (${totals.count})',
       if (!p.isActive) 'inactive',
     ];
     return Row(

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -135,6 +136,11 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // An admin looks after the letters' set-up and sees how each run went,
+    // in counts: never who got one or how much.
+    if (ref.watch(userChurchIndexProvider).valueOrNull?.isAdmin ?? false) {
+      return const _AdminLetters();
+    }
     final money = ref.watch(churchMoneyFormatProvider);
     final reports = ref.watch(_reportsProvider);
     final settings = ref.watch(churchSettingsProvider).valueOrNull;
@@ -474,3 +480,160 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
     );
   }
 }
+
+/// One month's run, in counts.
+typedef _Summary = ({String ym, String label, int sent, int failed, int noEmail, int off, DateTime? ranAt});
+
+final _summariesProvider = StreamProvider.autoDispose<List<_Summary>>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !(idx.isAdmin || idx.isPastor)) return Stream.value(const []);
+  return ref
+      .watch(firestoreProvider)
+      .collection('churches')
+      .doc(idx.churchId)
+      .collection('monthly_email_summaries')
+      .orderBy('ranAt', descending: true)
+      .limit(12)
+      .snapshots()
+      .map((s) => [
+            for (final d in s.docs)
+              (
+                ym: d.id,
+                label: d.data()['monthLabel'] as String? ?? d.id,
+                sent: (d.data()['sent'] as num?)?.toInt() ?? 0,
+                failed: (d.data()['failed'] as num?)?.toInt() ?? 0,
+                noEmail: (d.data()['noEmail'] as num?)?.toInt() ?? 0,
+                off: (d.data()['turnedOff'] as num?)?.toInt() ?? 0,
+                ranAt: (d.data()['ranAt'] as Timestamp?)?.toDate(),
+              ),
+          ]);
+});
+
+/// Monthly letters for an admin, as on the canvas (board 54).
+class _AdminLetters extends ConsumerStatefulWidget {
+  const _AdminLetters();
+
+  @override
+  ConsumerState<_AdminLetters> createState() => _AdminLettersState();
+}
+
+class _AdminLettersState extends ConsumerState<_AdminLetters> {
+  String? _month;
+  bool _busy = false;
+
+  Future<void> _sample() async {
+    setState(() => _busy = true);
+    try {
+      final to = await ref.read(churchSettingsRepositoryProvider).previewMonthlyPartnerEmail();
+      if (mounted) selNotice(context, 'A sample with made-up names and figures is on its way to $to.');
+    } catch (e) {
+      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final list = ref.watch(_summariesProvider);
+    final runs = list.valueOrNull ?? const <_Summary>[];
+    final current = runs.where((r) => r.ym == _month).firstOrNull ?? runs.firstOrNull;
+
+    Widget tile(String k, int v, String sub, {bool navy = false}) => Container(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+      decoration: BoxDecoration(
+        color: navy ? Sel.ink : Sel.card,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+        border: Border.all(color: navy ? Sel.ink : Sel.border),
+        boxShadow: navy ? null : SelShadow.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(k, style: SelType.small.copyWith(color: navy ? SelNavyCard.soft : Sel.warm)),
+          Text('$v', style: SelType.hero.copyWith(fontSize: 30, color: navy ? Sel.card : Sel.ink)),
+          Text(sub, style: SelType.small.copyWith(color: navy ? SelNavyCard.soft : Sel.warm)),
+        ],
+      ),
+    );
+
+    return SelPageBody(
+      children: [
+        SelBreadcrumb([('Settings', () => context.go('/settings')), ('Monthly letters', null)]),
+        const SizedBox(height: SelSpace.x3),
+        SelPageTitle(
+          title: 'Monthly letters',
+          subtitle: 'The thank-you letter partners get on the 15th. You set it up; who gets one and how much stays with the pastors.',
+          actions: [SelButton(label: 'Send me a sample', loading: _busy, onPressed: _busy ? null : _sample)],
+        ),
+        if (list.isLoading)
+          const SelCard(child: SelSkeletonRows(count: 3))
+        else if (current == null)
+          const SelCard(
+            child: SelEmpty(
+              title: 'No letters yet',
+              message: 'After the first run on the 15th, each month shows here as counts.',
+            ),
+          )
+        else ...[
+          Wrap(
+            spacing: SelSpace.x2,
+            runSpacing: SelSpace.x2,
+            children: [
+              for (final r in runs)
+                Material(
+                  color: r.ym == current.ym ? Sel.ink : Sel.card,
+                  shape: StadiumBorder(side: BorderSide(color: r.ym == current.ym ? Sel.ink : Sel.border)),
+                  child: InkWell(
+                    customBorder: const StadiumBorder(),
+                    onTap: () => setState(() => _month = r.ym),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      child: Text(
+                        r.label,
+                        style: SelType.bodySm.copyWith(
+                          color: r.ym == current.ym ? Sel.card : Sel.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x4),
+          LayoutBuilder(
+            builder: (context, c) {
+              final tiles = [
+                tile('Sent', current.sent, current.ranAt == null ? '' : DateFormat('d MMM, HH:mm').format(current.ranAt!)),
+                tile('Could not be sent', current.failed, 'A pastor can see who and send it again', navy: current.failed > 0),
+                tile('No email', current.noEmail, 'Gave, but have no email on their profile'),
+                tile('Turned off', current.off, 'The church turned their letters off'),
+              ];
+              return Wrap(
+                spacing: SelSpace.x4,
+                runSpacing: SelSpace.x4,
+                children: [
+                  for (final t in tiles)
+                    SizedBox(width: c.maxWidth >= 900 ? (c.maxWidth - SelSpace.x4 * 3) / 4 : (c.maxWidth - SelSpace.x4) / 2, child: t),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: SelSpace.x4),
+          Container(
+            padding: const EdgeInsets.all(SelSpace.x4),
+            decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(16)),
+            child: Text(
+              'Switch the letters on or off, choose who signs them and the address they come from in Settings, '
+              'under Thanking partners. "Send me a sample" sends you the letter filled with made-up names and '
+              'figures, so you can check how it looks without seeing anyone\'s giving.',
+              style: SelType.bodySm.copyWith(color: Sel.ink),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+

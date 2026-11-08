@@ -59,10 +59,16 @@ void main() {
     );
   });
 
-  test('monthly letters are for pastors only', () {
+  test('monthly letters are for pastors and admins', () {
     expect(isPathForbiddenForRole('/settings/letters', 'pastor'), isFalse);
     expect(isPathForbiddenForRole('/settings/letters', 'staff'), isTrue);
-    expect(isPathForbiddenForRole('/settings/letters', 'admin'), isTrue);
+    expect(isPathForbiddenForRole('/settings/letters', 'admin'), isFalse);
     expect(isPathForbiddenForRole('/settings', 'staff'), isFalse);
+  });
+
+  test('health is for admins and pastors', () {
+    expect(isPathForbiddenForRole('/health', 'admin'), isFalse);
+    expect(isPathForbiddenForRole('/health', 'pastor'), isFalse);
+    expect(isPathForbiddenForRole('/health', 'staff'), isTrue);
   });
 }

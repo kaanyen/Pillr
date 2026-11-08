@@ -206,7 +206,7 @@ class _AdminShortcuts extends ConsumerWidget {
         '/configuration',
         0,
       ),
-      (LucideIcons.search, 'Possible duplicates', 'Partners to check', '/tools', dupes),
+      (LucideIcons.activity, 'Health', 'Waiting, duplicates, letters', '/health', dupes),
     ];
     return LayoutBuilder(
       builder: (context, c) {

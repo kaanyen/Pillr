@@ -87,6 +87,7 @@ List<SelNavGroup> navGroupsFor(
     groups.addAll([
       SelNavGroup(null, [
         SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+        SelNavItem('/health', 'Health', LucideIcons.activity),
       ]),
       SelNavGroup(l10n.navSectionChurch, [
         SelNavItem('/people', l10n.navPeople, LucideIcons.users),

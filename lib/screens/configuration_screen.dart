@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
+import '../features/totals/totals_providers.dart';
 import '../features/leaderboard/giving_view.dart';
 import '../core/notifications/sel_notice.dart';
 import '../features/arms/domain/arm_tree.dart';
@@ -745,7 +746,7 @@ class _PeriodRow extends ConsumerWidget {
           else ...[
             if (figures)
               Text(
-                '${money(period.totalApprovedAmount)} approved',
+                '${money(ref.watch(periodTotalsProvider).valueOrNull?[period.id]?.cedis ?? 0)} approved',
                 style: SelType.bodyMedium,
               ),
             if (canEdit)

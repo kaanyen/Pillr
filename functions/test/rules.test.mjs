@@ -13,7 +13,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import {doc, getDoc, setDoc, updateDoc, deleteDoc} from "firebase/firestore";
+import {doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, getDocs} from "firebase/firestore";
 
 const HOST = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080").split(":");
 
@@ -286,6 +286,72 @@ describe("monthly letters switch", () => {
   });
 });
 
+describe("who sees what", () => {
+  before(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "churches/c1/entries/w_mine"), {churchId: "c1", createdBy: STAFF, status: "pending", partnerId: "pw", amountCedis: 50});
+      await setDoc(doc(db, "churches/c1/entries/w_theirs"), {churchId: "c1", createdBy: PASTOR, status: "approved", partnerId: "pw", amountCedis: 900});
+      await setDoc(doc(db, "churches/c1/partner_totals/pw"), {totalApprovedAmount: 900, entryCount: 1});
+      await setDoc(doc(db, "churches/c1/period_totals/per1"), {totalApprovedAmount: 900, entryCount: 1});
+      await setDoc(doc(db, "churches/c1/import_batches/b_theirs"), {churchId: "c1", createdBy: PASTOR, fileName: "x.xlsx"});
+      await setDoc(doc(db, "churches/c1/import_batches/b_mine"), {churchId: "c1", createdBy: STAFF, fileName: "y.xlsx"});
+      await setDoc(doc(db, "churches/c1/monthly_email_summaries/2026-10"), {sent: 3, failed: 0});
+    });
+  });
+
+  it("lets staff read an entry they recorded", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(getDoc(doc(db, "churches/c1/entries/w_mine")));
+  });
+  it("refuses staff reading an entry someone else recorded", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(getDoc(doc(db, "churches/c1/entries/w_theirs")));
+  });
+  it("lets staff list their own entries, and refuses a list of everyone's", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(getDocs(query(collection(db, "churches/c1/entries"), where("createdBy", "==", STAFF))));
+    await assertFails(getDocs(query(collection(db, "churches/c1/entries"), where("partnerId", "==", "pw"))));
+  });
+  it("refuses an admin reading any entry", async () => {
+    const db = env.authenticatedContext(ADMIN).firestore();
+    await assertFails(getDoc(doc(db, "churches/c1/entries/w_theirs")));
+  });
+  it("keeps partner and period totals for pastors", async () => {
+    for (const who of [STAFF, ADMIN]) {
+      const db = env.authenticatedContext(who).firestore();
+      await assertFails(getDoc(doc(db, "churches/c1/partner_totals/pw")));
+      await assertFails(getDoc(doc(db, "churches/c1/period_totals/per1")));
+    }
+    const pastor = env.authenticatedContext(PASTOR).firestore();
+    await assertSucceeds(getDoc(doc(pastor, "churches/c1/partner_totals/pw")));
+    await assertSucceeds(setDoc(doc(pastor, "churches/c1/partner_totals/pw"), {totalApprovedAmount: 900, entryCount: 1}));
+  });
+  it("refuses a new partner that carries a total", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(setDoc(doc(db, "churches/c1/partners/p_new_total"), {churchId: "c1", fullName: "New", totalApprovedAmount: 0}));
+    await assertSucceeds(setDoc(doc(db, "churches/c1/partners/p_new_plain"), {churchId: "c1", fullName: "New"}));
+  });
+  it("shows staff only the sheets they brought in", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(getDoc(doc(db, "churches/c1/import_batches/b_mine")));
+    await assertFails(getDoc(doc(db, "churches/c1/import_batches/b_theirs")));
+  });
+  it("refuses an amount in the activity log", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(addDoc(collection(db, "churches/c1/activity_logs"), {
+      action: "entry.create", entityType: "entry", entitySnapshot: {partnerName: "A", amountCedis: 50},
+    }));
+    await assertSucceeds(addDoc(collection(db, "churches/c1/activity_logs"), {
+      action: "entry.create", entityType: "entry", entitySnapshot: {partnerName: "A"},
+    }));
+  });
+  it("gives admins the letter counts, not staff", async () => {
+    await assertSucceeds(getDoc(doc(env.authenticatedContext(ADMIN).firestore(), "churches/c1/monthly_email_summaries/2026-10")));
+    await assertFails(getDoc(doc(env.authenticatedContext(STAFF).firestore(), "churches/c1/monthly_email_summaries/2026-10")));
+  });
+});
+
 describe("staff ledger tools", () => {
   before(async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -347,9 +413,9 @@ describe("staff ledger tools", () => {
     }));
   });
 
-  it("lets staff void a duplicate entry", async () => {
+  it("refuses staff voiding an entry someone else recorded", async () => {
     const db = env.authenticatedContext(STAFF).firestore();
-    await assertSucceeds(updateDoc(doc(db, "churches/c1/entries/e_dup"), {
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e_dup"), {
       status: "voided",
       voidedBy: STAFF,
       voidedAt: new Date(),
@@ -395,9 +461,9 @@ describe("staff ledger tools", () => {
     }));
   });
 
-  it("lets staff correct partner totals", async () => {
+  it("refuses staff writing totals onto a partner", async () => {
     const db = env.authenticatedContext(STAFF).firestore();
-    await assertSucceeds(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
+    await assertFails(updateDoc(doc(db, "churches/c1/partners/p_keep"), {
       totalApprovedAmount: 200,
       totalApprovedPesewas: 20000,
       entryCount: 2,
@@ -405,9 +471,9 @@ describe("staff ledger tools", () => {
     }));
   });
 
-  it("lets staff correct period totals", async () => {
+  it("refuses staff writing totals onto a period", async () => {
     const db = env.authenticatedContext(STAFF).firestore();
-    await assertSucceeds(updateDoc(doc(db, "churches/c1/partnership_periods/per1"), {
+    await assertFails(updateDoc(doc(db, "churches/c1/partnership_periods/per1"), {
       totalApprovedAmount: 200,
       totalApprovedPesewas: 20000,
       entryCount: 2,

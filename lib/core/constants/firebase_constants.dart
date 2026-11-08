@@ -20,4 +20,7 @@ class FirebaseConstants {
   static const partnerMerge = 'partnerMerge';
   static const partnerUnmerge = 'partnerUnmerge';
   static const undoOperation = 'undoOperation';
+  static const findSimilarEntries = 'findSimilarEntries';
+  static const churchHealth = 'churchHealth';
+  static const remindPastors = 'remindPastors';
 }

@@ -11,9 +11,12 @@ bool isPathForbiddenForRole(String location, String role) {
 
   bool starts(String p) => path == p || path.startsWith('$p/');
 
-  // Who the monthly letters reached is the pastor's: the delivery records
-  // are readable by pastors only.
-  if (starts('/settings/letters')) return role != 'pastor';
+  // Monthly letters: pastors see who and how much, admins the counts and
+  // set-up. Staff have no part in the letters.
+  if (starts('/settings/letters')) return role != 'pastor' && role != 'admin';
+
+  // Health is how Pillr is running, in counts: the admin's page.
+  if (starts('/health')) return role != 'admin' && role != 'pastor';
 
   // Overview, Settings and Help adapt to the viewer — always allowed.
   if (starts('/overview') || starts('/settings') || starts('/help')) {

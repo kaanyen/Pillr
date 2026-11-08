@@ -13,6 +13,7 @@ import '../../screens/partner_profile_screen.dart';
 import '../../shell/sel_shell.dart';
 import '../../screens/activity_screen.dart';
 import '../../screens/letters_screen.dart';
+import '../../screens/health_screen.dart';
 import '../../screens/help_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../screens/search_screen.dart';
@@ -255,6 +256,11 @@ GoRouter createRouter() {
                 initialSection: state.uri.queryParameters['section'],
               ),
             ),
+          ),
+          GoRoute(
+            path: '/health',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HealthScreen()),
           ),
           GoRoute(
             path: '/activity',

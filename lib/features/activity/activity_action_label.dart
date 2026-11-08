@@ -28,6 +28,7 @@ String activityActionLabel(String action) => switch (action) {
   'partner.tidy' => 'Tidied partner names',
   'totals.repair' => 'Corrected ledger totals',
   'settings.exchange_rates' => 'Updated exchange rates',
+  'health.remind' => 'Reminded the pastors',
   'fellowship.create' => 'Created a fellowship',
   'fellowship.rename' => 'Renamed a fellowship',
   'fellowship.merge' => 'Merged fellowships',

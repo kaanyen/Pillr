@@ -41,11 +41,15 @@ async function eventually(label, read, want, timeoutMs = 20000) {
 /** Waits for the triggers to go quiet, for asserting that nothing moved. */
 const settle = (ms = 3500) => new Promise((r) => setTimeout(r, ms));
 
-const total = (ref) => async () => (await ref.get()).data()?.totalApprovedAmount ?? 0;
-const count = (ref) => async () => (await ref.get()).data()?.entryCount ?? 0;
+/** A partner's or period's totals live in their own pastor-only record. */
+const totalsOf = (ref) => db.doc(ref.path
+  .replace("/partners/", "/partner_totals/")
+  .replace("/partnership_periods/", "/period_totals/"));
+const total = (ref) => async () => (await totalsOf(ref).get()).data()?.totalApprovedAmount ?? 0;
+const count = (ref) => async () => (await totalsOf(ref).get()).data()?.entryCount ?? 0;
 const goalTotal = (ref) => async () => (await ref.get()).data()?.currentAmountCedis ?? 0;
 const stampOf = async (ref) => (await ref.get()).data()?.aggregateApplied ?? null;
-const pesewasOf = (ref) => async () => (await ref.get()).data()?.totalApprovedPesewas ?? 0;
+const pesewasOf = (ref) => async () => (await totalsOf(ref).get()).data()?.totalApprovedPesewas ?? 0;
 const goalPesewasOf = (ref) => async () => (await ref.get()).data()?.currentAmountPesewas ?? 0;
 
 const round2 = (n) => Math.round(n * 100) / 100;

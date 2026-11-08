@@ -324,12 +324,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               MonthlyPartnerEmailPanel(idx: idx, settings: settings, bare: true),
-              if (idx.isPastor) ...[
+              if (idx.isPastor || idx.isAdmin) ...[
                 const SizedBox(height: SelSpace.x4),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: SelLink(
-                    label: 'See who each month\'s letter reached',
+                    label: idx.isPastor
+                        ? 'See who each month\'s letter reached'
+                        : 'See how each month\'s letters went',
                     onTap: () => context.go('/settings/letters'),
                   ),
                 ),

@@ -28,7 +28,9 @@ const CHURCH = "void-test-church";
 const RUN = `voidtest-${Date.now()}`;
 
 const partnerRef = db.doc(`churches/${CHURCH}/partners/${RUN}-partner`);
+const partnerTotalsRef = db.doc(`churches/${CHURCH}/partner_totals/${RUN}-partner`);
 const periodRef = db.doc(`churches/${CHURCH}/partnership_periods/${RUN}-period`);
+const periodTotalsRef = db.doc(`churches/${CHURCH}/period_totals/${RUN}-period`);
 const entryRef = db.doc(`churches/${CHURCH}/entries/${RUN}-entry`);
 
 /** Polls until [read] returns [want], or fails saying what it saw. */
@@ -44,10 +46,10 @@ async function eventually(label, read, want, timeoutMs = 20000) {
 }
 
 const partnerTotal = async () =>
-  ((await partnerRef.get()).data()?.totalApprovedAmount ?? 0);
-const partnerCount = async () => ((await partnerRef.get()).data()?.entryCount ?? 0);
+  ((await partnerTotalsRef.get()).data()?.totalApprovedAmount ?? 0);
+const partnerCount = async () => ((await partnerTotalsRef.get()).data()?.entryCount ?? 0);
 const periodTotal = async () =>
-  ((await periodRef.get()).data()?.totalApprovedAmount ?? 0);
+  ((await periodTotalsRef.get()).data()?.totalApprovedAmount ?? 0);
 
 test.before(async () => {
   await partnerRef.set({

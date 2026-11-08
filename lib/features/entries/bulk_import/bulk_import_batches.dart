@@ -163,9 +163,17 @@ class BulkImportVoidResult {
 }
 
 class BulkImportBatchRepository {
-  BulkImportBatchRepository(this._firestore);
+  BulkImportBatchRepository(this._firestore, {this.onlyCreatedBy});
 
   final FirebaseFirestore _firestore;
+
+  /// A staff member's uid: they see only the sheets, and the entries, they
+  /// brought in themselves. Null for pastors.
+  final String? onlyCreatedBy;
+
+  Query<Map<String, dynamic>> _batchList(String churchId) => onlyCreatedBy == null
+      ? _batches(churchId)
+      : _batches(churchId).where('createdBy', isEqualTo: onlyCreatedBy);
 
   CollectionReference<Map<String, dynamic>> _batches(String churchId) =>
       _firestore
@@ -182,7 +190,9 @@ class BulkImportBatchRepository {
     required String churchId,
     required String batchId,
   }) async {
-    final snap = await _entries(churchId)
+    Query<Map<String, dynamic>> q = _entries(churchId);
+    if (onlyCreatedBy != null) q = q.where('createdBy', isEqualTo: onlyCreatedBy);
+    final snap = await q
         .where('importBatchId', isEqualTo: batchId)
         .where('status', isEqualTo: 'pending')
         .count()
@@ -420,7 +430,7 @@ class BulkImportBatchRepository {
     DocumentSnapshot<Map<String, dynamic>>? startAfter,
   }) async {
     Query<Map<String, dynamic>> q =
-        _batches(churchId).orderBy('createdAt', descending: true).limit(pageSize + 1);
+        _batchList(churchId).orderBy('createdAt', descending: true).limit(pageSize + 1);
     if (startAfter != null) q = q.startAfterDocument(startAfter);
     final snap = await q.get();
     final hasMore = snap.docs.length > pageSize;
@@ -433,7 +443,7 @@ class BulkImportBatchRepository {
   }
 
   Stream<List<BulkImportBatch>> watchRecent(String churchId, {int limit = 5}) {
-    return _batches(churchId)
+    return _batchList(churchId)
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
@@ -483,7 +493,13 @@ final bulkImportBatchRepositoryProvider = Provider<BulkImportBatchRepository>(
   // Through the provider, not FirebaseFirestore.instance: every other
   // repository in the app is built this way, and reaching for the singleton
   // here would ignore an override a test had put in place.
-  (ref) => BulkImportBatchRepository(ref.watch(firestoreProvider)),
+  (ref) {
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    return BulkImportBatchRepository(
+      ref.watch(firestoreProvider),
+      onlyCreatedBy: idx != null && idx.isStaff ? idx.uid : null,
+    );
+  },
 );
 
 /// The last few imports for this church, newest first.

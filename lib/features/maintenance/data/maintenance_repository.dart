@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/money.dart';
+import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../entries/domain/partnership_entry.dart';
 import '../../partners/domain/partner.dart';
@@ -16,9 +17,17 @@ import '../domain/totals_audit.dart';
 /// and it never holds the result in a live provider. Pages are read in chunks
 /// so a large church does not arrive in one response.
 class MaintenanceRepository {
-  MaintenanceRepository(this._firestore);
+  MaintenanceRepository(this._firestore, {this.onlyCreatedBy});
 
   final FirebaseFirestore _firestore;
+
+  /// A staff member's uid: checks over entries cover only the ones they
+  /// recorded, which is all they can read. Null for pastors.
+  final String? onlyCreatedBy;
+
+  Query<Map<String, dynamic>> _entryList(String churchId) => onlyCreatedBy == null
+      ? _entries(churchId)
+      : _entries(churchId).where('createdBy', isEqualTo: onlyCreatedBy);
 
   CollectionReference<Map<String, dynamic>> _entries(String churchId) =>
       _firestore.collection('churches').doc(churchId).collection('entries');
@@ -41,7 +50,7 @@ class MaintenanceRepository {
     DocumentSnapshot<Map<String, dynamic>>? cursor;
     while (true) {
       Query<Map<String, dynamic>> q =
-          _entries(churchId).orderBy(FieldPath.documentId).limit(500);
+          _entryList(churchId).orderBy(FieldPath.documentId).limit(500);
       if (cursor != null) q = q.startAfterDocument(cursor);
       final snap = await q.get();
       if (snap.docs.isEmpty) break;
@@ -79,6 +88,17 @@ class MaintenanceRepository {
     final entries = await _allEntries(churchId, onProgress: onProgress);
     final partners = await allPartners(churchId);
     final periodDocs = await _periods(churchId).get();
+    // Stored totals live in their own pastor-only records.
+    Future<Map<String, Map<String, dynamic>>> totals(String col) async {
+      final snap = await _firestore.collection('churches').doc(churchId).collection(col).get();
+      return {for (final d in snap.docs) d.id: d.data()};
+    }
+    final partnerTotals = await totals('partner_totals');
+    final periodTotals = await totals('period_totals');
+    double cedisOf(Map<String, dynamic>? m) => m == null
+        ? 0
+        : storedTotalCedis(m, pesewasKey: 'totalApprovedPesewas', cedisKey: 'totalApprovedAmount');
+    int countOf(Map<String, dynamic>? m) => ((m?['entryCount'] ?? 0) as num).toInt();
 
     final partnerDrift = findTotalsDrift(
       kind: TotalsDriftKind.partner,
@@ -87,8 +107,8 @@ class MaintenanceRepository {
           StoredTotal(
             id: p.id,
             name: p.fullName,
-            totalApprovedAmount: p.totalApprovedAmount,
-            entryCount: p.entryCount,
+            totalApprovedAmount: cedisOf(partnerTotals[p.id]),
+            entryCount: countOf(partnerTotals[p.id]),
           ),
       ],
       expected: expectedTotalsBy(entries, (e) => e.partnerId),
@@ -101,12 +121,8 @@ class MaintenanceRepository {
           StoredTotal(
             id: d.id,
             name: (d.data()['name'] ?? d.id) as String,
-            totalApprovedAmount: storedTotalCedis(
-              d.data(),
-              pesewasKey: 'totalApprovedPesewas',
-              cedisKey: 'totalApprovedAmount',
-            ),
-            entryCount: ((d.data()['entryCount'] ?? 0) as num).toInt(),
+            totalApprovedAmount: cedisOf(periodTotals[d.id]),
+            entryCount: countOf(periodTotals[d.id]),
           ),
       ],
       expected: expectedTotalsBy(entries, (e) => e.partnershipPeriodId),
@@ -142,15 +158,16 @@ class MaintenanceRepository {
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
         final d = fixable[j];
+        final church = _firestore.collection('churches').doc(churchId);
         final ref = d.kind == TotalsDriftKind.partner
-            ? _partners(churchId).doc(d.id)
-            : _periods(churchId).doc(d.id);
-        batch.update(ref, {
+            ? church.collection('partner_totals').doc(d.id)
+            : church.collection('period_totals').doc(d.id);
+        batch.set(ref, {
           'totalApprovedAmount': d.expected,
           'totalApprovedPesewas': d.expectedPesewas,
           'entryCount': d.expectedCount,
           'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
         repaired++;
       }
       await batch.commit();
@@ -219,7 +236,7 @@ class MaintenanceRepository {
     final out = <PartnershipEntry>[];
     for (final id in partnerIds) {
       final snap =
-          await _entries(churchId).where('partnerId', isEqualTo: id).get();
+          await _entryList(churchId).where('partnerId', isEqualTo: id).get();
       out.addAll(snap.docs.map(PartnershipEntry.fromDoc));
     }
     return out;
@@ -271,5 +288,11 @@ class MaintenanceRepository {
 }
 
 final maintenanceRepositoryProvider = Provider<MaintenanceRepository>(
-  (ref) => MaintenanceRepository(ref.watch(firestoreProvider)),
+  (ref) {
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    return MaintenanceRepository(
+      ref.watch(firestoreProvider),
+      onlyCreatedBy: idx != null && idx.isStaff ? idx.uid : null,
+    );
+  },
 );
