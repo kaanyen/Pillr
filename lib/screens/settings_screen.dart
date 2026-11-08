@@ -339,6 +339,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
         ),
+      if (idx?.isPastor ?? false)
+        section(
+          'Backups',
+          'A full copy of Pillr every Sunday, kept for a year. See them all, or back up now.',
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SelButton(label: 'Open Backups', onPressed: () => context.go('/backups')),
+          ),
+        ),
       if (canRates && settings != null)
         section(
           'Exchange rates',

@@ -202,6 +202,15 @@ export const churchHealth = onCall({region: REGION, timeoutSeconds: 120, memory:
     periodsOff: drift(expected("partnershipPeriodId"), periodTotals),
   };
 
+  // The last backup that finished. Backups cover the whole database.
+  const lastBackupSnap = await db().collection("backups")
+    .where("state", "==", "SUCCESSFUL").orderBy("startedAt", "desc").limit(1).get();
+  const lb = lastBackupSnap.docs[0];
+  const lastBackup = lb ? {
+    at: (lb.get("completedAt") as Timestamp | undefined)?.toMillis() ??
+      (lb.get("startedAt") as Timestamp | undefined)?.toMillis() ?? null,
+    kind: String(lb.get("kind") ?? "scheduled"),
+  } : null;
   const reminded = await church.collection("health").doc("reminders").get();
   return {
     waiting,
@@ -210,6 +219,7 @@ export const churchHealth = onCall({region: REGION, timeoutSeconds: 120, memory:
     sheets,
     totals,
     lastRemindedAt: (reminded.get("lastAt") as Timestamp | undefined)?.toMillis() ?? null,
+    lastBackup,
   };
 });
 

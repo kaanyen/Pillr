@@ -25,7 +25,8 @@ class ChurchHealth {
       ],
       partnersOff = ((m['totals'] as Map?)?['partnersOff'] as num?)?.toInt() ?? 0,
       periodsOff = ((m['totals'] as Map?)?['periodsOff'] as num?)?.toInt() ?? 0,
-      lastRemindedAt = _date(m['lastRemindedAt']);
+      lastRemindedAt = _date(m['lastRemindedAt']),
+      lastBackupAt = _date((m['lastBackup'] as Map?)?['at']);
 
   final Map<String, dynamic> waiting;
   final int duplicatesOpen;
@@ -35,6 +36,7 @@ class ChurchHealth {
   final int partnersOff;
   final int periodsOff;
   final DateTime? lastRemindedAt;
+  final DateTime? lastBackupAt;
 
   int n(String k) => (waiting[k] as num?)?.toInt() ?? 0;
 
@@ -310,6 +312,16 @@ class _HealthScreenState extends ConsumerState<HealthScreen> {
                     h.duplicatesOpen == 0 ? 'None found' : '${h.duplicatesOpen} to look at',
                     link: h.duplicatesOpen == 0 ? null : 'Review',
                     onLink: () => context.go('/tools'),
+                  ),
+                  const Divider(height: 1, color: Sel.rowLine),
+                  check(
+                    h.lastBackupAt != null && now.difference(h.lastBackupAt!).inDays <= 8,
+                    'Backup',
+                    h.lastBackupAt == null
+                        ? 'None finished yet'
+                        : 'Last one ${DateFormat('EEE d MMM, HH:mm').format(h.lastBackupAt!)}',
+                    link: 'Backups',
+                    onLink: () => context.go('/backups'),
                   ),
                   const Divider(height: 1, color: Sel.rowLine),
                   check(

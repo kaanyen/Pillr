@@ -293,6 +293,29 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
       child: Focus(
         autofocus: true,
         child: SelPageBody(
+          // Chosen rows: the same pinned bar as Letters, so approving many
+          // stays in reach however far down the list you are.
+          bottomBar: widget.mode == QueueMode.records || !canReview
+              ? null
+              : () {
+                  final chosen = [for (final e in rows) if (_selected.contains(e.id)) e];
+                  if (chosen.isEmpty) return null;
+                  final names = chosen
+                      .map((e) => e.partnerSnapshot['fullName']?.toString() ?? '')
+                      .where((n) => n.isNotEmpty)
+                      .toList();
+                  final who = names.length <= 2
+                      ? names.join(' and ')
+                      : '${names.take(2).join(', ')} and ${names.length - 2} more';
+                  return SelChoiceBar(
+                    count: chosen.length,
+                    note: '${money(chosen.fold<double>(0, (s, e) => s + e.amountCedis))} · $who',
+                    busy: _busy,
+                    action: 'Approve ${chosen.length}',
+                    onClear: () => setState(_selected.clear),
+                    onAction: () => _approve(chosen),
+                  );
+                }(),
           onRefresh: widget.mode == QueueMode.records
               ? () => _loadRecordsPage(reset: true)
               : () async {
@@ -1170,7 +1193,6 @@ class _QueueBoard extends ConsumerWidget {
     int age(PartnershipEntry e) => now.difference(e.createdAt).inDays;
     final old = [for (final e in rows) if (age(e) > 30) e];
     final fresh = [for (final e in rows) if (age(e) <= 30) e];
-    final chosen = rows.where((e) => selected.contains(e.id)).toList();
     final current = cursor >= 0 && cursor < rows.length ? rows[cursor] : null;
 
     Widget group(String title, List<PartnershipEntry> es) => Column(
@@ -1270,45 +1292,6 @@ class _QueueBoard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (canReview && chosen.isNotEmpty)
-            Container(
-              color: Sel.ink,
-              padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-              child: Row(
-                children: [
-                  Checkbox(
-                    value: true,
-                    activeColor: Sel.sky,
-                    onChanged: (_) => onSelectAll(),
-                  ),
-                  const SizedBox(width: SelSpace.x2),
-                  Expanded(
-                    child: Text(
-                      '${chosen.length} selected · ${money(chosen.fold<double>(0, (s, e) => s + e.amountCedis))}',
-                      style: SelType.body.copyWith(
-                        color: Sel.card,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  Material(
-                    color: Colors.white,
-                    shape: const StadiumBorder(),
-                    child: InkWell(
-                      customBorder: const StadiumBorder(),
-                      onTap: busy ? null : () => onApprove(chosen),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                        child: Text(
-                          'Approve ${chosen.length}',
-                          style: SelType.button.copyWith(color: Sel.ink),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           if (old.isNotEmpty) group('Waiting over 30 days', old),
           if (fresh.isNotEmpty) group('This month', fresh),
         ],

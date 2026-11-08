@@ -108,6 +108,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // A note of every backup. The server writes and reads it (Backups page,
+    // Health); no one reads it directly.
+    match /backups/{backupId} {
+      allow read, write: if false;
+    }
+
     match /platform_audit_logs/{logId} {
       allow read, write: if false;
     }

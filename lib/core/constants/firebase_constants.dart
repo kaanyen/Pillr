@@ -23,4 +23,6 @@ class FirebaseConstants {
   static const findSimilarEntries = 'findSimilarEntries';
   static const churchHealth = 'churchHealth';
   static const remindPastors = 'remindPastors';
+  static const startBackup = 'startBackup';
+  static const listBackups = 'listBackups';
 }

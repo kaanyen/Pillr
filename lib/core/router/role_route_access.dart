@@ -18,6 +18,9 @@ bool isPathForbiddenForRole(String location, String role) {
   // Health is how Pillr is running, in counts: the admin's page.
   if (starts('/health')) return role != 'admin' && role != 'pastor';
 
+  // Backups copy the whole database: admins and pastors.
+  if (starts('/backups')) return role != 'admin' && role != 'pastor';
+
   // Overview, Settings and Help adapt to the viewer — always allowed.
   if (starts('/overview') || starts('/settings') || starts('/help')) {
     return false;

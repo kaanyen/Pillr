@@ -212,7 +212,11 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
           partnerId: f.partnerId,
           name: f.fullName,
           email: f.email,
-          amount: 0,
+          // A failed letter still shows what they gave; older runs did not
+          // keep it, so fall back to their delivery if there was one.
+          amount: f.amount > 0
+              ? f.amount
+              : deliveries.where((d) => d.partnerId == f.partnerId).firstOrNull?.amount ?? 0,
           kind: _Show.failed,
           why: f.error,
           at: current.ranAt,

@@ -31,6 +31,7 @@ class MonthlyEmailFailure {
     required this.fullName,
     required this.email,
     required this.error,
+    this.amount = 0,
   });
 
   final String partnerId;
@@ -38,12 +39,16 @@ class MonthlyEmailFailure {
   final String email;
   final String error;
 
+  /// What they gave that month. Runs before this was kept have 0.
+  final double amount;
+
   factory MonthlyEmailFailure.fromMap(Map<String, dynamic> m) {
     return MonthlyEmailFailure(
       partnerId: m['partnerId'] as String? ?? '',
       fullName: m['fullName'] as String? ?? '',
       email: m['email'] as String? ?? '',
       error: m['error'] as String? ?? '',
+      amount: (m['amount'] as num?)?.toDouble() ?? 0,
     );
   }
 }

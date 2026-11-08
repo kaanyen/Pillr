@@ -1297,7 +1297,7 @@ export const dailyPendingDigest = onSchedule({schedule: "0 13 * * *", region: RE
   }
 });
 
-export {scheduledFirestoreBackup} from "./firestore_backup";
+export {scheduledFirestoreBackup, startBackup, listBackups} from "./firestore_backup";
 export {
   monthlyPartnerGivingSummary,
   previewMonthlyPartnerGivingEmail,

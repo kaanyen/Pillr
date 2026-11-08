@@ -76,4 +76,10 @@ void main() {
     expect(isPathForbiddenForRole('/ranked', 'staff'), isTrue);
     expect(isPathForbiddenForRole('/ranked', 'pastor'), isFalse);
   });
+
+  test('backups are for admins and pastors', () {
+    expect(isPathForbiddenForRole('/backups', 'admin'), isFalse);
+    expect(isPathForbiddenForRole('/backups', 'pastor'), isFalse);
+    expect(isPathForbiddenForRole('/backups', 'staff'), isTrue);
+  });
 }

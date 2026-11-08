@@ -77,7 +77,7 @@ async function loadApprovedEntries(
 }
 
 type SkipRow = {partnerId: string; fullName: string; memberId: string; amount: number};
-type FailRow = {partnerId: string; fullName: string; email: string; error: string};
+type FailRow = {partnerId: string; fullName: string; email: string; error: string; amount?: number};
 
 export type ChurchRunResult = {
   churchId: string;
@@ -357,6 +357,7 @@ export async function runChurchMonthlyEmails(opts: {
         fullName,
         email,
         error: e instanceof Error ? e.message : String(e),
+        amount: row.monthTotal,
       });
     }
   }
