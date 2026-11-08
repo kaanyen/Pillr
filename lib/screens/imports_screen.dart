@@ -126,6 +126,12 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                 if (b.id == (_openId ?? state.batches.first.id))
                   _BatchCard(
                     batch: b,
+                    // Null while counting: the take-back action waits for it.
+                    waiting: idx == null
+                        ? null
+                        : ref
+                              .watch(importWaitingCountProvider('${idx.churchId}/${b.id}'))
+                              .valueOrNull,
                     money: money,
                     canManage: canManage,
                     busy: _busyBatchId == b.id,
@@ -168,7 +174,11 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     } catch (e) {
       if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
     } finally {
-      if (mounted) setState(() => _busyBatchId = null);
+      // Undo, clear or restore can change how many entries are waiting.
+      if (mounted) {
+        ref.invalidate(importWaitingCountProvider);
+        setState(() => _busyBatchId = null);
+      }
     }
   }
 
@@ -539,6 +549,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
 class _BatchCard extends StatelessWidget {
   const _BatchCard({
     required this.batch,
+    required this.waiting,
     required this.money,
     required this.canManage,
     required this.busy,
@@ -573,6 +584,9 @@ class _BatchCard extends StatelessWidget {
   /// Editing a row rewrites an entry, which only a pastor may do.
   final bool canEdit;
 
+  /// Entries of this import still waiting for a pastor; null while counting.
+  final int? waiting;
+
   @override
   Widget build(BuildContext context) {
     final settled = batch.isVoided || batch.isUndone;
@@ -585,8 +599,14 @@ class _BatchCard extends StatelessWidget {
         ('Move to another period', 'For a sheet brought into the wrong year. Every entry it created moves with it.', 'Move', onReassign, true),
       if (canManage && !settled && batch.canUndoMove)
         ('Move it back', 'Puts its entries back where they were before the last move.', 'Undo move', onUndoMove, false),
-      if (!settled)
-        ('Take back what is still waiting', 'Removes its entries that no pastor has approved yet.', 'Undo', onUndo, false),
+      if (!settled && (waiting ?? 0) > 0)
+        (
+          'Take back the $waiting still waiting',
+          'Removes the ${waiting == 1 ? 'entry' : 'entries'} no pastor has approved yet. Approved ones stay.',
+          'Undo',
+          onUndo,
+          false,
+        ),
       if (canEdit && !settled && batch.canRevertEdits)
         ('Revert the last corrections', 'Puts the rows back as they were before the last edit.', 'Revert', onRevertEdits, false),
       if (canManage && !batch.isVoided)
@@ -662,7 +682,7 @@ class _BatchCard extends StatelessWidget {
 
 /// Every import as one table row: what it was, when and by whom, what it
 /// created and where it stands. Open shows its actions below the table.
-class _ImportsTable extends StatelessWidget {
+class _ImportsTable extends ConsumerWidget {
   const _ImportsTable({
     required this.batches,
     required this.money,
@@ -676,7 +696,11 @@ class _ImportsTable extends StatelessWidget {
   final ValueChanged<BulkImportBatch> onOpen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final churchId = ref.watch(userChurchIndexProvider).valueOrNull?.churchId;
+    int waiting(BulkImportBatch b) => churchId == null
+        ? 0
+        : ref.watch(importWaitingCountProvider('$churchId/${b.id}')).valueOrNull ?? 0;
     return SelLedger(
       minWidth: 860,
       rowExtent: kSelLedgerStackedRowExtent,
@@ -719,7 +743,9 @@ class _ImportsTable extends StatelessWidget {
                     ? const SelStatusMark(status: SelStatus.voided, label: 'Cleared')
                     : b.isUndone
                     ? const SelStatusMark(status: SelStatus.voided, label: 'Undone')
-                    : const SelStatusMark(status: SelStatus.approved, label: 'Brought in'),
+                    : waiting(b) > 0
+                    ? SelStatusMark(status: SelStatus.pending, label: '${waiting(b)} waiting')
+                    : const SelStatusMark(status: SelStatus.approved, label: 'Approved'),
               ),
               SelLink(label: 'Open', onTap: () => onOpen(b)),
             ],

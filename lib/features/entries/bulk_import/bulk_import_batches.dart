@@ -176,6 +176,20 @@ class BulkImportBatchRepository {
   CollectionReference<Map<String, dynamic>> _entries(String churchId) =>
       _firestore.collection('churches').doc(churchId).collection('entries');
 
+  /// How many of an import's entries are still waiting for a pastor. Only
+  /// those can be taken back by an undo; a count, so no entries are read.
+  Future<int> waitingCount({
+    required String churchId,
+    required String batchId,
+  }) async {
+    final snap = await _entries(churchId)
+        .where('importBatchId', isEqualTo: batchId)
+        .where('status', isEqualTo: 'pending')
+        .count()
+        .get();
+    return snap.count ?? 0;
+  }
+
   /// Claims an id before the import runs, so every entry can carry it.
   String newBatchId(String churchId) => _batches(churchId).doc().id;
 
@@ -480,4 +494,16 @@ final recentImportBatchesProvider =
       return ref
           .watch(bulkImportBatchRepositoryProvider)
           .watchRecent(idx.churchId);
+    });
+
+/// Entries of one import still waiting, keyed `churchId/batchId`.
+final importWaitingCountProvider = FutureProvider.autoDispose
+    .family<int, String>((ref, key) {
+      final at = key.indexOf('/');
+      return ref
+          .watch(bulkImportBatchRepositoryProvider)
+          .waitingCount(
+            churchId: key.substring(0, at),
+            batchId: key.substring(at + 1),
+          );
     });
