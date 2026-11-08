@@ -11,20 +11,19 @@ import '../design/seline.dart';
 import '../features/activity/domain/activity_log_row.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
-import '../features/dashboard/providers/dashboard_stats_providers.dart';
 import '../features/entries/bulk_import/bulk_import_draft_provider.dart';
 import '../features/entries/bulk_import/bulk_import_session_store.dart';
 import '../features/entries/bulk_import/bulk_import_screen.dart' show describeWhen;
 import '../features/entries/providers/entries_providers.dart';
 import '../features/goals/providers/goals_providers.dart';
 import '../features/arms/providers/arms_providers.dart';
-import '../features/dashboard/providers/admin_dashboard_providers.dart';
 import '../features/logs/providers/activity_logs_providers.dart';
-import '../features/users/providers/users_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
+import '../features/maintenance/providers/duplicate_health_provider.dart';
 import 'arm_palette.dart';
 import 'views/overview_pastor.dart';
+import 'views/overview_roles.dart';
 import 'views/overview_shortcuts.dart';
 
 /// Overview — one screen for every role.
@@ -61,7 +60,27 @@ class OverviewScreen extends ConsumerWidget {
           title: 'Overview',
           subtitle: overviewSubtitle(ref.watch(activePeriodProvider)?.name),
           actions: [
-            if (isPastor || (idx?.isStaff ?? false))
+            if (isAdmin) ...[
+              SelButton(
+                label: 'Configuration',
+                onPressed: () => context.go('/configuration'),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton.cyan(
+                label: 'Invite someone',
+                onPressed: () => context.go('/people'),
+              ),
+            ] else if (!isPastor && (idx?.isStaff ?? false)) ...[
+              SelButton(
+                label: 'Bring in a sheet',
+                onPressed: () => context.go('/entries/bulk-import'),
+              ),
+              const SizedBox(width: SelSpace.x2),
+              SelButton.cyan(
+                label: 'Record giving',
+                onPressed: () => showEntryFormPanel(context),
+              ),
+            ] else if (isPastor)
               SelButton(
                 label: 'New entry',
                 icon: LucideIcons.plus,
@@ -84,18 +103,15 @@ class OverviewScreen extends ConsumerWidget {
 
         const _UnfinishedImport(),
 
-        if (isAdmin)
-          const _AdminBlocks()
-        else if (isPastor) ...[
+        if (isAdmin) ...[
+          const _AdminShortcuts(),
+          const SelSectionGap(factor: 0.5),
+          const AdminOverview(),
+        ] else if (isPastor) ...[
           const PastorOverview(extra: _ActivityBlock(card: true)),
           _PastorGoals(money: money),
         ] else
-          _StaffBlocks(money: money),
-
-        if (!isPastor) ...[
-          const SelSectionGap(factor: 0.5),
-          const _ActivityBlock(),
-        ],
+          const StaffOverview(),
       ],
     );
   }
@@ -161,85 +177,94 @@ class _PastorGoals extends ConsumerWidget {
 // Admin
 // ---------------------------------------------------------------------------
 
-class _AdminBlocks extends ConsumerWidget {
-  const _AdminBlocks();
+/// The admin's four places, fixed: an admin has no giving pages to choose
+/// shortcuts from.
+class _AdminShortcuts extends ConsumerWidget {
+  const _AdminShortcuts();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final members = (ref.watch(churchUsersProvider).valueOrNull ?? []).length;
-    final invites = ref.watch(pendingInvitesCountProvider);
-    final arms = (ref.watch(armsStreamProvider).valueOrNull ?? []).length;
     final period = ref.watch(activePeriodProvider);
-
-    return SelStatRow(stats: [
-      SelStat(
-        label: 'Members',
-        value: '$members',
-        footnote: 'In this church',
-        onTap: () => context.go('/people'),
+    final tree = ref.watch(armTreeProvider);
+    final dupes = ref.watch(duplicateBadgeCountProvider);
+    final left = period?.endDate.difference(DateTime.now()).inDays;
+    final items = <(IconData, String, String, String, int)>[
+      (LucideIcons.userPlus, 'Invite someone', 'Pastor or staff', '/people', 0),
+      (
+        LucideIcons.calendar,
+        'Giving period',
+        period == null ? 'None open' : (left != null && left >= 0 ? '$left days left' : period.name),
+        '/configuration',
+        0,
       ),
-      SelStat(
-        label: 'Open invites',
-        value: '$invites',
-        footnote: invites == 0 ? 'None outstanding' : 'Awaiting acceptance',
-        onTap: () => context.go('/people'),
+      (
+        LucideIcons.alignLeft,
+        'Arms',
+        tree.flattened.length > tree.mains.length
+            ? '${tree.mains.length} main, ${tree.flattened.length - tree.mains.length} sub-arms'
+            : '${tree.mains.length} ${tree.mains.length == 1 ? 'arm' : 'arms'}',
+        '/configuration',
+        0,
       ),
-      SelStat(
-        label: 'Partnership arms',
-        value: '$arms',
-        footnote: 'Configured',
-        onTap: () => context.go('/configuration'),
-      ),
-      SelStat(
-        label: 'Active period',
-        value: period == null ? 'None' : 'Open',
-        footnote: period?.name ?? 'Set one up',
-        onTap: () => context.go('/configuration'),
-      ),
-    ]);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Staff
-// ---------------------------------------------------------------------------
-
-class _StaffBlocks extends ConsumerWidget {
-  const _StaffBlocks({required this.money});
-
-  final String Function(num) money;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final mine = ref.watch(staffMyEntryStatsProvider);
-    final compactMoney = ref.watch(churchCompactMoneyProvider);
-    if (mine.totalsFailed) {
-      return const SelStatRow(stats: [
-        SelStat(label: 'Approved', value: '—', footnote: 'Couldn’t load totals'),
-        SelStat(label: 'Submitted', value: '—', footnote: 'Couldn’t load totals'),
-        SelStat(label: 'Awaiting review', value: '—', footnote: 'Couldn’t load totals'),
-      ]);
-    }
-    return SelStatRow(stats: [
-      SelStat(
-        label: 'Approved',
-        value: compactMoney(mine.approvedTotalCedis),
-        exactValue: money(mine.approvedTotalCedis),
-        footnote: '${mine.approvedCount} of your entries',
-      ),
-      SelStat(
-        label: 'Submitted',
-        value: '${mine.totalCount}',
-        footnote: 'Entries you recorded',
-        onTap: () => context.go('/queue'),
-      ),
-      SelStat(
-        label: 'Awaiting review',
-        value: '${mine.totalCount - mine.approvedCount}',
-        footnote: 'With your pastor',
-        onTap: () => context.go('/queue'),
-      ),
-    ]);
+      (LucideIcons.search, 'Possible duplicates', 'Partners to check', '/tools', dupes),
+    ];
+    return LayoutBuilder(
+      builder: (context, c) {
+        final cols = c.maxWidth < 640 ? 2 : 4;
+        final w = (c.maxWidth - (cols - 1) * SelSpace.x3) / cols;
+        return Wrap(
+          spacing: SelSpace.x3,
+          runSpacing: SelSpace.x3,
+          children: [
+            for (final (icon, title, sub, path, n) in items)
+              SizedBox(
+                width: w,
+                child: SelCard(
+                  onTap: () => context.go(path),
+                  radius: 20,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Sel.skyTint,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(icon, size: 20, color: Sel.ink),
+                      ),
+                      const SizedBox(width: SelSpace.x3),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              overflow: TextOverflow.ellipsis,
+                              style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                            ),
+                            Text(sub, overflow: TextOverflow.ellipsis, style: SelType.small),
+                          ],
+                        ),
+                      ),
+                      if (n > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Sel.skyWash,
+                            borderRadius: BorderRadius.circular(SelRadius.pill),
+                          ),
+                          child: Text('$n', style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 
