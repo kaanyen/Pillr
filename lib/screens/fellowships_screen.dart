@@ -23,6 +23,7 @@ import 'fellowship_manage_view.dart';
 import 'fellowship_rhythm_view.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
+import '../core/errors/plain_error.dart';
 
 enum _View { directory, rhythm, ranked, manage }
 
@@ -101,7 +102,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
             title: 'Fellowships',
             subtitle: 'The list could not be built.',
           ),
-          SelError(message: '$e'),
+          SelError(message: plainError(e)),
         ],
       );
     }
@@ -207,7 +208,7 @@ class _FellowshipDirectory extends ConsumerWidget {
     final partnersAsync = ref.watch(visiblePartnersProvider(false));
     return partnersAsync.when(
       loading: () => const SelCard(child: SelSkeletonRows()),
-      error: (e, _) => SelError(message: '$e'),
+      error: (e, _) => SelError(message: plainError(e)),
       data: (partners) => _directoryTable(ref, partners),
     );
   }
@@ -333,7 +334,7 @@ class _FellowshipRankedView extends ConsumerWidget {
     try {
       rows = ref.watch(fellowshipRankingProvider);
     } catch (e) {
-      return SelError(message: '$e');
+      return SelError(message: plainError(e));
     }
 
     if (rows.isEmpty) {

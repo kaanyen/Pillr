@@ -193,8 +193,16 @@ final partnerEntriesProvider =
 });
 
 final entryDetailProvider =
-    StreamProvider.autoDispose.family<PartnershipEntry?, String>((ref, entryId) {
+    StreamProvider.autoDispose.family<PartnershipEntry?, String>((ref, entryId) async* {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-  if (idx == null) return Stream.value(null);
-  return ref.watch(entriesRepositoryProvider).watchEntry(idx.churchId, entryId);
+  if (idx == null) {
+    yield null;
+    return;
+  }
+  final repo = ref.watch(entriesRepositoryProvider);
+  // Read it once first: when the rules refuse (staff opening an entry
+  // someone else recorded), a one-off read says so at once, where a live
+  // listener on the web can wait without ever answering.
+  yield await repo.getEntry(idx.churchId, entryId);
+  yield* repo.watchEntry(idx.churchId, entryId);
 });

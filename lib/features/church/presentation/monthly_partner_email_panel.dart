@@ -10,6 +10,7 @@ import '../../users/providers/users_providers.dart';
 import '../domain/church_settings.dart';
 import '../domain/monthly_email_report.dart';
 import '../providers/church_settings_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 /// Pastor/admin controls for the 15th-of-month partner giving letter.
 class MonthlyPartnerEmailPanel extends ConsumerStatefulWidget {
@@ -92,7 +93,7 @@ class _MonthlyPartnerEmailPanelState
           );
       if (mounted) setState(() => _notice = 'Partner emails saved.');
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -112,7 +113,7 @@ class _MonthlyPartnerEmailPanelState
             : 'Preview sent to $to.');
       }
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     } finally {
       if (mounted) setState(() => _previewing = false);
     }
@@ -144,7 +145,7 @@ class _MonthlyPartnerEmailPanelState
             'Sent ${r.sent}, skipped ${r.skipped} (no email), failed ${r.failed}.$dry';
       });
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     } finally {
       if (mounted) setState(() => _running = false);
     }

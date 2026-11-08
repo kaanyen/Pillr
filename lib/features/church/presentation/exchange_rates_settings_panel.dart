@@ -8,6 +8,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../../entries/providers/entries_providers.dart';
 import '../domain/exchange_rates.dart';
 import '../providers/church_settings_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 /// Exchange rates → GHS. Pastor, admin, and staff may save; only a pastor
 /// may rewrite already-recorded foreign entries.
@@ -142,7 +143,7 @@ class _ExchangeRatesSettingsPanelState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
+          SnackBar(content: Text(plainError(e))),
         );
       }
     } finally {
@@ -194,7 +195,7 @@ class _ExchangeRatesSettingsPanelState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
+          SnackBar(content: Text(plainError(e))),
         );
       }
     } finally {

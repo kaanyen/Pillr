@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import 'bulk_import_batches.dart';
+import '../../../core/errors/plain_error.dart';
 
 /// The full import history, a page at a time.
 ///
@@ -96,7 +97,7 @@ class ImportHistoryNotifier extends Notifier<ImportHistoryState> {
         hasMore: page.hasMore,
       );
     } catch (e) {
-      state = state.copyWith(loading: false, loadingMore: false, error: '$e');
+      state = state.copyWith(loading: false, loadingMore: false, error: plainError(e));
     }
   }
 }

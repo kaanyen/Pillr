@@ -7,6 +7,7 @@ import '../core/constants/firebase_constants.dart';
 import '../core/notifications/sel_notice.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// One backup of the whole database.
 class BackupRow {
@@ -81,7 +82,7 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
         ref.invalidate(backupsProvider);
       }
     } on FirebaseFunctionsException catch (e) {
-      if (mounted) selNotice(context, e.message ?? 'Could not start a backup.', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -111,7 +112,7 @@ class _BackupsScreenState extends ConsumerState<BackupsScreen> {
         ),
         async.when(
           loading: () => const SelCard(child: SelSkeletonRows(count: 6)),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (data) {
             final rows = data.rows;
             final last = rows.where((r) => r.ok).firstOrNull;

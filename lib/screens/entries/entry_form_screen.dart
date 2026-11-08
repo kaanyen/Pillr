@@ -26,6 +26,7 @@ import '../../features/periods/providers/periods_providers.dart';
 import '../../features/entries/data/similar_entries.dart';
 import '../../features/entries/domain/partnership_entry.dart';
 import '../../features/entries/providers/entries_providers.dart';
+import '../../core/errors/plain_error.dart';
 
 Map<String, dynamic> _entryValuesForActivityLog(PartnershipEntry e) => {
   'partnerId': e.partnerId,
@@ -166,7 +167,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       final periodsAsync = ref.watch(periodsStreamProvider);
       return entryAsync.when(
         loading: () => const Center(child: PillrLoader(size: 40)),
-        error: (e, _) => Center(child: Text('$e')),
+        error: (e, _) => Center(child: Text(plainError(e))),
         data: (entry) {
           if (entry == null) {
             return Center(
@@ -178,10 +179,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           }
           return armsAsync.when(
             loading: () => const Center(child: PillrLoader(size: 40)),
-            error: (e, _) => Center(child: Text('$e')),
+            error: (e, _) => Center(child: Text(plainError(e))),
             data: (armList) => periodsAsync.when(
               loading: () => const Center(child: PillrLoader(size: 40)),
-              error: (e, _) => Center(child: Text('$e')),
+              error: (e, _) => Center(child: Text(plainError(e))),
               data: (periodList) {
                 if (!_seeded) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -213,7 +214,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
     return arms.when(
       loading: () => const Center(child: PillrLoader(size: 40)),
-      error: (e, _) => Center(child: Text('$e')),
+      error: (e, _) => Center(child: Text(plainError(e))),
       data: (armList) => _buildForm(
         context,
         idx: idx,
@@ -955,7 +956,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         }
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = plainError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

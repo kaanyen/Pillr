@@ -2,6 +2,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'core/errors/app_exception.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -71,5 +72,33 @@ Future<void> main() async {
     };
   }
 
-  runApp(const ProviderScope(child: PillrApp()));
+  runApp(const ProviderScope(retry: retryOnlyWhatCanSucceed, child: PillrApp()));
 }
+
+/// Riverpod retries a failed provider, showing it as loading meanwhile. An
+/// answer that cannot change on a second try — refused, missing, signed out,
+/// wrong input — is shown at once instead, so a page says what happened
+/// rather than spinning. Anything else (no connection, a busy server) is
+/// retried a few times, as before.
+Duration? retryOnlyWhatCanSucceed(int retryCount, Object error) {
+  if (error is FirebaseException &&
+      const {
+        'permission-denied',
+        'unauthenticated',
+        'not-found',
+        'invalid-argument',
+        'failed-precondition',
+        'already-exists',
+        'unimplemented',
+        'unauthorized',
+        'object-not-found',
+      }.contains(error.code)) {
+    return null;
+  }
+  if (error is AppException || error is StateError || error is ArgumentError || error is TypeError) {
+    return null;
+  }
+  if (retryCount >= 3) return null;
+  return Duration(milliseconds: 400 * (1 << retryCount));
+}
+

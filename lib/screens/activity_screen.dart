@@ -10,6 +10,7 @@ import '../core/utils/text_case_utils.dart';
 import '../design/seline.dart';
 import '../features/activity/providers/activity_log_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
+import '../core/errors/plain_error.dart';
 
 enum _Kind { everything, giving, partners, repairs, settings }
 
@@ -111,7 +112,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         const SizedBox(height: SelSpace.x4),
         logs.when(
           loading: () => const SelCard(child: SelSkeletonRows(count: 8)),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (all) {
             final rows = [
               for (final r in all)

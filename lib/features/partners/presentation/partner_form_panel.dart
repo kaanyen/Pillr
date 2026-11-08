@@ -11,6 +11,7 @@ import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
 import 'duplicate_warning.dart';
 import '../providers/partners_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 /// Add or edit a partner — body for [showPartnerFormPanel].
 class PartnerFormPanel extends ConsumerStatefulWidget {
@@ -206,7 +207,7 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = plainError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -231,7 +232,7 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           .memberIdExists(widget.churchId, id, excludePartnerId: ex.id);
       return taken ? '$id already belongs to someone, now or before.' : null;
     } catch (e) {
-      return '$e';
+      return plainError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

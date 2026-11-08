@@ -11,6 +11,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/domain/monthly_email_report.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../core/errors/plain_error.dart';
 
 final _reportsProvider = StreamProvider.autoDispose<List<MonthlyEmailReport>>((ref) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
@@ -89,7 +90,7 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
         );
       }
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -101,7 +102,7 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
       final to = await ref.read(churchSettingsRepositoryProvider).previewMonthlyPartnerEmail();
       if (mounted) selNotice(context, 'A preview is on its way to $to.');
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -128,7 +129,7 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
         );
       }
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -531,7 +532,7 @@ class _AdminLettersState extends ConsumerState<_AdminLetters> {
       final to = await ref.read(churchSettingsRepositoryProvider).previewMonthlyPartnerEmail();
       if (mounted) selNotice(context, 'A sample with made-up names and figures is on its way to $to.');
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

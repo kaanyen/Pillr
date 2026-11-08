@@ -18,6 +18,7 @@ import '../features/entries/bulk_import/bulk_import_history_provider.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Imports — every run of the importer, and what can still be done about it.
 ///
@@ -169,7 +170,7 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     try {
       await run();
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       // Undo, clear or restore can change how many entries are waiting.
       if (mounted) {

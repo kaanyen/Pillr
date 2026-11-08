@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'app_exception.dart';
+import 'plain_error.dart';
 
 String humanizeAuthException(Object e) {
   if (e is FirebaseAuthException) {
@@ -18,9 +18,8 @@ String humanizeAuthException(Object e) {
       case 'network-request-failed':
         return 'Network error. Check your connection.';
       default:
-        return e.message ?? 'Authentication failed.';
+        return plainError(e);
     }
   }
-  if (e is AppException) return e.message;
-  return 'Something went wrong. Please try again.';
+  return plainError(e);
 }

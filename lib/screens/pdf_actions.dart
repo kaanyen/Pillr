@@ -12,6 +12,7 @@ import '../features/entries/domain/partnership_entry.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/periods/providers/periods_providers.dart';
 import '../features/users/providers/users_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// The name a statement or receipt is signed with: the church's primary
 /// pastor, the pastor making it, or nobody (staff cannot read the list of
@@ -81,7 +82,7 @@ Future<void> sharePartnerStatement(
       filename: _file('statement', partner.fullName, now),
     );
   } catch (e) {
-    if (context.mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+    if (context.mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
   }
 }
 
@@ -123,6 +124,6 @@ Future<void> shareEntryReceipt(
       filename: _file('receipt', partner['fullName']?.toString() ?? 'entry', now),
     );
   } catch (e) {
-    if (context.mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+    if (context.mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
   }
 }

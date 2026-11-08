@@ -6,6 +6,7 @@ import '../../auth/domain/user_church_index.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/entries_repository.dart';
 import '../domain/partnership_entry.dart';
+import '../../../core/errors/plain_error.dart';
 
 class MonthlyRecordsEntriesState {
   const MonthlyRecordsEntriesState({
@@ -144,7 +145,7 @@ class MonthlyRecordsEntriesNotifier
       state = state.copyWith(
         loading: false,
         loadingMore: false,
-        error: '$e',
+        error: plainError(e),
         initialized: true,
       );
     }

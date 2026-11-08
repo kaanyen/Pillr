@@ -9,6 +9,7 @@ import '../auth/providers/auth_providers.dart';
 import '../entries/providers/entries_providers.dart';
 import '../partners/providers/partners_providers.dart';
 import 'record_ops_repository.dart';
+import '../../core/errors/plain_error.dart';
 
 /// The last bulk changes — fellowship merges, moves, dissolves and partner
 /// merges — each with Undo while it can still be undone.
@@ -60,7 +61,7 @@ class _RecentChangesCardState extends ConsumerState<RecentChangesCard> {
         kind: SelNoticeKind.success,
       );
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => busy = false);
     }

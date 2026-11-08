@@ -13,6 +13,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/church/presentation/exchange_rates_settings_panel.dart';
 import '../features/church/presentation/monthly_partner_email_panel.dart';
+import '../core/errors/plain_error.dart';
 
 const _kPrefDigest = 'pillr_notify_daily_digest';
 const _kPrefGoals = 'pillr_notify_goal_milestones';
@@ -63,7 +64,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
       if (mounted) setState(() => _notice = 'Church settings saved.');
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -90,7 +91,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           );
       if (mounted) setState(() => _notice = 'Logo uploaded.');
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -103,7 +104,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(firebaseAuthProvider).sendPasswordResetEmail(email: email);
       if (mounted) setState(() => _notice = 'Reset link sent to $email.');
     } catch (e) {
-      if (mounted) setState(() => _notice = '$e');
+      if (mounted) setState(() => _notice = plainError(e));
     }
   }
 
@@ -202,22 +203,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     width: 60,
                     height: 60,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: markColour,
-                      shape: BoxShape.circle,
-                      image: settings.logoUrl == null
-                          ? null
-                          : DecorationImage(
-                              image: NetworkImage(settings.logoUrl!),
-                              fit: BoxFit.cover,
-                            ),
-                    ),
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(color: markColour, shape: BoxShape.circle),
+                    // Loaded the way a web page loads a picture, so the
+                    // storage bucket does not have to allow the app to fetch
+                    // it; if it still fails, the initials show, not a blank.
                     child: settings.logoUrl == null
-                        ? Text(
-                            initials,
-                            style: SelType.subtitle.copyWith(color: Sel.card),
-                          )
-                        : null,
+                        ? Text(initials, style: SelType.subtitle.copyWith(color: Sel.card))
+                        : Image.network(
+                            settings.logoUrl!,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                            errorBuilder: (_, _, _) => Center(
+                              child: Text(initials, style: SelType.subtitle.copyWith(color: Sel.card)),
+                            ),
+                          ),
                   ),
                   const SizedBox(width: SelSpace.x4),
                   Expanded(

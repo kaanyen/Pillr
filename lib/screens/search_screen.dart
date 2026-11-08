@@ -18,6 +18,7 @@ import '../features/partners/domain/partner.dart';
 import '../features/leaderboard/giving_view.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/shortcuts/shortcuts.dart';
+import '../core/errors/plain_error.dart';
 
 /// Global search across fellowships, partners, entries and pages.
 class SearchScreen extends ConsumerStatefulWidget {
@@ -114,7 +115,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     } catch (e) {
       if (!mounted || seq != _seq) return;
       setState(() {
-        _error = '$e';
+        _error = plainError(e);
         _busy = false;
       });
     }

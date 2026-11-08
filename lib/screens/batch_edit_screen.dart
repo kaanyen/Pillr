@@ -18,6 +18,7 @@ import '../features/entries/bulk_import/batch_edit_model.dart';
 import '../features/entries/bulk_import/bulk_import_batches.dart';
 import '../features/entries/bulk_import/bulk_import_history_provider.dart';
 import '../features/entries/providers/entries_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Correcting an import after it has landed.
 ///
@@ -101,7 +102,7 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = plainError(e);
         _loading = false;
       });
     }
@@ -224,7 +225,7 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = plainError(e);
         _saving = false;
       });
     }

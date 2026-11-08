@@ -9,6 +9,7 @@ import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
 import 'duplicate_warning.dart';
 import '../providers/partners_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 class PartnerFormDialog extends ConsumerStatefulWidget {
   const PartnerFormDialog({
@@ -147,7 +148,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = plainError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -13,6 +13,7 @@ import '../features/leaderboard/giving_view.dart';
 import '../features/maintenance/providers/duplicate_health_provider.dart';
 import '../features/partners/providers/partners_providers.dart';
 import 'views/view_common.dart';
+import '../core/errors/plain_error.dart';
 
 /// Partners · All partners — the directory. Ranked is its own destination now
 /// (`/ranked`), straight after Partners in the sidebar.
@@ -98,7 +99,7 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
         ],
         partnersAsync.when(
           loading: () => const SelCard(child: SelSkeletonRows()),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (partners) {
             final counts = <String, (String, int)>{};
             for (final p in partners) {

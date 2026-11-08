@@ -1,3 +1,4 @@
+import '../errors/plain_error.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -73,9 +74,11 @@ void selNotice(
   SelNoticeKind kind = SelNoticeKind.info,
   Duration duration = SelNoticeDuration.standard,
 }) {
+  // A problem is always said in plain words, never as a code or class name.
+  final text = kind == SelNoticeKind.error ? plainErrorText(message) : message;
   ProviderScope.containerOf(context, listen: false)
       .read(selNoticeControllerProvider.notifier)
-      .show(message, kind: kind, duration: duration);
+      .show(text, kind: kind, duration: duration);
 }
 
 abstract final class SelNoticeDuration {

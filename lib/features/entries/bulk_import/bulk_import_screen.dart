@@ -52,6 +52,7 @@ import 'bulk_import_xlsx_pick.dart';
 import '../data/entries_repository.dart';
 import '../data/similar_entries.dart';
 import '../providers/entries_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 /// Column widths shared by header + data rows (avoids toolbar overflow).
 /// The four stages of an import.
@@ -2190,7 +2191,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '${l10n.bulkImportParseError}: $e';
+        _error = '${l10n.bulkImportParseError}. ${plainError(e)}';
         _parsing = false;
       });
     }
@@ -2314,7 +2315,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         contents: buildImportTemplateCsv(arms: arms),
       );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not save the template: $e');
+      if (mounted) setState(() => _error = 'Could not save the template. ${plainError(e)}');
     }
   }
 
@@ -2379,7 +2380,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       if (!mounted) return;
       setState(() {
         _loadingPartners = false;
-        _error = '$e';
+        _error = plainError(e);
       });
     }
   }
@@ -2511,7 +2512,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         setState(() => _resolved = updated);
         _schedulePersistSession();
       } catch (e) {
-        if (mounted) setState(() => _error = 'Could not check for duplicates: $e');
+        if (mounted) setState(() => _error = 'Could not check for duplicates. ${plainError(e)}');
       }
       return;
     }
@@ -2559,7 +2560,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _schedulePersistSession();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = '$e');
+      setState(() => _error = plainError(e));
     }
   }
 
@@ -2904,7 +2905,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     try {
       await _resolveImport(idx, checkDuplicates: checkDuplicates);
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) setState(() => _error = plainError(e));
     }
   }
 
@@ -3004,10 +3005,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         }
       });
     } catch (e) {
-      progressNotifier.fail('$e');
+      progressNotifier.fail(plainError(e));
       if (!mounted) return;
       setState(() {
-        _error = '$e';
+        _error = plainError(e);
         _committing = false;
       });
     }

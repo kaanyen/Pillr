@@ -19,6 +19,7 @@ import '../features/operations/recent_changes_card.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Tools — the repairs a giving ledger needs after a few years of use.
 ///
@@ -339,7 +340,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     try {
       await body();
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _running = null);
     }

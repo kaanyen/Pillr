@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,7 @@ import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/entries/domain/partnership_entry.dart';
 import '../../features/entries/providers/entries_providers.dart';
 import '../../features/leaderboard/giving_view.dart';
+import '../../core/errors/plain_error.dart';
 
 bool _canEdit(UserChurchIndex? idx, PartnershipEntry e) {
   if (idx == null) return false;
@@ -51,7 +53,17 @@ class EntryDetailScreen extends ConsumerWidget {
       ),
       error: (e, _) => SelPageBody(
         maxWidth: 640,
-        children: [SelError(message: '$e')],
+        children: [
+          if (e is FirebaseException && e.code == 'permission-denied')
+            SelEmpty(
+              title: "This entry isn't yours to open",
+              message: 'Someone else recorded it. You can open the giving you recorded yourself.',
+              actionLabel: 'Back to records',
+              onAction: () => context.go('/records'),
+            )
+          else
+            SelError(message: plainError(e)),
+        ],
       ),
       data: (entry) {
         if (entry == null) {

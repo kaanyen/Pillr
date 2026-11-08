@@ -17,6 +17,7 @@ import '../../core/navigation/panel_flows.dart';
 import '../../core/notifications/sel_notice.dart';
 import '../../features/users/providers/users_providers.dart';
 import 'view_common.dart';
+import '../../core/errors/plain_error.dart';
 
 /// The last four digits of a partner's first phone, so a list can show which
 /// number it is without printing it in full.
@@ -149,7 +150,7 @@ class _PartnersByFellowshipState
         _partnersTitle(context, ref, '$active active · grouped by fellowship'),
         roster.when(
           loading: () => const ViewLoading(),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (partners) {
             final groups = <String, List<Partner>>{};
             for (final p in partners) {
@@ -344,7 +345,7 @@ class NewPartnersScreen extends ConsumerWidget {
         ),
         roster.when(
           loading: () => const ViewLoading(),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (partners) {
             final fresh =
                 partners.where((p) => !p.createdAt.isBefore(since)).toList()
@@ -844,7 +845,7 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
         const SizedBox(height: SelSpace.x4),
         roster.when(
           loading: () => const ViewLoading(),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (_) => SelLedger(
             minWidth: 760,
             columns: const [

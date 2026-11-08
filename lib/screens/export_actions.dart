@@ -13,6 +13,7 @@ import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../core/errors/plain_error.dart';
 
 /// Export buttons for a list of entries.
 ///
@@ -69,7 +70,7 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
       await action();
     } catch (e) {
       if (mounted) {
-        selNotice(context, 'Export failed: $e', kind: SelNoticeKind.error);
+        selNotice(context, 'Export failed. ${plainError(e)}', kind: SelNoticeKind.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);

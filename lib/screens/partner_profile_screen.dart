@@ -22,6 +22,7 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/partners/providers/partners_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// One partner: who they are, what they have given, and every entry.
 class PartnerProfileScreen extends ConsumerStatefulWidget {
@@ -90,7 +91,7 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
       loading: () => const SelPageBody(
         children: [SelCard(child: SelSkeletonRows(count: 4))],
       ),
-      error: (e, _) => SelPageBody(children: [SelError(message: '$e')]),
+      error: (e, _) => SelPageBody(children: [SelError(message: plainError(e))]),
       data: (partner) {
         if (partner == null) {
           return SelPageBody(
@@ -773,7 +774,7 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
         kind: SelNoticeKind.success,
       );
     } catch (e) {
-      if (mounted) selNotice(context, '$e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = null);
     }

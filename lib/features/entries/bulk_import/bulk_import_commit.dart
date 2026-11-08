@@ -14,6 +14,7 @@ import '../providers/entries_providers.dart';
 import 'bulk_import_batches.dart';
 import 'bulk_import_models.dart';
 import 'bulk_import_phone.dart';
+import '../../../core/errors/plain_error.dart';
 
 class BulkImportCommitResult {
   BulkImportCommitResult({
@@ -238,7 +239,7 @@ Future<BulkImportCommitResult> commitBulkImport({
       partner = await resolvePartner(r);
     } catch (e) {
       skipped++;
-      errors.add('Row ${r.sheetRowNumber}: partner error — $e');
+      errors.add('Row ${r.sheetRowNumber}: partner error. ${plainError(e)}');
       continue;
     }
 
@@ -343,7 +344,7 @@ Future<BulkImportCommitResult> commitBulkImport({
       }
     } catch (e) {
       skipped++;
-      errors.add('Row ${r.sheetRowNumber}: $e');
+      errors.add('Row ${r.sheetRowNumber}. ${plainError(e)}');
     }
 
     processed++;
@@ -356,7 +357,7 @@ Future<BulkImportCommitResult> commitBulkImport({
   } catch (e) {
     incomplete = true;
     errors.add(
-      'Stopped after $entriesCreated of ${rows.length} rows: $e',
+      'Stopped after $entriesCreated of ${rows.length} rows. ${plainError(e)}',
     );
   }
 
@@ -372,7 +373,7 @@ Future<BulkImportCommitResult> commitBulkImport({
   } catch (e) {
     incomplete = true;
     errors.add('The import recorded $entriesCreated entries but could not '
-        'close the batch record: $e');
+        'close the batch record. ${plainError(e)}');
   }
 
   if (entriesCreated > 0 || skipped > 0) {

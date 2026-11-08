@@ -10,6 +10,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/dashboard/providers/admin_dashboard_providers.dart';
 import '../features/users/providers/users_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// People — Users and Invitations, merged.
 ///
@@ -42,7 +43,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
     final members = users.when(
       loading: () => const SelSkeletonRows(count: 3),
-      error: (e, _) => SelError(message: '$e'),
+      error: (e, _) => SelError(message: plainError(e)),
       data: (list) => SelLedger(
         bare: true,
         minWidth: 640,
@@ -112,7 +113,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
 
     final inviteRows = invites.when(
       loading: () => const SelSkeletonRows(count: 2),
-      error: (e, _) => SelError(message: '$e'),
+      error: (e, _) => SelError(message: plainError(e)),
       data: (list) => list.isEmpty
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: SelSpace.x8),
@@ -333,7 +334,7 @@ Future<void> _resend(
     }
   } catch (e) {
     if (context.mounted) {
-      selNotice(context, '$e', kind: SelNoticeKind.error);
+      selNotice(context, plainError(e), kind: SelNoticeKind.error);
     }
   }
 }

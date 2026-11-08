@@ -16,6 +16,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Configuration — Partnership arms and Periods, merged.
 ///
@@ -82,7 +83,7 @@ class ConfigurationScreen extends ConsumerWidget {
               const SizedBox(height: SelSpace.x4),
               periods.when(
                 loading: () => const SelSkeletonRows(count: 2),
-                error: (e, _) => SelError(message: '$e'),
+                error: (e, _) => SelError(message: plainError(e)),
                 data: (list) => list.isEmpty
                     ? const SelEmpty(
                         title: 'No periods yet',
@@ -128,7 +129,7 @@ class ConfigurationScreen extends ConsumerWidget {
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(SelSpace.cardPad),
-              child: SelError(message: '$e'),
+              child: SelError(message: plainError(e)),
             ),
             data: (list) => list.isEmpty
                 ? const SelEmpty(
@@ -312,7 +313,7 @@ class _ArmsEditorState extends ConsumerState<_ArmsEditor> {
           );
       if (mounted) setState(() => _last = (message: message, undo: undo));
     } catch (e) {
-      if (mounted) selNotice(context, 'Couldn\'t move ${arm.name}: $e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, 'Couldn\'t move ${arm.name}. ${plainError(e)}', kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -329,7 +330,7 @@ class _ArmsEditorState extends ConsumerState<_ArmsEditor> {
           );
       if (mounted) setState(() => _last = null);
     } catch (e) {
-      if (mounted) selNotice(context, 'Couldn\'t undo: $e', kind: SelNoticeKind.error);
+      if (mounted) selNotice(context, 'Couldn\'t undo. ${plainError(e)}', kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }

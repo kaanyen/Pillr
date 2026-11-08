@@ -14,6 +14,7 @@ import '../features/operations/recent_changes_card.dart';
 import '../features/operations/record_ops_repository.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Jakob: same page as the directory. Fitts: labeled Create. Hick: one
 /// confirm per tool. Peak-end: the confirm names who moves. Tesler: we
@@ -56,7 +57,7 @@ class _FellowshipManageViewState extends ConsumerState<FellowshipManageView> {
       selNotice(context, done, kind: SelNoticeKind.success);
     } catch (e) {
       if (!mounted) return;
-      selNotice(context, '$e', kind: SelNoticeKind.error);
+      selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -12,6 +12,7 @@ import '../features/entries/providers/entries_providers.dart';
 import '../features/goals/domain/partnership_goal.dart';
 import '../features/goals/providers/goals_providers.dart';
 import '../features/periods/providers/periods_providers.dart';
+import '../core/errors/plain_error.dart';
 
 /// Goals — targets per arm for the active period.
 ///
@@ -74,7 +75,7 @@ class GoalsScreen extends ConsumerWidget {
         ),
         goalsAsync.when(
           loading: () => const SelCard(child: SelSkeletonRows(count: 3)),
-          error: (e, _) => SelError(message: '$e'),
+          error: (e, _) => SelError(message: plainError(e)),
           data: (all) {
             final goals = period == null
                 ? <PartnershipGoal>[]

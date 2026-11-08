@@ -11,6 +11,7 @@ import '../../../design/seline.dart';
 import '../../../core/errors/error_handler.dart';
 import '../data/platform_repository.dart';
 import '../providers/platform_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 class PlatformChurchesScreen extends ConsumerStatefulWidget {
   const PlatformChurchesScreen({super.key});
@@ -311,7 +312,7 @@ class _PlatformChurchesScreenState
           Expanded(
             child: list.when(
               loading: () => const Center(child: PillrLoader(size: 48)),
-              error: (e, _) => Center(child: SelError(message: '$e')),
+              error: (e, _) => Center(child: SelError(message: plainError(e))),
               data: (rows) {
                 int count(String f) => f == 'all'
                     ? rows.length

@@ -27,6 +27,7 @@ import 'record_filter_bar.dart';
 import 'arm_palette.dart';
 import 'approval_playback.dart';
 import 'export_actions.dart';
+import '../core/errors/plain_error.dart';
 
 /// Which slice of the collection the queue is showing.
 enum _Filter { all, pending, approved, declined }
@@ -199,7 +200,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _recordsError = '$e';
+        _recordsError = plainError(e);
         _recordsLoading = false;
         _recordsLoadingMore = false;
       });
@@ -434,7 +435,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
               entriesAsync.when(
                 loading: () => const SelCard(child: SelSkeletonRows()),
                 error: (e, _) => SelError(
-                  message: '$e',
+                  message: plainError(e),
                   onRetry: () => ref.invalidate(pendingEntriesProvider),
                 ),
                 data: (_) => _QueueBoard(
