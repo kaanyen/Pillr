@@ -71,13 +71,10 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
       controller: _scrollController,
       onRefresh: () => ref.read(importHistoryProvider.notifier).refresh(),
       children: [
-        Row(
-          children: [
-            SelLink(label: 'Records', onTap: () => context.go('/records')),
-            Text('  /  ', style: SelType.bodySm),
-            Text('Imports', style: SelType.bodySm),
-          ],
-        ),
+        SelBreadcrumb([
+          ('Records', () => context.go('/records')),
+          ('Imports', null),
+        ]),
         const SizedBox(height: SelSpace.x3),
         SelPageTitle(
           title: 'Imports',

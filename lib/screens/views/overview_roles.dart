@@ -32,16 +32,6 @@ final myEntriesProvider = StreamProvider.autoDispose<List<PartnershipEntry>>((
       .watchMyEntries(idx.churchId, idx.uid);
 });
 
-const _soft = Color(0xFFC9DEF3);
-
-String _initials(String name) => name
-    .trim()
-    .split(RegExp(r'\s+'))
-    .where((w) => w.isNotEmpty)
-    .take(2)
-    .map((w) => w[0].toUpperCase())
-    .join();
-
 String _days(DateTime since) {
   final d = DateTime.now().difference(since).inDays;
   return d <= 0 ? 'Today' : '$d ${d == 1 ? 'day' : 'days'}';
@@ -49,153 +39,15 @@ String _days(DateTime since) {
 
 String _when(DateTime d) {
   final today = DateTime.now();
-  final days = DateTime(
-    today.year,
-    today.month,
-    today.day,
-  ).difference(DateTime(d.year, d.month, d.day)).inDays;
+  final days = DateTime(today.year, today.month, today.day)
+      .difference(DateTime(d.year, d.month, d.day))
+      .inDays;
   if (days == 0) return 'today';
   if (days == 1) return 'yesterday';
   return DateFormat(d.year == today.year ? 'd MMM' : 'd MMM y').format(d);
 }
 
-// ---------------------------------------------------------------- pieces
-
-/// The card frame every list on the Overview uses: a title, a link to the
-/// full page, an optional line under the title, then rows.
-class _ListCard extends StatelessWidget {
-  const _ListCard({
-    required this.title,
-    required this.rows,
-    this.link,
-    this.onLink,
-    this.note,
-    this.empty,
-    this.after,
-  });
-
-  final String title;
-  final String? link;
-  final VoidCallback? onLink;
-  final String? note;
-  final List<Widget> rows;
-  final String? empty;
-  final Widget? after;
-
-  @override
-  Widget build(BuildContext context) {
-    return SelCard(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(title, style: SelType.subtitle)),
-              if (link != null) SelLink(label: link!, onTap: onLink),
-            ],
-          ),
-          if (note != null) ...[
-            const SizedBox(height: SelSpace.x1),
-            Text(note!, style: SelType.small),
-          ],
-          const SizedBox(height: SelSpace.x1),
-          if (rows.isEmpty && empty != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: SelSpace.x4),
-              child: Text(empty!, style: SelType.bodySm),
-            ),
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: Sel.rowLine),
-            rows[i],
-          ],
-          ?after,
-        ],
-      ),
-    );
-  }
-}
-
-/// One person or entry in a list: initials, two lines, and a value.
-class _Line extends StatelessWidget {
-  const _Line({
-    required this.title,
-    required this.sub,
-    this.initials,
-    this.trailing,
-    this.trailingSub,
-    this.onTap,
-  });
-
-  final String title;
-  final String sub;
-  final String? initials;
-  final Widget? trailing;
-  final String? trailingSub;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Row(
-          children: [
-            if (initials != null) ...[
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: Sel.skyTint,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  initials!,
-                  style: SelType.small.copyWith(
-                    color: Sel.ink,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: SelSpace.x3),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    overflow: TextOverflow.ellipsis,
-                    style: SelType.body.copyWith(
-                      color: Sel.text,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    sub,
-                    overflow: TextOverflow.ellipsis,
-                    style: SelType.small,
-                  ),
-                ],
-              ),
-            ),
-            if (trailing != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  trailing!,
-                  if (trailingSub != null)
-                    Text(trailingSub!, style: SelType.small),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+const _soft = SelNavyCard.soft;
 
 Widget _money(String text) => Text(
   text,
@@ -205,104 +57,6 @@ Widget _money(String text) => Text(
     fontFeatures: const [FontFeature.tabularFigures()],
   ),
 );
-
-Widget _tag(String text, {bool waiting = false}) => Container(
-  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-  decoration: BoxDecoration(
-    color: waiting ? Sel.skyWash : Sel.track,
-    borderRadius: BorderRadius.circular(SelRadius.pill),
-  ),
-  child: Text(
-    text,
-    style: SelType.small.copyWith(color: waiting ? Sel.ink : Sel.text),
-  ),
-);
-
-/// The navy card on the right of the first row: what needs this person.
-class _NavyCard extends StatelessWidget {
-  const _NavyCard({
-    required this.label,
-    required this.headline,
-    required this.sub,
-    required this.body,
-    this.action,
-    this.onAction,
-    this.footLink,
-    this.onFootLink,
-  });
-
-  final String label;
-  final String headline;
-  final String sub;
-  final List<Widget> body;
-  final String? action;
-  final VoidCallback? onAction;
-  final String? footLink;
-  final VoidCallback? onFootLink;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(26, 26, 26, 22),
-      decoration: BoxDecoration(
-        color: Sel.ink,
-        borderRadius: BorderRadius.circular(SelRadius.card),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(label, style: SelType.body.copyWith(color: _soft)),
-          const SizedBox(height: SelSpace.x1),
-          Text(
-            headline,
-            style: SelType.hero.copyWith(
-              fontSize: 32,
-              color: Sel.card,
-              height: 1.15,
-            ),
-          ),
-          Text(sub, style: SelType.body.copyWith(color: _soft)),
-          const SizedBox(height: SelSpace.x3),
-          ...body,
-          const SizedBox(height: SelSpace.x4),
-          if (action != null)
-            Material(
-              color: Sel.card,
-              shape: const StadiumBorder(),
-              child: InkWell(
-                customBorder: const StadiumBorder(),
-                onTap: onAction,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  child: Text(
-                    action!,
-                    textAlign: TextAlign.center,
-                    style: SelType.button.copyWith(color: Sel.ink),
-                  ),
-                ),
-              ),
-            ),
-          if (footLink != null) ...[
-            const SizedBox(height: SelSpace.x3),
-            Center(
-              child: InkWell(
-                onTap: onFootLink,
-                child: Text(
-                  footLink!,
-                  style: SelType.bodySm.copyWith(
-                    color: Sel.card,
-                    decoration: TextDecoration.underline,
-                    decorationColor: Sel.card,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
 
 /// A wide card beside the navy card, and three cards under them; on a narrow
 /// screen everything stacks.
@@ -559,7 +313,7 @@ class StaffOverview extends ConsumerWidget {
     );
 
     final first = sentBack.isEmpty ? null : sentBack.first;
-    final navy = _NavyCard(
+    final navy = SelNavyCard(
       label: 'Sent back to you',
       headline: sentBack.isEmpty
           ? 'Nothing'
@@ -628,7 +382,7 @@ class StaffOverview extends ConsumerWidget {
       onFootLink: () => context.go('/records?filter=declined'),
     );
 
-    final withPastor = _ListCard(
+    final withPastor = SelListCard(
       title: 'With a pastor',
       link: pendingAll.isEmpty ? null : 'All ${pendingAll.length}',
       onLink: () => context.go('/queue'),
@@ -636,8 +390,8 @@ class StaffOverview extends ConsumerWidget {
       empty: 'Nothing of yours is waiting.',
       rows: [
         for (final e in pendingAll.take(4))
-          _Line(
-            initials: _initials(who(e)),
+          SelListLine(
+            face: who(e),
             title: who(e),
             sub: '${arm(e)} · ${DateFormat('d MMM').format(e.dateGiven)}',
             trailing: _money(money(e.amountCedis)),
@@ -647,7 +401,7 @@ class StaffOverview extends ConsumerWidget {
       ],
     );
 
-    final lately = _ListCard(
+    final lately = SelListCard(
       title: 'Recently approved',
       link: 'Records',
       onLink: () => context.go('/records'),
@@ -655,8 +409,8 @@ class StaffOverview extends ConsumerWidget {
       empty: 'Approved entries will show here.',
       rows: [
         for (final e in recentApproved.take(4))
-          _Line(
-            initials: _initials(who(e)),
+          SelListLine(
+            face: who(e),
             title: who(e),
             sub: '${arm(e)} · approved ${_when(e.reviewedAt ?? e.updatedAt)}',
             trailing: _money(money(e.amountCedis)),
@@ -667,21 +421,21 @@ class StaffOverview extends ConsumerWidget {
 
     final batches =
         ref.watch(recentImportBatchesProvider).valueOrNull ?? const [];
-    final sheets = _ListCard(
+    final sheets = SelListCard(
       title: 'Sheets',
       link: 'Imports',
       onLink: () => context.go('/records/imports'),
       empty: 'No sheets brought in yet.',
       rows: [
         for (final b in batches.take(3))
-          _Line(
+          SelListLine(
             title: b.displayName,
             sub:
                 '${b.entryCount} entries · ${DateFormat('d MMM').format(b.createdAt)} · ${b.createdByName}',
             trailing: b.isIncomplete
-                ? _tag('Not finished', waiting: true)
+                ? const SelTag('Not finished', tone: SelTagTone.waiting)
                 : b.isVoided
-                ? _tag('Cleared')
+                ? const SelTag('Cleared')
                 : null,
             onTap: () => context.go('/records/imports'),
           ),
@@ -865,7 +619,7 @@ class AdminOverview extends ConsumerWidget {
       ),
     );
 
-    final navy = _NavyCard(
+    final navy = SelNavyCard(
       label: 'Needs you',
       headline: invites.isEmpty
           ? 'Nothing'
@@ -913,23 +667,23 @@ class AdminOverview extends ConsumerWidget {
       onFootLink: () => context.go('/tools'),
     );
 
-    final people = _ListCard(
+    final people = SelListCard(
       title: 'People',
       link: 'All ${users.length}',
       onLink: () => context.go('/people'),
       empty: 'Nobody yet. Invite a pastor and staff.',
       rows: [
         for (final u in users.take(4))
-          _Line(
-            initials: _initials(u.fullName),
+          SelListLine(
+            face: u.fullName,
             title: u.fullName,
             sub: '${u.role[0].toUpperCase()}${u.role.substring(1)}',
             trailing: u.lastLoginAt != null &&
                     DateTime.now().difference(u.lastLoginAt!).inDays >= 14
-                ? _tag(
+                ? SelTag(
                     'Not seen in ${DateTime.now().difference(u.lastLoginAt!).inDays ~/ 7} weeks',
-                    waiting: true,
-                  )
+                    tone: SelTagTone.waiting,
+                    )
                 : Text(lastActiveLabel(u.lastLoginAt), style: SelType.small),
           ),
       ],
@@ -947,14 +701,14 @@ class AdminOverview extends ConsumerWidget {
     }
     final order = counts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final fellowships = _ListCard(
+    final fellowships = SelListCard(
       title: 'Fellowships',
       link: 'All ${order.length}',
       onLink: () => context.go('/fellowships'),
       empty: 'No fellowships yet.',
       rows: [
         for (final f in order.take(4))
-          _Line(
+          SelListLine(
             title: f.key,
             sub: '${f.value} ${f.value == 1 ? 'partner' : 'partners'}',
             onTap: () => context.go(
@@ -991,14 +745,14 @@ class AdminOverview extends ConsumerWidget {
     );
 
     final logs = ref.watch(activityLogsPreviewProvider).valueOrNull ?? const [];
-    final changes = _ListCard(
+    final changes = SelListCard(
       title: 'Recent changes',
       link: 'Activity',
       onLink: () => context.go('/activity'),
       empty: 'Nothing changed yet.',
       rows: [
         for (final l in logs.take(3))
-          _Line(
+          SelListLine(
             title: activityActionLabel(l.action),
             sub: '${l.actorName} · ${_when(l.createdAt)}',
           ),

@@ -64,7 +64,7 @@ class _PeopleScreenState extends ConsumerState<PeopleScreen> {
               cells: [
                 Row(
                   children: [
-                    _Initials(u.fullName),
+                    SelFace(u.fullName, size: 38),
                     const SizedBox(width: SelSpace.x3),
                     Expanded(
                       child: Column(
@@ -295,27 +295,6 @@ class _Tab extends StatelessWidget {
   }
 }
 
-class _Initials extends StatelessWidget {
-  const _Initials(this.name);
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
-    return Container(
-      width: 38,
-      height: 38,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(color: Sel.skyWash, shape: BoxShape.circle),
-      child: Text(
-        words.take(2).map((w) => w[0].toUpperCase()).join(),
-        style: SelType.tag.copyWith(fontWeight: FontWeight.w800),
-      ),
-    );
-  }
-}
-
 class _RoleTag extends StatelessWidget {
   const _RoleTag({required this.role, this.inactive = false});
 
@@ -376,7 +355,7 @@ class _InviteRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          _Initials((invite.email as String).split('@').first.replaceAll('.', ' ')),
+          SelFace((invite.email as String).split('@').first.replaceAll('.', ' '), size: 38),
           const SizedBox(width: SelSpace.x3),
           Expanded(
             child: Column(

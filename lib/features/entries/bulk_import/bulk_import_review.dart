@@ -125,7 +125,8 @@ class _BulkImportReviewState extends State<BulkImportReview> {
     final tabs = [for (var i = 0; i < n; i++) _tabOf(i)];
     int count(ReviewTab t) =>
         t == ReviewTab.all ? n : tabs.where((x) => x == t).length;
-    final tab = _picked ??
+    final tab =
+        _picked ??
         (tabs.contains(ReviewTab.needYou) ? ReviewTab.needYou : ReviewTab.all);
     final shown = [
       for (var i = 0; i < n; i++)
@@ -148,10 +149,12 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Tabs(
-            current: tab,
-            counts: {for (final t in ReviewTab.values) t: count(t)},
-            onPick: (t) => setState(() => _picked = t),
+          SelCountTabs<ReviewTab>(
+            selected: tab,
+            onSelect: (t) => setState(() => _picked = t),
+            tabs: [
+              for (final t in ReviewTab.values) (t, _tabLabels[t]!, count(t)),
+            ],
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
@@ -465,9 +468,7 @@ class _BulkImportReviewState extends State<BulkImportReview> {
             style: SelType.small,
           ),
           const SizedBox(height: SelSpace.x4),
-          ...children.where(
-            (w) => !(w is Text && w.data == title),
-          ),
+          ...children.where((w) => !(w is Text && w.data == title)),
         ],
       ),
     );
@@ -641,67 +642,13 @@ class _BulkImportReviewState extends State<BulkImportReview> {
 
 // ----------------------------------------------------------------- pieces
 
-class _Tabs extends StatelessWidget {
-  const _Tabs({
-    required this.current,
-    required this.counts,
-    required this.onPick,
-  });
-
-  final ReviewTab current;
-  final Map<ReviewTab, int> counts;
-  final ValueChanged<ReviewTab> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    const labels = {
-      ReviewTab.all: 'All rows',
-      ReviewTab.needYou: 'Need you',
-      ReviewTab.worthALook: 'Worth a look',
-      ReviewTab.ready: 'Ready',
-      ReviewTab.leftOut: 'Left out',
-    };
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Sel.border)),
-      ),
-      child: Row(
-        children: [
-          for (final t in ReviewTab.values)
-            Expanded(
-              child: InkWell(
-                onTap: () => onPick(t),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                  decoration: BoxDecoration(
-                    color: t == current ? Sel.skyTint : null,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: t == current ? Sel.ink : Colors.transparent,
-                        width: 3,
-                      ),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(labels[t]!, style: SelType.small),
-                      Text(
-                        '${counts[t] ?? 0}',
-                        style: SelType.subtitle.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
+const _tabLabels = {
+  ReviewTab.all: 'All rows',
+  ReviewTab.needYou: 'Need you',
+  ReviewTab.worthALook: 'Worth a look',
+  ReviewTab.ready: 'Ready',
+  ReviewTab.leftOut: 'Left out',
+};
 
 class _HeadRow extends StatelessWidget {
   @override
@@ -899,7 +846,7 @@ class _ReviewRow extends StatelessWidget {
                       child: hasArmColumn && arms.isNotEmpty
                           ? SelSelect<String>(
                               value: armValue,
-                                                            hint: Text(
+                              hint: Text(
                                 _v(BulkImportColumn.category).isEmpty
                                     ? 'Pick'
                                     : _v(BulkImportColumn.category),

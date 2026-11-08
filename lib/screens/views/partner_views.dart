@@ -30,33 +30,6 @@ String _phoneEnd(Partner p) {
       : '··· ${digits.substring(digits.length - 4)}';
 }
 
-String _initials(String name) => name
-    .trim()
-    .split(RegExp(r'\s+'))
-    .where((w) => w.isNotEmpty)
-    .take(2)
-    .map((w) => w[0].toUpperCase())
-    .join();
-
-/// The partner's initials on light sky, the way every list shows a person.
-class _Face extends StatelessWidget {
-  const _Face(this.name);
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 32,
-    height: 32,
-    alignment: Alignment.center,
-    decoration: const BoxDecoration(color: Sel.skyWash, shape: BoxShape.circle),
-    child: Text(
-      _initials(name),
-      style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w800),
-    ),
-  );
-}
-
 /// Name with initials, and an optional second line.
 class _Who extends StatelessWidget {
   const _Who(this.name, [this.sub]);
@@ -67,7 +40,7 @@ class _Who extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      _Face(name),
+      SelFace(name),
       const SizedBox(width: SelSpace.x3),
       Expanded(
         child: Column(
@@ -108,17 +81,6 @@ Widget _partnersTitle(BuildContext context, WidgetRef ref, String subtitle) {
     ],
   );
 }
-
-/// A pill tag in the canvas style: navy, light sky or grey.
-Widget _tag(String text, {Color fill = Sel.track, Color ink = Sel.text}) =>
-    Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(SelRadius.pill),
-      ),
-      child: Text(text, style: SelType.small.copyWith(color: ink)),
-    );
 
 /// Partners · By fellowship, as on the canvas: one table with a heading per
 /// fellowship. Each heading folds, and an open group shows its five biggest
@@ -508,7 +470,7 @@ class NewPartnersScreen extends ConsumerWidget {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: byId[p.id] == null
-                                ? _tag('Not yet', fill: Sel.skyWash, ink: Sel.ink)
+                                ? const SelTag('Not yet', tone: SelTagTone.waiting)
                                 : Text(gaveOn(byId[p.id]!.firstGave), style: SelType.bodySm.copyWith(color: Sel.text)),
                           ),
                           SelCell.numeric(byId[p.id] == null ? '–' : money(byId[p.id]!.total)),
@@ -650,11 +612,11 @@ class _GivingRhythmState extends ConsumerState<GivingRhythmScreen> {
     }
 
     Widget rhythmTag(_Rhythm r) => switch (r) {
-      _Rhythm.everyMonth => _tag('Every month', fill: Sel.ink, ink: Sel.card),
-      _Rhythm.mostMonths => _tag('Most months', fill: Sel.skyWash, ink: Sel.ink),
-      _Rhythm.nowAndThen => _tag('Now and then', fill: Sel.skyTint, ink: Sel.ink),
-      _Rhythm.stopped => _tag('Stopped'),
-      _ => _tag('Not yet'),
+      _Rhythm.everyMonth => const SelTag('Every month', tone: SelTagTone.strong),
+      _Rhythm.mostMonths => const SelTag('Most months', tone: SelTagTone.waiting),
+      _Rhythm.nowAndThen => const SelTag('Now and then', tone: SelTagTone.soft),
+      _Rhythm.stopped => const SelTag('Stopped'),
+      _ => const SelTag('Not yet'),
     };
 
     return SelPageBody(
@@ -669,47 +631,16 @@ class _GivingRhythmState extends ConsumerState<GivingRhythmScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Sel.border)),
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final t in _Rhythm.values)
-                          InkWell(
-                            onTap: () => setState(() {
-                              _tab = t;
-                              _start = 0;
-                            }),
-                            child: Container(
-                              width: 170,
-                              padding: const EdgeInsets.fromLTRB(18, 14, 12, 10),
-                              decoration: BoxDecoration(
-                                color: t == _tab ? Sel.skyTint : null,
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: t == _tab ? Sel.ink : Colors.transparent,
-                                    width: 3,
-                                  ),
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_rhythmLabel[t]!, style: SelType.small),
-                                  Text(
-                                    '${count(t)}',
-                                    style: SelType.subtitle.copyWith(fontWeight: FontWeight.w800),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                SelCountTabs<_Rhythm>(
+                  tabWidth: 170,
+                  selected: _tab,
+                  onSelect: (t) => setState(() {
+                    _tab = t;
+                    _start = 0;
+                  }),
+                  tabs: [
+                    for (final t in _Rhythm.values) (t, _rhythmLabel[t]!, count(t)),
+                  ],
                 ),
                 SelLedger(
                   bare: true,
@@ -945,7 +876,7 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
                           ? InkWell(
                               borderRadius: BorderRadius.circular(SelRadius.pill),
                               onTap: () => _editReason(p),
-                              child: _tag(p.followUpReason!.trim()),
+                              child: SelTag(p.followUpReason!.trim()),
                             )
                           : SelLink(
                               label: 'Add a reason',

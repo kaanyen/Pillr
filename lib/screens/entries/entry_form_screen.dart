@@ -640,13 +640,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
     return SelPageBody(
       children: [
-        Row(
-          children: [
-            SelLink(label: 'Records', onTap: () => context.go('/records')),
-            Text('  /  ', style: SelType.bodySm),
-            Text(_isEdit ? 'Edit entry' : 'Record giving', style: SelType.bodySm),
-          ],
-        ),
+        SelBreadcrumb([
+          ('Records', () => context.go('/records')),
+          (_isEdit ? 'Edit entry' : 'Record giving', null),
+        ]),
         const SizedBox(height: SelSpace.x4),
         SelPageTitle(
           title: _isEdit ? 'Edit entry' : 'Record giving',

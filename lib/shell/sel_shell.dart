@@ -34,6 +34,7 @@ class SelShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final path = GoRouterState.of(context).uri.path;
+    ref.watch(lastActiveRecorderProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final offline = ref
         .watch(connectivityProvider)

@@ -76,67 +76,25 @@ class _FellowshipDetailState extends ConsumerState<FellowshipDetailScreen> {
 
     return SelPageBody(
       children: [
-        Row(
-          children: [
-            SelLink(
-              label: 'Fellowships',
-              onTap: () => context.go('/fellowships'),
-            ),
-            Text('  /  ', style: SelType.bodySm),
-            Text(name, style: SelType.bodySm),
-          ],
-        ),
+        SelBreadcrumb([
+          ('Fellowships', () => context.go('/fellowships')),
+          (name, null),
+        ]),
         const SizedBox(height: SelSpace.x3),
         SelPageTitle(
           title: name,
           subtitle:
               '${members.length} partners · ${ref.watch(activePeriodProvider)?.name ?? 'this period'}',
         ),
-        // Tabs on a light track, the chosen one lifted onto white.
-        Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Sel.rail,
-            borderRadius: BorderRadius.circular(SelRadius.pill),
-          ),
-          child: Row(
-            children: [
-              for (final (t, label) in const [
-                (FellowshipTab.overview, 'Overview'),
-                (FellowshipTab.people, 'People'),
-                (FellowshipTab.arms, 'Arms'),
-                (FellowshipTab.months, 'Month by month'),
-              ])
-                Material(
-                  color: _tab == t ? Sel.card : Colors.transparent,
-                  elevation: 0,
-                  shape: StadiumBorder(
-                    side: BorderSide(
-                      color: _tab == t ? Sel.border : Colors.transparent,
-                    ),
-                  ),
-                  child: InkWell(
-                    customBorder: const StadiumBorder(),
-                    onTap: () => setState(() => _tab = t),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      child: Text(
-                        label,
-                        style: SelType.bodySm.copyWith(
-                          color: _tab == t ? Sel.ink : Sel.warm,
-                          fontWeight: _tab == t
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        SelTrackTabs<FellowshipTab>(
+          selected: _tab,
+          onSelect: (t) => setState(() => _tab = t),
+          tabs: const [
+            (FellowshipTab.overview, 'Overview'),
+            (FellowshipTab.people, 'People'),
+            (FellowshipTab.arms, 'Arms'),
+            (FellowshipTab.months, 'Month by month'),
+          ],
         ),
         const SizedBox(height: SelSpace.x4),
         if (loading)

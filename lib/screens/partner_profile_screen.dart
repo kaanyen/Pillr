@@ -618,13 +618,10 @@ class _PartnerProfileScreenState extends ConsumerState<PartnerProfileScreen> {
           onRefresh: () async =>
               ref.invalidate(partnerEntriesProvider(widget.partnerId)),
           children: [
-            Row(
-              children: [
-                SelLink(label: 'Partners', onTap: () => context.go('/partners')),
-                Text('  /  ', style: SelType.bodySm),
-                Text(partner.fullName, style: SelType.bodySm),
-              ],
-            ),
+            SelBreadcrumb([
+              ('Partners', () => context.go('/partners')),
+              (partner.fullName, null),
+            ]),
             const SizedBox(height: SelSpace.x4),
             header,
             const SizedBox(height: SelSpace.x6),

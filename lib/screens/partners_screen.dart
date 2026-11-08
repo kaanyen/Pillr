@@ -207,7 +207,7 @@ class _PartnersScreenState extends ConsumerState<PartnersScreen> {
                         cells: [
                           Row(
                             children: [
-                              _Initials(name: p.fullName),
+                              SelFace(p.fullName, size: 34),
                               const SizedBox(width: SelSpace.x3),
                               Expanded(
                                 child: Column(
@@ -308,23 +308,3 @@ class _FellowTab extends StatelessWidget {
   }
 }
 
-class _Initials extends StatelessWidget {
-  const _Initials({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
-    return Container(
-      width: 34,
-      height: 34,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(color: Sel.skyTint, shape: BoxShape.circle),
-      child: Text(
-        words.take(2).map((w) => w[0].toUpperCase()).join(),
-        style: SelType.tag.copyWith(fontWeight: FontWeight.w800),
-      ),
-    );
-  }
-}

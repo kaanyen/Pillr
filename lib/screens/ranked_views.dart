@@ -182,10 +182,6 @@ class PartnerRankedLedger extends ConsumerWidget {
       itemBuilder: (context, i) {
         final r = rows[i];
         final top = r.rank <= 3;
-        final words = r.partnerName
-            .trim()
-            .split(RegExp(r'\s+'))
-            .where((w) => w.isNotEmpty);
         return SelRow(
           onTap: () => context.go('/partners/${r.partnerId}'),
           cells: [
@@ -211,22 +207,7 @@ class PartnerRankedLedger extends ConsumerWidget {
             ),
             Row(
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Sel.skyWash,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    words.take(2).map((w) => w[0].toUpperCase()).join(),
-                    style: SelType.small.copyWith(
-                      color: Sel.ink,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
+                SelFace(r.partnerName),
                 const SizedBox(width: SelSpace.x3),
                 Expanded(
                   child: Text(

@@ -288,22 +288,16 @@ class EntryDetailScreen extends ConsumerWidget {
 
         return SelPageBody(
           children: [
-            Row(
-              children: [
-                SelLink(
-                  label: fromQueue ? 'Queue' : 'Records',
-                  onTap: () => context.go(fromQueue ? '/queue' : '/records'),
-                ),
-                Text('  /  ', style: SelType.bodySm),
-                Flexible(
-                  child: Text(
-                    '$partner, ${formatFirestoreDate(entry.dateGiven, pattern: 'd MMM')}',
-                    style: SelType.bodySm,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+            SelBreadcrumb([
+              (
+                fromQueue ? 'Queue' : 'Records',
+                () => context.go(fromQueue ? '/queue' : '/records'),
+              ),
+              (
+                '$partner, ${formatFirestoreDate(entry.dateGiven, pattern: 'd MMM')}',
+                null,
+              ),
+            ]),
             const SizedBox(height: SelSpace.x4),
             LayoutBuilder(
               builder: (context, c) => c.maxWidth < 980
