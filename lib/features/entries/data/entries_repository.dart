@@ -366,13 +366,16 @@ class EntriesRepository {
       'partnershipArmId': existing.partnershipArmId,
       'partnershipPeriodId': existing.partnershipPeriodId,
       'notes': existing.notes,
+      'status': existing.status,
     };
     final history = List<Map<String, dynamic>>.from(existing.editHistory);
     history.add({
       'editedBy': staff.uid,
       'editedAt': Timestamp.now(),
       'previousValues': prev,
-      'changeDescription': 'Staff updated entry (resubmitted as pending)',
+      'changeDescription': existing.status == 'approved'
+          ? 'Staff changed an approved entry; back to the pastor to approve again'
+          : 'Staff updated entry (resubmitted as pending)',
     });
     await _entries(churchId).doc(existing.id).update({
       'partnerId': partnerId,

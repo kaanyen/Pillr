@@ -25,7 +25,7 @@ bool _canEdit(UserChurchIndex? idx, PartnershipEntry e) {
   if (idx.isPastor) return true;
   return idx.isStaff &&
       e.createdBy == idx.uid &&
-      (e.status == 'pending' || e.status == 'declined');
+      (e.status == 'pending' || e.status == 'declined' || e.status == 'approved');
 }
 
 /// A single entry, as a record card.

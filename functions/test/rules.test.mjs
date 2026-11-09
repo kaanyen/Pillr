@@ -164,6 +164,28 @@ describe("staff cannot approve their own money", () => {
     });
     await assertFails(updateDoc(doc(db, "churches/c1/entries/e4"), {amountCedis: 999, status: "pending"}));
   });
+  it("lets staff change an approved entry they recorded, only by sending it back", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    const seed = () => env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/entries/e5"), {
+        churchId: "c1", createdBy: STAFF, status: "approved", amountCedis: 100, reviewedBy: PASTOR,
+      });
+    });
+    await seed();
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e5"), {amountCedis: 120}), "must go back to pending");
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e5"), {amountCedis: 120, status: "approved"}));
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/entries/e5"), {amountCedis: 120, status: "pending", reviewedBy: null}));
+  });
+
+  it("refuses staff reopening a voided entry from the form", async () => {
+    const db = env.authenticatedContext(STAFF).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "churches/c1/entries/e6"), {
+        churchId: "c1", createdBy: STAFF, status: "voided", amountCedis: 100,
+      });
+    });
+    await assertFails(updateDoc(doc(db, "churches/c1/entries/e6"), {amountCedis: 120, status: "pending"}));
+  });
 });
 
 describe("the audit log cannot be rewritten", () => {

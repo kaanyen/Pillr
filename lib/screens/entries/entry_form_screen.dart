@@ -649,7 +649,12 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         const SizedBox(height: SelSpace.x4),
         SelPageTitle(
           title: _isEdit ? 'Edit entry' : 'Record giving',
-          subtitle: _isEdit
+          subtitle: _isEdit && idx?.isStaff == true && entry?.status == 'approved'
+              ? 'This entry is approved. Saving a change sends it back to your pastor, '
+                    'and it counts again once they approve it.'
+              : _isEdit && idx?.isStaff == true
+              ? 'Saving sends it to your pastor to approve. Changes are kept in the entry\'s history.'
+              : _isEdit
               ? 'Changes are kept in the entry\'s history.'
               : 'Who gave, how much, and toward what.',
         ),
