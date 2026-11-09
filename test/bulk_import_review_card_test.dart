@@ -160,13 +160,14 @@ Future<_Calls> _pump(
 }
 
 void main() {
-  testWidgets('the sheet shows every column, phone and member ID included', (tester) async {
+  testWidgets('the sheet shows every column but member ID', (tester) async {
     await _pump(tester, raw: [_raw(3)], resolved: [_row(3)]);
-    for (final h in ['Date', 'Name', 'Phone', 'Member ID', 'Email', 'Fellowship', 'Arm', 'Amount', 'Notes']) {
+    for (final h in ['Date', 'Name', 'Phone', 'Email', 'Fellowship', 'Arm', 'Amount', 'Notes']) {
       expect(find.text(h), findsWidgets, reason: 'column $h');
     }
+    expect(find.text('Member ID'), findsNothing, reason: 'member ID is not shown');
     expect(find.text('0244123453'), findsWidgets);
-    expect(find.text('DCC100003'), findsWidgets);
+    expect(find.text('DCC100003'), findsNothing);
     expect(find.text('MoMo 3'), findsWidgets);
   });
 

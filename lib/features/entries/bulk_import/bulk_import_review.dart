@@ -156,10 +156,12 @@ class _BulkImportReviewState extends State<BulkImportReview> {
   }
 
   /// Every column the sheet has, in the sheet's order, so nothing in it is
-  /// hidden (phone, member ID, email, notes...). Fellowship and Arm are added
+  /// hidden (phone, email, notes...), apart from member ID. Fellowship and Arm are added
   /// when the sheet has none, since every entry gets one.
   List<BulkImportColumn> get _fields {
-    final cols = [...widget.columns];
+    // Member ID still matches partners when the sheet has one; it is not
+    // shown, since it is a reference number, not something people check.
+    final cols = [...widget.columns.where((c) => c != BulkImportColumn.memberId)];
     if (!cols.contains(BulkImportColumn.fellowship)) {
       cols.insert(
         cols.contains(BulkImportColumn.name)

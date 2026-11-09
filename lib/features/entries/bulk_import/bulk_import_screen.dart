@@ -943,13 +943,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             ],
           ),
           const SizedBox(height: SelSpace.x3),
-          // Every matched column, in the sheet's order, so phone, member
-          // ID, email and notes show here too. Scrolls sideways if wide.
+          // Every matched column but member ID, in the sheet's order, so
+          // phone, email and notes show here too. Scrolls sideways if wide.
           Builder(
             builder: (context) {
               final shownCols = (_mapping.entries.toList()
                     ..sort((x, y) => x.value.compareTo(y.value)))
                   .map((e) => e.key)
+                  .where((c) => c != BulkImportColumn.memberId)
                   .toList();
               String head(BulkImportColumn c) => switch (c) {
                 BulkImportColumn.date => 'Date',
