@@ -18,6 +18,12 @@ jobs:
       # Keep this in step with ci.yml. 3.27.0 ships Dart 3.6.0, below the
       # ^3.11.4 the pubspec asks for, so every tag died at `flutter pub get`
       # and no APK ever reached a tester.
+      # GitHub's machines now default to Java 25, which this Gradle cannot
+      # read ("What went wrong: 25.0.5"). Pin the Java the build is made for.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
