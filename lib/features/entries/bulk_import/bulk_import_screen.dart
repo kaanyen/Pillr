@@ -4170,12 +4170,12 @@ class _ImportRowState extends ConsumerState<_ImportRow> {
 
     final ok = await selConfirm(
       context,
-      title: 'Undo this import?',
+      title: 'Take back the ones still waiting?',
       message:
-          'Removes the entries from ${b.fileName} that are still waiting on a '
-          'decision. Anything already approved stays — that money has been '
-          'counted, and taking it back out quietly would be a second mistake.',
-      confirmLabel: 'Undo import',
+          'Removes the entries from ${b.fileName} that no pastor has approved '
+          'yet. Approved ones stay. To take approved giving out of the totals as '
+          'well, archive the import from Imports instead; nothing is deleted that way.',
+      confirmLabel: 'Take them back',
       destructive: true,
     );
     if (!ok) return;
