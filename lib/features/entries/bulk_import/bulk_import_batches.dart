@@ -28,6 +28,7 @@ class BulkImportBatch {
     this.note,
     this.voidedAt,
     this.voidedByName,
+    this.lastEditedCount = 0,
     this.createdBy,
     this.voidedCount = 0,
     this.inProgress = false,
@@ -65,6 +66,7 @@ class BulkImportBatch {
           : (m['note'] as String).trim(),
       voidedAt: (m['voidedAt'] as Timestamp?)?.toDate(),
       voidedByName: m['voidedByName'] as String?,
+      lastEditedCount: (m['lastEditedCount'] as num?)?.toInt() ?? 0,
       createdBy: m['createdBy'] as String?,
       voidedCount: (m['voidedCount'] ?? 0) as int,
       inProgress: m['inProgress'] == true,
@@ -117,6 +119,9 @@ class BulkImportBatch {
 
   /// Who archived it, for the line pastors see when staff archive one.
   final String? voidedByName;
+
+  /// Rows changed by the last correction, for the revert's progress.
+  final int lastEditedCount;
 
   /// Who brought it in; staff manage only their own.
   final String? createdBy;
@@ -472,6 +477,9 @@ class BulkImportBatchRepository {
     required String churchId,
     required String batchId,
     required String byUid,
+    /// How many will be removed, then each one by name, for the progress window.
+    void Function(int count)? onStart,
+    void Function(String name)? onEach,
   }) async {
     // Staff may only search entries they recorded, so the search says so;
     // an import's entries are all its own staff member's anyway.
@@ -485,11 +493,15 @@ class BulkImportBatchRepository {
         .where((d) => (d.data()['status'] ?? '') == 'pending')
         .toList();
     final kept = all.docs.length - removable.length;
+    onStart?.call(removable.length);
 
     // Firestore caps a batch at 500 writes.
     for (var i = 0; i < removable.length; i += 400) {
       final batch = _firestore.batch();
       for (final d in removable.skip(i).take(400)) {
+        onEach?.call(
+          (d.data()['partnerSnapshot'] as Map?)?['fullName']?.toString() ?? 'Partner',
+        );
         batch.delete(d.reference);
       }
       await batch.commit();

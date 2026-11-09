@@ -4,6 +4,7 @@ import '../../auth/domain/church_user.dart';
 import '../../periods/domain/partnership_period.dart';
 import '../../arms/domain/partnership_arm.dart';
 import '../data/entries_repository.dart';
+import '../domain/partnership_entry.dart';
 import '../providers/entries_providers.dart';
 import 'bulk_import_batches.dart';
 
@@ -37,6 +38,7 @@ class BulkImportBatchActions {
     required String batchId,
     required ChurchUser actor,
     required String reason,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     final rows = await _entries.fetchEntriesForBatch(churchId, batchId);
     final alreadyVoided = rows.where((e) => e.isVoided).length;
@@ -44,6 +46,7 @@ class BulkImportBatchActions {
     final voided = await _entries.voidEntries(
       churchId: churchId,
       entries: rows,
+      onEach: onEach,
       actor: actor,
       reason: reason,
     );
@@ -67,11 +70,13 @@ class BulkImportBatchActions {
     required String churchId,
     required String batchId,
     required ChurchUser actor,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     final rows = await _entries.fetchEntriesForBatch(churchId, batchId);
     final restored = await _entries.restoreEntries(
       churchId: churchId,
       entries: rows,
+      onEach: onEach,
       actor: actor,
     );
     await _batches.markRestored(
@@ -98,6 +103,7 @@ class BulkImportBatchActions {
     PartnershipPeriod? period,
     PartnershipArm? arm,
     String? previousPeriodName,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     if (period == null && arm == null) return 0;
     final rows = await _entries.fetchEntriesForBatch(churchId, batchId);
@@ -105,6 +111,7 @@ class BulkImportBatchActions {
     final moved = await _entries.reassignEntries(
       churchId: churchId,
       entries: rows,
+      onEach: onEach,
       actor: actor,
       partnershipPeriodId: period?.id,
       periodSnapshot: period == null ? null : {'name': period.name},
@@ -129,11 +136,13 @@ class BulkImportBatchActions {
     required String batchId,
     required ChurchUser actor,
     required String previousPeriodName,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     final rows = await _entries.fetchEntriesForBatch(churchId, batchId);
     final moved = await _entries.undoReassignEntries(
       churchId: churchId,
       entries: rows,
+      onEach: onEach,
       actor: actor,
     );
     await _batches.markReassignUndone(
@@ -149,11 +158,13 @@ class BulkImportBatchActions {
     required String churchId,
     required String batchId,
     required ChurchUser actor,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     final rows = await _entries.fetchEntriesForBatch(churchId, batchId);
     final reverted = await _entries.revertLastPastorEdits(
       churchId: churchId,
       entries: rows,
+      onEach: onEach,
       actor: actor,
     );
     await _batches.markEditsReverted(

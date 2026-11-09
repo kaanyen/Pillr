@@ -147,6 +147,8 @@ class MaintenanceRepository {
   Future<int> repairTotals({
     required String churchId,
     required List<TotalsDrift> drift,
+    /// Each total as it is put right, by name, for the progress window.
+    void Function(String name)? onEach,
   }) async {
     var repaired = 0;
     const chunkSize = 400;
@@ -158,6 +160,7 @@ class MaintenanceRepository {
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
         final d = fixable[j];
+        onEach?.call(d.name);
         final church = _firestore.collection('churches').doc(churchId);
         final ref = d.kind == TotalsDriftKind.partner
             ? church.collection('partner_totals').doc(d.id)

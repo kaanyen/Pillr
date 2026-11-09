@@ -21,6 +21,7 @@ export 'components/sel_highlight.dart';
 export 'components/sel_ledger.dart';
 export 'components/sel_page.dart';
 export 'components/sel_pieces.dart';
+export 'components/sel_progress.dart';
 export 'components/sel_sheet.dart';
 export 'components/sel_side_sheet.dart';
 export 'components/sel_states.dart';

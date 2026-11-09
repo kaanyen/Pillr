@@ -684,11 +684,25 @@ class _PeriodRow extends ConsumerWidget {
             'recorded against this one.',
         confirmLabel: 'Activate',
       );
-      if (!ok) return;
-      await ref.read(periodsRepositoryProvider).activatePeriod(
-            churchId: churchId,
-            periodId: period.id,
+      if (!ok || !context.mounted) return;
+      await runWithProgress(
+        context,
+        title: 'Starting ${period.name}',
+        steps: const ['Closing the current period', 'Making this one active', 'Pointing new entries at it'],
+        run: (p) async {
+          await runServerSteps(
+            p,
+            () => ref.read(periodsRepositoryProvider).activatePeriod(churchId: churchId, periodId: period.id),
           );
+          return SelSummary(
+            title: '${period.name} is the active period',
+            lines: const [
+              SelSummaryLine('New entries are recorded against it'),
+              SelSummaryLine('The old period is closed', detail: 'Its giving stays as it was, in Records and on every partner.'),
+            ],
+          );
+        },
+      );
     }
 
     return Container(

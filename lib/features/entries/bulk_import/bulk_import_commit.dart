@@ -351,7 +351,14 @@ Future<BulkImportCommitResult> commitBulkImport({
     onProgress?.call(
       processed,
       processable > 0 ? processable : rows.length,
-      'Row ${r.sheetRowNumber}',
+      [
+        'Row ${r.sheetRowNumber}',
+        if (r.fullName.isNotEmpty) r.fullName,
+        '₵${r.amountCedis.toStringAsFixed(2)}',
+        if (r.armName.isNotEmpty) r.armName,
+        if (r.resolution == PartnerResolutionKind.createNew)
+          'new partner${r.fellowship.isEmpty ? '' : ', added to ${r.fellowship}'}',
+      ].join(' · '),
     );
   }
   } catch (e) {

@@ -11,7 +11,6 @@ import '../design/seline.dart';
 import 'pdf_actions.dart';
 import '../features/partners/domain/partner.dart';
 import '../features/operations/record_ops_repository.dart';
-import '../core/notifications/sel_notice.dart';
 import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
@@ -760,21 +759,25 @@ class _MergedRecordsPanelState extends ConsumerState<_MergedRecordsPanel> {
     if (!ok || !mounted) return;
     setState(() => _busy = r.memberId);
     try {
-      final res = await ref
-          .read(recordOpsRepositoryProvider)
-          .partnerUnmerge(churchId: widget.churchId, memberId: r.memberId);
+      await runWithProgress(
+        context,
+        title: 'Taking ${r.fullName} out of the merge',
+        steps: ['Finding ${r.memberId}', 'Moving their giving back to them', 'Opening their record again'],
+        run: (p) async {
+          final res = await runServerSteps(
+            p,
+            () => ref.read(recordOpsRepositoryProvider).partnerUnmerge(churchId: widget.churchId, memberId: r.memberId),
+          );
+          return SelSummary(
+            title: '${r.fullName} is a separate person again',
+            numbers: [(r.memberId, 'their member ID'), ('${res.moved}', '${res.moved == 1 ? 'entry' : 'entries'} went back to them')],
+            lines: const [SelSummaryLine('Their own phone and email went back with them')],
+          );
+        },
+      );
       ref.invalidate(partnersStreamProvider(false));
       invalidateEntryDerivedData(ref);
       widget.onChanged();
-      if (!mounted) return;
-      selNotice(
-        context,
-        '${r.fullName} (${r.memberId}) is a separate person again. ${res.moved} '
-        '${res.moved == 1 ? "entry" : "entries"} went back to them.',
-        kind: SelNoticeKind.success,
-      );
-    } catch (e) {
-      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = null);
     }

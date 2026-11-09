@@ -544,17 +544,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
+    final money = ref.read(churchMoneyFormatProvider);
     try {
-      final r = await ref
-          .read(entriesRepositoryProvider)
-          .recalculateForeignEntries(churchId: s.churchId, rates: s.exchangeRates);
+      await runWithProgress(
+        context,
+        title: 'Recalculating $count ${count == 1 ? 'entry' : 'entries'}',
+        subtitle: 'Turning dollars, euros and pounds into cedis at today\'s rates. Keep this page open.',
+        run: (p) async {
+          p.start(count);
+          var move = 0.0;
+          final r = await ref.read(entriesRepositoryProvider).recalculateForeignEntries(
+                churchId: s.churchId,
+                rates: s.exchangeRates,
+                onEach: (name, before, after) {
+                  move += after - (before ?? 0);
+                  p.tick(
+                    '$name · ${before == null ? '' : '${money(before)} → '}${money(after)}',
+                    running: '${move >= 0 ? '+' : '−'}${money(move.abs())} so far',
+                  );
+                },
+              );
+          return SelSummary(
+            title: r.updated == 0 ? 'Every entry was already right' : '${r.updated} ${r.updated == 1 ? 'entry' : 'entries'} recalculated',
+            numbers: [
+              ('${r.updated}', 'changed'),
+              ('${r.unchanged}', 'already right'),
+              ('${move >= 0 ? '+' : '−'}${money(move.abs())}', 'to the totals'),
+            ],
+            lines: const [
+              SelSummaryLine('What partners gave stays the same', detail: 'Only its value in cedis moved, with the church totals.'),
+            ],
+          );
+        },
+      );
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      if (mounted) {
-        selNotice(context, 'Done. ${r.updated} changed, ${r.unchanged} were already right.');
-      }
-    } catch (e) {
-      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

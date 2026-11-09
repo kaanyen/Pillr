@@ -63,6 +63,43 @@ class _FellowshipManageViewState extends ConsumerState<FellowshipManageView> {
     }
   }
 
+  /// A fellowship change on the server, behind the progress window with its
+  /// named steps, then what happened (canvas 74).
+  Future<void> _runSteps({
+    required String title,
+    required List<String> steps,
+    required String done,
+    required Future<FellowshipChangeResult> Function() call,
+  }) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await runWithProgress(
+        context,
+        title: title,
+        subtitle: 'Pillr does this on the server; keep this page open.',
+        steps: steps,
+        run: (p) async {
+          final r = await runServerSteps(p, call);
+          if (r.opId == null) {
+            return const SelSummary(title: 'Nothing to change', subtitle: 'Everyone was already there.');
+          }
+          return SelSummary(
+            title: done,
+            numbers: [
+              ('${r.moved}', '${r.moved == 1 ? 'partner' : 'partners'} updated'),
+              if (r.inactiveMoved > 0) ('${r.inactiveMoved}', 'inactive moved with them'),
+            ],
+            lines: const [SelSummaryLine('You can undo it', detail: 'Below, under Recent changes.')],
+          );
+        },
+      );
+      if (mounted) setState(() => _selected.clear());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _create() async {
     final name = await _askName(
       title: 'New fellowship',
@@ -352,17 +389,27 @@ class _FellowshipManageViewState extends ConsumerState<FellowshipManageView> {
     final expect = partners
         .where((p) => fromKeys.contains(p.fellowship.trim().toLowerCase()))
         .length;
-    await _run(() async {
-      final r = await ref.read(recordOpsRepositoryProvider).fellowshipChange(
+    final what = switch (kind) {
+      'rename' => 'Renaming ${from.first} to $to',
+      'dissolve' => 'Moving ${from.first} into $to',
+      _ => 'Merging into $to',
+    };
+    await _runSteps(
+      title: what,
+      steps: [
+        'Checking the $expect ${expect == 1 ? 'partner' : 'partners'} in ${from.join(', ')}',
+        'Moving them and their giving to $to',
+        'Updating the fellowship totals',
+      ],
+      done: done,
+      call: () => ref.read(recordOpsRepositoryProvider).fellowshipChange(
         churchId: idx.churchId,
         kind: kind,
         fromNames: from,
         toName: to,
         expectActive: expect,
-      );
-      if (r.opId == null) return 'Nothing to change — everyone was already there.';
-      return fellowshipChangeNotice(done, r.moved, r.inactiveMoved);
-    });
+      ),
+    );
   }
 
   Future<void> _applyMove(
@@ -372,16 +419,21 @@ class _FellowshipManageViewState extends ConsumerState<FellowshipManageView> {
   ) async {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     if (idx == null) return;
-    await _run(() async {
-      final r = await ref.read(recordOpsRepositoryProvider).fellowshipChange(
+    await _runSteps(
+      title: 'Moving ${moving.length} ${moving.length == 1 ? 'partner' : 'partners'} to $to',
+      steps: [
+        'Checking ${moving.length == 1 ? moving.first.fullName : 'the ${moving.length} partners'}',
+        'Moving them and their giving to $to',
+        'Updating the fellowship totals',
+      ],
+      done: done,
+      call: () => ref.read(recordOpsRepositoryProvider).fellowshipChange(
         churchId: idx.churchId,
         kind: 'move',
         partnerIds: [for (final p in moving) p.id],
         toName: to,
-      );
-      if (r.opId == null) return 'Nothing to change — everyone was already there.';
-      return fellowshipChangeNotice(done, r.moved, r.inactiveMoved);
-    });
+      ),
+    );
   }
 
   Future<String?> _askName({

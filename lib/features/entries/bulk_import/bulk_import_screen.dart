@@ -159,6 +159,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
 
   /// What the last import brought in, kept for the finished screen.
   List<BulkResolvedRow> _resultRows = const [];
+
+  /// Rows set aside before the import, with why, for the summary page.
+  List<(int, String)> _resultLeftOut = const [];
+
+  /// Tidy-ups applied to the sheet before it came in.
+  int _tidied = 0;
+  int _resultTidied = 0;
   String? _resultFile;
   final Map<String, List<PartnershipEntry>> _duplicateEntryCache = {};
   final Map<int, Partner> _partnerOverrides = {};
@@ -528,6 +535,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       _error = null;
       _duplicateAcknowledgedSheetRows.clear();
       _droppedSheetRows.clear();
+      _tidied = 0;
       _acceptedFellowships.clear();
       _pendingDraft = null;
       _step = _Step.upload;
@@ -1442,6 +1450,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   }
 
   Future<void> _applyFixes(List<AutoFixProposal> proposals) async {
+    _tidied += proposals.length;
     final rows = _rawRows;
     if (rows == null || proposals.isEmpty) return;
     setState(() => _rawRows = applyAutoFixes(rows, proposals));
@@ -2110,7 +2119,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         line(
           true,
           '${r.partnersCreated} new ${r.partnersCreated == 1 ? 'partner' : 'partners'}',
-          'Added to the partner book from this sheet',
+          () {
+            final added = [
+              for (final x in came)
+                if (x.resolution == PartnerResolutionKind.createNew)
+                  '${x.fullName}, row ${x.sheetRowNumber}${x.fellowship.isEmpty ? '' : ', was added to ${x.fellowship}'}',
+            ];
+            return added.isEmpty ? 'Added to the partner book from this sheet' : '${added.take(4).join('. ')}.';
+          }(),
+        ),
+      for (final (row, why) in _resultLeftOut) line(false, 'Row $row left out', why),
+      if (_resultTidied > 0)
+        line(
+          true,
+          '$_resultTidied ${_resultTidied == 1 ? 'value' : 'values'} tidied',
+          'Names, amounts, dates or phone numbers rewritten the way Pillr reads them',
         ),
       if (r.rowsSkipped > 0 && r.errors.isEmpty)
         line(
@@ -2148,9 +2171,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 spacing: SelSpace.x2,
                 runSpacing: SelSpace.x2,
                 children: [
-                  if (waiting > 0 && (me?.isPastor ?? false))
+                  if (waiting > 0)
                     SelButton.cyan(
-                      label: 'Review in the queue',
+                      label: (me?.isPastor ?? false) ? 'Review in the queue' : 'See them in the queue',
                       onPressed: () => context.go('/queue'),
                     ),
                   SelButton(
@@ -2227,6 +2250,33 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       ),
     );
 
+    final waitingNow = ref.watch(pendingEntriesProvider).valueOrNull?.length;
+    final period = ref.watch(activePeriodProvider)?.name;
+    final whenApproved = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(waiting > 0 ? 'When they\'re approved' : 'Already counted', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x2),
+          for (final (k, v) in [
+            if (waiting > 0) ('Waiting in the queue', '${waitingNow ?? waiting} entries'),
+            (waiting > 0 ? 'Adds to the totals' : 'Added to the totals', money(total)),
+            if (period != null) ('Counts toward', period),
+          ]) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(child: Text(k, style: SelType.bodySm)),
+                  Text(v, style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
     final wrong = SelCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2236,7 +2286,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           Text(
             waiting > 0
                 ? 'Undo takes the entries still waiting back out. Nothing has been approved yet, so no totals change. You can also archive the whole import.'
-                : 'Clear the import to take every entry it created back out of the totals. Nothing is deleted.',
+                : 'Archive the import to take every entry it created back out of the totals. Nothing is deleted.',
             style: SelType.bodySm,
           ),
           const SizedBox(height: SelSpace.x4),
@@ -2298,6 +2348,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 children: [
                   main,
                   const SizedBox(height: SelSpace.x4),
+                  whenApproved,
+                  const SizedBox(height: SelSpace.x4),
                   wrong,
                 ],
               );
@@ -2307,7 +2359,13 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               children: [
                 Expanded(child: main),
                 const SizedBox(width: SelSpace.x4),
-                SizedBox(width: 320, child: wrong),
+                SizedBox(
+                  width: 320,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [whenApproved, const SizedBox(height: SelSpace.x4), wrong],
+                  ),
+                ),
               ],
             );
           },
@@ -3152,24 +3210,52 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         });
         return;
       }
-      final r = await commitBulkImport(
-        ref: ref,
-        churchId: churchId,
-        staff: profile,
-        churchDisplayName: ref.read(churchNameProvider) ?? 'Church',
-        rows: resolved,
-        arms: arms,
-        period: period,
-        allChurchEntries: true,
-        viewerIsPastor: viewerIsPastor,
-        duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
-        fileName: _fileName ?? 'Pasted rows',
-        preparedBy: _preparedBy.text,
-        duplicateCache: _duplicateEntryCache,
-        onProgress: (current, total, message) {
-          progressNotifier.update(current, message);
+      // Row by row behind the progress window (canvas 73); it closes on
+      // its own and the page shows what happened (board 28).
+      BulkImportCommitResult? r;
+      Object? stopped;
+      final chosenPeriod = period;
+      if (!context.mounted) return;
+      final finished = await runWithProgress(
+        context,
+        title: 'Bringing in ${_fileName ?? 'the rows'}',
+        subtitle: '${resolved.length} rows. Keep this page open.',
+        closeWhenDone: true,
+        run: (p) async {
+          try {
+              r = await commitBulkImport(
+            ref: ref,
+            churchId: churchId,
+            staff: profile,
+            churchDisplayName: ref.read(churchNameProvider) ?? 'Church',
+            rows: resolved,
+            arms: arms,
+            period: chosenPeriod,
+            allChurchEntries: true,
+            viewerIsPastor: viewerIsPastor,
+            duplicateAcknowledgedSheetRows: _duplicateAcknowledgedSheetRows,
+            fileName: _fileName ?? 'Pasted rows',
+            preparedBy: _preparedBy.text,
+            duplicateCache: _duplicateEntryCache,
+            onProgress: (current, total, message) {
+              progressNotifier.update(current, message);
+              if (p.total != total) p.start(total);
+              if (current > 0) p.tick(message);
+            },
+          );
+          } catch (e) {
+            stopped = e;
+            rethrow;
+          }
+          return const SelSummary(title: 'Brought in');
         },
       );
+      if (!finished || r == null) {
+        progressNotifier.fail(plainError(stopped));
+        if (mounted) setState(() => _committing = false);
+        return;
+      }
+      final result = r!;
       progressNotifier.complete();
       final uid = _persistUid;
       final clearChurchId = _persistChurchId;
@@ -3178,13 +3264,25 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       }
       if (!mounted) return;
       final successMessage = l10n.bulkImportCommitSuccessToast(
-        r.entriesCreated,
+        result.entriesCreated,
       );
       setState(() {
-        _result = r;
+        _result = result;
         // The finished screen still shows what came in and from which file.
         _resultRows = _liveRows;
         _resultFile = _fileName;
+        _resultTidied = _tidied;
+        _tidied = 0;
+        _resultLeftOut = [
+          for (final row in _resolved ?? const <BulkResolvedRow>[])
+            if (_droppedSheetRows.contains(row.sheetRowNumber))
+              (
+                row.sheetRowNumber,
+                row.issues.isEmpty
+                    ? 'You left it out'
+                    : (row.issues.first.message ?? describeIssue(row.issues.first.code).title),
+              ),
+        ];
         _committing = false;
         _rawRows = null;
         _resolved = null;

@@ -236,8 +236,7 @@ class ChurchSettingsRepository {
     }
   }
 
-  Future<({int sent, int sentNow, int skipped, int failed, bool dryRun, String yearMonth})>
-      runMonthlyPartnerEmails({String? yearMonth, List<String>? partnerIds}) async {
+  Future<MonthlyEmailRunResult> runMonthlyPartnerEmails({String? yearMonth, List<String>? partnerIds}) async {
     try {
       final callable = _functions.httpsCallable(
         FirebaseConstants.runMonthlyPartnerGivingSummary,
@@ -265,4 +264,7 @@ class ChurchSettingsRepository {
 
 /// The church's words for the monthly letter, as typed on Settings.
 typedef LetterWordingDraft = ({String subject, String heading, String message, String signOff});
+
+/// What one run of the monthly letters did.
+typedef MonthlyEmailRunResult = ({int sent, int sentNow, int skipped, int failed, bool dryRun, String yearMonth});
 

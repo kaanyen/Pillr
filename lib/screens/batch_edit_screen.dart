@@ -77,8 +77,10 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
       final batchesRepo = ref.read(bulkImportBatchRepositoryProvider);
       final entriesRepo = ref.read(entriesRepositoryProvider);
       final batch = await batchesRepo.fetchBatch(idx.churchId, widget.batchId);
-      final entries =
-          await entriesRepo.fetchEntriesForBatch(idx.churchId, widget.batchId);
+      final entries = await entriesRepo.fetchEntriesForBatch(
+        idx.churchId,
+        widget.batchId,
+      );
       // The order the sheet was read in is the order it is corrected in.
       entries.sort((a, b) => a.dateGiven.compareTo(b.dateGiven));
       if (!mounted) return;
@@ -90,10 +92,14 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
         }
         _amountControllers
           ..clear()
-          ..addEntries(_drafts.map((d) => MapEntry(
+          ..addEntries(
+            _drafts.map(
+              (d) => MapEntry(
                 d.original.id,
                 TextEditingController(text: d.amountCedis.toStringAsFixed(2)),
-              )));
+              ),
+            ),
+          );
         _label.text = batch?.label ?? '';
         _note.text = batch?.note ?? '';
         _preparedBy.text = batch?.preparedBy ?? '';
@@ -138,96 +144,163 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
       _error = null;
     });
     try {
-      final entriesRepo = ref.read(entriesRepositoryProvider);
-      for (final d in changed) {
-        final e = d.original;
-        // A foreign-currency row keeps its currency and its rate; the figure
-        // being edited is the cedi amount, so the source amount is derived
-        // back from it rather than left saying something else.
-        final rate = e.displayExchangeRate;
-        if (idx.isStaff) {
-          await entriesRepo.staffUpdateEntry(
-            churchId: idx.churchId,
-            existing: e,
-            staff: pastor,
-            partnerId: d.partnerId,
-            partnerSnapshot: {...e.partnerSnapshot, 'fullName': d.partnerName},
-            partnershipArmId: d.armId,
-            armSnapshot: {'name': d.armName},
-            partnershipPeriodId: e.partnershipPeriodId,
-            periodSnapshot: e.periodSnapshot,
-            amountCedis: d.amountCedis,
-            sourceCurrency: e.displaySourceCurrency,
-            sourceAmount: rate > 0 ? d.amountCedis / rate : d.amountCedis,
-            exchangeRateToBase: rate,
-            dateGiven: d.dateGiven,
-            notes: e.notes,
+      final money = ref.read(churchMoneyFormatProvider);
+      final approvedChanged = changed
+          .where((d) => d.original.status == 'approved')
+          .length;
+      // Row by row behind the progress window, then what happened.
+      if (!mounted) return;
+      final finished = await runWithProgress(
+        context,
+        title:
+            'Saving ${changed.length} ${changed.length == 1 ? 'correction' : 'corrections'}',
+        run: (p) async {
+          p.start(changed.length);
+          final entriesRepo = ref.read(entriesRepositoryProvider);
+          for (final d in changed) {
+            final e = d.original;
+            p.tick('${d.partnerName} · ${d.changes.join(', ')}');
+            // A foreign-currency row keeps its currency and its rate; the figure
+            // being edited is the cedi amount, so the source amount is derived
+            // back from it rather than left saying something else.
+            final rate = e.displayExchangeRate;
+            if (idx.isStaff) {
+              await entriesRepo.staffUpdateEntry(
+                churchId: idx.churchId,
+                existing: e,
+                staff: pastor,
+                partnerId: d.partnerId,
+                partnerSnapshot: {
+                  ...e.partnerSnapshot,
+                  'fullName': d.partnerName,
+                },
+                partnershipArmId: d.armId,
+                armSnapshot: {'name': d.armName},
+                partnershipPeriodId: e.partnershipPeriodId,
+                periodSnapshot: e.periodSnapshot,
+                amountCedis: d.amountCedis,
+                sourceCurrency: e.displaySourceCurrency,
+                sourceAmount: rate > 0 ? d.amountCedis / rate : d.amountCedis,
+                exchangeRateToBase: rate,
+                dateGiven: d.dateGiven,
+                notes: e.notes,
+              );
+              continue;
+            }
+            await entriesRepo.pastorUpdateEntry(
+              churchId: idx.churchId,
+              existing: e,
+              pastor: pastor,
+              partnerId: d.partnerId,
+              partnerSnapshot: {
+                ...e.partnerSnapshot,
+                'fullName': d.partnerName,
+              },
+              partnershipArmId: d.armId,
+              armSnapshot: {'name': d.armName},
+              partnershipPeriodId: e.partnershipPeriodId,
+              periodSnapshot: e.periodSnapshot,
+              amountCedis: d.amountCedis,
+              sourceCurrency: e.displaySourceCurrency,
+              sourceAmount: rate > 0 ? d.amountCedis / rate : d.amountCedis,
+              exchangeRateToBase: rate,
+              dateGiven: d.dateGiven,
+              notes: e.notes,
+            );
+          }
+
+          if (_detailsChanged) {
+            await ref
+                .read(bulkImportBatchRepositoryProvider)
+                .rename(
+                  churchId: idx.churchId,
+                  batchId: widget.batchId,
+                  label: _label.text,
+                  note: _note.text,
+                  preparedBy: _preparedBy.text,
+                  writePreparedBy: true,
+                  previousLabel: _batch?.label ?? _batch?.fileName,
+                  previousNote: _batch?.note,
+                  writePrevious: true,
+                );
+            await logPillrActivity(
+              ref,
+              churchId: idx.churchId,
+              action: 'import.rename',
+              entityType: 'import_batch',
+              entityId: widget.batchId,
+              entitySnapshot: {
+                'label': _label.text,
+                'fileName': _batch?.fileName,
+              },
+            );
+          }
+
+          if (changed.isNotEmpty) {
+            await ref
+                .read(bulkImportBatchRepositoryProvider)
+                .markEdited(
+                  churchId: idx.churchId,
+                  batchId: widget.batchId,
+                  byUid: pastor.uid,
+                  editedCount: changed.length,
+                );
+            await logPillrActivity(
+              ref,
+              churchId: idx.churchId,
+              action: 'import.batch_edit',
+              entityType: 'import_batch',
+              entityId: widget.batchId,
+              entitySnapshot: {
+                'edited': changed.length,
+                'fileName': _batch?.fileName,
+              },
+            );
+          }
+
+          final delta = _summary.amountDelta;
+          return SelSummary(
+            title:
+                '${changed.length} ${changed.length == 1 ? 'row' : 'rows'} corrected',
+            numbers: [
+              ('${changed.length}', 'rows saved'),
+              if (idx.isStaff)
+                ('$approvedChanged', 'back to your pastor')
+              else
+                (
+                  delta == 0
+                      ? 'No change'
+                      : '${delta > 0 ? '+' : '−'}${money(delta.abs())}',
+                  'to the approved total',
+                ),
+            ],
+            lines: [
+              for (final d in changed.take(5))
+                SelSummaryLine(
+                  d.partnerName,
+                  detail: d.changes
+                      .map((c) => c[0].toUpperCase() + c.substring(1))
+                      .join(' · '),
+                ),
+              if (changed.length > 5)
+                SelSummaryLine('and ${changed.length - 5} more'),
+              if (idx.isStaff && approvedChanged > 0)
+                const SelSummaryLine(
+                  'Your pastor approves them again',
+                  detail: 'Until then they are not in the totals.',
+                  ok: false,
+                ),
+            ],
+            actions: [
+              SelSummaryAction(
+                'Back to Imports',
+                () => context.go('/records/imports'),
+                link: true,
+              ),
+            ],
           );
-          continue;
-        }
-        await entriesRepo.pastorUpdateEntry(
-          churchId: idx.churchId,
-          existing: e,
-          pastor: pastor,
-          partnerId: d.partnerId,
-          partnerSnapshot: {...e.partnerSnapshot, 'fullName': d.partnerName},
-          partnershipArmId: d.armId,
-          armSnapshot: {'name': d.armName},
-          partnershipPeriodId: e.partnershipPeriodId,
-          periodSnapshot: e.periodSnapshot,
-          amountCedis: d.amountCedis,
-          sourceCurrency: e.displaySourceCurrency,
-          sourceAmount: rate > 0 ? d.amountCedis / rate : d.amountCedis,
-          exchangeRateToBase: rate,
-          dateGiven: d.dateGiven,
-          notes: e.notes,
-        );
-      }
-
-      if (_detailsChanged) {
-        await ref.read(bulkImportBatchRepositoryProvider).rename(
-              churchId: idx.churchId,
-              batchId: widget.batchId,
-              label: _label.text,
-              note: _note.text,
-              preparedBy: _preparedBy.text,
-              writePreparedBy: true,
-              previousLabel: _batch?.label ?? _batch?.fileName,
-              previousNote: _batch?.note,
-              writePrevious: true,
-            );
-        await logPillrActivity(
-          ref,
-          churchId: idx.churchId,
-          action: 'import.rename',
-          entityType: 'import_batch',
-          entityId: widget.batchId,
-          entitySnapshot: {
-            'label': _label.text,
-            'fileName': _batch?.fileName,
-          },
-        );
-      }
-
-      if (changed.isNotEmpty) {
-        await ref.read(bulkImportBatchRepositoryProvider).markEdited(
-              churchId: idx.churchId,
-              batchId: widget.batchId,
-              byUid: pastor.uid,
-              editedCount: changed.length,
-            );
-        await logPillrActivity(
-          ref,
-          churchId: idx.churchId,
-          action: 'import.batch_edit',
-          entityType: 'import_batch',
-          entityId: widget.batchId,
-          entitySnapshot: {
-            'edited': changed.length,
-            'fileName': _batch?.fileName,
-          },
-        );
-      }
+        },
+      );
 
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
@@ -236,16 +309,7 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
       ref.invalidate(importHistoryProvider);
       if (!mounted) return;
       setState(() => _saving = false);
-      selNotice(
-        context,
-        changed.isEmpty
-            ? 'Import details saved.'
-            : '${changed.length} ${changed.length == 1 ? "row" : "rows"} corrected. '
-                '${idx.isStaff ? 'Your pastor approves them again. ' : ''}'
-                'Revert them from Imports if that was a mistake.',
-        kind: SelNoticeKind.success,
-      );
-      await _load();
+      if (finished) await _load();
     } catch (e) {
       debugPrint('Correct import, saving: $e');
       if (!mounted) return;
@@ -296,10 +360,7 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
                 style: SelType.body,
               )
             else
-              Text(
-                'No money moves — only who or when.',
-                style: SelType.body,
-              ),
+              Text('No money moves — only who or when.', style: SelType.body),
             const SizedBox(height: SelSpace.x3),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 260),
@@ -373,7 +434,10 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     _Tab.waiting => d.original.status == 'pending',
   };
 
-  List<BatchRowDraft> get _shown => [for (final d in _drafts) if (_inTab(d)) d];
+  List<BatchRowDraft> get _shown => [
+    for (final d in _drafts)
+      if (_inTab(d)) d,
+  ];
 
   String _rowNumber(BatchRowDraft d) => '${_drafts.indexOf(d) + 1}';
 
@@ -388,18 +452,28 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     return Container(
       width: 20,
       height: 20,
-      decoration: BoxDecoration(color: fill, shape: BoxShape.circle, border: Border.all(color: edge, width: 1.5)),
+      decoration: BoxDecoration(
+        color: fill,
+        shape: BoxShape.circle,
+        border: Border.all(color: edge, width: 1.5),
+      ),
       child: Icon(icon, size: 11, color: color),
     );
   }
 
-  String _afterSave(BatchRowDraft d, bool staff) => d.original.status != 'approved'
+  String _afterSave(BatchRowDraft d, bool staff) =>
+      d.original.status != 'approved'
       ? ''
       : staff
       ? ' Goes back to your pastor to approve again.'
       : ' Stays approved.';
 
-  SelSheetRow _row(BatchRowDraft d, String Function(double) money, List<PartnershipArm> arms, bool staff) {
+  SelSheetRow _row(
+    BatchRowDraft d,
+    String Function(double) money,
+    List<PartnershipArm> arms,
+    bool staff,
+  ) {
     final locked = d.isLocked;
     final note = locked
         ? 'Archived, so it cannot be changed.'
@@ -418,16 +492,23 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
           kind: locked ? fixed : SelSheetCellKind.action,
           onAction: () => _pickDate(d),
           changed: d.dateChanged,
-          was: d.dateChanged ? DateFormat('d MMM y').format(d.original.dateGiven) : null,
+          was: d.dateChanged
+              ? DateFormat('d MMM y').format(d.original.dateGiven)
+              : null,
         ),
         SelSheetCell(
           d.partnerName,
           kind: locked ? fixed : SelSheetCellKind.action,
           onAction: () => _pickPartner(d),
           changed: d.partnerChanged,
-          was: d.partnerChanged ? '${d.original.partnerSnapshot['fullName'] ?? 'Partner'}' : null,
+          was: d.partnerChanged
+              ? '${d.original.partnerSnapshot['fullName'] ?? 'Partner'}'
+              : null,
         ),
-        SelSheetCell('${d.original.partnerSnapshot['fellowship'] ?? ''}', kind: fixed),
+        SelSheetCell(
+          '${d.original.partnerSnapshot['fellowship'] ?? ''}',
+          kind: fixed,
+        ),
         SelSheetCell(
           d.armName,
           kind: locked || arms.isEmpty ? fixed : SelSheetCellKind.choice,
@@ -446,19 +527,30 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     );
   }
 
-  void _edit(BatchRowDraft d, int col, String value, List<PartnershipArm> arms) {
+  void _edit(
+    BatchRowDraft d,
+    int col,
+    String value,
+    List<PartnershipArm> arms,
+  ) {
     switch (col) {
       case 3:
         final arm = arms.where((a) => a.name == value).firstOrNull;
         if (arm != null) {
-          setState(() => d
-            ..armId = arm.id
-            ..armName = arm.name);
+          setState(
+            () => d
+              ..armId = arm.id
+              ..armName = arm.name,
+          );
         }
       case 4:
         final v = double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), ''));
         if (v == null || v <= 0) {
-          selNotice(context, 'Type the amount as a number, like 1250 or 1250.50.', kind: SelNoticeKind.error);
+          selNotice(
+            context,
+            'Type the amount as a number, like 1250 or 1250.50.',
+            kind: SelNoticeKind.error,
+          );
           return;
         }
         setState(() => d.amountCedis = v);
@@ -487,14 +579,21 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
                 : 'Pastors, and the staff member who brought it in, can correct an import.',
           ),
           const SizedBox(height: SelSpace.x4),
-          Center(child: SelButton(label: 'Back to imports', onPressed: () => context.go('/records/imports'))),
+          Center(
+            child: SelButton(
+              label: 'Back to imports',
+              onPressed: () => context.go('/records/imports'),
+            ),
+          ),
         ],
       );
     }
 
     final shown = _shown;
     final changed = _drafts.where((d) => d.hasChanges).toList();
-    final approved = _drafts.where((d) => d.original.status == 'approved').length;
+    final approved = _drafts
+        .where((d) => d.original.status == 'approved')
+        .length;
     final waiting = _drafts.where((d) => d.original.status == 'pending').length;
     final delta = _summary.amountDelta;
     var sel = _sel;
@@ -503,13 +602,19 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
 
     final header = Row(
       children: [
-        SelButton(label: '← Imports', onPressed: _saving ? null : () => context.go('/records/imports')),
+        SelButton(
+          label: '← Imports',
+          onPressed: _saving ? null : () => context.go('/records/imports'),
+        ),
         const SizedBox(width: SelSpace.x4),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Correct ${batch.displayName}', style: SelType.title.copyWith(fontSize: 20, height: 1.2)),
+              Text(
+                'Correct ${batch.displayName}',
+                style: SelType.title.copyWith(fontSize: 20, height: 1.2),
+              ),
               Text(
                 '${batch.fileName} · ${_drafts.length} entries · nothing changes until you save',
                 maxLines: 1,
@@ -523,9 +628,21 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
           TextSpan(
             style: SelType.small,
             children: [
-              TextSpan(text: '$approved', style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800)),
+              TextSpan(
+                text: '$approved',
+                style: const TextStyle(
+                  color: Sel.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const TextSpan(text: ' approved   '),
-              TextSpan(text: '$waiting', style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800)),
+              TextSpan(
+                text: '$waiting',
+                style: const TextStyle(
+                  color: Sel.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const TextSpan(text: ' waiting'),
             ],
           ),
@@ -552,7 +669,8 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
         ),
         const SizedBox(width: SelSpace.x2),
         Tooltip(
-          message: '↑ ↓ ← → move between cells · Enter edits · Tab next cell · ]: move the card aside',
+          message:
+              '↑ ↓ ← → move between cells · Enter edits · Tab next cell · ]: move the card aside',
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
@@ -560,7 +678,13 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
               borderRadius: BorderRadius.circular(SelRadius.pill),
               border: Border.all(color: Sel.border, width: 1.5),
             ),
-            child: Text('Keys', style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w700)),
+            child: Text(
+              'Keys',
+              style: SelType.small.copyWith(
+                color: Sel.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ),
       ],
@@ -568,7 +692,10 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
 
     final banner = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: Sel.skyTint,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Text(
         staff
             ? 'Changing a row that was approved sends it back to your pastor to approve again. Waiting rows stay waiting.'
@@ -580,7 +707,11 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     Widget sheet({required bool shrinkWrap}) => shown.isEmpty
         ? Padding(
             padding: const EdgeInsets.all(SelSpace.x6),
-            child: Text('No rows here.', textAlign: TextAlign.center, style: SelType.bodySm),
+            child: Text(
+              'No rows here.',
+              textAlign: TextAlign.center,
+              style: SelType.bodySm,
+            ),
           )
         : SelSheet(
             storageKey: 'correct-import',
@@ -603,24 +734,37 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
           ? null
           : () {
               final from = current == null ? -1 : _drafts.indexOf(current);
-              final next = changed.firstWhere((d) => _drafts.indexOf(d) > from, orElse: () => changed.first);
+              final next = changed.firstWhere(
+                (d) => _drafts.indexOf(d) > from,
+                orElse: () => changed.first,
+              );
               setState(() {
                 _tab = _Tab.all;
                 _sel = (_drafts.indexOf(next), _sel?.$2 ?? 4);
               });
             },
-      onUndo: current == null || !current.hasChanges ? null : () => setState(current.reset),
+      onUndo: current == null || !current.hasChanges
+          ? null
+          : () => setState(current.reset),
       onAside: () => setState(() => _aside = true),
     );
 
     final footer = Container(
       padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
-      decoration: BoxDecoration(color: Sel.ink, borderRadius: BorderRadius.circular(SelRadius.card)),
+      decoration: BoxDecoration(
+        color: Sel.ink,
+        borderRadius: BorderRadius.circular(SelRadius.card),
+      ),
       child: Row(
         children: [
           Text(
-            changed.isEmpty ? 'No changes yet' : '${changed.length} ${changed.length == 1 ? 'row' : 'rows'} changed',
-            style: SelType.body.copyWith(color: Sel.card, fontWeight: FontWeight.w800),
+            changed.isEmpty
+                ? 'No changes yet'
+                : '${changed.length} ${changed.length == 1 ? 'row' : 'rows'} changed',
+            style: SelType.body.copyWith(
+              color: Sel.card,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(width: SelSpace.x4),
           Expanded(
@@ -629,8 +773,12 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
                   ? 'Click a cell to change it, as in a spreadsheet.'
                   : staff
                   ? () {
-                      final n = changed.where((d) => d.original.status == 'approved').length;
-                      return n == 0 ? 'They stay waiting for a pastor' : '$n ${n == 1 ? 'goes' : 'go'} back to your pastor';
+                      final n = changed
+                          .where((d) => d.original.status == 'approved')
+                          .length;
+                      return n == 0
+                          ? 'They stay waiting for a pastor'
+                          : '$n ${n == 1 ? 'goes' : 'go'} back to your pastor';
                     }()
                   : delta == 0
                   ? 'No money moves, only who, when or which arm'
@@ -640,12 +788,17 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
             ),
           ),
           TextButton(
-            onPressed: changed.isEmpty || _saving ? null : () => setState(() {
+            onPressed: changed.isEmpty || _saving
+                ? null
+                : () => setState(() {
                     for (final d in _drafts) {
                       d.reset();
                     }
                   }),
-            child: Text('Discard', style: SelType.button.copyWith(color: Sel.card)),
+            child: Text(
+              'Discard',
+              style: SelType.button.copyWith(color: Sel.card),
+            ),
           ),
           const SizedBox(width: SelSpace.x2),
           Material(
@@ -655,10 +808,15 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
               customBorder: const StadiumBorder(),
               onTap: changed.isEmpty || _saving ? null : _save,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 13,
+                ),
                 child: Text(
                   _saving ? 'Saving…' : 'Save corrections',
-                  style: SelType.button.copyWith(color: changed.isEmpty ? const Color(0xFF9DB8D3) : Sel.ink),
+                  style: SelType.button.copyWith(
+                    color: changed.isEmpty ? const Color(0xFF9DB8D3) : Sel.ink,
+                  ),
                 ),
               ),
             ),
@@ -688,13 +846,16 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
               )
             : CallbackShortcuts(
                 bindings: {
-                  const SingleActivator(LogicalKeyboardKey.bracketRight): () => setState(() => _aside = !_aside),
+                  const SingleActivator(LogicalKeyboardKey.bracketRight): () =>
+                      setState(() => _aside = !_aside),
                 },
                 child: Stack(
                   children: [
                     Positioned.fill(
                       child: Padding(
-                        padding: EdgeInsets.only(right: _aside ? 96 : cardW + 16),
+                        padding: EdgeInsets.only(
+                          right: _aside ? 96 : cardW + 16,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -708,12 +869,21 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
                       ),
                     ),
                     if (!_aside)
-                      Positioned(top: 0, right: 0, bottom: 6, width: cardW, child: card)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        bottom: 6,
+                        width: cardW,
+                        child: card,
+                      )
                     else
                       Positioned(
                         right: 0,
                         top: (c.maxHeight - 160) / 2,
-                        child: _EdgeFlap(changed: changed.length, onTap: () => setState(() => _aside = false)),
+                        child: _EdgeFlap(
+                          changed: changed.length,
+                          onTap: () => setState(() => _aside = false),
+                        ),
                       ),
                   ],
                 ),
@@ -785,9 +955,18 @@ class _CorrectCard extends StatelessWidget {
               children: [
                 if (number != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: Sel.ink, borderRadius: BorderRadius.circular(SelRadius.pill)),
-                    child: Text('Row $number', style: SelType.small.copyWith(color: Sel.card)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Sel.ink,
+                      borderRadius: BorderRadius.circular(SelRadius.pill),
+                    ),
+                    child: Text(
+                      'Row $number',
+                      style: SelType.small.copyWith(color: Sel.card),
+                    ),
                   ),
                 const Spacer(),
                 SelLink(label: 'Move aside', onTap: onAside),
@@ -795,9 +974,15 @@ class _CorrectCard extends StatelessWidget {
             ),
             const SizedBox(height: SelSpace.x3),
             if (d == null)
-              Text('Click a cell in the sheet to change it. What changed on that row shows here.', style: SelType.bodySm)
+              Text(
+                'Click a cell in the sheet to change it. What changed on that row shows here.',
+                style: SelType.bodySm,
+              )
             else ...[
-              Text('${d.partnerName}, ${DateFormat('d MMM').format(d.original.dateGiven)}', style: SelType.subtitle),
+              Text(
+                '${d.partnerName}, ${DateFormat('d MMM').format(d.original.dateGiven)}',
+                style: SelType.subtitle,
+              ),
               Text(
                 d.isLocked
                     ? 'Archived'
@@ -813,7 +998,10 @@ class _CorrectCard extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       c[0].toUpperCase() + c.substring(1),
-                      style: SelType.bodySm.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                      style: SelType.bodySm.copyWith(
+                        color: Sel.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   )
               else
@@ -821,7 +1009,10 @@ class _CorrectCard extends StatelessWidget {
               const SizedBox(height: SelSpace.x3),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFF3F8FD), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F8FD),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
                   d.isLocked
                       ? 'An archived row cannot be changed. Bring the import back from Imports first.'
@@ -836,10 +1027,16 @@ class _CorrectCard extends StatelessWidget {
             ],
             const SizedBox(height: SelSpace.x4),
             if (changed > 0)
-              SelButton.cyan(label: 'Next changed row', expanded: true, onPressed: onNext),
+              SelButton.cyan(
+                label: 'Next changed row',
+                expanded: true,
+                onPressed: onNext,
+              ),
             if (onUndo != null) ...[
               const SizedBox(height: SelSpace.x2),
-              Center(child: SelLink(label: 'Undo row $number', onTap: onUndo)),
+              Center(
+                child: SelLink(label: 'Undo row $number', onTap: onUndo),
+              ),
             ],
           ],
         ),
@@ -870,15 +1067,34 @@ class _EdgeFlap extends StatelessWidget {
             const Icon(LucideIcons.chevronLeft, size: 16, color: Sel.card),
             const SizedBox(height: 6),
             Text(
-              changed == 0 ? 'Row card' : '$changed ${changed == 1 ? 'row' : 'rows'}',
-              style: SelType.subtitle.copyWith(color: Sel.card, fontSize: 17, fontWeight: FontWeight.w800),
+              changed == 0
+                  ? 'Row card'
+                  : '$changed ${changed == 1 ? 'row' : 'rows'}',
+              style: SelType.subtitle.copyWith(
+                color: Sel.card,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-            if (changed > 0) Text('changed', style: SelType.small.copyWith(color: SelNavyCard.soft)),
+            if (changed > 0)
+              Text(
+                'changed',
+                style: SelType.small.copyWith(color: SelNavyCard.soft),
+              ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: Sel.card, borderRadius: BorderRadius.circular(SelRadius.pill)),
-              child: Text('Open', style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Text(
+                'Open',
+                style: SelType.small.copyWith(
+                  color: Sel.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ],
         ),

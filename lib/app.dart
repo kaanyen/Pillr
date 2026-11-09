@@ -10,7 +10,6 @@ import 'core/session/session_idle_listener.dart';
 import 'design/seline.dart';
 import 'core/utils/color_utils.dart';
 import 'features/church/providers/church_settings_providers.dart';
-import 'features/entries/bulk_import/bulk_import_commit_progress.dart';
 
 class PillrApp extends ConsumerWidget {
   const PillrApp({super.key});
@@ -32,9 +31,8 @@ class PillrApp extends ConsumerWidget {
         return PillrBootSplash(
           child: SelNoticeHost(
             child: SessionIdleListener(
-              child: BulkImportCommitProgressOverlay(
-                child: child ?? const SizedBox.shrink(),
-              ),
+              // Long actions show their own progress window (sel_progress).
+              child: child ?? const SizedBox.shrink(),
             ),
           ),
         );
