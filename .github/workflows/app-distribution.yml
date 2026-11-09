@@ -23,17 +23,27 @@ jobs:
           channel: stable
           flutter-version: '3.41.6'
       - run: flutter pub get
-      - run: flutter build apk --release
+      # The app has development, staging and production versions; testers get
+      # production, which talks to the live church data like the website.
+      - run: flutter build apk --release --flavor production
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
       - name: Distribute to testers
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_ANDROID_APP_ID: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          # A service account key with the "Firebase App Distribution Admin"
+          # role, saved as this repository's FIREBASE_DISTRIBUTION_KEY secret.
+          FIREBASE_DISTRIBUTION_KEY: ${{ secrets.FIREBASE_DISTRIBUTION_KEY }}
+          # Not a secret: the Android app's id from google-services.json.
+          FIREBASE_ANDROID_APP_ID: 1:1077479720410:android:bee47285633ea5150a6ce3
         run: |
-          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+          if [ -z "$FIREBASE_DISTRIBUTION_KEY" ]; then
+            echo "::error::Add the FIREBASE_DISTRIBUTION_KEY secret to the repository first."
+            exit 1
+          fi
+          echo "$FIREBASE_DISTRIBUTION_KEY" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          firebase appdistribution:distribute build/app/outputs/flutter-apk/app-production-release.apk \
             --app "$FIREBASE_ANDROID_APP_ID" \
-            --token "$FIREBASE_TOKEN" \
             --groups "testers" \
             --release-notes "Build from ${GITHUB_REF_NAME:-manual run}"
 
