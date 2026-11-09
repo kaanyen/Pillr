@@ -368,6 +368,17 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                     icon: LucideIcons.upload,
                     onPressed: () => context.go('/entries/bulk-import'),
                   ),
+                // Every entry waiting in view at once (only the chosen arm's
+                // when one is picked), through the same confirm, progress
+                // window and summary as approving the chosen ones.
+                if (widget.mode == QueueMode.queue && isPastor && pendingInView.length > 1) ...[
+                  SelButton(
+                    label: 'Approve all ${pendingInView.length}',
+                    icon: LucideIcons.checkCheck,
+                    onPressed: _busy ? null : () => _approve(pendingInView),
+                  ),
+                  const SizedBox(width: SelSpace.x2),
+                ],
                 if (idx?.isStaff == true || isPastor) ...[
                   const SizedBox(width: SelSpace.x2),
                   SelButton.cyan(
@@ -651,11 +662,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     if (idx == null || pastor == null) return;
 
     if (entries.length > 1) {
+      final money = ref.read(churchMoneyFormatProvider);
+      final total = entries.fold<double>(0, (s, e) => s + e.amountCedis);
       final ok = await selConfirm(
         context,
         title: l10n.queueConfirmApproveTitle(entries.length),
-        message: l10n.queueConfirmApproveBody,
-        confirmLabel: l10n.queueApprove,
+        message:
+            '${money(total)} in all is added to partner totals and period figures straight away. '
+            'You see each one as it is approved, and a summary at the end.',
+        confirmLabel: 'Approve ${entries.length}',
       );
       if (!ok) return;
     }
