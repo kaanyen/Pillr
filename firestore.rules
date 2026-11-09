@@ -330,6 +330,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // What the thank-you on approval did for each entry (email, text).
+      match /giving_messages/{entryId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if false;
+      }
+
       match /monthly_email_deliveries/{deliveryId} {
         allow read: if belongsToChurch(churchId) && isPastor();
         allow write: if false;

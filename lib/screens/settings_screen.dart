@@ -67,6 +67,15 @@ const _colours = [
 /// Words a letter fills in for each partner.
 const _tokens = ['[First name]', '[Month]', '[Church name]'];
 
+/// Words a thank-you on approval fills in.
+const _givingTokens = ['[First name]', '[Amount]', '[Arm]', '[Date]', '[Church name]'];
+
+const _defaultApproval = (
+  emailSubject: 'Thank you for your [Arm] giving',
+  emailMessage: 'Thank you, [First name]. We have received your [Arm] giving of [Amount] on [Date]. God bless you.',
+  smsMessage: 'Thank you [First name]. Your [Arm] giving of [Amount] on [Date] has been received. God bless you. [Church name]',
+);
+
 const _defaultWording = (
   subject: 'Your [Month] giving to [Church name]',
   heading: 'Thank you, [First name].',
@@ -121,7 +130,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _heading = TextEditingController();
   final _message = TextEditingController();
   final _signOff = TextEditingController();
-  final _focus = {for (final k in ['subject', 'heading', 'message', 'signOff']) k: FocusNode()};
+  final _focus = {
+    for (final k in ['subject', 'heading', 'message', 'signOff', 'apSubject', 'apEmail', 'apSms']) k: FocusNode(),
+  };
+
+  // Thank-you on approval
+  bool _apEmailOn = false;
+  bool _apSmsOn = false;
+  final _apSubject = TextEditingController();
+  final _apEmail = TextEditingController();
+  final _apSms = TextEditingController();
+  final _smsSender = TextEditingController();
+  final _testPhone = TextEditingController();
   String _focused = 'message';
 
   // Money
@@ -135,7 +155,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _savedSwitch;
 
   List<TextEditingController> get _controllers =>
-      [_name, _from, _subject, _heading, _message, _signOff, ..._rates.values];
+      [_name, _from, _subject, _heading, _message, _signOff, _apSubject, _apEmail, _apSms, _smsSender, _testPhone, ..._rates.values];
 
   @override
   void initState() {
@@ -181,6 +201,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _heading.text = s.letterHeading ?? _defaultWording.heading;
     _message.text = s.letterMessage ?? _defaultWording.message;
     _signOff.text = s.letterSignOff ?? _defaultWording.signOff;
+    _apEmailOn = s.approvalEmailOn;
+    _apSmsOn = s.approvalSmsOn;
+    _apSubject.text = s.approvalEmailSubject ?? _defaultApproval.emailSubject;
+    _apEmail.text = s.approvalEmailMessage ?? _defaultApproval.emailMessage;
+    _apSms.text = s.approvalSmsMessage ?? _defaultApproval.smsMessage;
+    _smsSender.text = s.smsSenderId ?? '';
     for (final e in _rates.entries) {
       final v = s.exchangeRates.ratesToBase[e.key];
       e.value.text = v == null ? '' : v.toStringAsFixed(2);
@@ -200,7 +226,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _subject.text.trim() != (s.letterSubject ?? _defaultWording.subject) ||
       _heading.text.trim() != (s.letterHeading ?? _defaultWording.heading) ||
       _message.text.trim() != (s.letterMessage ?? _defaultWording.message) ||
-      _signOff.text.trim() != (s.letterSignOff ?? _defaultWording.signOff);
+      _signOff.text.trim() != (s.letterSignOff ?? _defaultWording.signOff) ||
+      _apEmailOn != s.approvalEmailOn ||
+      _apSmsOn != s.approvalSmsOn ||
+      _apSubject.text.trim() != (s.approvalEmailSubject ?? _defaultApproval.emailSubject) ||
+      _apEmail.text.trim() != (s.approvalEmailMessage ?? _defaultApproval.emailMessage) ||
+      _apSms.text.trim() != (s.approvalSmsMessage ?? _defaultApproval.smsMessage) ||
+      _smsSender.text.trim() != (s.smsSenderId ?? '');
 
   bool _moneyDirty(ChurchSettings s) => _rates.entries.any((e) {
     final v = s.exchangeRates.ratesToBase[e.key];
@@ -259,6 +291,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             primaryPastorUid: _pastorUid ?? (pastors.length == 1 ? pastors.first.uid : null),
             partnerEmailFrom: _from.text,
             wording: _wording(),
+          );
+          await repo.updateApprovalMessages(
+            churchId: s.churchId,
+            emailOn: _apEmailOn,
+            smsOn: _apSmsOn,
+            emailSubject: _apSubject.text,
+            emailMessage: _apEmail.text,
+            smsMessage: _apSms.text,
+            smsSenderId: _smsSender.text,
           );
         case SettingsTab.money:
           final rates = ChurchExchangeRates(
@@ -413,6 +454,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'subject' => _subject,
       'heading' => _heading,
       'signOff' => _signOff,
+      'apSubject' => _apSubject,
+      'apEmail' => _apEmail,
+      'apSms' => _apSms,
       _ => _message,
     };
     final sel = c.selection;
@@ -433,6 +477,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final to = await ref.read(churchSettingsRepositoryProvider).previewMonthlyPartnerEmail(wording: _wording());
       if (mounted) selNotice(context, to.isEmpty ? 'Sample sent.' : 'A sample is on its way to $to.');
+    } catch (e) {
+      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _testApproval(String channel) async {
+    setState(() => _busy = true);
+    try {
+      final r = await ref.read(churchSettingsRepositoryProvider).testApprovalMessage(
+            channel: channel,
+            subject: channel == 'email' ? _apSubject.text : null,
+            message: channel == 'email' ? _apEmail.text : _apSms.text,
+            phone: channel == 'sms' ? _testPhone.text : null,
+            senderId: channel == 'sms' ? _smsSender.text : null,
+          );
+      if (mounted) {
+        selNotice(
+          context,
+          r.dryRun
+              ? 'This is the test system, so nothing was sent to ${r.to}.'
+              : channel == 'email'
+              ? 'A test email is on its way to ${r.to}.'
+              : 'A test text is on its way to ${r.to}.',
+        );
+      }
     } catch (e) {
       if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
@@ -790,7 +861,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         .replaceAll(RegExp(r'\[\s*church\s*name\s*\]', caseSensitive: false), church);
     String orDefault(TextEditingController c, String d) => c.text.trim().isEmpty ? d : c.text.trim();
 
-    Widget insertRow(String field) => _focused != field
+    Widget insertRow(String field, {List<String> tokens = _tokens}) => _focused != field
         ? const SizedBox.shrink()
         : Padding(
             padding: const EdgeInsets.only(top: SelSpace.x2),
@@ -800,7 +871,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Text('Add:', style: SelType.small),
-                for (final t in _tokens)
+                for (final t in tokens)
                   SelButton(label: '+ ${t.substring(1, t.length - 1)}', dense: true, onPressed: () => _insert(t)),
               ],
             ),
@@ -871,17 +942,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    Widget field(String key, TextEditingController c, int max, {int lines = 1}) => Column(
+    Widget field(String key, TextEditingController c, int max, {int lines = 1, List<String> tokens = _tokens, String? counter}) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SelField(controller: c, focusNode: _focus[key], maxLength: max, maxLines: lines),
-        if (lines > 1) ...[
+        if (lines > 1 || counter != null) ...[
           const SizedBox(height: 4),
-          Text('${c.text.length} of $max characters', style: SelType.small),
+          Text(counter ?? '${c.text.length} of $max characters', style: SelType.small),
         ],
-        insertRow(key),
+        insertRow(key, tokens: tokens),
       ],
     );
+    String fillGiving(String t) => t
+        .replaceAll(RegExp(r'\[\s*first\s*name\s*\]', caseSensitive: false), 'Ama')
+        .replaceAll(RegExp(r'\[\s*amount\s*\]', caseSensitive: false), '₵500.00')
+        .replaceAll(RegExp(r'\[\s*arm\s*\]', caseSensitive: false), 'Tithe')
+        .replaceAll(RegExp(r'\[\s*date\s*\]', caseSensitive: false), '8 November')
+        .replaceAll(RegExp(r'\[\s*church\s*name\s*\]', caseSensitive: false), church);
+    final smsText = fillGiving(orDefault(_apSms, _defaultApproval.smsMessage));
+    final smsCost = smsText.length <= 160 ? 1 : (smsText.length / 153).ceil();
+    final senderProblem = _smsSender.text.trim().length > 11
+        ? 'Up to 11 letters, as registered with mNotify.'
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -973,6 +1055,142 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: SelButton(label: 'Open Monthly letters', onPressed: () => context.go('/settings/letters')),
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: SelSpace.x4),
+        SelCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('When a pastor approves giving', style: SelType.subtitle),
+              const SizedBox(height: SelSpace.x1),
+              Text(
+                'Thank the partner straight away, by email, by text, or both. Sent once for each entry, only after a pastor '
+                'approves it, so a mistake caught in review never reaches them. Partners whose messages are turned off get nothing.',
+                style: SelType.bodySm,
+              ),
+              const SizedBox(height: SelSpace.x2),
+              _Row(
+                'Email',
+                _apEmailOn ? 'On. Sent from the letters\' From address, signed by the primary pastor.' : 'Off.',
+                Align(alignment: Alignment.centerLeft, child: Switch(value: _apEmailOn, onChanged: (v) => setState(() => _apEmailOn = v))),
+              ),
+              if (_apEmailOn) ...[
+                _Row('Subject', 'What they see in their inbox.', field('apSubject', _apSubject, 150, tokens: _givingTokens)),
+                _Row('Message', 'Above the amount, arm and date, which Pillr adds.', field('apEmail', _apEmail, 600, lines: 4, tokens: _givingTokens)),
+                _Row(
+                  'Preview',
+                  'How Ama would see it for ₵500.00 to Tithe.',
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Sel.card,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Sel.border, width: 1.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(fillGiving(orDefault(_apSubject, _defaultApproval.emailSubject)),
+                            style: SelType.bodySm.copyWith(color: Sel.ink, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: SelSpace.x2),
+                        Text(fillGiving(orDefault(_apEmail, _defaultApproval.emailMessage)), style: SelType.body.copyWith(color: Sel.text)),
+                        const SizedBox(height: SelSpace.x2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(14)),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text('Tithe · 8 November', style: SelType.bodySm.copyWith(color: Sel.text))),
+                              Text('₵500.00', style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                _Row(
+                  'Check it',
+                  'Sends the email to you, with your words as they are now.',
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SelButton(label: 'Send me a test email', onPressed: _busy ? null : () => _testApproval('email')),
+                  ),
+                ),
+              ],
+              const Divider(height: 1, color: Sel.rowLine),
+              _Row(
+                'Text message',
+                _apSmsOn ? 'On. Sent through mNotify to the partner\'s phone.' : 'Off.',
+                Align(alignment: Alignment.centerLeft, child: Switch(value: _apSmsOn, onChanged: (v) => setState(() => _apSmsOn = v))),
+              ),
+              if (_apSmsOn) ...[
+                _Row(
+                  'Sender name',
+                  'Who the text says it is from: the name registered with mNotify, up to 11 letters.',
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: SelField(controller: _smsSender, hint: 'e.g. AirportCC', errorText: senderProblem),
+                  ),
+                ),
+                _Row(
+                  'Message',
+                  'Short is best: one text is 160 letters.',
+                  field(
+                    'apSms',
+                    _apSms,
+                    480,
+                    lines: 3,
+                    tokens: _givingTokens,
+                    counter: '${smsText.length} letters with the words filled in · '
+                        '${smsCost == 1 ? '1 text' : '$smsCost texts'} per partner',
+                  ),
+                ),
+                _Row(
+                  'Preview',
+                  'How Ama\'s phone would show it.',
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 340),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      decoration: const BoxDecoration(
+                        color: Sel.track,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(18),
+                          topRight: Radius.circular(18),
+                          bottomRight: Radius.circular(18),
+                          bottomLeft: Radius.circular(4),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_smsSender.text.trim().isEmpty ? 'Sender' : _smsSender.text.trim(),
+                              style: SelType.small.copyWith(fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text(smsText, style: SelType.body.copyWith(color: Sel.text)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                _Row(
+                  'Check it',
+                  'Sends the text to a number you type, with your words as they are now.',
+                  Wrap(
+                    spacing: SelSpace.x3,
+                    runSpacing: SelSpace.x2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(width: 200, child: SelField(controller: _testPhone, hint: '024 412 3456', keyboardType: TextInputType.phone)),
+                      SelButton(label: 'Send me a test text', onPressed: _busy ? null : () => _testApproval('sms')),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),

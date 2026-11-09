@@ -1,3 +1,4 @@
+import {sendApprovalMessages} from "./giving_messages";
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
 import {FieldValue} from "firebase-admin/firestore";
@@ -947,6 +948,7 @@ export const onEntryCreated = functionsV1
     const churchId = context.params.churchId as string;
     if (data.status === "approved") {
       await syncEntryAggregates(churchId, snap.id);
+      await sendApprovalMessages(churchId, snap.id, data);
       return;
     }
     if (data.status === "pending") {
@@ -969,6 +971,11 @@ export const onEntryUpdated = functionsV1
     }
     if (before.status === "pending" && (after.status === "approved" || after.status === "declined")) {
       await notifyStaffEntryReviewed(churchId, after);
+    }
+    // Thank the partner once a pastor has approved it. Once per entry: an
+    // approval undone and done again does not message twice.
+    if (before.status !== "approved" && after.status === "approved") {
+      await sendApprovalMessages(churchId, change.after.id, after);
     }
   });
 
@@ -1306,3 +1313,4 @@ export {
 export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";
 export {nightlyDuplicateCheck} from "./duplicate_scan";
 export {findSimilarEntries, churchHealth, remindPastors} from "./privacy";
+export {testApprovalMessage} from "./giving_messages";

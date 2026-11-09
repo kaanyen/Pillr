@@ -28,6 +28,12 @@ class ChurchSettings {
     this.logoAspect,
     this.exchangeRatesUpdatedAt,
     this.exchangeRatesUpdatedBy,
+    this.approvalEmailOn = false,
+    this.approvalSmsOn = false,
+    this.approvalEmailSubject,
+    this.approvalEmailMessage,
+    this.approvalSmsMessage,
+    this.smsSenderId,
   });
 
   final String churchId;
@@ -57,6 +63,16 @@ class ChurchSettings {
   /// The logo's width divided by its height, noted when it is uploaded: a
   /// wide logo is unreadable at sidebar size, so the initials show there.
   final double? logoAspect;
+
+  /// A thank-you to the partner when a pastor approves their giving.
+  final bool approvalEmailOn;
+  final bool approvalSmsOn;
+  final String? approvalEmailSubject;
+  final String? approvalEmailMessage;
+  final String? approvalSmsMessage;
+
+  /// The sender name registered with mNotify, up to 11 letters.
+  final String? smsSenderId;
 
   final DateTime? exchangeRatesUpdatedAt;
   final String? exchangeRatesUpdatedBy;
@@ -112,6 +128,12 @@ class ChurchSettings {
           ? (settings['exchangeRatesUpdatedAt'] as Timestamp).toDate()
           : null,
       exchangeRatesUpdatedBy: _text(settings['exchangeRatesUpdatedBy']),
+      approvalEmailOn: settings['approvalEmailOn'] == true,
+      approvalSmsOn: settings['approvalSmsOn'] == true,
+      approvalEmailSubject: _text(settings['approvalEmailSubject']),
+      approvalEmailMessage: _text(settings['approvalEmailMessage']),
+      approvalSmsMessage: _text(settings['approvalSmsMessage']),
+      smsSenderId: _text(settings['smsSenderId']),
       primaryPastorUid: pastorUid == null || pastorUid.isEmpty ? null : pastorUid,
       partnerEmailFrom: from == null || from.isEmpty ? null : from,
       fellowshipNames: fellowshipNames,

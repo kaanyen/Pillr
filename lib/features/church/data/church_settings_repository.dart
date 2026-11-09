@@ -130,6 +130,55 @@ class ChurchSettingsRepository {
     }, SetOptions(merge: true));
   }
 
+  /// The thank-you sent when a pastor approves giving: on or off by email
+  /// and by text, and the church's words for each.
+  Future<void> updateApprovalMessages({
+    required String churchId,
+    required bool emailOn,
+    required bool smsOn,
+    required String emailSubject,
+    required String emailMessage,
+    required String smsMessage,
+    required String smsSenderId,
+  }) async {
+    String? clean(String v) => v.trim().isEmpty ? null : v.trim();
+    await _church(churchId).set({
+      'settings': {
+        'approvalEmailOn': emailOn,
+        'approvalSmsOn': smsOn,
+        'approvalEmailSubject': clean(emailSubject),
+        'approvalEmailMessage': clean(emailMessage),
+        'approvalSmsMessage': clean(smsMessage),
+        'smsSenderId': clean(smsSenderId),
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Sends the caller a test: the email to their own address, or the text to
+  /// [phone]. Returns where it went, and whether it was only a dry run.
+  Future<({String to, bool dryRun})> testApprovalMessage({
+    required String channel,
+    String? subject,
+    required String message,
+    String? phone,
+    String? senderId,
+  }) async {
+    try {
+      final r = await _functions.httpsCallable(FirebaseConstants.testApprovalMessage).call(<String, dynamic>{
+        'channel': channel,
+        'subject': ?subject,
+        'message': message,
+        'phone': ?phone,
+        'senderId': ?senderId,
+      });
+      final d = Map<String, dynamic>.from(r.data as Map? ?? {});
+      return (to: d['to'] as String? ?? '', dryRun: d['dryRun'] == true);
+    } on FirebaseFunctionsException catch (e) {
+      throw AppException(e.message ?? 'The test did not send.', code: e.code);
+    }
+  }
+
   Stream<MonthlyEmailReport?> watchLatestMonthlyEmailReport(String churchId) {
     return _church(churchId)
         .collection('monthly_email_reports')
