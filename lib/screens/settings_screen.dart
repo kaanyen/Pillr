@@ -154,6 +154,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant SettingsScreen old) {
+    super.didUpdateWidget(old);
+    final t = SettingsTab.values.where((t) => t.name == widget.initialTab).firstOrNull;
+    if (widget.initialTab != old.initialTab && t != null) _tab = _lastTab = t;
+  }
+
+  @override
   void dispose() {
     for (final c in _controllers) {
       c.dispose();
@@ -586,7 +593,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         spacing: SelSpace.x3,
         runSpacing: SelSpace.x3,
         children: [
-          for (final (hex, label) in _colours)
+          for (final (hex, label) in [
+            ..._colours,
+            // A colour chosen before these five keeps showing, so it is not lost.
+            if (_colours.every((c) => c.$1 != (s.primaryColorHex ?? '').toUpperCase()) && _hex(s.primaryColorHex) != null)
+              ((s.primaryColorHex ?? '').toUpperCase(), 'Current'),
+          ])
             Semantics(
               button: true,
               selected: _colour == hex,

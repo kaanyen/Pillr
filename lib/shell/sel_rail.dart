@@ -106,7 +106,7 @@ class SelRail extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  _Initials(churchName, size: 38),
+                  _ChurchMark(size: 38),
                   const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Text(
@@ -655,7 +655,7 @@ class SelCompactRail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: SelSpace.x2),
-          Tooltip(message: churchName, child: _Initials(churchName, size: 34)),
+          Tooltip(message: churchName, child: const _ChurchMark(size: 34)),
           const SizedBox(height: SelSpace.x2),
           Expanded(
             child: ListView(
@@ -685,6 +685,57 @@ class SelCompactRail extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// The church in the sidebar: its logo when the logo is square enough to
+/// read this small, otherwise its initials in the church colour.
+class _ChurchMark extends ConsumerWidget {
+  const _ChurchMark({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(churchSettingsProvider).valueOrNull;
+    final name = s?.name ?? ref.watch(churchNameProvider) ?? 'Your church';
+    final hex = (s?.primaryColorHex ?? '').replaceAll('#', '');
+    final colour = hex.length == 6 ? Color(0xFF000000 | (int.tryParse(hex, radix: 16) ?? 0x13426F)) : Sel.ink;
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    final fallback = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: colour, borderRadius: BorderRadius.circular(size * 0.3)),
+      child: Text(
+        initials.isEmpty ? '?' : initials,
+        style: SelType.tag.copyWith(color: Sel.card, fontWeight: FontWeight.w800, height: 1),
+      ),
+    );
+    if (s == null || !s.logoFitsSidebar) return fallback;
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Sel.card,
+        borderRadius: BorderRadius.circular(size * 0.3),
+        border: Border.all(color: Sel.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        s.logoUrl!,
+        fit: BoxFit.contain,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        semanticLabel: name,
+        errorBuilder: (_, _, _) => fallback,
       ),
     );
   }
