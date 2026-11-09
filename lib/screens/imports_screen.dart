@@ -67,6 +67,9 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final money = ref.watch(churchMoneyFormatProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final canManage = (idx?.isPastor ?? false) || (idx?.isAdmin ?? false);
+    // Staff manage the imports they brought in (the list only shows theirs),
+    // except moving one to another period, which stays with the pastor.
+    final staff = idx?.isStaff ?? false;
 
     return SelPageBody(
       controller: _scrollController,
@@ -79,8 +82,9 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
         const SizedBox(height: SelSpace.x3),
         SelPageTitle(
           title: 'Imports',
-          subtitle:
-              'Every sheet brought into Pillr, and what it created. Clear or move a whole import in one step.',
+          subtitle: staff
+              ? 'The sheets you brought into Pillr, and what they created. Correct or archive one in a step.'
+              : 'Every sheet brought into Pillr, and what it created. Correct, move or archive a whole import in one step.',
           actions: [
             SelButton.cyan(
               label: 'Bring in a sheet',
@@ -131,11 +135,12 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                               .watch(importWaitingCountProvider('${idx.churchId}/${b.id}'))
                               .valueOrNull,
                     money: money,
-                    canManage: canManage,
+                    canManage: canManage || staff,
+                    canMove: canManage,
                     busy: _busyBatchId == b.id,
                     onOpenRows: () => context.go('/records?import=${b.id}'),
                     onEdit: () => context.go('/records/imports/${b.id}/edit'),
-                    canEdit: idx?.isPastor ?? false,
+                    canEdit: (idx?.isPastor ?? false) || staff,
                     onRename: () => _rename(b),
                     onReassign: () => _reassign(b),
                     onClear: () => _clear(b),
@@ -273,11 +278,30 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
   }
 
   Future<void> _clear(BulkImportBatch b) async {
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => _ClearDialog(batch: b),
+    final idx0 = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx0 == null) return;
+    final rows = await ref.read(entriesRepositoryProvider).fetchEntriesForBatch(idx0.churchId, b.id);
+    if (!mounted) return;
+    final approved = rows.where((e) => e.status == 'approved').toList();
+    final waiting = rows.where((e) => e.status == 'pending').length;
+    final total = approved.fold<double>(0, (s, e) => s + e.amountCedis);
+    final money = ref.read(churchMoneyFormatProvider);
+    final ok = await selConfirm(
+      context,
+      title: 'Archive ${b.displayName}?',
+      message: [
+        'All ${approved.length + waiting} entries it created come out:',
+        if (approved.isNotEmpty) '• ${approved.length} approved, ${money(total)}, leave the totals',
+        if (waiting > 0) '• $waiting waiting leave the queue',
+        '',
+        'Nothing is deleted. The import stays here marked Archived, and Bring it back puts every entry back as it was.'
+            '${idx0.isStaff ? ' Your pastor is told.' : ''}',
+      ].join('\n'),
+      confirmLabel: 'Archive it',
+      cancelLabel: 'Keep it',
     );
-    if (reason == null || reason.trim().isEmpty) return;
+    if (!ok) return;
+    const reason = 'Import archived';
 
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
@@ -297,11 +321,10 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
         selNotice(
           context,
           result.voided == 0
-              ? 'This import was already cleared.'
-              : 'Voided ${result.voided} '
-                  '${result.voided == 1 ? "entry" : "entries"}. '
-                  'They stay on the books but count toward nothing. '
-                  'Restore them from this card if that was a mistake.',
+              ? 'This import was already archived.'
+              : 'Archived. ${result.voided} '
+                  '${result.voided == 1 ? "entry" : "entries"} taken out. '
+                  'Bring it back from this card if that was a mistake.',
         );
       }
       await logPillrActivity(
@@ -373,11 +396,11 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
   Future<void> _restore(BulkImportBatch b) async {
     final ok = await selConfirm(
       context,
-      title: 'Restore this import?',
+      title: 'Bring ${b.displayName} back?',
       message:
-          'Puts the voided entries back to the status they had before they '
-          'were cleared. Approved giving returns to the totals.',
-      confirmLabel: 'Restore import',
+          'Puts every entry back as it was before it was archived: approved '
+          'ones count again, waiting ones go back to the queue.',
+      confirmLabel: 'Bring it back',
     );
     if (!ok) return;
 
@@ -409,8 +432,8 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
         selNotice(
           context,
           restored == 0
-              ? 'Nothing to restore.'
-              : 'Restored $restored ${restored == 1 ? "entry" : "entries"}.',
+              ? 'Nothing to bring back.'
+              : 'Brought back $restored ${restored == 1 ? "entry" : "entries"}.',
           kind: SelNoticeKind.success,
         );
       }
@@ -550,6 +573,7 @@ class _BatchCard extends StatelessWidget {
     required this.waiting,
     required this.money,
     required this.canManage,
+    this.canMove = true,
     required this.busy,
     required this.onOpenRows,
     required this.onRename,
@@ -582,6 +606,9 @@ class _BatchCard extends StatelessWidget {
   /// Editing a row rewrites an entry, which only a pastor may do.
   final bool canEdit;
 
+  /// Moving an import to another period stays with pastors and admins.
+  final bool canMove;
+
   /// Entries of this import still waiting for a pastor; null while counting.
   final int? waiting;
 
@@ -592,10 +619,10 @@ class _BatchCard extends StatelessWidget {
       // (title, help, button, action, primary-looking)
       ('See its rows', 'Every entry this import created, in Records.', 'Open', onOpenRows, false),
       if (canEdit && !settled)
-        ('Correct its rows', 'Fix amounts, arms or partners across the import.', 'Edit', onEdit, false),
-      if (canManage && !settled)
+        ('Correct its rows', 'Fix partners, amounts, arms or dates, approved or waiting.', 'Correct', onEdit, true),
+      if (canMove && !settled)
         ('Move to another period', 'For a sheet brought into the wrong year. Every entry it created moves with it.', 'Move', onReassign, true),
-      if (canManage && !settled && batch.canUndoMove)
+      if (canMove && !settled && batch.canUndoMove)
         ('Move it back', 'Puts its entries back where they were before the last move.', 'Undo move', onUndoMove, false),
       if (!settled && (waiting ?? 0) > 0)
         (
@@ -608,9 +635,16 @@ class _BatchCard extends StatelessWidget {
       if (canEdit && !settled && batch.canRevertEdits)
         ('Revert the last corrections', 'Puts the rows back as they were before the last edit.', 'Revert', onRevertEdits, false),
       if (canManage && !batch.isVoided)
-        ('Clear this import', 'Voids all ${batch.entryCount} entries. Approved ones leave the totals; nothing is deleted.', 'Clear', onClear, true),
+        (
+          'Archive this import',
+          'Takes all ${batch.entryCount} entries out, approved and waiting. Approved ones leave the totals. '
+              'Nothing is deleted, and you can bring it back.',
+          'Archive…',
+          onClear,
+          true,
+        ),
       if (canManage && batch.isVoided)
-        ('Restore this import', 'Brings its entries back, as they were before it was cleared.', 'Restore', onRestore, true),
+        ('Bring it back', 'Puts every entry back as it was before it was archived.', 'Bring it back', onRestore, true),
       if (canManage)
         ('Rename', 'A file name says little six months later.', 'Rename', onRename, false),
       if (canManage && batch.canUndoRename)
@@ -726,7 +760,7 @@ class _ImportsTable extends ConsumerWidget {
               SelCell.numeric(b.entryCount == 0 ? '—' : money(b.totalCedis)),
               SelCell.secondary(
                 b.isVoided
-                    ? 'Every row left out'
+                    ? 'Archived${(b.voidedByName ?? '').isEmpty ? '' : ' by ${b.voidedByName}'}'
                     : b.partnersCreated > 0
                     ? '${b.partnersCreated} new ${b.partnersCreated == 1 ? 'partner' : 'partners'}'
                     : b.skippedCount > 0
@@ -738,7 +772,7 @@ class _ImportsTable extends ConsumerWidget {
                 child: b.isIncomplete
                     ? const SelStatusMark(status: SelStatus.pending, label: 'Not finished')
                     : b.isVoided
-                    ? const SelStatusMark(status: SelStatus.voided, label: 'Cleared')
+                    ? const SelStatusMark(status: SelStatus.voided, label: 'Archived')
                     : b.isUndone
                     ? const SelStatusMark(status: SelStatus.voided, label: 'Undone')
                     : waiting(b) > 0

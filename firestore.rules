@@ -310,10 +310,24 @@ service cloud.firestore {
                            .hasOnly([
                              'label', 'note', 'preparedBy', 'updatedAt',
                              'previousLabel', 'previousNote',
-                             'voidedAt', 'voidedBy', 'voidedCount',
+                             'voidedAt', 'voidedBy', 'voidedByName', 'voidedCount',
                              'restoredAt', 'restoredBy', 'restoredCount',
                              'reassignedAt', 'reassignedBy', 'reassignedCount',
                              'periodName', 'previousPeriodName',
+                             'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
+                           ]);
+
+        // Staff: the same for an import they brought in, except moving it to
+        // another period, which stays with the pastor. Archiving happens
+        // straight away; the server tells the pastors.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && resource.data.createdBy == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'label', 'note', 'preparedBy', 'updatedAt',
+                             'previousLabel', 'previousNote',
+                             'voidedAt', 'voidedBy', 'voidedByName', 'voidedCount',
+                             'restoredAt', 'restoredBy', 'restoredCount',
                              'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
                            ]);
 

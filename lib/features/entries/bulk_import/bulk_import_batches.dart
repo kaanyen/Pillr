@@ -27,6 +27,8 @@ class BulkImportBatch {
     this.label,
     this.note,
     this.voidedAt,
+    this.voidedByName,
+    this.createdBy,
     this.voidedCount = 0,
     this.inProgress = false,
     this.skippedCount = 0,
@@ -62,6 +64,8 @@ class BulkImportBatch {
           ? null
           : (m['note'] as String).trim(),
       voidedAt: (m['voidedAt'] as Timestamp?)?.toDate(),
+      voidedByName: m['voidedByName'] as String?,
+      createdBy: m['createdBy'] as String?,
       voidedCount: (m['voidedCount'] ?? 0) as int,
       inProgress: m['inProgress'] == true,
       skippedCount: (m['skippedCount'] ?? 0) as int,
@@ -110,6 +114,12 @@ class BulkImportBatch {
 
   /// When the whole batch was reversed, and how many entries that touched.
   final DateTime? voidedAt;
+
+  /// Who archived it, for the line pastors see when staff archive one.
+  final String? voidedByName;
+
+  /// Who brought it in; staff manage only their own.
+  final String? createdBy;
   final int voidedCount;
   final bool inProgress;
   final int skippedCount;
@@ -327,10 +337,12 @@ class BulkImportBatchRepository {
     required String batchId,
     required String byUid,
     required int voidedCount,
+    String? byName,
   }) async {
     await _batches(churchId).doc(batchId).set({
       'voidedAt': FieldValue.serverTimestamp(),
       'voidedBy': byUid,
+      'voidedByName': ?byName,
       'voidedCount': voidedCount,
     }, SetOptions(merge: true));
   }
@@ -379,6 +391,7 @@ class BulkImportBatchRepository {
     await _batches(churchId).doc(batchId).set({
       'voidedAt': null,
       'voidedBy': null,
+      'voidedByName': null,
       'voidedCount': 0,
       'restoredAt': FieldValue.serverTimestamp(),
       'restoredBy': byUid,
@@ -523,3 +536,23 @@ final importWaitingCountProvider = FutureProvider.autoDispose
             batchId: key.substring(at + 1),
           );
     });
+
+/// Imports someone else archived in the last two weeks, for the pastor's bell:
+/// staff may archive one straight away, and the pastor hears of it here.
+final recentArchivedByOthersProvider = StreamProvider.autoDispose<List<BulkImportBatch>>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isPastor) return Stream.value(const []);
+  final since = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 14)));
+  return ref
+      .watch(firestoreProvider)
+      .collection('churches')
+      .doc(idx.churchId)
+      .collection('import_batches')
+      .where('voidedAt', isGreaterThan: since)
+      .snapshots()
+      .map((q) => [
+            for (final d in q.docs)
+              if (d.data()['voidedBy'] != idx.uid) BulkImportBatch.fromDoc(d),
+          ]);
+});
+

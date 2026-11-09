@@ -776,3 +776,41 @@ describe("main arms and sub-arms", () => {
     await assertSucceeds(updateDoc(doc(pastor(), `${arms}/ministry`), {name: "Ministries"}));
   });
 });
+
+describe("staff and the imports they brought in", () => {
+  const seed = (id, createdBy) => env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `churches/c1/import_batches/${id}`), {
+      createdBy, fileName: "october.xlsx", entryCount: 14, totalCedis: 100, inProgress: false,
+    });
+  });
+
+  it("lets staff archive, bring back and rename their own import", async () => {
+    await seed("ib1", STAFF);
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/import_batches/ib1"), {
+      voidedAt: new Date(), voidedBy: STAFF, voidedByName: "Demo Staff", voidedCount: 14,
+    }));
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/import_batches/ib1"), {
+      voidedAt: null, voidedBy: null, voidedByName: null, voidedCount: 0,
+      restoredAt: new Date(), restoredBy: STAFF, restoredCount: 14,
+    }));
+    await assertSucceeds(updateDoc(doc(db, "churches/c1/import_batches/ib1"), {label: "October sheet"}));
+  });
+
+  it("refuses staff moving their import to another period", async () => {
+    await seed("ib2", STAFF);
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/import_batches/ib2"), {
+      reassignedAt: new Date(), reassignedBy: STAFF, reassignedCount: 14, periodName: "2025",
+    }));
+  });
+
+  it("refuses staff archiving someone else's import, or rewriting what it did", async () => {
+    await seed("ib3", "someone-else");
+    await seed("ib4", STAFF);
+    const db = env.authenticatedContext(STAFF).firestore();
+    await assertFails(updateDoc(doc(db, "churches/c1/import_batches/ib3"), {voidedAt: new Date(), voidedBy: STAFF}));
+    await assertFails(updateDoc(doc(db, "churches/c1/import_batches/ib4"), {totalCedis: 1}));
+  });
+});
+

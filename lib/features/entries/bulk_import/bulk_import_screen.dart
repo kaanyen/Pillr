@@ -152,7 +152,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
   PartnershipPeriod? _importPeriod;
 
   /// Step 3 shows the rows to settle; this switches to the whole sheet.
-  bool _sheetView = false;
+  final bool _sheetView = false;
+
+  /// Raised by the footer's "Settle N rows to continue".
+  int _settleSignal = 0;
 
   /// What the last import brought in, kept for the finished screen.
   List<BulkResolvedRow> _resultRows = const [];
@@ -399,9 +402,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     _cachePersistIds(idx);
 
     if (_result != null) {
-      return SelPageBody(
-        children: [_buildResult(context, l10n, _result!)],
-      );
+      return SelPageBody(children: [_buildResult(context, l10n, _result!)]);
     }
     if (_isResolvingDraft) {
       return SelPageBody(
@@ -452,15 +453,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             final title = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  switch (_step) {
-                    _Step.upload => 'Bring in a sheet',
-                    _Step.columns => 'Match the columns',
-                    _Step.resolve => 'Check the rows',
-                    _Step.confirm => 'Bring them in',
-                  },
-                  style: SelType.title,
-                ),
+                Text(switch (_step) {
+                  _Step.upload => 'Bring in a sheet',
+                  _Step.columns => 'Match the columns',
+                  _Step.resolve => 'Check the rows',
+                  _Step.confirm => 'Bring them in',
+                }, style: SelType.title),
                 const SizedBox(height: SelSpace.x1),
                 Text(
                   _step == _Step.upload || _fileName == null
@@ -601,7 +599,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                     ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    child: Text('Amount', textAlign: TextAlign.right, style: SelType.small),
+                    child: Text(
+                      'Amount',
+                      textAlign: TextAlign.right,
+                      style: SelType.small,
+                    ),
                   ),
                 ],
               ),
@@ -631,7 +633,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             runSpacing: SelSpace.x2,
             children: [
               tag('Needed: Date · Name · Amount', Sel.ink, Sel.card),
-              tag('Arm and fellowship: in the sheet, or one for every row', Sel.skyWash, Sel.ink),
+              tag(
+                'Arm and fellowship: in the sheet, or one for every row',
+                Sel.skyWash,
+                Sel.ink,
+              ),
               tag('Optional: Phone · Notes', Sel.track, Sel.text),
             ],
           ),
@@ -694,7 +700,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             hint: 'e.g. Bethel finance desk',
           ),
           const SizedBox(height: SelSpace.x1),
-          Text('Optional. Kept with the import so it can be traced.', style: SelType.small),
+          Text(
+            'Optional. Kept with the import so it can be traced.',
+            style: SelType.small,
+          ),
         ],
       ),
     );
@@ -716,7 +725,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           builder: (context, c) {
             final main = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [drop, const SizedBox(height: SelSpace.x4), looksFor],
+              children: [
+                drop,
+                const SizedBox(height: SelSpace.x4),
+                looksFor,
+              ],
             );
             final side = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -725,7 +738,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             if (c.maxWidth < 900) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [main, const SizedBox(height: SelSpace.x4), side],
+                children: [
+                  main,
+                  const SizedBox(height: SelSpace.x4),
+                  side,
+                ],
               );
             }
             return Row(
@@ -790,7 +807,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             alignment: WrapAlignment.spaceBetween,
             runSpacing: SelSpace.x1,
             children: [
-              Text('${columns.length} columns in your sheet', style: SelType.subtitle),
+              Text(
+                '${columns.length} columns in your sheet',
+                style: SelType.subtitle,
+              ),
               Text(
                 'Pillr matched ${_mapping.length}. Change any that are wrong.',
                 style: SelType.small,
@@ -802,9 +822,18 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: [
-                Expanded(flex: 3, child: Text('Your column', style: SelType.small)),
-                Expanded(flex: 4, child: Text('First values', style: SelType.small)),
-                SizedBox(width: 190, child: Text('Goes to', style: SelType.small)),
+                Expanded(
+                  flex: 3,
+                  child: Text('Your column', style: SelType.small),
+                ),
+                Expanded(
+                  flex: 4,
+                  child: Text('First values', style: SelType.small),
+                ),
+                SizedBox(
+                  width: 190,
+                  child: Text('Goes to', style: SelType.small),
+                ),
               ],
             ),
           ),
@@ -838,7 +867,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                ok ? LucideIcons.check : (required ? LucideIcons.alertCircle : LucideIcons.minus),
+                ok
+                    ? LucideIcons.check
+                    : (required ? LucideIcons.alertCircle : LucideIcons.minus),
                 size: 13,
                 color: ok ? Sel.ink : (required ? Sel.card : Sel.warm),
               ),
@@ -904,25 +935,40 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             alignment: WrapAlignment.spaceBetween,
             runSpacing: SelSpace.x1,
             children: [
-              Text("The first rows, as they'll come in", style: SelType.subtitle),
+              Text(
+                "The first rows, as they'll come in",
+                style: SelType.subtitle,
+              ),
               Text('Updates as you change a column', style: SelType.small),
             ],
           ),
           const SizedBox(height: SelSpace.x3),
           Table(
             columnWidths: const {0: FixedColumnWidth(70)},
-            border: const TableBorder(horizontalInside: BorderSide(color: Sel.rowLine)),
+            border: const TableBorder(
+              horizontalInside: BorderSide(color: Sel.rowLine),
+            ),
             children: [
               TableRow(
                 children: [
-                  for (final h in const ['Row', 'Date', 'Name', 'Fellowship', 'Arm'])
+                  for (final h in const [
+                    'Row',
+                    'Date',
+                    'Name',
+                    'Fellowship',
+                    'Arm',
+                  ])
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Text(h, style: SelType.small),
                     ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    child: Text('Amount', textAlign: TextAlign.right, style: SelType.small),
+                    child: Text(
+                      'Amount',
+                      textAlign: TextAlign.right,
+                      style: SelType.small,
+                    ),
                   ),
                 ],
               ),
@@ -937,14 +983,20 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                       valueAt(r, BulkImportColumn.category),
                     ])
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
                         child: Text(
                           v.isEmpty ? '—' : v,
                           style: SelType.bodySm.copyWith(color: Sel.text),
                         ),
                       ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                       child: Text(
                         valueAt(r, BulkImportColumn.amount).isEmpty
                             ? '—'
@@ -976,7 +1028,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               ),
               const Spacer(),
               SelButton.cyan(
-                label: 'Check ${dataRows.length} ${dataRows.length == 1 ? 'row' : 'rows'}',
+                label:
+                    'Check ${dataRows.length} ${dataRows.length == 1 ? 'row' : 'rows'}',
                 loading: _parsing,
                 onPressed: missing.isEmpty ? _applyMappingAndResolve : null,
               ),
@@ -993,7 +1046,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           builder: (context, c) => c.maxWidth < 900
               ? Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [table, const SizedBox(height: SelSpace.x4), needs],
+                  children: [
+                    table,
+                    const SizedBox(height: SelSpace.x4),
+                    needs,
+                  ],
                 )
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1089,9 +1146,12 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   children: [
                     SelButton(
                       label: '← Leave',
-                      onPressed: _committing ? null : () => context.go('/records/imports'),
+                      onPressed: _committing
+                          ? null
+                          : () => context.go('/records/imports'),
                     ),
-                    _StepBar(current: _step),
+                    _StepBar(current: _step, dotsOnly: true),
+                    _sheetMenu(),
                   ],
                 ),
                 const SizedBox(height: SelSpace.x2),
@@ -1101,17 +1161,29 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   children: [
                     SelButton(
                       label: '← Leave',
-                      onPressed: _committing ? null : () => context.go('/records/imports'),
+                      onPressed: _committing
+                          ? null
+                          : () => context.go('/records/imports'),
                     ),
                     const SizedBox(width: SelSpace.x4),
-                    Expanded(child: _sheetTitle(compact: compact, resolved: resolved, live: live)),
-                    _buildCompactSheetCurrencySelector(),
+                    Expanded(
+                      child: _sheetTitle(
+                        compact: compact,
+                        resolved: resolved,
+                        live: live,
+                      ),
+                    ),
                     if (_loadingPartners)
                       const Padding(
                         padding: EdgeInsets.only(right: SelSpace.x3),
                         child: PillrLoader(size: 18),
                       ),
-                    _StepBar(current: _step),
+                    _StepBar(
+                      current: _step,
+                      dotsOnly: constraints.maxWidth < 1100,
+                    ),
+                    const SizedBox(width: SelSpace.x2),
+                    _sheetMenu(),
                   ],
                 ),
               SizedBox(height: compact ? SelSpace.x2 : SelSpace.x3),
@@ -1131,93 +1203,100 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 ),
                 const SizedBox(height: SelSpace.x4),
               ],
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Saved on this device as you go.',
-                      style: SelType.small,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  SelLink(label: 'Start over', onTap: _committing ? null : _startOver),
-                  const SizedBox(width: SelSpace.x4),
-                  SelLink(
-                    label: _sheetView ? 'Show the rows to settle' : 'See the whole sheet',
-                    onTap: () => setState(() => _sheetView = !_sheetView),
-                  ),
-                ],
-              ),
               const SizedBox(height: SelSpace.x2),
               Expanded(
                 child: _sheetView
                     ? BulkImportGrid(
-                  rawRows: _rawRows ?? const [],
-                  resolved: resolved,
-                  columns: _gridColumns(columns),
-                  arms: arms,
-                  dayFirst: _dayFirst,
-                  busy: _loadingPartners || _committing,
-                  money: (v) => v == v.roundToDouble()
-                      ? money(v).replaceAll(RegExp(r'\.00$'), '')
-                      : money(v),
-                  keptSheetRows: _duplicateAcknowledgedSheetRows,
-                  droppedSheetRows: _droppedSheetRows,
-                  onEditCell: _editRawCell,
-                  onApplyFixes: _applyFixes,
-                  onDayFirstChanged: (v) => setState(() => _dayFirst = v),
-                  onKeepRow: _keepRow,
-                  onDropRow: _dropRow,
-                  onUndoDecision: _undoRowDecision,
-                  onBulkMapArm: _bulkMapArm,
-                  knownFellowships: [
-                    ...ref.watch(knownFellowshipsProvider),
-                    ..._acceptedFellowships,
-                  ],
-                  onBulkResolveFellowship: _bulkResolveFellowship,
-                )
+                        rawRows: _rawRows ?? const [],
+                        resolved: resolved,
+                        columns: _gridColumns(columns),
+                        arms: arms,
+                        dayFirst: _dayFirst,
+                        busy: _loadingPartners || _committing,
+                        money: (v) => v == v.roundToDouble()
+                            ? money(v).replaceAll(RegExp(r'\.00$'), '')
+                            : money(v),
+                        keptSheetRows: _duplicateAcknowledgedSheetRows,
+                        droppedSheetRows: _droppedSheetRows,
+                        onEditCell: _editRawCell,
+                        onApplyFixes: _applyFixes,
+                        onDayFirstChanged: (v) => setState(() => _dayFirst = v),
+                        onKeepRow: _keepRow,
+                        onDropRow: _dropRow,
+                        onUndoDecision: _undoRowDecision,
+                        onBulkMapArm: _bulkMapArm,
+                        knownFellowships: [
+                          ...ref.watch(knownFellowshipsProvider),
+                          ..._acceptedFellowships,
+                        ],
+                        onBulkResolveFellowship: _bulkResolveFellowship,
+                      )
                     : BulkImportReview(
-                          rawRows: _rawRows ?? const [],
-                          resolved: resolved,
-                          columns: _gridColumns(columns),
-                          arms: arms,
-                          dayFirst: _dayFirst,
-                          busy: _loadingPartners || _committing,
-                          money: money,
-                          keptSheetRows: _duplicateAcknowledgedSheetRows,
-                          droppedSheetRows: _droppedSheetRows,
-                          knownFellowships: [
-                            ...ref.watch(knownFellowshipsProvider),
-                            ..._acceptedFellowships,
-                          ],
-                          onEditCell: _editRawCell,
-                          onApplyFixes: _applyFixes,
-                          onKeepRow: _keepRow,
-                          onDropRow: _dropRow,
-                          onUndoDecision: _undoRowDecision,
-                          onBulkMapArm: _bulkMapArm,
-                          onBulkResolveFellowship: _bulkResolveFellowship,
-                          onPickPartner: () => showPartnerPickerPanel(
-                            context,
-                            churchId: idx.churchId,
-                            uid: idx.uid,
-                          ),
+                        rawRows: _rawRows ?? const [],
+                        resolved: resolved,
+                        columns: _gridColumns(columns),
+                        arms: arms,
+                        dayFirst: _dayFirst,
+                        busy: _loadingPartners || _committing,
+                        money: money,
+                        keptSheetRows: _duplicateAcknowledgedSheetRows,
+                        droppedSheetRows: _droppedSheetRows,
+                        knownFellowships: [
+                          ...ref.watch(knownFellowshipsProvider),
+                          ..._acceptedFellowships,
+                        ],
+                        onEditCell: _editRawCell,
+                        onApplyFixes: _applyFixes,
+                        onKeepRow: _keepRow,
+                        onDropRow: _dropRow,
+                        onUndoDecision: _undoRowDecision,
+                        onBulkMapArm: _bulkMapArm,
+                        onBulkResolveFellowship: _bulkResolveFellowship,
+                        settleSignal: _settleSignal,
+                        onPickPartner: () => showPartnerPickerPanel(
+                          context,
+                          churchId: idx.churchId,
+                          uid: idx.uid,
                         ),
+                      ),
               ),
               const SizedBox(height: SelSpace.x3),
               Builder(
                 builder: (context) {
-                  final ready = live.where((r) => !r.isBlocking).toList();
-                  final total = ready.fold<double>(0, (s, r) => s + r.amountCedis);
-                  final needYou = live.where((r) => r.isBlocking).length;
-                  final note = blocking
-                      ? '$needYou ${needYou == 1 ? 'row needs' : 'rows need'} you'
-                      : duplicatesPending
-                      ? 'Say keep or leave out for the rows that might already be in Pillr'
-                      : live.isEmpty
-                      ? 'Every row was left out'
-                      : 'Nothing is saved until you bring them in';
-                  final canGo = !(blocking || duplicatesPending || _loadingPartners || live.isEmpty);
+                  // The same rule as the Need you tab, so the footer, the tabs
+                  // and the card always say the same number.
+                  bool needs(BulkResolvedRow r) =>
+                      r.isBlocking ||
+                      (r.issues.any(
+                            (x) =>
+                                x.code == BulkImportIssueCode.duplicateInFile ||
+                                x.code ==
+                                    BulkImportIssueCode.duplicateInDatabase,
+                          ) &&
+                          !_duplicateAcknowledgedSheetRows.contains(
+                            r.sheetRowNumber,
+                          ));
+                  final needYou = live.where(needs).length;
+                  final ready = live.where((r) => !needs(r)).toList();
+                  final total = ready.fold<double>(
+                    0,
+                    (s, r) => s + r.amountCedis,
+                  );
+                  final leftOut = resolved.length - live.length;
+                  final note = [
+                    if (needYou > 0)
+                      '$needYou ${needYou == 1 ? 'row needs' : 'rows need'} you',
+                    if (leftOut > 0) '$leftOut left out',
+                    if (needYou == 0 && leftOut == 0)
+                      'Nothing is saved until you bring them in',
+                  ].join(' · ');
+                  final canGo =
+                      !(blocking ||
+                          duplicatesPending ||
+                          _loadingPartners ||
+                          live.isEmpty);
+                  final settleFirst =
+                      !canGo && needYou > 0 && !_loadingPartners;
                   return Container(
                     padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
                     decoration: BoxDecoration(
@@ -1238,26 +1317,47 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                           child: Text(
                             note,
                             overflow: TextOverflow.ellipsis,
-                            style: SelType.bodySm.copyWith(color: const Color(0xFFC9DEF3)),
+                            style: SelType.bodySm.copyWith(
+                              color: const Color(0xFFC9DEF3),
+                            ),
                           ),
                         ),
                         TextButton(
-                          onPressed: () => setState(() => _step = _Step.columns),
-                          child: Text('Back', style: SelType.button.copyWith(color: Sel.card)),
+                          onPressed: () =>
+                              setState(() => _step = _Step.columns),
+                          child: Text(
+                            'Back',
+                            style: SelType.button.copyWith(color: Sel.card),
+                          ),
                         ),
                         const SizedBox(width: SelSpace.x2),
                         Material(
-                          color: canGo ? Sel.card : const Color(0xFF2A5884),
+                          color: canGo || settleFirst
+                              ? Sel.card
+                              : const Color(0xFF2A5884),
                           shape: const StadiumBorder(),
                           child: InkWell(
                             customBorder: const StadiumBorder(),
-                            onTap: canGo ? () => setState(() => _step = _Step.confirm) : null,
+                            onTap: canGo
+                                ? () => setState(() => _step = _Step.confirm)
+                                : settleFirst
+                                ? () => setState(() => _settleSignal++)
+                                : null,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22,
+                                vertical: 13,
+                              ),
                               child: Text(
-                                'Continue',
+                                canGo
+                                    ? 'Continue'
+                                    : settleFirst
+                                    ? 'Settle $needYou ${needYou == 1 ? 'row' : 'rows'} to continue'
+                                    : 'Continue',
                                 style: SelType.button.copyWith(
-                                  color: canGo ? Sel.ink : const Color(0xFF9DB8D3),
+                                  color: canGo || settleFirst
+                                      ? Sel.ink
+                                      : const Color(0xFF9DB8D3),
                                 ),
                               ),
                             ),
@@ -1275,19 +1375,21 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     );
   }
 
-
   Widget _sheetTitle({
     required bool compact,
     required List<BulkResolvedRow> resolved,
     required List<BulkResolvedRow> live,
   }) {
     final meta = live.length == resolved.length
-        ? '${_fileName ?? "Your file"} · ${resolved.length} rows · nothing is saved until you bring them in'
+        ? '${_fileName ?? "Your file"} · ${resolved.length} rows · saved on this device'
         : '${_fileName ?? "Your file"} · ${live.length} of ${resolved.length} rows coming in';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Check the rows', style: SelType.title.copyWith(fontSize: 20, height: 1.2)),
+        Text(
+          'Check the rows',
+          style: SelType.title.copyWith(fontSize: 20, height: 1.2),
+        ),
         Text(
           meta,
           style: SelType.small,
@@ -1297,7 +1399,6 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       ],
     );
   }
-
 
   /// Writes one cell back to the raw sheet and re-runs resolution.
   ///
@@ -1474,6 +1575,47 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     ];
   }
 
+  /// Start over and the default currency, out of the way of the rows.
+  Widget _sheetMenu() => PopupMenuButton<String>(
+    tooltip: 'More',
+    enabled: !_committing,
+    onSelected: (v) async {
+      if (v == 'start-over') {
+        _startOver();
+      } else if (v.startsWith('cur:')) {
+        setState(() => _importDefaultCurrency = v.substring(4));
+        _syncRowCurrencies();
+        _scheduleReResolve();
+      }
+    },
+    itemBuilder: (_) => [
+      const PopupMenuItem(value: 'start-over', child: Text('Start over')),
+      const PopupMenuDivider(),
+      PopupMenuItem(
+        enabled: false,
+        child: Text('Plain amounts are in', style: SelType.small),
+      ),
+      for (final code in SelectableCurrency.all)
+        CheckedPopupMenuItem(
+          value: 'cur:$code',
+          checked: code == _importDefaultCurrency,
+          child: Text(code),
+        ),
+    ],
+    child: Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Sel.card,
+        shape: BoxShape.circle,
+        border: Border.all(color: Sel.border, width: 1.5),
+      ),
+      child: const Icon(LucideIcons.moreHorizontal, size: 18, color: Sel.ink),
+    ),
+  );
+
+  // ignore: unused_element
   Widget _buildCompactSheetCurrencySelector() {
     return Tooltip(
       message: 'Default for plain amounts without \$ € £ or a currency code',
@@ -1529,7 +1671,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(k, style: SelType.small),
-                Text(v, style: SelType.subtitle.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  v,
+                  style: SelType.subtitle.copyWith(fontWeight: FontWeight.w800),
+                ),
               ],
             );
             return SelCard(
@@ -1539,7 +1684,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 children: [
                   fig('Giving to bring in', money(sum.totalAmount)),
                   fig('Rows', '${sum.totalRows}'),
-                  fig('Partners already on the book', '${sum.existingPartners}'),
+                  fig(
+                    'Partners already on the book',
+                    '${sum.existingPartners}',
+                  ),
                   fig('New partners', '${sum.newPartners}'),
                 ],
               ),
@@ -1633,14 +1781,19 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   idx.isStaff
                       ? 'They go to the queue for a pastor to approve.'
                       : 'They count as soon as they are in.',
-                  style: SelType.bodySm.copyWith(color: const Color(0xFFC9DEF3)),
+                  style: SelType.bodySm.copyWith(
+                    color: const Color(0xFFC9DEF3),
+                  ),
                 ),
               ),
               TextButton(
                 onPressed: _committing
                     ? null
                     : () => setState(() => _step = _Step.resolve),
-                child: Text('Back', style: SelType.button.copyWith(color: Sel.card)),
+                child: Text(
+                  'Back',
+                  style: SelType.button.copyWith(color: Sel.card),
+                ),
               ),
               const SizedBox(width: SelSpace.x2),
               Material(
@@ -1652,7 +1805,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                       ? null
                       : () => _commit(context, idx.churchId, idx.isPastor),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 13,
+                    ),
                     child: _committing
                         ? const PillrLoader(size: 18)
                         : Text(
@@ -1860,11 +2016,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: PillrLoader(size: 20),
-            ),
+            const SizedBox(width: 28, height: 28, child: PillrLoader(size: 20)),
             const SizedBox(height: SelSpace.x4),
             Text(
               l10n.bulkImportRestoringDraft,
@@ -1905,7 +2057,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
     for (final row in came) {
       byArm[row.armName] = (byArm[row.armName] ?? 0) + row.amountCedis;
     }
-    final arms = byArm.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final arms = byArm.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final total = byArm.values.fold<double>(0, (s, v) => s + v);
     const tones = [Sel.ink, Sel.sky, Sel.skyWash, Sel.border];
     final partners = came.map((x) => x.partnerId ?? x.fullName).toSet().length;
@@ -1922,7 +2075,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             decoration: BoxDecoration(
               color: ok ? Sel.skyWash : Sel.card,
               shape: BoxShape.circle,
-              border: Border.all(color: ok ? Sel.skyWash : Sel.cyan, width: 1.5),
+              border: Border.all(
+                color: ok ? Sel.skyWash : Sel.cyan,
+                width: 1.5,
+              ),
             ),
             child: Icon(
               ok ? LucideIcons.check : LucideIcons.info,
@@ -1937,7 +2093,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
               children: [
                 Text(
                   head,
-                  style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                  style: SelType.body.copyWith(
+                    color: Sel.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 if (body.isNotEmpty) Text(body, style: SelType.bodySm),
               ],
@@ -1962,7 +2121,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           'Added to the partner book from this sheet',
         ),
       if (r.rowsSkipped > 0 && r.errors.isEmpty)
-        line(false, '${r.rowsSkipped} ${r.rowsSkipped == 1 ? 'row' : 'rows'} left out', ''),
+        line(
+          false,
+          '${r.rowsSkipped} ${r.rowsSkipped == 1 ? 'row' : 'rows'} left out',
+          '',
+        ),
       for (final e in r.errors) line(false, 'Left out', e),
     ];
 
@@ -1978,7 +2141,10 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Giving brought in', style: SelType.small),
-                  Text(money(total), style: SelType.hero.copyWith(fontSize: 36)),
+                  Text(
+                    money(total),
+                    style: SelType.hero.copyWith(fontSize: 36),
+                  ),
                   Text(
                     'from $partners ${partners == 1 ? 'partner' : 'partners'}'
                     '${r.partnersCreated > 0 ? ', ${r.partnersCreated} of them new' : ''}',
@@ -2013,9 +2179,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   children: [
                     for (var k = 0; k < arms.length; k++)
                       Expanded(
-                        flex: (1000 * arms[k].value / total).round().clamp(1, 1000),
+                        flex: (1000 * arms[k].value / total).round().clamp(
+                          1,
+                          1000,
+                        ),
                         child: Container(
-                          margin: EdgeInsets.only(right: k == arms.length - 1 ? 0 : 2),
+                          margin: EdgeInsets.only(
+                            right: k == arms.length - 1 ? 0 : 2,
+                          ),
                           color: tones[k.clamp(0, tones.length - 1)],
                         ),
                       ),
@@ -2032,7 +2203,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(width: 10, height: 10, color: tones[k.clamp(0, tones.length - 1)]),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        color: tones[k.clamp(0, tones.length - 1)],
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '${arms[k].key} ${money(arms[k].value)}',
@@ -2119,12 +2294,20 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           builder: (context, c) {
             final main = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [giving, const SizedBox(height: SelSpace.x4), happened],
+              children: [
+                giving,
+                const SizedBox(height: SelSpace.x4),
+                happened,
+              ],
             );
             if (c.maxWidth < 900) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [main, const SizedBox(height: SelSpace.x4), wrong],
+                children: [
+                  main,
+                  const SizedBox(height: SelSpace.x4),
+                  wrong,
+                ],
               );
             }
             return Row(
@@ -2315,7 +2498,11 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         contents: buildImportTemplateCsv(arms: arms),
       );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not save the template. ${plainError(e)}');
+      if (mounted) {
+        setState(
+          () => _error = 'Could not save the template. ${plainError(e)}',
+        );
+      }
     }
   }
 
@@ -2349,8 +2536,14 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
       final all = await ref
           .read(partnersRepositoryProvider)
           .fetchAllPartners(idx.churchId, includeInactive: true);
-      _cachedPartners = [for (final p in all) if (p.isActive) p];
-      _cachedInactivePartners = [for (final p in all) if (!p.isActive) p];
+      _cachedPartners = [
+        for (final p in all)
+          if (p.isActive) p,
+      ];
+      _cachedInactivePartners = [
+        for (final p in all)
+          if (!p.isActive) p,
+      ];
     }
   }
 
@@ -2484,7 +2677,9 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         final rows = _resolved!;
         final hits = await ref.read(similarEntriesProvider).check([
           for (var i = 0; i < rows.length; i++)
-            if (rows[i].partnerId != null && rows[i].armId != null && rows[i].periodId != null)
+            if (rows[i].partnerId != null &&
+                rows[i].armId != null &&
+                rows[i].periodId != null)
               (
                 key: '$i',
                 partnerId: rows[i].partnerId!,
@@ -2499,20 +2694,30 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         for (var i = 0; i < _resolved!.length; i++) {
           final r = _resolved![i];
           final issues = List<BulkImportIssue>.from(r.issues)
-            ..removeWhere((x) => x.code == BulkImportIssueCode.duplicateInDatabase);
+            ..removeWhere(
+              (x) => x.code == BulkImportIssueCode.duplicateInDatabase,
+            );
           if (hits.contains('$i')) {
-            issues.add(const BulkImportIssue(
-              code: BulkImportIssueCode.duplicateInDatabase,
-              severity: BulkImportSeverity.warning,
-            ));
+            issues.add(
+              const BulkImportIssue(
+                code: BulkImportIssueCode.duplicateInDatabase,
+                severity: BulkImportSeverity.warning,
+              ),
+            );
           }
-          final block = issues.any((e) => e.severity == BulkImportSeverity.error);
+          final block = issues.any(
+            (e) => e.severity == BulkImportSeverity.error,
+          );
           updated.add(r.copyWith(issues: issues, isBlocking: block));
         }
         setState(() => _resolved = updated);
         _schedulePersistSession();
       } catch (e) {
-        if (mounted) setState(() => _error = 'Could not check for duplicates. ${plainError(e)}');
+        if (mounted) {
+          setState(
+            () => _error = 'Could not check for duplicates. ${plainError(e)}',
+          );
+        }
       }
       return;
     }
@@ -3034,7 +3239,8 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
         l10n.bulkImportIssueMemberIdNotFound,
       BulkImportIssueCode.memberIdConflict =>
         l10n.bulkImportIssueMemberIdConflict,
-      BulkImportIssueCode.memberIdMerged => 'Old member ID — goes to the person who has it now',
+      BulkImportIssueCode.memberIdMerged =>
+        'Old member ID — goes to the person who has it now',
       BulkImportIssueCode.possibleDuplicatePartner =>
         'Looks like an existing partner',
       BulkImportIssueCode.fellowshipMismatch =>
@@ -3335,11 +3541,10 @@ class _IssueGroupState extends ConsumerState<_IssueGroup> {
                                   () => _armChoice[cluster.label] = v,
                                 ),
                           items: [
-                            for (final (a, label) in ArmTree(arms).recordingOptions())
-                              DropdownMenuItem(
-                                value: a.id,
-                                child: Text(label),
-                              ),
+                            for (final (a, label) in ArmTree(
+                              arms,
+                            ).recordingOptions())
+                              DropdownMenuItem(value: a.id, child: Text(label)),
                           ],
                         ),
                       ),
@@ -3617,9 +3822,16 @@ class _SpellingCluster {
 /// could not — there was no finish line, only a long scroll ending in a
 /// disabled button.
 class _StepBar extends StatelessWidget {
-  const _StepBar({required this.current, this.done = false});
+  const _StepBar({
+    required this.current,
+    this.done = false,
+    this.dotsOnly = false,
+  });
 
   final _Step current;
+
+  /// Numbered dots without their names, where the top bar is short of room.
+  final bool dotsOnly;
 
   /// Every step finished: all four show a tick.
   final bool done;
@@ -3627,44 +3839,51 @@ class _StepBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: SelSpace.x4,
+      spacing: dotsOnly ? SelSpace.x1 : SelSpace.x4,
       runSpacing: SelSpace.x2,
       children: [
         for (final s in _Step.ordered)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: s == current && !done
-                      ? Sel.ink
-                      : s.index < current.index || done
-                      ? Sel.skyWash
-                      : Sel.track,
-                  shape: BoxShape.circle,
-                ),
-                child: s.index < current.index || done
-                    ? const Icon(LucideIcons.check, size: 13, color: Sel.ink)
-                    : Text(
-                        '${s.index + 1}',
-                        style: SelType.small.copyWith(
-                          color: s == current ? Sel.card : Sel.ink,
-                          fontWeight: FontWeight.w800,
+          Tooltip(
+            message: dotsOnly ? s.label : '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: s == current && !done
+                        ? Sel.ink
+                        : s.index < current.index || done
+                        ? Sel.skyWash
+                        : Sel.track,
+                    shape: BoxShape.circle,
+                  ),
+                  child: s.index < current.index || done
+                      ? const Icon(LucideIcons.check, size: 13, color: Sel.ink)
+                      : Text(
+                          '${s.index + 1}',
+                          style: SelType.small.copyWith(
+                            color: s == current ? Sel.card : Sel.ink,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-              ),
-              const SizedBox(width: SelSpace.x2),
-              Text(
-                s.label,
-                style: SelType.bodySm.copyWith(
-                  color: s == current ? Sel.ink : Sel.warm,
-                  fontWeight: s == current ? FontWeight.w700 : FontWeight.w500,
                 ),
-              ),
-            ],
+                if (!dotsOnly) ...[
+                  const SizedBox(width: SelSpace.x2),
+                  Text(
+                    s.label,
+                    style: SelType.bodySm.copyWith(
+                      color: s == current ? Sel.ink : Sel.warm,
+                      fontWeight: s == current
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
       ],
     );
@@ -3703,7 +3922,10 @@ class _ColumnRow extends StatelessWidget {
               children: [
                 Text(
                   header,
-                  style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                  style: SelType.body.copyWith(
+                    color: Sel.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 Text(
                   value == null ? 'Left out' : 'Matched',
@@ -3877,7 +4099,9 @@ class _RecentImports extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text('Recent imports', style: SelType.subtitle)),
+                Expanded(
+                  child: Text('Recent imports', style: SelType.subtitle),
+                ),
                 SelLink(
                   label: 'All imports',
                   onTap: () => context.go('/records/imports'),

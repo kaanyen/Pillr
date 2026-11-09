@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,9 +8,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/extensions/async_value_ext.dart';
 import '../core/navigation/panel_flows.dart';
 import '../core/notifications/sel_notice.dart';
-import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
-import '../features/arms/domain/arm_tree.dart';
 import '../features/arms/domain/partnership_arm.dart';
 import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
@@ -100,6 +100,7 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
         _loading = false;
       });
     } catch (e) {
+      debugPrint('Correct import, loading: $e');
       if (!mounted) return;
       setState(() {
         _error = plainError(e);
@@ -144,6 +145,26 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
         // being edited is the cedi amount, so the source amount is derived
         // back from it rather than left saying something else.
         final rate = e.displayExchangeRate;
+        if (idx.isStaff) {
+          await entriesRepo.staffUpdateEntry(
+            churchId: idx.churchId,
+            existing: e,
+            staff: pastor,
+            partnerId: d.partnerId,
+            partnerSnapshot: {...e.partnerSnapshot, 'fullName': d.partnerName},
+            partnershipArmId: d.armId,
+            armSnapshot: {'name': d.armName},
+            partnershipPeriodId: e.partnershipPeriodId,
+            periodSnapshot: e.periodSnapshot,
+            amountCedis: d.amountCedis,
+            sourceCurrency: e.displaySourceCurrency,
+            sourceAmount: rate > 0 ? d.amountCedis / rate : d.amountCedis,
+            exchangeRateToBase: rate,
+            dateGiven: d.dateGiven,
+            notes: e.notes,
+          );
+          continue;
+        }
         await entriesRepo.pastorUpdateEntry(
           churchId: idx.churchId,
           existing: e,
@@ -210,7 +231,9 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
 
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      await ref.read(importHistoryProvider.notifier).refresh();
+      // The Imports list is not on screen here; it loads fresh when opened.
+      // Refreshing it from this page used it after it had closed.
+      ref.invalidate(importHistoryProvider);
       if (!mounted) return;
       setState(() => _saving = false);
       selNotice(
@@ -218,11 +241,13 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
         changed.isEmpty
             ? 'Import details saved.'
             : '${changed.length} ${changed.length == 1 ? "row" : "rows"} corrected. '
+                '${idx.isStaff ? 'Your pastor approves them again. ' : ''}'
                 'Revert them from Imports if that was a mistake.',
         kind: SelNoticeKind.success,
       );
       await _load();
     } catch (e) {
+      debugPrint('Correct import, saving: $e');
       if (!mounted) return;
       setState(() {
         _error = plainError(e);
@@ -239,7 +264,9 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
       context: context,
       builder: (ctx) => SelDialog(
         title: 'Save these corrections?',
-        subtitle: 'This changes money already on the books.',
+        subtitle: ref.read(userChurchIndexProvider).valueOrNull?.isStaff == true
+            ? 'Rows that were approved go back to your pastor to approve again.'
+            : 'This changes money already on the books.',
         width: 560,
         actions: [
           SelButton(
@@ -256,7 +283,13 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (delta != 0)
+            if (ref.read(userChurchIndexProvider).valueOrNull?.isStaff == true)
+              Text(
+                'Until your pastor approves them again, the changed rows that were '
+                'approved leave the totals.',
+                style: SelType.body,
+              )
+            else if (delta != 0)
               Text(
                 'The approved total for this import changes by '
                 '${delta > 0 ? "+" : "−"}${money(delta.abs())}.',
@@ -319,344 +352,537 @@ class _BatchEditScreenState extends ConsumerState<BatchEditScreen> {
     if (d != null) setState(() => draft.dateGiven = d);
   }
 
+  // ------------------------------------------------------------- the sheet
+
+  _Tab _tab = _Tab.all;
+  (int, int)? _sel;
+  bool _aside = false;
+
+  static const _columns = [
+    SelSheetColumn('Date', weight: .8),
+    SelSheetColumn('Name', weight: 1.5),
+    SelSheetColumn('Fellowship', weight: 1.1),
+    SelSheetColumn('Arm', weight: 1),
+    SelSheetColumn('Amount', weight: .9, numeric: true),
+  ];
+
+  bool _inTab(BatchRowDraft d) => switch (_tab) {
+    _Tab.all => true,
+    _Tab.changed => d.hasChanges,
+    _Tab.approved => d.original.status == 'approved',
+    _Tab.waiting => d.original.status == 'pending',
+  };
+
+  List<BatchRowDraft> get _shown => [for (final d in _drafts) if (_inTab(d)) d];
+
+  String _rowNumber(BatchRowDraft d) => '${_drafts.indexOf(d) + 1}';
+
+  Widget _mark(BatchRowDraft d) {
+    final (fill, edge, icon, color) = d.isLocked
+        ? (Sel.track, Sel.track, LucideIcons.minus, Sel.warm)
+        : d.hasChanges
+        ? (Sel.ink, Sel.ink, LucideIcons.pencil, Sel.card)
+        : d.original.status == 'approved'
+        ? (Sel.skyWash, Sel.skyWash, LucideIcons.check, Sel.ink)
+        : (Sel.card, const Color(0xFF8AA7C4), LucideIcons.clock, Sel.ink);
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(color: fill, shape: BoxShape.circle, border: Border.all(color: edge, width: 1.5)),
+      child: Icon(icon, size: 11, color: color),
+    );
+  }
+
+  String _afterSave(BatchRowDraft d, bool staff) => d.original.status != 'approved'
+      ? ''
+      : staff
+      ? ' Goes back to your pastor to approve again.'
+      : ' Stays approved.';
+
+  SelSheetRow _row(BatchRowDraft d, String Function(double) money, List<PartnershipArm> arms, bool staff) {
+    final locked = d.isLocked;
+    final note = locked
+        ? 'Archived, so it cannot be changed.'
+        : d.hasChanges
+        ? '${d.changes.map((c) => c[0].toUpperCase() + c.substring(1)).join('. ')}.${_afterSave(d, staff)}'
+        : null;
+    final fixed = SelSheetCellKind.fixed;
+    return SelSheetRow(
+      mark: _mark(d),
+      number: _rowNumber(d),
+      dimmed: locked,
+      note: note,
+      cells: [
+        SelSheetCell(
+          DateFormat('d MMM').format(d.dateGiven),
+          kind: locked ? fixed : SelSheetCellKind.action,
+          onAction: () => _pickDate(d),
+          changed: d.dateChanged,
+          was: d.dateChanged ? DateFormat('d MMM y').format(d.original.dateGiven) : null,
+        ),
+        SelSheetCell(
+          d.partnerName,
+          kind: locked ? fixed : SelSheetCellKind.action,
+          onAction: () => _pickPartner(d),
+          changed: d.partnerChanged,
+          was: d.partnerChanged ? '${d.original.partnerSnapshot['fullName'] ?? 'Partner'}' : null,
+        ),
+        SelSheetCell('${d.original.partnerSnapshot['fellowship'] ?? ''}', kind: fixed),
+        SelSheetCell(
+          d.armName,
+          kind: locked || arms.isEmpty ? fixed : SelSheetCellKind.choice,
+          options: [for (final a in arms) a.name],
+          changed: d.armChanged,
+          was: d.armChanged ? '${d.original.armSnapshot['name'] ?? ''}' : null,
+        ),
+        SelSheetCell(
+          money(d.amountCedis),
+          editText: d.amountCedis.toStringAsFixed(2),
+          kind: locked ? fixed : SelSheetCellKind.text,
+          changed: d.amountChanged,
+          was: d.amountChanged ? money(d.original.amountCedis) : null,
+        ),
+      ],
+    );
+  }
+
+  void _edit(BatchRowDraft d, int col, String value, List<PartnershipArm> arms) {
+    switch (col) {
+      case 3:
+        final arm = arms.where((a) => a.name == value).firstOrNull;
+        if (arm != null) {
+          setState(() => d
+            ..armId = arm.id
+            ..armName = arm.name);
+        }
+      case 4:
+        final v = double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), ''));
+        if (v == null || v <= 0) {
+          selNotice(context, 'Type the amount as a number, like 1250 or 1250.50.', kind: SelNoticeKind.error);
+          return;
+        }
+        setState(() => d.amountCedis = v);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final money = ref.watch(churchMoneyFormatProvider);
     final arms = ref.watch(armsStreamProvider).valueOrNull ?? const [];
-    final canEdit = idx?.isPastor ?? false;
+    final staff = idx?.isStaff ?? false;
+    final canEdit = (idx?.isPastor ?? false) || staff;
 
     if (_loading) {
-      return const SelPageBody(
-        children: [SelCard(child: SelSkeletonRows(count: 6))],
-      );
+      return const Center(child: PillrLoader(size: 40));
     }
-
     final batch = _batch;
-    if (batch == null) {
+    if (batch == null || !canEdit) {
       return SelPageBody(
         children: [
           SelEmpty(
-            title: 'Import not found',
-            message: 'It may have been removed.',
-            actionLabel: 'Back to imports',
-            onAction: () => context.go('/records/imports'),
+            title: batch == null ? 'Import not found' : 'Not yours to correct',
+            message: batch == null
+                ? 'It may have been removed.'
+                : 'Pastors, and the staff member who brought it in, can correct an import.',
           ),
+          const SizedBox(height: SelSpace.x4),
+          Center(child: SelButton(label: 'Back to imports', onPressed: () => context.go('/records/imports'))),
         ],
       );
     }
 
-    final summary = _summary;
-    final dirty = summary.hasChanges || _detailsChanged;
+    final shown = _shown;
+    final changed = _drafts.where((d) => d.hasChanges).toList();
+    final approved = _drafts.where((d) => d.original.status == 'approved').length;
+    final waiting = _drafts.where((d) => d.original.status == 'pending').length;
+    final delta = _summary.amountDelta;
+    var sel = _sel;
+    if (sel != null && sel.$1 >= shown.length) sel = null;
+    final current = sel == null ? null : shown[sel.$1];
 
-    return SelPageBody(
+    final header = Row(
       children: [
-        SelPageTitle(
-          title: batch.displayName,
-          subtitle: 'Correcting an import that is already on the books.',
-          actions: [
-            SelButton(
-              label: 'Back to imports',
-              kind: SelButtonKind.quiet,
-              onPressed: () => context.go('/records/imports'),
-            ),
-            if (canEdit)
-              SelButton.cyan(
-                label: dirty ? 'Save changes' : 'Saved',
-                icon: LucideIcons.check,
-                loading: _saving,
-                onPressed: !dirty || _saving ? null : _save,
-              ),
-          ],
-        ),
-
-        // The summary the whole screen is read against, always in view.
-        SelStatRow(stats: [
-          SelStat(
-            label: 'Total',
-            value: money(summary.total),
-            footnote: summary.pesewasDelta == 0
-                ? 'Approved rows'
-                : '${summary.amountDelta > 0 ? "+" : "−"}'
-                    '${money(summary.amountDelta.abs())} unsaved',
-          ),
-          SelStat(
-            label: 'Entries',
-            value: '${_drafts.length}',
-            footnote: summary.lockedRows > 0
-                ? '${summary.lockedRows} cleared'
-                : 'In this import',
-          ),
-          SelStat(
-            label: 'Prepared by',
-            value: batch.preparedBy ?? 'Not recorded',
-            footnote: 'Who put the sheet together',
-          ),
-          SelStat(
-            label: 'Uploaded by',
-            value: batch.createdByName.isEmpty ? 'Unknown' : batch.createdByName,
-            footnote:
-                formatFirestoreDate(batch.createdAt, pattern: 'd MMM y, HH:mm'),
-          ),
-        ]),
-
-        const SelSectionGap(factor: 0.4),
-
-        if (_error != null) ...[
-          SelError(message: _error!),
-          const SizedBox(height: SelSpace.x4),
-        ],
-
-        if (!canEdit)
-          SelCard(
-            child: Text(
-              'Only a pastor can change entries. You can read this import here, '
-              'and the figures above are live.',
-              style: SelType.bodyMuted,
-            ),
-          ),
-
-        SelPanel(
-          title: 'Import details',
+        SelButton(label: '← Imports', onPressed: _saving ? null : () => context.go('/records/imports')),
+        const SizedBox(width: SelSpace.x4),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SelField(
-                controller: _label,
-                label: 'Name',
-                hint: batch.fileName.isEmpty ? 'March offerings' : batch.fileName,
-                enabled: canEdit,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: SelSpace.x3),
-              SelField(
-                controller: _preparedBy,
-                label: 'Prepared by',
-                hint: 'Who put this sheet together',
-                enabled: canEdit,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: SelSpace.x3),
-              SelField(
-                controller: _note,
-                label: 'Note',
-                hint: 'Anything worth remembering about this import',
-                maxLines: 2,
-                enabled: canEdit,
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: SelSpace.x3),
+              Text('Correct ${batch.displayName}', style: SelType.title.copyWith(fontSize: 20, height: 1.2)),
               Text(
-                'Period: ${batch.periodName} · File: '
-                '${batch.fileName.isEmpty ? "pasted rows" : batch.fileName}',
+                '${batch.fileName} · ${_drafts.length} entries · nothing changes until you save',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: SelType.small,
               ),
             ],
           ),
         ),
+        Text.rich(
+          TextSpan(
+            style: SelType.small,
+            children: [
+              TextSpan(text: '$approved', style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800)),
+              const TextSpan(text: ' approved   '),
+              TextSpan(text: '$waiting', style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800)),
+              const TextSpan(text: ' waiting'),
+            ],
+          ),
+        ),
+      ],
+    );
 
-        const SizedBox(height: SelSpace.x4),
+    final tabs = Row(
+      children: [
+        Expanded(
+          child: SelPillTabs<_Tab>(
+            selected: _tab,
+            onSelect: (t) => setState(() {
+              _tab = t;
+              _sel = null;
+            }),
+            tabs: [
+              (_Tab.all, 'All', _drafts.length),
+              (_Tab.changed, 'Changed', changed.length),
+              (_Tab.approved, 'Approved', approved),
+              (_Tab.waiting, 'Waiting', waiting),
+            ],
+          ),
+        ),
+        const SizedBox(width: SelSpace.x2),
+        Tooltip(
+          message: '↑ ↓ ← → move between cells · Enter edits · Tab next cell · ]: move the card aside',
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: Sel.card,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              border: Border.all(color: Sel.border, width: 1.5),
+            ),
+            child: Text('Keys', style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ],
+    );
 
-        SelSectionLabel(label: 'Rows'),
-        const SizedBox(height: SelSpace.x2),
+    final banner = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(16)),
+      child: Text(
+        staff
+            ? 'Changing a row that was approved sends it back to your pastor to approve again. Waiting rows stay waiting.'
+            : 'Approved rows stay approved when you correct them, and the totals move with your change.',
+        style: SelType.small.copyWith(color: Sel.ink),
+      ),
+    );
 
-        if (_drafts.isEmpty)
-          const SelCard(
-            child: Text('This import created no entries.'),
+    Widget sheet({required bool shrinkWrap}) => shown.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.all(SelSpace.x6),
+            child: Text('No rows here.', textAlign: TextAlign.center, style: SelType.bodySm),
           )
-        else
-          for (final draft in _drafts)
-            Padding(
-              padding: const EdgeInsets.only(bottom: SelSpace.x2),
-              child: _RowEditor(
-                draft: draft,
-                arms: arms,
-                canEdit: canEdit && !draft.isLocked,
-                amountController: _amountControllers[draft.original.id]!,
-                money: money,
-                onChanged: () => setState(() {}),
-                onPickPartner: () => _pickPartner(draft),
-                onPickDate: () => _pickDate(draft),
-                onReset: () {
-                  setState(() {
-                    draft.reset();
-                    _amountControllers[draft.original.id]!.text =
-                        draft.amountCedis.toStringAsFixed(2);
-                  });
-                },
+        : SelSheet(
+            storageKey: 'correct-import',
+            shrinkWrap: shrinkWrap,
+            busy: _saving,
+            columns: _columns,
+            rows: [for (final d in shown) _row(d, money, arms, staff)],
+            selected: sel,
+            onSelect: (r, c) => setState(() => _sel = (r, c)),
+            onEdit: (r, c, v) => _edit(shown[r], c, v, arms),
+          );
+
+    final card = _CorrectCard(
+      draft: current,
+      number: current == null ? null : _rowNumber(current),
+      staff: staff,
+      money: money,
+      changed: changed.length,
+      onNext: changed.isEmpty
+          ? null
+          : () {
+              final from = current == null ? -1 : _drafts.indexOf(current);
+              final next = changed.firstWhere((d) => _drafts.indexOf(d) > from, orElse: () => changed.first);
+              setState(() {
+                _tab = _Tab.all;
+                _sel = (_drafts.indexOf(next), _sel?.$2 ?? 4);
+              });
+            },
+      onUndo: current == null || !current.hasChanges ? null : () => setState(current.reset),
+      onAside: () => setState(() => _aside = true),
+    );
+
+    final footer = Container(
+      padding: const EdgeInsets.fromLTRB(24, 10, 10, 10),
+      decoration: BoxDecoration(color: Sel.ink, borderRadius: BorderRadius.circular(SelRadius.card)),
+      child: Row(
+        children: [
+          Text(
+            changed.isEmpty ? 'No changes yet' : '${changed.length} ${changed.length == 1 ? 'row' : 'rows'} changed',
+            style: SelType.body.copyWith(color: Sel.card, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(width: SelSpace.x4),
+          Expanded(
+            child: Text(
+              changed.isEmpty
+                  ? 'Click a cell to change it, as in a spreadsheet.'
+                  : staff
+                  ? () {
+                      final n = changed.where((d) => d.original.status == 'approved').length;
+                      return n == 0 ? 'They stay waiting for a pastor' : '$n ${n == 1 ? 'goes' : 'go'} back to your pastor';
+                    }()
+                  : delta == 0
+                  ? 'No money moves, only who, when or which arm'
+                  : 'The approved total changes by ${delta > 0 ? '+' : '−'}${money(delta.abs())}',
+              overflow: TextOverflow.ellipsis,
+              style: SelType.bodySm.copyWith(color: const Color(0xFFC9DEF3)),
+            ),
+          ),
+          TextButton(
+            onPressed: changed.isEmpty || _saving ? null : () => setState(() {
+                    for (final d in _drafts) {
+                      d.reset();
+                    }
+                  }),
+            child: Text('Discard', style: SelType.button.copyWith(color: Sel.card)),
+          ),
+          const SizedBox(width: SelSpace.x2),
+          Material(
+            color: changed.isEmpty ? const Color(0xFF2A5884) : Sel.card,
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: changed.isEmpty || _saving ? null : _save,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+                child: Text(
+                  _saving ? 'Saving…' : 'Save corrections',
+                  style: SelType.button.copyWith(color: changed.isEmpty ? const Color(0xFF9DB8D3) : Sel.ink),
+                ),
               ),
             ),
-      ],
+          ),
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final narrow = c.maxWidth < 900;
+        final cardW = c.maxWidth < 1100 ? 320.0 : 356.0;
+        final body = narrow
+            ? SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    tabs,
+                    const SizedBox(height: SelSpace.x2),
+                    banner,
+                    const SizedBox(height: SelSpace.x2),
+                    sheet(shrinkWrap: true),
+                    const SizedBox(height: SelSpace.x4),
+                    card,
+                  ],
+                ),
+              )
+            : CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.bracketRight): () => setState(() => _aside = !_aside),
+                },
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: _aside ? 96 : cardW + 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            tabs,
+                            const SizedBox(height: SelSpace.x2),
+                            banner,
+                            const SizedBox(height: SelSpace.x2),
+                            Expanded(child: sheet(shrinkWrap: false)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (!_aside)
+                      Positioned(top: 0, right: 0, bottom: 6, width: cardW, child: card)
+                    else
+                      Positioned(
+                        right: 0,
+                        top: (c.maxHeight - 160) / 2,
+                        child: _EdgeFlap(changed: changed.length, onTap: () => setState(() => _aside = false)),
+                      ),
+                  ],
+                ),
+              );
+        return Padding(
+          padding: const EdgeInsets.all(SelSpace.x3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header,
+              const SizedBox(height: SelSpace.x3),
+              if (_error != null) ...[
+                SelError(message: _error!),
+                const SizedBox(height: SelSpace.x3),
+              ],
+              Expanded(child: body),
+              const SizedBox(height: SelSpace.x3),
+              footer,
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _RowEditor extends StatelessWidget {
-  const _RowEditor({
+enum _Tab { all, changed, approved, waiting }
+
+/// The row in hand: what changed on it, what saving will do, and the next
+/// changed row. The cells themselves are changed in the sheet.
+class _CorrectCard extends StatelessWidget {
+  const _CorrectCard({
     required this.draft,
-    required this.arms,
-    required this.canEdit,
-    required this.amountController,
+    required this.number,
+    required this.staff,
     required this.money,
-    required this.onChanged,
-    required this.onPickPartner,
-    required this.onPickDate,
-    required this.onReset,
+    required this.changed,
+    required this.onNext,
+    required this.onUndo,
+    required this.onAside,
   });
 
-  final BatchRowDraft draft;
-  final List<PartnershipArm> arms;
-  final bool canEdit;
-  final TextEditingController amountController;
-  final String Function(num) money;
-  final VoidCallback onChanged;
-  final VoidCallback onPickPartner;
-  final VoidCallback onPickDate;
-  final VoidCallback onReset;
+  final BatchRowDraft? draft;
+  final String? number;
+  final bool staff;
+  final String Function(double) money;
+  final int changed;
+  final VoidCallback? onNext;
+  final VoidCallback? onUndo;
+  final VoidCallback onAside;
 
   @override
   Widget build(BuildContext context) {
-    final entry = draft.original;
-    return SelCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(draft.partnerName, style: SelType.body),
-                    const SizedBox(height: SelSpace.x1),
-                    Text(
-                      entry.partnerSnapshot['fellowship']?.toString() ?? '',
-                      style: SelType.small,
+    final d = draft;
+    final approved = d?.original.status == 'approved';
+    return Container(
+      decoration: BoxDecoration(
+        color: Sel.card,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Sel.skyWash, width: 1.5),
+        boxShadow: const [BoxShadow(color: Sel.skyWash, offset: Offset(0, 4))],
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 12, 14, 16),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (number != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: Sel.ink, borderRadius: BorderRadius.circular(SelRadius.pill)),
+                    child: Text('Row $number', style: SelType.small.copyWith(color: Sel.card)),
+                  ),
+                const Spacer(),
+                SelLink(label: 'Move aside', onTap: onAside),
+              ],
+            ),
+            const SizedBox(height: SelSpace.x3),
+            if (d == null)
+              Text('Click a cell in the sheet to change it. What changed on that row shows here.', style: SelType.bodySm)
+            else ...[
+              Text('${d.partnerName}, ${DateFormat('d MMM').format(d.original.dateGiven)}', style: SelType.subtitle),
+              Text(
+                d.isLocked
+                    ? 'Archived'
+                    : approved
+                    ? 'Approved${d.original.reviewedBySnapshot?['fullName'] == null ? '' : ' by ${d.original.reviewedBySnapshot!['fullName']}'}'
+                    : 'Waiting for a pastor',
+                style: SelType.small,
+              ),
+              const SizedBox(height: SelSpace.x3),
+              if (d.hasChanges)
+                for (final c in d.changes)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      c[0].toUpperCase() + c.substring(1),
+                      style: SelType.bodySm.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
                     ),
-                    if (canEdit) ...[
-                      const SizedBox(height: SelSpace.x1),
-                      SelButton(
-                        label: 'Change partner',
-                        kind: SelButtonKind.quiet,
-                        dense: true,
-                        onPressed: onPickPartner,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: SelSpace.x3),
-              SizedBox(
-                width: 140,
-                child: SelField(
-                  controller: amountController,
-                  label: 'Amount (₵)',
-                  enabled: canEdit,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (v) {
-                    final parsed = double.tryParse(v.replaceAll(',', ''));
-                    if (parsed != null && parsed >= 0) {
-                      draft.amountCedis = parsed;
-                    }
-                    onChanged();
-                  },
-                ),
-              ),
-              const SizedBox(width: SelSpace.x3),
-              SizedBox(
-                width: 160,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Date given', style: SelType.small),
-                    const SizedBox(height: SelSpace.x1),
-                    SelButton(
-                      label: formatFirestoreDate(
-                        draft.dateGiven,
-                        pattern: 'd MMM y',
-                      ),
-                      icon: LucideIcons.calendar,
-                      kind: SelButtonKind.quiet,
-                      dense: true,
-                      onPressed: canEdit ? onPickDate : null,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: SelSpace.x3),
-              SizedBox(
-                width: 180,
-                child: SelSelect<String>(
-                  value: arms.any((a) => a.id == draft.armId)
-                      ? draft.armId
-                      : null,
-                  label: 'Arm',
-                  onChanged: canEdit
-                      ? (v) {
-                          if (v == null) return;
-                          final arm = arms.where((a) => a.id == v).firstOrNull;
-                          draft.armId = v;
-                          draft.armName = arm?.name ?? draft.armName;
-                          onChanged();
-                        }
-                      : null,
-                  items: [
-                    for (final (a, label) in ArmTree(arms).recordingOptions())
-                      DropdownMenuItem(value: a.id, child: Text(label)),
-                  ],
+                  )
+              else
+                Text('Nothing changed on this row yet.', style: SelType.bodySm),
+              const SizedBox(height: SelSpace.x3),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFFF3F8FD), borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  d.isLocked
+                      ? 'An archived row cannot be changed. Bring the import back from Imports first.'
+                      : !approved
+                      ? 'It stays waiting for a pastor.'
+                      : staff
+                      ? 'Saving sends this row back to your pastor to approve again.'
+                      : 'It stays approved, and the totals move with your change.',
+                  style: SelType.small.copyWith(color: Sel.text),
                 ),
               ),
             ],
-          ),
-          if (draft.isLocked || draft.hasChanges || entry.hasForeignSource) ...[
-            const SizedBox(height: SelSpace.x2),
-            Row(
-              children: [
-                if (draft.isLocked)
-                  const SelStatusMark(
-                    status: SelStatus.voided,
-                    label: 'Cleared — not editable',
-                  )
-                else if (entry.status != 'approved')
-                  SelStatusMark(
-                    status: SelStatusStyle.parse(entry.status),
-                    label: entry.status,
-                  ),
-                if (entry.hasForeignSource) ...[
-                  const SizedBox(width: SelSpace.x2),
-                  Text(
-                    'Recorded as ${entry.displaySourceAmount.toStringAsFixed(2)} '
-                    '${entry.displaySourceCurrency} at '
-                    '${entry.displayExchangeRate}',
-                    style: SelType.small,
-                  ),
-                ],
-                if (draft.hasChanges) ...[
-                  const SizedBox(width: SelSpace.x2),
-                  Expanded(
-                    child: Text(
-                      draft.changes.join(' · '),
-                      style: SelType.small,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  SelButton(
-                    label: 'Undo',
-                    kind: SelButtonKind.quiet,
-                    dense: true,
-                    onPressed: onReset,
-                  ),
-                ],
-              ],
-            ),
+            const SizedBox(height: SelSpace.x4),
+            if (changed > 0)
+              SelButton.cyan(label: 'Next changed row', expanded: true, onPressed: onNext),
+            if (onUndo != null) ...[
+              const SizedBox(height: SelSpace.x2),
+              Center(child: SelLink(label: 'Undo row $number', onTap: onUndo)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+class _EdgeFlap extends StatelessWidget {
+  const _EdgeFlap({required this.changed, required this.onTap});
+
+  final int changed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Sel.ink,
+    borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+    child: InkWell(
+      borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+      onTap: onTap,
+      child: Container(
+        width: 84,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.chevronLeft, size: 16, color: Sel.card),
+            const SizedBox(height: 6),
+            Text(
+              changed == 0 ? 'Row card' : '$changed ${changed == 1 ? 'row' : 'rows'}',
+              style: SelType.subtitle.copyWith(color: Sel.card, fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            if (changed > 0) Text('changed', style: SelType.small.copyWith(color: SelNavyCard.soft)),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: Sel.card, borderRadius: BorderRadius.circular(SelRadius.pill)),
+              child: Text('Open', style: SelType.small.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

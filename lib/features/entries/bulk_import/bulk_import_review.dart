@@ -43,6 +43,7 @@ class BulkImportReview extends StatefulWidget {
     required this.onBulkMapArm,
     required this.onBulkResolveFellowship,
     required this.onPickPartner,
+    this.settleSignal = 0,
   });
 
   final List<BulkRawRow> rawRows;
@@ -72,6 +73,10 @@ class BulkImportReview extends StatefulWidget {
 
   /// Opens the partner search; null when nothing was chosen.
   final Future<Partner?> Function() onPickPartner;
+
+  /// Goes up by one each time the footer's "Settle N rows to continue" is
+  /// pressed: the card opens on the next row that needs a decision.
+  final int settleSignal;
 
   @override
   State<BulkImportReview> createState() => _BulkImportReviewState();
@@ -123,6 +128,111 @@ class _BulkImportReviewState extends State<BulkImportReview> {
   String _raw(int i, BulkImportColumn c) =>
       (widget.rawRows[i].valuesByColumn[c] ?? '').trim();
 
+  /// Column of the selected cell in the sheet.
+  int _col = 1;
+
+  /// The row the card shows, as last built, so "Settle" moves on from it.
+  int? _shownOpen;
+
+  @override
+  void didUpdateWidget(covariant BulkImportReview old) {
+    super.didUpdateWidget(old);
+    if (widget.settleSignal != old.settleSignal) {
+      final n = widget.resolved.length;
+      final settle = [
+        for (var i = 0; i < n; i++)
+          if (_tabOf(i) == ReviewTab.needYou) i,
+      ];
+      setState(() {
+        _picked = ReviewTab.needYou;
+        _aside = false;
+        if (settle.isNotEmpty) {
+          final at = settle.indexOf(_open ?? _shownOpen ?? -1);
+          _open = settle[(at + 1) % settle.length];
+        }
+      });
+    }
+  }
+
+  static const _sheetColumns = [
+    SelSheetColumn('Date', weight: .8),
+    SelSheetColumn('Name', weight: 1.5),
+    SelSheetColumn('Fellowship', weight: 1.1),
+    SelSheetColumn('Arm', weight: 1),
+    SelSheetColumn('Amount', weight: .9, numeric: true),
+  ];
+
+  static const _fields = [
+    BulkImportColumn.date,
+    BulkImportColumn.name,
+    BulkImportColumn.fellowship,
+    BulkImportColumn.category,
+    BulkImportColumn.amount,
+  ];
+
+  SelSheetRow _sheetRow(int i, ReviewTab tab) {
+    final row = widget.resolved[i];
+    final issue = _mainIssue(row);
+    final bad = <BulkImportColumn>{
+      for (final x in row.issues) ?columnForIssue(x.code),
+    };
+    bool has(BulkImportColumn c) => widget.columns.contains(c);
+    SelSheetCell text(BulkImportColumn c, String shown, {String? edit}) =>
+        SelSheetCell(
+          shown,
+          editText: edit ?? _raw(i, c),
+          kind: has(c) ? SelSheetCellKind.text : SelSheetCellKind.fixed,
+          problem: bad.contains(c) && tab != ReviewTab.ready,
+        );
+    final rawDate = _raw(i, BulkImportColumn.date);
+    final rawAmount = _raw(i, BulkImportColumn.amount);
+    return SelSheetRow(
+      mark: SizedBox(
+        width: 20,
+        height: 20,
+        child: FittedBox(child: _Mark(kind: tab)),
+      ),
+      number: '${row.sheetRowNumber}',
+      dimmed: tab == ReviewTab.leftOut,
+      cells: [
+        text(
+          BulkImportColumn.date,
+          bad.contains(BulkImportColumn.date)
+              ? rawDate
+              : DateFormat('d MMM').format(row.dateGiven),
+        ),
+        text(BulkImportColumn.name, _raw(i, BulkImportColumn.name)),
+        text(
+          BulkImportColumn.fellowship,
+          row.fellowship.isEmpty
+              ? _raw(i, BulkImportColumn.fellowship)
+              : row.fellowship,
+        ),
+        SelSheetCell(
+          row.armName.isEmpty
+              ? _raw(i, BulkImportColumn.category)
+              : row.armName,
+          kind: has(BulkImportColumn.category) && widget.arms.isNotEmpty
+              ? SelSheetCellKind.choice
+              : SelSheetCellKind.fixed,
+          options: [for (final a in widget.arms) a.name],
+          problem:
+              bad.contains(BulkImportColumn.category) && tab != ReviewTab.ready,
+        ),
+        text(
+          BulkImportColumn.amount,
+          bad.contains(BulkImportColumn.amount)
+              ? rawAmount
+              : widget.money(row.amountCedis),
+        ),
+      ],
+      // Only rows that need a decision carry a line; the rest show their
+      // mark in the cell and say why in the cell bar's row.
+      note: tab == ReviewTab.needYou && issue != null ? _say(issue) : null,
+      noteStrong: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final n = widget.resolved.length;
@@ -146,70 +256,63 @@ class _BulkImportReviewState extends State<BulkImportReview> {
           ? settle.first
           : (shown.isEmpty ? null : shown.first);
     }
+    _shownOpen = open;
 
-    final list = SelCard(
-      padding: EdgeInsets.zero,
-      clip: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SelCountTabs<ReviewTab>(
+    Widget sheet({required bool shrinkWrap}) => shown.isEmpty
+        ? Padding(
+            padding: const EdgeInsets.all(SelSpace.x6),
+            child: Text(
+              tab == ReviewTab.needYou
+                  ? 'Nothing needs you. Every row is settled.'
+                  : 'No rows here.',
+              textAlign: TextAlign.center,
+              style: SelType.bodySm,
+            ),
+          )
+        : SelSheet(
+            storageKey: 'check-rows',
+            shrinkWrap: shrinkWrap,
+            busy: widget.busy,
+            columns: _sheetColumns,
+            rows: [for (final i in shown) _sheetRow(i, tabs[i])],
+            selected: shown.contains(open)
+                ? (shown.indexOf(open!), _col)
+                : null,
+            onSelect: (r, c) => setState(() {
+              _open = shown[r];
+              _col = c;
+            }),
+            onEdit: (r, c, v) {
+              final i = shown[r];
+              final field = _fields[c];
+              if (field == BulkImportColumn.category) {
+                final arm = widget.arms.where((a) => a.name == v).firstOrNull;
+                final text = _raw(i, BulkImportColumn.category);
+                if (arm != null &&
+                    text.isNotEmpty &&
+                    widget.resolved[i].armId == null) {
+                  widget.onBulkMapArm([text], arm);
+                  return;
+                }
+              }
+              widget.onEditCell(i, field, v);
+            },
+          );
+
+    final head = Row(
+      children: [
+        Expanded(
+          child: SelPillTabs<ReviewTab>(
             selected: tab,
             onSelect: (t) => setState(() => _picked = t),
             tabs: [
               for (final t in ReviewTab.values) (t, _tabLabels[t]!, count(t)),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-            child: Text(
-              switch (tab) {
-                    ReviewTab.needYou =>
-                      'Rows that need a decision before they can come in. Choose one to open it on the right.',
-                    ReviewTab.worthALook =>
-                      'Rows that can come in as they are, with something worth a look.',
-                    ReviewTab.ready => 'Rows ready to come in.',
-                    ReviewTab.leftOut =>
-                      'Rows left out. They will not come in.',
-                    ReviewTab.all => 'Every row in the sheet.',
-                  } +
-                  (MediaQuery.sizeOf(context).width >= 980
-                      ? '  ·  J and K: next and previous  ·  ]: move the card aside'
-                      : ''),
-              style: SelType.small,
-            ),
-          ),
-          ..._clusters(),
-          _HeadRow(),
-          if (shown.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(SelSpace.x6),
-              child: Text(
-                tab == ReviewTab.needYou
-                    ? 'Nothing needs you. Every row is settled.'
-                    : 'No rows here.',
-                textAlign: TextAlign.center,
-                style: SelType.bodySm,
-              ),
-            ),
-          for (final i in shown)
-            _ReviewRow(
-              index: i,
-              row: widget.resolved[i],
-              raw: widget.rawRows[i],
-              tab: tabs[i],
-              issue: _mainIssue(widget.resolved[i]),
-              say: _say,
-              open: i == open,
-              arms: widget.arms,
-              hasArmColumn: widget.columns.contains(BulkImportColumn.category),
-              money: widget.money,
-              busy: widget.busy,
-              onOpen: () => setState(() => _open = i),
-              onEditCell: widget.onEditCell,
-            ),
-        ],
-      ),
+        ),
+        const SizedBox(width: SelSpace.x2),
+        const _KeysButton(),
+      ],
     );
 
     final side = Column(
@@ -233,58 +336,113 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       );
     }
 
+    final fixes = _fixes;
+    List<(String, int, Widget)> folds() => [
+      if (settle.length > 1)
+        (
+          'Still to settle',
+          settle.length - 1,
+          _stillToSettle(settle, open, bare: true),
+        ),
+      if (fixes.isNotEmpty)
+        (
+          'Tidy-ups to apply',
+          fixes.fold<int>(0, (s, g) => s + g.count),
+          _tidyBody(fixes, bare: true),
+        ),
+    ];
+
     return LayoutBuilder(
       builder: (context, c) {
-        if (c.maxWidth < 980) {
+        // A phone: one column, the card under the rows.
+        if (c.maxWidth < 600) {
           return SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                list,
+                head,
+                ..._clusters(),
+                const SizedBox(height: SelSpace.x2),
+                sheet(shrinkWrap: true),
                 const SizedBox(height: SelSpace.x4),
                 side,
               ],
             ),
           );
         }
+        final bindings = {
+          const SingleActivator(LogicalKeyboardKey.keyJ): () => step(1),
+          const SingleActivator(LogicalKeyboardKey.keyK): () => step(-1),
+          const SingleActivator(LogicalKeyboardKey.bracketRight): () =>
+              setState(() => _aside = !_aside),
+        };
+        final rows = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            head,
+            ..._clusters(),
+            const SizedBox(height: SelSpace.x2),
+            Expanded(child: sheet(shrinkWrap: false)),
+          ],
+        );
+        // A tablet: the card comes up from the bottom, or folds to a bar.
+        if (c.maxWidth < 900) {
+          return CallbackShortcuts(
+            bindings: bindings,
+            child: Focus(
+              autofocus: true,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: _aside ? 56 : 0),
+                      child: rows,
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _aside || open == null
+                        ? _PeekBar(
+                            needYou: settle.length,
+                            next: open == null
+                                ? null
+                                : 'Next: row ${widget.resolved[open].sheetRowNumber}',
+                            onTap: () => setState(() => _aside = false),
+                          )
+                        : _BottomCard(
+                            maxHeight: c.maxHeight * .55,
+                            onClose: () => setState(() => _aside = true),
+                            child: _decision(open, settle, floating: true),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         // A laptop: the rows take the screen and the row card floats at the
         // right like picture-in-picture. Moved aside, it leaves a flap on
-        // the edge that says how many rows still need you.
-        final fixes = _fixes;
+        // the edge that says how many rows still need you. Narrower from
+        // 900 to 1100 so the sheet keeps every column readable.
+        final cardW = c.maxWidth < 1100 ? 320.0 : 356.0;
         final card = _FloatingCard(
           decision: open == null
               ? null
               : _decision(open, settle, floating: true),
-          folds: [
-            if (settle.length > 1)
-              (
-                'Still to settle',
-                settle.length - 1,
-                _stillToSettle(settle, open, bare: true),
-              ),
-            if (fixes.isNotEmpty)
-              (
-                'Tidy up',
-                fixes.fold<int>(0, (s, g) => s + g.count),
-                _tidyBody(fixes, bare: true),
-              ),
-          ],
+          folds: folds(),
         );
         return CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.keyJ): () => step(1),
-            const SingleActivator(LogicalKeyboardKey.keyK): () => step(-1),
-            const SingleActivator(LogicalKeyboardKey.bracketRight): () =>
-                setState(() => _aside = !_aside),
-          },
+          bindings: bindings,
           child: Focus(
             autofocus: true,
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.only(right: _aside ? 96 : 372),
-                    child: list,
+                  child: Padding(
+                    padding: EdgeInsets.only(right: _aside ? 96 : cardW + 16),
+                    child: rows,
                   ),
                 ),
                 if (!_aside)
@@ -292,7 +450,7 @@ class _BulkImportReviewState extends State<BulkImportReview> {
                     top: 0,
                     right: 0,
                     bottom: 6,
-                    width: 356,
+                    width: cardW,
                     child: card,
                   )
                 else
@@ -309,6 +467,77 @@ class _BulkImportReviewState extends State<BulkImportReview> {
           ),
         );
       },
+    );
+  }
+
+  /// For a row flagged as the same as another in the sheet, that other row.
+  int? _twin(int i) {
+    final r = widget.resolved[i];
+    for (var j = 0; j < widget.resolved.length; j++) {
+      if (j == i) continue;
+      final o = widget.resolved[j];
+      if (o.fullName.trim().toLowerCase() == r.fullName.trim().toLowerCase() &&
+          DateUtils.isSameDay(o.dateGiven, r.dateGiven) &&
+          o.armName == r.armName &&
+          o.issues.any((x) => x.code == BulkImportIssueCode.duplicateInFile)) {
+        return j;
+      }
+    }
+    return null;
+  }
+
+  /// Two rows side by side, values that differ in bold.
+  Widget _compare(int a, int b) {
+    final ra = widget.resolved[a], rb = widget.resolved[b];
+    final lines = <(String, String, String)>[
+      ('Name', ra.fullName, rb.fullName),
+      (
+        'Date',
+        DateFormat('d MMM').format(ra.dateGiven),
+        DateFormat('d MMM').format(rb.dateGiven),
+      ),
+      ('Amount', widget.money(ra.amountCedis), widget.money(rb.amountCedis)),
+      ('Arm', ra.armName, rb.armName),
+      if ((ra.notes ?? '').isNotEmpty || (rb.notes ?? '').isNotEmpty)
+        ('Note', ra.notes ?? '—', rb.notes ?? '—'),
+    ];
+    Widget cell(String t, {bool head = false, bool diff = false}) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: Text(
+        t,
+        overflow: TextOverflow.ellipsis,
+        style: (head ? SelType.small : SelType.bodySm).copyWith(
+          color: diff || head ? Sel.ink : Sel.text,
+          fontWeight: diff || head ? FontWeight.w800 : FontWeight.w400,
+        ),
+      ),
+    );
+    return Table(
+      columnWidths: const {0: IntrinsicColumnWidth()},
+      border: const TableBorder(
+        horizontalInside: BorderSide(color: Sel.rowLine),
+      ),
+      children: [
+        TableRow(
+          decoration: const BoxDecoration(color: Color(0xFFF3F8FD)),
+          children: [
+            cell('', head: true),
+            cell('Row ${ra.sheetRowNumber}', head: true),
+            cell('Row ${rb.sheetRowNumber}', head: true),
+          ],
+        ),
+        for (final (k, x, y) in lines)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: Text(k, style: SelType.small.copyWith(color: Sel.warm)),
+              ),
+              cell(x, diff: x != y),
+              cell(y, diff: x != y),
+            ],
+          ),
+      ],
     );
   }
 
@@ -344,6 +573,11 @@ class _BulkImportReviewState extends State<BulkImportReview> {
         : duplicate && !kept
         ? (issue.code == BulkImportIssueCode.duplicateInDatabase
               ? 'Is this already in Pillr?'
+              : _twin(i) != null
+              ? 'Are rows ${[sheetRow, widget.resolved[_twin(i)!].sheetRowNumber]..sort()} the same giving?'
+                    .replaceAll('[', '')
+                    .replaceAll(']', '')
+                    .replaceAll(',', ' and')
               : 'Is this the same as another row?')
         : partnerIssue
         ? 'Who is $name?'
@@ -357,6 +591,42 @@ class _BulkImportReviewState extends State<BulkImportReview> {
         SelButton(
           label: 'Bring row $sheetRow back',
           onPressed: widget.busy ? null : () => widget.onUndoDecision(sheetRow),
+        ),
+      );
+    } else if (duplicate &&
+        !kept &&
+        issue!.code == BulkImportIssueCode.duplicateInFile &&
+        _twin(i) != null) {
+      final other = widget.resolved[_twin(i)!].sheetRowNumber;
+      children.add(
+        Text(
+          'Same partner, amount and day. Bold is what differs.',
+          style: SelType.small,
+        ),
+      );
+      children.add(const SizedBox(height: SelSpace.x2));
+      children.add(_compare(i, _twin(i)!));
+      children.add(const SizedBox(height: SelSpace.x3));
+      children.add(
+        SelButton.cyan(
+          label: 'Leave row ${other > sheetRow ? other : sheetRow} out',
+          expanded: true,
+          onPressed: widget.busy
+              ? null
+              : () => widget.onDropRow(other > sheetRow ? other : sheetRow),
+        ),
+      );
+      children.add(const SizedBox(height: SelSpace.x2));
+      children.add(
+        SelButton(
+          label: 'Both are real',
+          expanded: true,
+          onPressed: widget.busy
+              ? null
+              : () {
+                  widget.onKeepRow(sheetRow);
+                  widget.onKeepRow(other);
+                },
         ),
       );
     } else if (duplicate && !kept) {
@@ -732,41 +1002,6 @@ const _tabLabels = {
   ReviewTab.leftOut: 'Left out',
 };
 
-class _HeadRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    Widget h(
-      String t, {
-      int flex = 1,
-      double? w,
-      TextAlign align = TextAlign.left,
-    }) {
-      final text = Text(t, textAlign: align, style: SelType.small);
-      return w == null
-          ? Expanded(flex: flex, child: text)
-          : SizedBox(width: w, child: text);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Sel.rowLine)),
-      ),
-      child: Row(
-        children: [
-          h('', w: 30),
-          h('Row', w: 44),
-          h('Date', w: 80),
-          h('Name', flex: 3),
-          h('Fellowship', flex: 2),
-          h('Arm', w: 150),
-          h('Amount', w: 110, align: TextAlign.right),
-        ],
-      ),
-    );
-  }
-}
-
 class _Mark extends StatelessWidget {
   const _Mark({required this.kind});
 
@@ -797,270 +1032,6 @@ class _Mark extends StatelessWidget {
       child: Icon(icon, size: 12, color: color),
     );
   }
-}
-
-class _ReviewRow extends StatelessWidget {
-  const _ReviewRow({
-    required this.index,
-    required this.row,
-    required this.raw,
-    required this.tab,
-    required this.issue,
-    required this.say,
-    required this.open,
-    required this.arms,
-    required this.hasArmColumn,
-    required this.money,
-    required this.busy,
-    required this.onOpen,
-    required this.onEditCell,
-  });
-
-  final int index;
-  final BulkResolvedRow row;
-  final BulkRawRow raw;
-  final ReviewTab tab;
-  final BulkImportIssue? issue;
-  final String Function(BulkImportIssue) say;
-  final bool open;
-  final List<PartnershipArm> arms;
-  final bool hasArmColumn;
-  final String Function(double) money;
-  final bool busy;
-  final VoidCallback onOpen;
-  final void Function(int rowIndex, BulkImportColumn column, String value)
-  onEditCell;
-
-  String _v(BulkImportColumn c) => (raw.valuesByColumn[c] ?? '').trim();
-
-  @override
-  Widget build(BuildContext context) {
-    final col = issue == null ? null : columnForIssue(issue!.code);
-    final dateBad = col == BulkImportColumn.date;
-    final amountBad = col == BulkImportColumn.amount;
-    final nameBad = col == BulkImportColumn.name && tab == ReviewTab.needYou;
-    final text = SelType.bodySm.copyWith(color: Sel.text);
-    final armValue = arms.any((a) => a.id == row.armId) ? row.armId : null;
-
-    Widget cell(
-      String value, {
-      required bool editable,
-      required BulkImportColumn c,
-      TextAlign align = TextAlign.left,
-    }) => editable
-        ? _InlineEdit(
-            key: ValueKey('${raw.sheetRowNumber}-${c.name}'),
-            initial: value,
-            align: align,
-            busy: busy,
-            onSave: (v) => onEditCell(index, c, v),
-          )
-        : Text(
-            value.isEmpty ? '—' : value,
-            textAlign: align,
-            overflow: TextOverflow.ellipsis,
-            style: text,
-          );
-
-    return Material(
-      color: open ? Sel.skyTint : Colors.transparent,
-      child: InkWell(
-        onTap: onOpen,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Sel.rowLine)),
-          ),
-          child: Opacity(
-            opacity: tab == ReviewTab.leftOut ? 0.5 : 1,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      width: 30,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _Mark(kind: tab),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 44,
-                      child: Text(
-                        '${raw.sheetRowNumber}',
-                        style: SelType.small,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: cell(
-                        dateBad
-                            ? _v(BulkImportColumn.date)
-                            : DateFormat('d MMM').format(row.dateGiven),
-                        editable: dateBad,
-                        c: BulkImportColumn.date,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: SelSpace.x3),
-                        child: cell(
-                          _v(BulkImportColumn.name),
-                          editable: nameBad,
-                          c: BulkImportColumn.name,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        row.fellowship.isEmpty
-                            ? _v(BulkImportColumn.fellowship)
-                            : row.fellowship,
-                        overflow: TextOverflow.ellipsis,
-                        style: text,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 150,
-                      child: hasArmColumn && arms.isNotEmpty
-                          ? SelSelect<String>(
-                              value: armValue,
-                              hint: Text(
-                                _v(BulkImportColumn.category).isEmpty
-                                    ? 'Pick'
-                                    : _v(BulkImportColumn.category),
-                                style: SelType.bodyMuted,
-                              ),
-                              onChanged: busy
-                                  ? null
-                                  : (id) {
-                                      final arm = arms
-                                          .where((a) => a.id == id)
-                                          .firstOrNull;
-                                      if (arm != null) {
-                                        onEditCell(
-                                          index,
-                                          BulkImportColumn.category,
-                                          arm.name,
-                                        );
-                                      }
-                                    },
-                              items: [
-                                for (final a in arms)
-                                  DropdownMenuItem(
-                                    value: a.id,
-                                    child: Text(a.name),
-                                  ),
-                              ],
-                            )
-                          : Text(row.armName, style: text),
-                    ),
-                    SizedBox(
-                      width: 110,
-                      child: cell(
-                        amountBad
-                            ? _v(BulkImportColumn.amount)
-                            : money(row.amountCedis),
-                        editable: amountBad,
-                        c: BulkImportColumn.amount,
-                        align: TextAlign.right,
-                      ),
-                    ),
-                  ],
-                ),
-                if (issue != null && tab != ReviewTab.ready)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 74, top: 6),
-                    child: Text(
-                      say(issue!),
-                      style: SelType.small.copyWith(
-                        color: Sel.ink,
-                        fontWeight: tab == ReviewTab.needYou
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A cell typed into in place; it saves on Enter or when focus leaves.
-class _InlineEdit extends StatefulWidget {
-  const _InlineEdit({
-    super.key,
-    required this.initial,
-    required this.onSave,
-    required this.busy,
-    this.align = TextAlign.left,
-  });
-
-  final String initial;
-  final ValueChanged<String> onSave;
-  final bool busy;
-  final TextAlign align;
-
-  @override
-  State<_InlineEdit> createState() => _InlineEditState();
-}
-
-class _InlineEditState extends State<_InlineEdit> {
-  late final _c = TextEditingController(text: widget.initial);
-  final _focus = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _focus.addListener(() {
-      if (!_focus.hasFocus) _save();
-    });
-  }
-
-  void _save() {
-    if (_c.text.trim() != widget.initial.trim()) widget.onSave(_c.text.trim());
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 36,
-    child: TextField(
-      controller: _c,
-      focusNode: _focus,
-      enabled: !widget.busy,
-      textAlign: widget.align,
-      style: SelType.bodySm.copyWith(color: Sel.text),
-      onSubmitted: (_) => _save(),
-      decoration: InputDecoration(
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        filled: true,
-        fillColor: Sel.card,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF9ACFF6)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Sel.cyan, width: 1.5),
-        ),
-      ),
-    ),
-  );
 }
 
 /// A field in the decision card with its own Save.
@@ -1284,20 +1255,21 @@ class _FloatingCard extends StatelessWidget {
       boxShadow: const [BoxShadow(color: Sel.skyWash, offset: Offset(0, 4))],
     ),
     clipBehavior: Clip.antiAlias,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
+    child: SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
             padding: const EdgeInsets.fromLTRB(18, 14, 14, 16),
             child:
                 decision ??
                 Text('Choose a row to see it here.', style: SelType.bodySm),
           ),
-        ),
-        for (final (title, count, child) in folds)
-          _Fold(title: title, count: count, child: child),
-      ],
+          // Straight under the answer, never pushed to the foot of the card.
+          for (final (title, count, child) in folds)
+            _Fold(title: title, count: count, child: child),
+        ],
+      ),
     ),
   );
 }
@@ -1475,4 +1447,146 @@ class _Flap extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The keyboard keys, behind one small button instead of a sentence.
+class _KeysButton extends StatelessWidget {
+  const _KeysButton();
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message:
+        '↑ ↓ ← → move between cells · Enter edits · Tab next cell\n'
+        'J and K: next and previous row to settle · ]: move the card aside',
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: Sel.card,
+        borderRadius: BorderRadius.circular(SelRadius.pill),
+        border: Border.all(color: Sel.border, width: 1.5),
+      ),
+      child: Text(
+        'Keys',
+        style: SelType.small.copyWith(
+          color: Sel.ink,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+}
+
+/// On a tablet, the folded card: how many rows need you, and Open.
+class _PeekBar extends StatelessWidget {
+  const _PeekBar({
+    required this.needYou,
+    required this.next,
+    required this.onTap,
+  });
+
+  final int needYou;
+  final String? next;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Sel.ink,
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+    child: InkWell(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      onTap: onTap,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            const SizedBox(width: 18),
+            Text(
+              needYou == 0
+                  ? 'Row card'
+                  : '$needYou ${needYou == 1 ? 'row needs' : 'rows need'} you',
+              style: SelType.body.copyWith(
+                color: Sel.card,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (next != null)
+              Expanded(
+                child: Text(
+                  next!,
+                  overflow: TextOverflow.ellipsis,
+                  style: SelType.small.copyWith(color: SelNavyCard.soft),
+                ),
+              )
+            else
+              const Spacer(),
+            Container(
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Text(
+                'Open',
+                style: SelType.small.copyWith(
+                  color: Sel.ink,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// On a tablet, the open card, up from the bottom.
+class _BottomCard extends StatelessWidget {
+  const _BottomCard({
+    required this.child,
+    required this.onClose,
+    required this.maxHeight,
+  });
+
+  final Widget child;
+  final VoidCallback onClose;
+  final double maxHeight;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: BoxConstraints(maxHeight: maxHeight),
+    decoration: const BoxDecoration(
+      color: Sel.card,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      border: Border(
+        top: BorderSide(color: Sel.skyWash, width: 1.5),
+        left: BorderSide(color: Sel.skyWash, width: 1.5),
+        right: BorderSide(color: Sel.skyWash, width: 1.5),
+      ),
+      boxShadow: [BoxShadow(color: Sel.skyWash, offset: Offset(0, -4))],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(top: 6, right: 8),
+              child: SelLink(label: 'Close', onTap: onClose),
+            ),
+          ],
+        ),
+        Flexible(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+            child: child,
+          ),
+        ),
+      ],
+    ),
+  );
 }

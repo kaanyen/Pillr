@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../features/entries/bulk_import/bulk_import_batches.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -41,7 +43,19 @@ class NotificationsScreen extends ConsumerWidget {
         : pending.reduce((a, b) => a.createdAt.isBefore(b.createdAt) ? a : b);
     final total = pending.fold<double>(0, (s, e) => s + e.amountCedis);
 
+    final archived = ref.watch(recentArchivedByOthersProvider).valueOrNull ?? const [];
     final items = <Widget>[
+      for (final b in archived)
+        _Item(
+          badge: '${b.voidedCount}',
+          title: '${(b.voidedByName ?? '').isEmpty ? 'Someone' : b.voidedByName} archived ${b.displayName}',
+          body: '${b.voidedCount} ${b.voidedCount == 1 ? 'entry' : 'entries'} taken out. '
+              'Bring it back from Imports if that was a mistake.',
+          action: SelButton(
+            label: 'Open Imports',
+            onPressed: () => context.go('/records/imports'),
+          ),
+        ),
       if (isPastor && pending.isNotEmpty)
         _Item(
           badge: '${pending.length}',

@@ -1315,3 +1315,38 @@ export {nightlyDuplicateCheck} from "./duplicate_scan";
 export {findSimilarEntries, churchHealth, remindPastors, fellowshipRhythmCounts} from "./privacy";
 export {testApprovalMessage} from "./giving_messages";
 export {partnerPage} from "./partner_page";
+
+/**
+ * A staff member archived an import they brought in: it happens straight
+ * away, and the pastors are told on their phones. The bell page shows it too,
+ * from the import record itself.
+ */
+export const onImportBatchArchived = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/import_batches/{batchId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!before || !after || before.voidedAt || !after.voidedAt) return;
+    const churchId = context.params.churchId as string;
+    const by = String(after.voidedBy ?? "");
+    if (!by) return;
+    const actor = (await db.doc(`churches/${churchId}/users/${by}`).get()).data();
+    if (actor?.role !== "staff") return;
+    const users = await db.collection(`churches/${churchId}/users`).where("role", "==", "pastor").get();
+    const tokens = users.docs.map((d) => d.get("fcmToken") as string | undefined).filter((t): t is string => !!t);
+    if (tokens.length === 0) return;
+    const name = String(after.label || after.fileName || "an import");
+    const count = Number(after.voidedCount ?? 0);
+    try {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "An import was archived",
+          body: `${String(actor.fullName || "A staff member")} archived ${name}: ${count} ${count === 1 ? "entry" : "entries"} taken out. Bring it back from Imports if that was a mistake.`,
+        },
+      });
+    } catch (e) {
+      console.warn("FCM onImportBatchArchived:", e);
+    }
+  });

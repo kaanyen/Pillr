@@ -46,7 +46,8 @@ class SelShell extends ConsumerWidget {
         // An import is a tool, not a page: the rail folds to icons and the
         // top-right account cluster goes, so the rows can take the screen.
         // The logo and the menu stay one click away.
-        final fillViewport = path.startsWith('/entries/bulk-import');
+        final fillViewport = path.startsWith('/entries/bulk-import') ||
+            RegExp(r'^/records/imports/[^/]+/edit').hasMatch(path);
 
         final body = fillViewport
             ? (compact ? child : _FoldedRailFrame(path: path, child: child))

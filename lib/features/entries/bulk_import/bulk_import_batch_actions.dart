@@ -52,6 +52,7 @@ class BulkImportBatchActions {
       churchId: churchId,
       batchId: batchId,
       byUid: actor.uid,
+      byName: actor.fullName,
       voidedCount: alreadyVoided + voided,
     );
 
