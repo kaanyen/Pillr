@@ -131,6 +131,9 @@ const double _numW = 36;
 const double _rowH = 38;
 const double _minCol = 56;
 
+/// Below this a column is too narrow to read; the grid scrolls sideways instead.
+const double _readableCol = 100;
+
 class _SelSheetState extends State<SelSheet> {
   /// Shares of the flexible width, one per column; null means even.
   List<double>? _weights;
@@ -140,6 +143,7 @@ class _SelSheetState extends State<SelSheet> {
   final _keys = FocusNode(debugLabel: 'sheet');
   int? _dragging;
   double _flexWidth = 600;
+  final _sideways = ScrollController();
 
   List<double> get _even => [for (final c in widget.columns) c.weight];
 
@@ -164,6 +168,7 @@ class _SelSheetState extends State<SelSheet> {
     _editor.dispose();
     _editorFocus.dispose();
     _keys.dispose();
+    _sideways.dispose();
     super.dispose();
   }
 
@@ -477,10 +482,14 @@ class _SelSheetState extends State<SelSheet> {
       onKeyEvent: _onKey,
       child: LayoutBuilder(
         builder: (context, c) {
+          // Many columns on a small screen: keep each one readable and let
+          // the grid scroll sideways rather than squeeze them all.
           _flexWidth = (c.maxWidth - _markW - _numW - 2).clamp(
-            _minCol * widget.columns.length,
+            _readableCol * widget.columns.length,
             double.infinity,
           );
+          final gridWidth = _flexWidth + _markW + _numW + 2;
+          final scrolls = gridWidth > c.maxWidth + .5;
           final widths = _widths(_flexWidth);
           final head = Container(
             height: 34,
@@ -554,13 +563,25 @@ class _SelSheetState extends State<SelSheet> {
                     border: Border.all(color: Sel.border),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: widget.shrinkWrap
-                        ? MainAxisSize.min
-                        : MainAxisSize.max,
-                    children: [head, rows],
-                  ),
+                  child: () {
+                    final grid = Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: widget.shrinkWrap
+                          ? MainAxisSize.min
+                          : MainAxisSize.max,
+                      children: [head, rows],
+                    );
+                    if (!scrolls) return grid;
+                    return Scrollbar(
+                      controller: _sideways,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _sideways,
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(width: gridWidth, child: grid),
+                      ),
+                    );
+                  }(),
                 ),
               ),
             ],

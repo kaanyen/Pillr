@@ -106,11 +106,12 @@ class _BulkImportReviewState extends State<BulkImportReview> {
         (_isDuplicate(r) && !widget.keptSheetRows.contains(r.sheetRowNumber))) {
       return ReviewTab.needYou;
     }
+    // "Keep it as it is" (or "It is new"/"Both are real") settles the row's
+    // warnings; only errors still need something done.
     final open = r.issues.where(
       (x) =>
           !(widget.keptSheetRows.contains(r.sheetRowNumber) &&
-              (x.code == BulkImportIssueCode.duplicateInFile ||
-                  x.code == BulkImportIssueCode.duplicateInDatabase)),
+              x.severity != BulkImportSeverity.error),
     );
     return open.isEmpty ? ReviewTab.ready : ReviewTab.worthALook;
   }
@@ -154,20 +155,61 @@ class _BulkImportReviewState extends State<BulkImportReview> {
     }
   }
 
-  static const _sheetColumns = [
-    SelSheetColumn('Date', weight: .8),
-    SelSheetColumn('Name', weight: 1.5),
-    SelSheetColumn('Fellowship', weight: 1.1),
-    SelSheetColumn('Arm', weight: 1),
-    SelSheetColumn('Amount', weight: .9, numeric: true),
-  ];
+  /// Every column the sheet has, in the sheet's order, so nothing in it is
+  /// hidden (phone, member ID, email, notes...). Fellowship and Arm are added
+  /// when the sheet has none, since every entry gets one.
+  List<BulkImportColumn> get _fields {
+    final cols = [...widget.columns];
+    if (!cols.contains(BulkImportColumn.fellowship)) {
+      cols.insert(
+        cols.contains(BulkImportColumn.name)
+            ? cols.indexOf(BulkImportColumn.name) + 1
+            : cols.length,
+        BulkImportColumn.fellowship,
+      );
+    }
+    if (!cols.contains(BulkImportColumn.category)) {
+      final at = cols.indexOf(BulkImportColumn.amount);
+      cols.insert(at < 0 ? cols.length : at, BulkImportColumn.category);
+    }
+    return cols;
+  }
 
-  static const _fields = [
-    BulkImportColumn.date,
-    BulkImportColumn.name,
-    BulkImportColumn.fellowship,
-    BulkImportColumn.category,
-    BulkImportColumn.amount,
+  static String _label(BulkImportColumn c) => switch (c) {
+    BulkImportColumn.date => 'Date',
+    BulkImportColumn.name => 'Name',
+    BulkImportColumn.memberId => 'Member ID',
+    BulkImportColumn.contact => 'Phone',
+    BulkImportColumn.fellowship => 'Fellowship',
+    BulkImportColumn.email => 'Email',
+    BulkImportColumn.amount => 'Amount',
+    BulkImportColumn.currency => 'Currency',
+    BulkImportColumn.category => 'Arm',
+    BulkImportColumn.givenToNotes => 'Notes',
+    BulkImportColumn.pastorConfirmed => 'Pastor confirmed',
+  };
+
+  static double _weight(BulkImportColumn c) => switch (c) {
+    BulkImportColumn.date => .8,
+    BulkImportColumn.name => 1.5,
+    BulkImportColumn.memberId => .9,
+    BulkImportColumn.contact => 1.1,
+    BulkImportColumn.fellowship => 1.1,
+    BulkImportColumn.email => 1.5,
+    BulkImportColumn.amount => 1.2,
+    BulkImportColumn.currency => .6,
+    BulkImportColumn.category => 1,
+    BulkImportColumn.givenToNotes => 1.4,
+    BulkImportColumn.pastorConfirmed => .9,
+  };
+
+  List<SelSheetColumn> get _sheetColumns => [
+    for (final c in _fields)
+      SelSheetColumn(
+        _label(c),
+        weight: _weight(c),
+        numeric: c == BulkImportColumn.amount,
+      ),
   ];
 
   SelSheetRow _sheetRow(int i, ReviewTab tab) {
@@ -186,6 +228,33 @@ class _BulkImportReviewState extends State<BulkImportReview> {
         );
     final rawDate = _raw(i, BulkImportColumn.date);
     final rawAmount = _raw(i, BulkImportColumn.amount);
+    SelSheetCell cell(BulkImportColumn c) => switch (c) {
+      BulkImportColumn.date => text(
+        c,
+        bad.contains(c) ? rawDate : DateFormat('d MMM').format(row.dateGiven),
+      ),
+      BulkImportColumn.fellowship => text(
+        c,
+        row.fellowship.isEmpty ? _raw(i, c) : row.fellowship,
+      ),
+      BulkImportColumn.category => SelSheetCell(
+        row.armName.isEmpty ? _raw(i, c) : row.armName,
+        kind: has(c) && widget.arms.isNotEmpty
+            ? SelSheetCellKind.choice
+            : SelSheetCellKind.fixed,
+        options: [for (final a in widget.arms) a.name],
+        problem: bad.contains(c) && tab != ReviewTab.ready,
+      ),
+      BulkImportColumn.amount => text(
+        c,
+        bad.contains(c) ? rawAmount : widget.money(row.amountCedis),
+      ),
+      BulkImportColumn.currency => text(
+        c,
+        _raw(i, c).isEmpty ? row.sourceCurrency : _raw(i, c),
+      ),
+      _ => text(c, _raw(i, c)),
+    };
     return SelSheetRow(
       mark: SizedBox(
         width: 20,
@@ -194,38 +263,7 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       ),
       number: '${row.sheetRowNumber}',
       dimmed: tab == ReviewTab.leftOut,
-      cells: [
-        text(
-          BulkImportColumn.date,
-          bad.contains(BulkImportColumn.date)
-              ? rawDate
-              : DateFormat('d MMM').format(row.dateGiven),
-        ),
-        text(BulkImportColumn.name, _raw(i, BulkImportColumn.name)),
-        text(
-          BulkImportColumn.fellowship,
-          row.fellowship.isEmpty
-              ? _raw(i, BulkImportColumn.fellowship)
-              : row.fellowship,
-        ),
-        SelSheetCell(
-          row.armName.isEmpty
-              ? _raw(i, BulkImportColumn.category)
-              : row.armName,
-          kind: has(BulkImportColumn.category) && widget.arms.isNotEmpty
-              ? SelSheetCellKind.choice
-              : SelSheetCellKind.fixed,
-          options: [for (final a in widget.arms) a.name],
-          problem:
-              bad.contains(BulkImportColumn.category) && tab != ReviewTab.ready,
-        ),
-        text(
-          BulkImportColumn.amount,
-          bad.contains(BulkImportColumn.amount)
-              ? rawAmount
-              : widget.money(row.amountCedis),
-        ),
-      ],
+      cells: [for (final c in _fields) cell(c)],
       // Only rows that need a decision carry a line; the rest show their
       // mark in the cell and say why in the cell bar's row.
       note: tab == ReviewTab.needYou && issue != null ? _say(issue) : null,
@@ -579,6 +617,8 @@ class _BulkImportReviewState extends State<BulkImportReview> {
                     .replaceAll(']', '')
                     .replaceAll(',', ' and')
               : 'Is this the same as another row?')
+        : kept && issue.severity != BulkImportSeverity.error
+        ? 'Row $sheetRow comes in as it is'
         : partnerIssue
         ? 'Who is $name?'
         : describeIssue(issue.code).title;
@@ -675,7 +715,7 @@ class _BulkImportReviewState extends State<BulkImportReview> {
             body: issue.code == BulkImportIssueCode.possibleDuplicatePartner
                 ? 'Comes in as a new partner, ${r.fullName}${r.fellowship.isEmpty ? '' : ', ${r.fellowship}'}'
                 : 'Comes in as the sheet has it',
-            onTap: null,
+            onTap: widget.busy ? null : () => widget.onKeepRow(sheetRow),
           ),
         );
       }
@@ -740,7 +780,7 @@ class _BulkImportReviewState extends State<BulkImportReview> {
         ),
       );
     }
-    if (kept && duplicate) {
+    if (kept) {
       children.add(const SizedBox(height: SelSpace.x2));
       children.add(
         Align(
@@ -758,21 +798,29 @@ class _BulkImportReviewState extends State<BulkImportReview> {
       children: [
         Row(
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Sel.ink,
-                borderRadius: BorderRadius.circular(SelRadius.pill),
-              ),
-              child: Text(
-                pos < 0
-                    ? 'Row $sheetRow'
-                    : floating
-                    ? 'Row $sheetRow · ${pos + 1} of ${settle.length}'
-                    : 'Row $sheetRow · ${pos + 1} of ${settle.length} to settle',
-                style: SelType.small.copyWith(color: Sel.card),
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Sel.ink,
+                  borderRadius: BorderRadius.circular(SelRadius.pill),
+                ),
+                child: Text(
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  pos < 0
+                      ? 'Row $sheetRow'
+                      : floating
+                      ? 'Row $sheetRow · ${pos + 1} of ${settle.length}'
+                      : 'Row $sheetRow · ${pos + 1} of ${settle.length} to settle',
+                  style: SelType.small.copyWith(color: Sel.card),
+                ),
               ),
             ),
+            const SizedBox(width: SelSpace.x1),
             const Spacer(),
             if (settle.length > 1) ...[
               IconButton(

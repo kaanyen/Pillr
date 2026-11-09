@@ -943,71 +943,62 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
             ],
           ),
           const SizedBox(height: SelSpace.x3),
-          Table(
-            columnWidths: const {0: FixedColumnWidth(70)},
-            border: const TableBorder(
-              horizontalInside: BorderSide(color: Sel.rowLine),
-            ),
-            children: [
-              TableRow(
-                children: [
-                  for (final h in const [
-                    'Row',
-                    'Date',
-                    'Name',
-                    'Fellowship',
-                    'Arm',
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                      child: Text(h, style: SelType.small),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    child: Text(
-                      'Amount',
-                      textAlign: TextAlign.right,
-                      style: SelType.small,
-                    ),
-                  ),
-                ],
-              ),
-              for (final r in dataRows.take(3))
-                TableRow(
-                  children: [
-                    for (final v in [
-                      '${r + 1}',
-                      valueAt(r, BulkImportColumn.date),
-                      valueAt(r, BulkImportColumn.name),
-                      valueAt(r, BulkImportColumn.fellowship),
-                      valueAt(r, BulkImportColumn.category),
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        child: Text(
-                          v.isEmpty ? '—' : v,
-                          style: SelType.bodySm.copyWith(color: Sel.text),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        valueAt(r, BulkImportColumn.amount).isEmpty
-                            ? '—'
-                            : valueAt(r, BulkImportColumn.amount),
-                        textAlign: TextAlign.right,
-                        style: SelType.bodySm.copyWith(color: Sel.text),
-                      ),
-                    ),
-                  ],
+          // Every matched column, in the sheet's order, so phone, member
+          // ID, email and notes show here too. Scrolls sideways if wide.
+          Builder(
+            builder: (context) {
+              final shownCols = (_mapping.entries.toList()
+                    ..sort((x, y) => x.value.compareTo(y.value)))
+                  .map((e) => e.key)
+                  .toList();
+              String head(BulkImportColumn c) => switch (c) {
+                BulkImportColumn.date => 'Date',
+                BulkImportColumn.name => 'Name',
+                BulkImportColumn.category => 'Arm',
+                _ => bulkImportFieldLabel(c),
+              };
+              Widget cell(String v, {bool right = false, bool header = false}) => Padding(
+                padding: header
+                    ? const EdgeInsets.fromLTRB(12, 0, 12, 8)
+                    : const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                child: Text(
+                  v.isEmpty ? '—' : v,
+                  textAlign: right ? TextAlign.right : TextAlign.left,
+                  style: header ? SelType.small : SelType.bodySm.copyWith(color: Sel.text),
                 ),
-            ],
+              );
+              final table = Table(
+                defaultColumnWidth: const IntrinsicColumnWidth(),
+                columnWidths: const {0: FixedColumnWidth(60)},
+                border: const TableBorder(horizontalInside: BorderSide(color: Sel.rowLine)),
+                children: [
+                  TableRow(
+                    children: [
+                      cell('Row', header: true),
+                      for (final c in shownCols)
+                        cell(head(c), header: true, right: c == BulkImportColumn.amount),
+                    ],
+                  ),
+                  for (final r in dataRows.take(3))
+                    TableRow(
+                      children: [
+                        cell('${r + 1}'),
+                        for (final c in shownCols)
+                          cell(valueAt(r, c), right: c == BulkImportColumn.amount),
+                      ],
+                    ),
+                ],
+              );
+              return LayoutBuilder(
+                builder: (context, box) => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: box.maxWidth),
+                    child: table,
+                  ),
+                ),
+              );
+            },
           ),
           if (missing.isNotEmpty) ...[
             const SizedBox(height: SelSpace.x3),
