@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../seline_colors.dart';
 import '../seline_metrics.dart';
 import '../seline_type.dart';
+import 'pillr_mark.dart';
+import 'sel_focus.dart';
 
 /// Button hierarchy in Seline.
 ///
@@ -23,6 +25,19 @@ enum SelButtonKind {
   /// stateful actions that need to read as interactive without taking the
   /// primary slot. Still not a fill — never promote cyanEdge to a fill.
   edge,
+}
+
+/// Marks a subtree whose controls keep Seline's original, tighter sizing
+/// rather than the 44px tap-target sizing used across the rest of the app.
+/// The sign-in screens use it so their look stays as it was.
+class SelCompactScope extends InheritedWidget {
+  const SelCompactScope({super.key, required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SelCompactScope>() != null;
+
+  @override
+  bool updateShouldNotify(SelCompactScope oldWidget) => false;
 }
 
 class SelButton extends StatelessWidget {
@@ -67,8 +82,8 @@ class SelButton extends StatelessWidget {
     if (_disabled) return Sel.ash;
     return switch (kind) {
       SelButtonKind.cyan => Sel.card,
-      SelButtonKind.ghost => Sel.ink,
-      SelButtonKind.quiet => Sel.warm,
+      SelButtonKind.ghost => Sel.text,
+      SelButtonKind.quiet => Sel.cyanEdge,
       SelButtonKind.edge => Sel.cyanEdge,
     };
   }
@@ -81,23 +96,26 @@ class SelButton extends StatelessWidget {
             vertical: SelSpace.x1,
           )
         : const EdgeInsets.symmetric(
-            horizontal: SelSpace.x4,
+            horizontal: SelSpace.x6,
             vertical: SelSpace.x2,
           );
-    final minH = dense ? 28.0 : 34.0;
+    // Inside a [SelCompactScope] (the sign-in screens) buttons keep their
+    // original, tighter height; everywhere else they meet the tap target.
+    final minH = SelCompactScope.of(context)
+        ? (dense ? 28.0 : 34.0)
+        : (dense ? SelLayout.tapTargetDense : SelLayout.tapTarget);
 
     final body = loading
-        ? SizedBox(
-            height: 14,
-            width: 14,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: _fg),
+        ? PillrLoader(
+            size: 18,
+            onColor: kind == SelButtonKind.cyan,
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 14, color: _fg),
+                Icon(icon, size: 16, color: _fg),
                 const SizedBox(width: SelSpace.x2),
               ],
               Flexible(
@@ -110,7 +128,7 @@ class SelButton extends StatelessWidget {
               ),
               if (trailingIcon != null) ...[
                 const SizedBox(width: SelSpace.x2),
-                Icon(trailingIcon, size: 14, color: _fg),
+                Icon(trailingIcon, size: 16, color: _fg),
               ],
             ],
           );
@@ -158,6 +176,7 @@ class _SelPill extends StatefulWidget {
 
 class _SelPillState extends State<_SelPill> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -167,9 +186,9 @@ class _SelPillState extends State<_SelPill> {
       SelButtonKind.cyan =>
         widget.disabled
             ? (Sel.borderMuted, null)
-            : (h ? Sel.cyanEdge : Sel.cyan, Sel.cyanEdge),
-      SelButtonKind.ghost => (h ? Sel.card : Colors.transparent, Sel.border),
-      SelButtonKind.quiet => (h ? Sel.card : Colors.transparent, null),
+            : (h ? const Color(0xFF0B5FBA) : Sel.cyan, null),
+      SelButtonKind.ghost => (h ? Sel.track : Sel.card, Sel.borderMuted),
+      SelButtonKind.quiet => (h ? Sel.track : Colors.transparent, null),
       SelButtonKind.edge => (
         h ? Sel.skyWash : Colors.transparent,
         Sel.cyanEdge,
@@ -183,25 +202,42 @@ class _SelPillState extends State<_SelPill> {
       enabled: !widget.disabled,
       label: widget.semanticLabel,
       excludeSemantics: widget.semanticLabel != null,
-      child: MouseRegion(
-        cursor: widget.disabled
+      child: FocusableActionDetector(
+        enabled: !widget.disabled,
+        mouseCursor: widget.disabled
             ? SystemMouseCursors.basic
             : SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap?.call();
+              return null;
+            },
+          ),
+        },
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            curve: Curves.easeOut,
-            constraints: BoxConstraints(minHeight: widget.minHeight),
-            padding: widget.padding,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(SelRadius.pill),
-              border: bd == null ? null : Border.all(color: bd),
+          child: SelFocusRing(
+            focused: _focused && !widget.disabled,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              constraints: BoxConstraints(minHeight: widget.minHeight),
+              padding: widget.padding,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+                border: bd == null ? null : Border.all(color: bd, width: 1.5),
+                // The primary action sits on a flat light-sky block.
+                boxShadow:
+                    widget.kind == SelButtonKind.cyan && !widget.disabled
+                    ? SelShadow.pop
+                    : null,
+              ),
+              child: Center(widthFactor: 1, child: widget.child),
             ),
-            child: Center(widthFactor: 1, child: widget.child),
           ),
         ),
       ),
@@ -267,7 +303,7 @@ class SelIconButton extends StatelessWidget {
       kind: SelButtonKind.quiet,
       disabled: onPressed == null,
       padding: const EdgeInsets.all(SelSpace.x2),
-      minHeight: 32,
+      minHeight: SelLayout.tapTarget,
       onTap: onPressed,
       // The tooltip is the only name this control has; a pointer gets it on
       // hover and, now, a screen reader gets it too.
@@ -277,7 +313,12 @@ class SelIconButton extends StatelessWidget {
       child: child,
     );
 
-    return tooltip == null ? btn : Tooltip(message: tooltip!, child: btn);
+    final sized = SizedBox(
+      width: SelLayout.tapTarget,
+      height: SelLayout.tapTarget,
+      child: btn,
+    );
+    return tooltip == null ? sized : Tooltip(message: tooltip!, child: sized);
   }
 }
 
@@ -312,6 +353,7 @@ class SelLink extends StatefulWidget {
 
 class _SelLinkState extends State<SelLink> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -322,26 +364,39 @@ class _SelLinkState extends State<SelLink> {
           fontWeight: FontWeight.w500,
         );
 
-    return MouseRegion(
-      cursor: widget.onTap == null
+    return FocusableActionDetector(
+      enabled: widget.onTap != null,
+      mouseCursor: widget.onTap == null
           ? SystemMouseCursors.basic
           : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onShowHoverHighlight: (v) => setState(() => _hover = v),
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            widget.onTap?.call();
+            return null;
+          },
+        ),
+      },
       child: GestureDetector(
         // Without this the tap never lands — see the class doc.
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: SelSpace.x2,
-            vertical: SelSpace.x2,
-          ),
-          child: Text(
-            widget.label,
-            style: base.copyWith(
-              decoration: _hover ? TextDecoration.underline : null,
-              decorationColor: base.color,
+        child: SelFocusRing(
+          focused: _focused && widget.onTap != null,
+          radius: SelRadius.input,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.x2,
+              vertical: SelSpace.x2,
+            ),
+            child: Text(
+              widget.label,
+              style: base.copyWith(
+                decoration: _hover || _focused ? TextDecoration.underline : null,
+                decorationColor: base.color,
+              ),
             ),
           ),
         ),

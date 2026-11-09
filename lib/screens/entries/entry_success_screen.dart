@@ -47,7 +47,7 @@ class EntrySuccessScreen extends ConsumerWidget {
         ),
         const SizedBox(height: SelSpace.x6),
         Text(
-          'Entry recorded',
+          'Giving recorded',
           style: SelType.title,
           textAlign: TextAlign.center,
         ),
@@ -56,8 +56,8 @@ class EntrySuccessScreen extends ConsumerWidget {
           entry == null
               ? 'Your entry has been saved.'
               : pending
-                  ? '${money(entry.amountCedis)} for $partner is now with a pastor for review.'
-                  : '${money(entry.amountCedis)} for $partner has been added to your church totals.',
+              ? '${money(entry.amountCedis)} for $partner is now with a pastor for review.'
+              : '${money(entry.amountCedis)} for $partner has been added to your church totals.',
           style: SelType.lead,
           textAlign: TextAlign.center,
         ),

@@ -1,4 +1,7 @@
+import '../../church/domain/exchange_rates.dart';
 import '../../arms/domain/partnership_arm.dart';
+import '../../fellowships/fellowship_match.dart';
+import '../../maintenance/domain/data_health.dart';
 import '../../partners/domain/partner.dart';
 import '../../periods/domain/partnership_period.dart';
 import 'bulk_import_arm_match.dart';
@@ -13,15 +16,64 @@ List<BulkResolvedRow> resolveBulkImportRows({
   required List<PartnershipArm> arms,
   required PartnershipPeriod? activePeriod,
   required List<Partner> partners,
+  List<Partner> inactivePartners = const [],
   required bool viewerIsStaff,
+  ChurchExchangeRates exchangeRates = const ChurchExchangeRates(),
+  String defaultImportCurrency = BaseCurrency.code,
+  List<String> knownFellowships = const [],
 }) {
   final byPhone = <String, List<Partner>>{};
+  final byMemberId = <String, Partner>{};
+  final byNameFellowship = <String, Partner>{};
+  final ambiguousNameFellowship = <String>{};
+
   for (final p in partners) {
     if (!p.isActive) continue;
     final key = normalizePhoneDigits(p.phone);
-    if (key.isEmpty) continue;
-    byPhone.putIfAbsent(key, () => []).add(p);
+    if (key.isNotEmpty) {
+      byPhone.putIfAbsent(key, () => []).add(p);
+    }
+    final mid = p.memberId.trim();
+    if (mid.isNotEmpty) {
+      byMemberId[mid.toUpperCase()] = p;
+    }
+    final nl = p.fullName.toLowerCase().trim();
+    final fl = p.fellowship.toLowerCase().trim();
+    if (nl.isNotEmpty && fl.isNotEmpty) {
+      final nk = '$fl|$nl';
+      if (byNameFellowship.containsKey(nk)) {
+        ambiguousNameFellowship.add(nk);
+      } else {
+        byNameFellowship[nk] = p;
+      }
+    }
   }
+
+  // A member ID on a closed record that was merged as a duplicate follows the
+  // merge to the partner that took its giving.
+  final byId = {for (final p in [...partners, ...inactivePartners]) p.id: p};
+  final mergedByMemberId = <String, Partner>{};
+  for (final p in inactivePartners) {
+    final mid = p.memberId.trim().toUpperCase();
+    if (mid.isEmpty || (p.mergedInto ?? '').isEmpty) continue;
+    var cur = p;
+    for (var hop = 0; hop < 10 && (cur.mergedInto ?? '').isNotEmpty; hop++) {
+      final next = byId[cur.mergedInto];
+      if (next == null) break;
+      cur = next;
+    }
+    if (cur.isActive && (cur.mergedInto ?? '').isEmpty) {
+      mergedByMemberId[mid] = cur;
+    }
+  }
+  // A sheet still using an ID from before a merge: the merged person holds
+  // it in formerMemberIds.
+  for (final p in partners) {
+    for (final f in p.formerMemberIds) {
+      if (!byMemberId.containsKey(f)) mergedByMemberId.putIfAbsent(f, () => p);
+    }
+  }
+  final everyone = [...partners, ...inactivePartners];
 
   final resolved = <BulkResolvedRow>[];
 
@@ -37,6 +89,19 @@ List<BulkResolvedRow> resolveBulkImportRows({
     final givenTo = v[BulkImportColumn.givenToNotes]?.trim();
 
     final issues = List<BulkImportIssue>.from(interp.issues);
+    if (fellowship.isNotEmpty && knownFellowships.isNotEmpty) {
+      final known = mergeKnownFellowships(knownFellowships, const []);
+      final exact = known.any((n) => fellowshipNamesMatch(n, fellowship));
+      if (!exact) {
+        issues.add(
+          BulkImportIssue(
+            code: BulkImportIssueCode.unknownFellowship,
+            severity: BulkImportSeverity.warning,
+            message: suggestSimilarFellowship(fellowship, known),
+          ),
+        );
+      }
+    }
 
     final arm = armNameRaw.isEmpty ? null : findArmMatchFromExcelCell(armNameRaw, arms);
     if (armNameRaw.isNotEmpty && arm == null) {
@@ -62,13 +127,8 @@ List<BulkResolvedRow> resolveBulkImportRows({
 
     final mid = memberIdFromSheet;
     if (mid != null && mid.isNotEmpty) {
-      Partner? byMember;
-      for (final p in partners) {
-        if (p.memberId.toUpperCase() == mid.toUpperCase()) {
-          byMember = p;
-          break;
-        }
-      }
+      final survivor = mergedByMemberId[mid.toUpperCase()];
+      final byMember = byMemberId[mid.toUpperCase()] ?? survivor;
       if (byMember == null) {
         issues.add(
           const BulkImportIssue(
@@ -77,6 +137,16 @@ List<BulkResolvedRow> resolveBulkImportRows({
           ),
         );
       } else {
+        if (identical(byMember, survivor)) {
+          issues.add(
+            BulkImportIssue(
+              code: BulkImportIssueCode.memberIdMerged,
+              severity: BulkImportSeverity.warning,
+              message: '${mid.toUpperCase()} is an old ID. It now belongs to '
+                  '${survivor!.fullName}, member ID ${survivor.memberId}.',
+            ),
+          );
+        }
         matched = byMember;
         resolution = PartnerResolutionKind.existing;
         if (fullName.isNotEmpty &&
@@ -125,22 +195,70 @@ List<BulkResolvedRow> resolveBulkImportRows({
           resolution = PartnerResolutionKind.existing;
           _addNamePhoneWarnings(matched, fullName, fellowship, phone, issues);
         } else {
-          final byName = _singlePartnerByNameAndFellowship(fullName, fellowship, partners);
-          if (byName != null) {
-            matched = byName;
+          final byName = _nameFellowshipMatch(
+            fullName,
+            fellowship,
+            byNameFellowship,
+            ambiguousNameFellowship,
+          );
+          if (byName.ambiguous) {
+            issues.add(
+              const BulkImportIssue(
+                code: BulkImportIssueCode.ambiguousName,
+                severity: BulkImportSeverity.error,
+              ),
+            );
+            resolution = PartnerResolutionKind.ambiguous;
+          } else if (byName.partner != null) {
+            matched = byName.partner;
             resolution = PartnerResolutionKind.existing;
           } else {
             resolution = PartnerResolutionKind.createNew;
           }
         }
       } else {
-        final byName = _singlePartnerByNameAndFellowship(fullName, fellowship, partners);
-        if (byName != null) {
-          matched = byName;
+        final byName = _nameFellowshipMatch(
+          fullName,
+          fellowship,
+          byNameFellowship,
+          ambiguousNameFellowship,
+        );
+        if (byName.ambiguous) {
+          issues.add(
+            const BulkImportIssue(
+              code: BulkImportIssueCode.ambiguousName,
+              severity: BulkImportSeverity.error,
+            ),
+          );
+          resolution = PartnerResolutionKind.ambiguous;
+        } else if (byName.partner != null) {
+          matched = byName.partner;
           resolution = PartnerResolutionKind.existing;
         } else {
           resolution = PartnerResolutionKind.createNew;
         }
+      }
+    }
+
+    if (resolution == PartnerResolutionKind.createNew && fullName.isNotEmpty) {
+      final lookalikes = findDuplicatesOf(
+        fullName: fullName,
+        phone: phone,
+        email: email,
+        fellowship: fellowship,
+        existing: everyone,
+      );
+      if (lookalikes.isNotEmpty) {
+        final m = lookalikes.first;
+        issues.add(
+          BulkImportIssue(
+            code: BulkImportIssueCode.possibleDuplicatePartner,
+            severity: BulkImportSeverity.warning,
+            message: 'Looks like ${m.b.fullName}'
+                '${m.b.memberId.isEmpty ? '' : ' (${m.b.memberId})'}'
+                '${m.b.isActive ? '' : ', inactive'} — ${m.reason}.',
+          ),
+        );
       }
     }
 
@@ -155,6 +273,28 @@ List<BulkResolvedRow> resolveBulkImportRows({
 
     final notes = givenTo != null && givenTo.isNotEmpty ? givenTo : null;
 
+    final sourceAmount = interp.amount ?? 0;
+    final currencyCode = parseCurrencyCode(v[BulkImportColumn.currency]) ??
+        interp.amountCurrency ??
+        defaultImportCurrency;
+    final conversion = exchangeRates.convert(
+      sourceAmount: sourceAmount,
+      sourceCurrency: currencyCode,
+    );
+    if (!conversion.rateAvailable) {
+      // An error, not a warning: importing at the 1:1 fallback would record
+      // every row in this currency at a figure nobody chose.
+      issues.add(
+        BulkImportIssue(
+          code: BulkImportIssueCode.missingExchangeRate,
+          severity: BulkImportSeverity.error,
+          message: 'No exchange rate is set for '
+              '${conversion.sourceCurrency}. Add one in Settings, then import '
+              'again.',
+        ),
+      );
+    }
+
     final blocking = issues.any((i) => i.severity == BulkImportSeverity.error);
 
     resolved.add(
@@ -165,7 +305,10 @@ List<BulkResolvedRow> resolveBulkImportRows({
         phone: phone,
         email: email,
         memberIdFromSheet: memberIdFromSheet,
-        amountCedis: interp.amount ?? 0,
+        amountCedis: conversion.amountBase,
+        sourceCurrency: conversion.sourceCurrency,
+        sourceAmount: conversion.sourceAmount,
+        exchangeRateToBase: conversion.exchangeRateToBase,
         dateGiven: interp.date ?? DateTime.now(),
         armId: arm?.id,
         armName: armNameRaw,
@@ -214,29 +357,20 @@ void _addNamePhoneWarnings(
   }
 }
 
-Partner? _singlePartnerByNameAndFellowship(
+({Partner? partner, bool ambiguous}) _nameFellowshipMatch(
   String fullName,
   String fellowship,
-  List<Partner> partners,
+  Map<String, Partner> byNameFellowship,
+  Set<String> ambiguousNameFellowship,
 ) {
   final nl = fullName.toLowerCase().trim();
   final fl = fellowship.toLowerCase().trim();
-  if (nl.isEmpty || fl.isEmpty) return null;
-  Partner? found;
-  for (final p in partners) {
-    if (!p.isActive) continue;
-    if (p.fellowship.toLowerCase().trim() != fl) continue;
-    if (p.fullName.toLowerCase().trim() == nl) {
-      if (found != null) return null;
-      found = p;
-    }
+  if (nl.isEmpty || fl.isEmpty) return (partner: null, ambiguous: false);
+  final key = '$fl|$nl';
+  if (ambiguousNameFellowship.contains(key)) {
+    return (partner: null, ambiguous: true);
   }
-  return found;
-}
-
-bool _sameArmForInFileDedupe(BulkResolvedRow a, BulkResolvedRow b) {
-  if (a.armId != null && b.armId != null && a.armId == b.armId) return true;
-  return normalizeArmExcelText(a.armName) == normalizeArmExcelText(b.armName);
+  return (partner: byNameFellowship[key], ambiguous: false);
 }
 
 String _partnerDedupeKey(BulkResolvedRow r) {
@@ -254,35 +388,75 @@ void _applyDuplicateInFile(List<BulkResolvedRow> rows) {
     return a >= lo && a <= hi;
   }
 
+  String bucketKey(BulkResolvedRow r) {
+    if (r.periodId == null) return '';
+    return '${r.periodId}|${_partnerDedupeKey(r)}|'
+        '${normalizeArmExcelText(r.armName)}|'
+        '${_dateOnly(r.dateGiven).millisecondsSinceEpoch}|'
+        '${r.amountCedis.toStringAsFixed(2)}';
+  }
+
+  final buckets = <String, List<int>>{};
   for (var i = 0; i < rows.length; i++) {
-    final a = rows[i];
-    if (a.periodId == null) continue;
-    for (var j = 0; j < i; j++) {
-      final b = rows[j];
-      if (b.periodId == null) continue;
-      if (a.periodId != b.periodId) continue;
-      if (_partnerDedupeKey(a) != _partnerDedupeKey(b)) continue;
-      if (!_sameArmForInFileDedupe(a, b)) continue;
-      if (_dateOnly(a.dateGiven) != _dateOnly(b.dateGiven)) continue;
-      if (!similarAmount(a.amountCedis, b.amountCedis)) continue;
+    final key = bucketKey(rows[i]);
+    if (key.isEmpty) continue;
+    buckets.putIfAbsent(key, () => []).add(i);
+  }
 
-      void flag(int idx) {
-        final row = rows[idx];
-        final next = List<BulkImportIssue>.from(row.issues)
-          ..add(
-            const BulkImportIssue(
-              code: BulkImportIssueCode.duplicateInFile,
-              severity: BulkImportSeverity.warning,
-            ),
-          );
-        rows[idx] = row.copyWith(
-          issues: next,
-          isBlocking: next.any((e) => e.severity == BulkImportSeverity.error),
+  for (final indices in buckets.values) {
+    if (indices.length < 2) continue;
+    for (final i in indices) {
+      final row = rows[i];
+      final next = List<BulkImportIssue>.from(row.issues)
+        ..add(
+          const BulkImportIssue(
+            code: BulkImportIssueCode.duplicateInFile,
+            severity: BulkImportSeverity.warning,
+          ),
         );
-      }
+      rows[i] = row.copyWith(
+        issues: next,
+        isBlocking: next.any((e) => e.severity == BulkImportSeverity.error),
+      );
+    }
+  }
 
-      flag(i);
-      flag(j);
+  // Near-duplicate amounts within same partner/arm/date still need fuzzy match.
+  final fuzzyBuckets = <String, List<int>>{};
+  for (var i = 0; i < rows.length; i++) {
+    final r = rows[i];
+    if (r.periodId == null) continue;
+    final key =
+        '${r.periodId}|${_partnerDedupeKey(r)}|${normalizeArmExcelText(r.armName)}|'
+        '${_dateOnly(r.dateGiven).millisecondsSinceEpoch}';
+    fuzzyBuckets.putIfAbsent(key, () => []).add(i);
+  }
+
+  for (final indices in fuzzyBuckets.values) {
+    if (indices.length < 2) continue;
+    for (var a = 0; a < indices.length; a++) {
+      for (var b = a + 1; b < indices.length; b++) {
+        final i = indices[a];
+        final j = indices[b];
+        if (!similarAmount(rows[i].amountCedis, rows[j].amountCedis)) continue;
+        for (final idx in [i, j]) {
+          if (rows[idx].issues.any((x) => x.code == BulkImportIssueCode.duplicateInFile)) {
+            continue;
+          }
+          final row = rows[idx];
+          final next = List<BulkImportIssue>.from(row.issues)
+            ..add(
+              const BulkImportIssue(
+                code: BulkImportIssueCode.duplicateInFile,
+                severity: BulkImportSeverity.warning,
+              ),
+            );
+          rows[idx] = row.copyWith(
+            issues: next,
+            isBlocking: next.any((e) => e.severity == BulkImportSeverity.error),
+          );
+        }
+      }
     }
   }
 }

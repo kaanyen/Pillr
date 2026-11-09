@@ -42,6 +42,7 @@ class GoalsRepository {
       'partnershipArmId': partnershipArmId,
       'targetAmountCedis': targetAmountCedis,
       'currentAmountCedis': 0,
+      'currentAmountPesewas': 0,
       'createdBy': uid,
       'createdAt': now,
       'updatedAt': now,

@@ -4,13 +4,16 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 
 import '../core/extensions/async_value_ext.dart';
+import '../core/notifications/sel_notice.dart';
 import '../core/utils/entry_export.dart';
 import '../core/utils/export_naming.dart';
 import '../l10n/app_localizations.dart';
 import '../design/seline.dart';
+import '../features/arms/providers/arms_providers.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../core/errors/plain_error.dart';
 
 /// Export buttons for a list of entries.
 ///
@@ -24,14 +27,24 @@ import '../features/entries/domain/partnership_entry.dart';
 class EntryExportButtons extends ConsumerStatefulWidget {
   const EntryExportButtons({
     super.key,
-    required this.entries,
+    this.entries = const [],
+    this.entriesLoader,
     required this.title,
     this.subtitle,
     this.scope,
     this.dense = true,
   });
 
+  /// The rows to export, when the caller already holds them.
   final List<PartnershipEntry> entries;
+
+  /// Fetches the rows at press time instead.
+  ///
+  /// For screens that no longer keep the church's whole entry list in memory:
+  /// the export still covers everything, it is just read when someone asks for
+  /// it rather than streamed and held on the chance that they might.
+  final Future<List<PartnershipEntry>> Function()? entriesLoader;
+
   final String title;
 
   /// Describes the current filter, so an exported PDF says what it contains.
@@ -57,9 +70,7 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
       await action();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        selNotice(context, 'Export failed. ${plainError(e)}', kind: SelNoticeKind.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -68,13 +79,43 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
 
   /// The period every entry in this export belongs to, when they share one.
   /// A mixed export has no period in its name rather than a misleading one.
-  String? get _periodScope {
+  String? _periodScopeOf(List<PartnershipEntry> rows) {
     if (widget.scope != null) return widget.scope;
-    final names = widget.entries
+    final names = rows
         .map((e) => e.periodSnapshot['name']?.toString() ?? '')
         .where((n) => n.isNotEmpty)
         .toSet();
     return names.length == 1 ? names.first : null;
+  }
+
+  /// The rows this export covers, fetched if the caller did not supply them.
+  Future<List<PartnershipEntry>> _rows() async {
+    final loader = widget.entriesLoader;
+    if (loader == null) return widget.entries;
+    return loader();
+  }
+
+  /// With a loader there is no way to know the export is empty until it runs,
+  /// so the buttons stay live and say so afterwards instead of greying out.
+  bool get _disabled =>
+      _busy || (widget.entriesLoader == null && widget.entries.isEmpty);
+
+  /// Resolves the rows, reporting an empty export rather than producing a
+  /// blank file. Null means there is nothing to write.
+  Future<List<PartnershipEntry>?> _rowsOrNotify() async {
+    final rows = await _rows();
+    if (!mounted) return null;
+    if (rows.isEmpty) {
+      selNotice(context, 'Nothing to export.');
+      return null;
+    }
+    return rows;
+  }
+
+  String _filterScopeLabel() {
+    final subtitle = widget.subtitle?.trim();
+    if (subtitle != null && subtitle.isNotEmpty) return subtitle;
+    return 'Giving';
   }
 
   @override
@@ -87,13 +128,12 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
     final currency =
         (ref.watch(churchSettingsProvider).valueOrNull?.currency ?? 'GHS')
             .toUpperCase();
-    final plainMoney = NumberFormat.decimalPatternDigits(
-      decimalDigits: 2,
-    ).format;
     final church = ref.watch(churchNameProvider) ?? 'Church';
+    final armTree = ref.watch(armTreeProvider);
     final logoUrl = ref.watch(churchSettingsProvider).valueOrNull?.logoUrl;
+    final markColorHex =
+        ref.watch(churchSettingsProvider).valueOrNull?.primaryColorHex;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
-    final empty = widget.entries.isEmpty;
     final now = DateTime.now();
     final when = DateFormat.yMMMd(
       Localizations.localeOf(context).toString(),
@@ -106,61 +146,61 @@ class _EntryExportButtonsState extends ConsumerState<EntryExportButtons> {
           label: 'PDF',
           icon: LucideIcons.fileDown,
           dense: widget.dense,
-          onPressed: empty || _busy
+          onPressed: _disabled
               ? null
-              : () => _run(
-                  () => shareEntriesPdf(
+              : () => _run(() async {
+                  final rows = await _rowsOrNotify();
+                  if (rows == null) return;
+                  final scope = _periodScopeOf(rows);
+                  await shareEntriesPdf(
                     title: widget.title,
-                    // The church's name belongs on its own report, above the
-                    // description of what has been filtered to.
-                    subtitle: [
-                      church,
-                      widget.subtitle ?? '${widget.entries.length} entries',
-                    ].join(' · '),
-                    entries: widget.entries,
-                    columnHeaders: [
-                      l10n.pdfTableHeaderPartner,
-                      l10n.pdfTableHeaderAmountIn(currency),
-                      l10n.pdfTableHeaderStatus,
-                      l10n.pdfTableHeaderPeriod,
-                      l10n.pdfTableHeaderArm,
-                      l10n.pdfTableHeaderDateGiven,
-                    ],
-                    formatAmount: plainMoney,
+                    subtitle: widget.subtitle ?? _filterScopeLabel(),
+                    entries: rows,
+                    columnHeaders: const [],
                     logoUrl: logoUrl,
                     generatedAtLine: l10n.pdfGeneratedAt(when),
                     exporterLine: profile == null
                         ? null
                         : l10n.pdfExporter(profile.fullName),
-                    footerBrand: l10n.pdfFooterBrand,
+                    organizationName: church,
+                    ministryYear: scope,
+                    exporterName: profile?.fullName,
+                    currencySymbol: currency,
+                    generatedAt: now,
+                    // Sub-arms appear under their main arm on the PDF; the
+                    // CSV keeps each entry's exact arm.
+                    armNameOf: (e) => armTree.shownNameOf(e.partnershipArmId),
+                    markColorHex: markColorHex,
                     filename: pillrExportFileName(
                       report: widget.title,
-                      scope: _periodScope,
+                      scope: scope,
                       on: now,
                       extension: 'pdf',
                     ),
-                  ),
-                ),
+                  );
+                }),
         ),
         const SizedBox(width: SelSpace.x2),
         SelButton(
           label: 'CSV',
           icon: LucideIcons.table,
           dense: widget.dense,
-          onPressed: empty || _busy
+          onPressed: _disabled
               ? null
-              : () => _run(
-                  () => shareEntriesCsv(
-                    entriesToCsv(widget.entries),
+              : () => _run(() async {
+                  final rows = await _rowsOrNotify();
+                  if (rows == null) return;
+                  await shareEntriesCsv(
+                    entriesToCsv(rows),
                     filename: pillrExportFileName(
                       report: widget.title,
-                      scope: _periodScope,
+                      scope: _periodScopeOf(rows),
                       on: now,
                       extension: 'csv',
                     ),
                     subject: '$church — ${widget.title}',
-                  ),
-                ),
+                  );
+                }),
         ),
       ],
     );

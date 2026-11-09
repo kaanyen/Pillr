@@ -9,7 +9,7 @@ class AppLocalizationsFr extends AppLocalizations {
   AppLocalizationsFr([String locale = 'fr']) : super(locale);
 
   @override
-  String get appTitle => 'Pillr';
+  String get appTitle => 'The Pillr';
 
   @override
   String get navSectionMain => 'Principal';
@@ -46,6 +46,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navPartners => 'Partenaires';
+
+  @override
+  String get navFellowships => 'Fraternités';
 
   @override
   String get navLeaderboard => 'Classement';
@@ -448,7 +451,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bulkImportNeedXlsx =>
-      'Veuillez choisir un fichier Excel avec l\'extension .xlsx.';
+      'Choisissez un fichier .xlsx ou .csv. Les anciens .xls doivent d\'abord être enregistrés en .xlsx.';
 
   @override
   String get bulkImportNoMacros =>
@@ -653,8 +656,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get entriesNoEntriesTitle => 'Aucune saisie pour l\'instant';
 
   @override
-  String get entriesNoEntriesMessage =>
-      'Enregistrez une nouvelle saisie de partenariat.';
+  String get entriesNoEntriesMessage => 'Enregistrez un don.';
 
   @override
   String get entriesNoMatchesTitle => 'Aucun résultat';
@@ -772,6 +774,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pdfTableHeaderPartner => 'Partenaire';
 
   @override
+  String get pdfTableHeaderMemberId => 'ID membre';
+
+  @override
+  String get pdfTableHeaderFellowship => 'Fraternité';
+
+  @override
+  String get pdfTableHeaderSubmittedBy => 'Soumis par';
+
+  @override
+  String get pdfTableHeaderApprovedBy => 'Approuvé par';
+
+  @override
   String get pdfTableHeaderAmount => 'Montant';
 
   @override
@@ -812,6 +826,42 @@ class AppLocalizationsFr extends AppLocalizations {
   String get navRecords => 'Registres';
 
   @override
+  String get navRecordsAll => 'Tous les registres';
+
+  @override
+  String get navRecordsMonthly => 'Par mois';
+
+  @override
+  String get navRecordsImports => 'Imports';
+
+  @override
+  String get navRecordsByArm => 'Par bras';
+
+  @override
+  String get navRecordsByFellowship => 'Par fraternité';
+
+  @override
+  String get navRecordsByPartner => 'Par partenaire';
+
+  @override
+  String get navPartnersAll => 'Tous les partenaires';
+
+  @override
+  String get navPartnersByFellowship => 'Par fraternité';
+
+  @override
+  String get navPartnersNew => 'Nouveaux cette année';
+
+  @override
+  String get navPartnersRhythm => 'Rythme des dons';
+
+  @override
+  String get navPartnersFollowUp => 'À relancer';
+
+  @override
+  String get navRanked => 'Classement';
+
+  @override
   String get navPeople => 'Personnes';
 
   @override
@@ -819,6 +869,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get navActivity => 'Activité';
+
+  @override
+  String get navTools => 'Outils';
 
   @override
   String get navPlatformChurches => 'Toutes les églises';
@@ -863,6 +916,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Toutes les écritures de partenariat de votre église, les plus récentes d\'abord.';
 
   @override
+  String get recordsMonthlyTitle => 'Par mois';
+
+  @override
+  String get recordsMonthlySubtitle =>
+      'Parcourez les dons approuvés mois par mois.';
+
+  @override
   String get recordsEmptyTitle => 'Aucune écriture';
 
   @override
@@ -870,7 +930,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les écritures apparaîtront à mesure que votre équipe les enregistre.';
 
   @override
-  String get recordsEmptyAction => 'Enregistrer la première écriture';
+  String get recordsEmptyAction => 'Enregistrer le premier don';
 
   @override
   String get statusPending => 'En attente';
@@ -880,6 +940,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get statusDeclined => 'Refusée';
+
+  @override
+  String get statusVoided => 'Annulée';
 
   @override
   String get actionNewEntry => 'Nouvelle écriture';

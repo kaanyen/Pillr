@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,9 +5,14 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/extensions/async_value_ext.dart';
+import '../../core/navigation/panel_flows.dart';
+import '../../core/notifications/sel_notice.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/utils/entry_duplicate_utils.dart';
+import '../../core/utils/money.dart';
 import '../../design/seline.dart';
+import '../../features/leaderboard/giving_view.dart';
+import '../../features/church/domain/exchange_rates.dart';
 import '../../features/church/providers/church_settings_providers.dart';
 import '../../features/activity/activity_log_helper.dart';
 import '../../features/arms/domain/partnership_arm.dart';
@@ -18,26 +21,26 @@ import '../../features/auth/domain/church_user.dart';
 import '../../features/auth/domain/user_church_index.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/partners/domain/partner.dart';
-import '../../features/partners/presentation/partner_form_dialog.dart';
-import '../../features/partners/providers/partners_providers.dart';
 import '../../features/periods/domain/partnership_period.dart';
 import '../../features/periods/providers/periods_providers.dart';
+import '../../features/entries/data/similar_entries.dart';
 import '../../features/entries/domain/partnership_entry.dart';
 import '../../features/entries/providers/entries_providers.dart';
+import '../../core/errors/plain_error.dart';
 
 Map<String, dynamic> _entryValuesForActivityLog(PartnershipEntry e) => {
-      'partnerId': e.partnerId,
-      'partnerName': e.partnerSnapshot['fullName'],
-      'memberId': e.partnerSnapshot['memberId'],
-      'amountCedis': e.amountCedis,
-      'partnershipArmId': e.partnershipArmId,
-      'armName': e.armSnapshot['name'],
-      'partnershipPeriodId': e.partnershipPeriodId,
-      'periodName': e.periodSnapshot['name'],
-      'status': e.status,
-      'notes': e.notes,
-      'dateGiven': e.dateGiven.toIso8601String(),
-    };
+  'partnerId': e.partnerId,
+  'partnerName': e.partnerSnapshot['fullName'],
+  'memberId': e.partnerSnapshot['memberId'],
+  'amountCedis': e.amountCedis,
+  'partnershipArmId': e.partnershipArmId,
+  'armName': e.armSnapshot['name'],
+  'partnershipPeriodId': e.partnershipPeriodId,
+  'periodName': e.periodSnapshot['name'],
+  'status': e.status,
+  'notes': e.notes,
+  'dateGiven': e.dateGiven.toIso8601String(),
+};
 
 Map<String, dynamic> _afterEntryValues({
   required Partner partner,
@@ -47,27 +50,29 @@ Map<String, dynamic> _afterEntryValues({
   required DateTime dateGiven,
   required String? notes,
   required String status,
-}) =>
-    {
-      'partnerId': partner.id,
-      'partnerName': partner.fullName,
-      'memberId': partner.memberId,
-      'amountCedis': amount,
-      'partnershipArmId': arm.id,
-      'armName': arm.name,
-      'partnershipPeriodId': period.id,
-      'periodName': period.name,
-      'status': status,
-      'notes': notes,
-      'dateGiven': dateGiven.toIso8601String(),
-    };
+}) => {
+  'partnerId': partner.id,
+  'partnerName': partner.fullName,
+  'memberId': partner.memberId,
+  'amountCedis': amount,
+  'partnershipArmId': arm.id,
+  'armName': arm.name,
+  'partnershipPeriodId': period.id,
+  'periodName': period.name,
+  'status': status,
+  'notes': notes,
+  'dateGiven': dateGiven.toIso8601String(),
+};
 
 /// Create a new partnership entry, or edit an existing one (`entryId` set).
 class EntryFormScreen extends ConsumerStatefulWidget {
-  const EntryFormScreen({super.key, this.entryId});
+  const EntryFormScreen({super.key, this.entryId, this.embedded = false});
 
   /// When non-null, loads [entryId] and saves via staff/pastor update.
   final String? entryId;
+
+  /// Rendered inside a side sheet — no page chrome, closes on save.
+  final bool embedded;
 
   @override
   ConsumerState<EntryFormScreen> createState() => _EntryFormScreenState();
@@ -79,6 +84,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   PartnershipPeriod? _period;
   final _amount = TextEditingController();
   final _notes = TextEditingController();
+  String _sourceCurrency = SelectableCurrency.ghs;
   DateTime _dateGiven = DateTime.now();
   bool _loading = false;
   String? _error;
@@ -127,7 +133,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     for (final p in periods) {
       if (p.id == entry.partnershipPeriodId) _period = p;
     }
-    _amount.text = _formatAmount(entry.amountCedis);
+    _amount.text = _formatAmount(entry.displaySourceAmount);
+    _sourceCurrency = entry.displaySourceCurrency;
     _notes.text = entry.notes ?? '';
     _dateGiven = entry.dateGiven;
   }
@@ -137,11 +144,16 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     return v.toString();
   }
 
-  List<PartnershipArm> _armsForForm(PartnershipEntry? entry, List<PartnershipArm> all) {
+  List<PartnershipArm> _armsForForm(
+    PartnershipEntry? entry,
+    List<PartnershipArm> all,
+  ) {
     if (!_isEdit || entry == null) {
       return all.where((a) => a.isActive).toList();
     }
-    return all.where((a) => a.isActive || a.id == entry.partnershipArmId).toList();
+    return all
+        .where((a) => a.isActive || a.id == entry.partnershipArmId)
+        .toList();
   }
 
   @override
@@ -154,8 +166,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       final armsAsync = ref.watch(armsStreamProvider);
       final periodsAsync = ref.watch(periodsStreamProvider);
       return entryAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
+        loading: () => const Center(child: PillrLoader(size: 40)),
+        error: (e, _) => Center(child: Text(plainError(e))),
         data: (entry) {
           if (entry == null) {
             return Center(
@@ -166,11 +178,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             );
           }
           return armsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('$e')),
+            loading: () => const Center(child: PillrLoader(size: 40)),
+            error: (e, _) => Center(child: Text(plainError(e))),
             data: (armList) => periodsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('$e')),
+              loading: () => const Center(child: PillrLoader(size: 40)),
+              error: (e, _) => Center(child: Text(plainError(e))),
               data: (periodList) {
                 if (!_seeded) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -201,8 +213,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     _period ??= active;
 
     return arms.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('$e')),
+      loading: () => const Center(child: PillrLoader(size: 40)),
+      error: (e, _) => Center(child: Text(plainError(e))),
       data: (armList) => _buildForm(
         context,
         idx: idx,
@@ -232,201 +244,480 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     final period = _period ?? activePeriodFallback;
     final money = ref.watch(churchMoneyFormatProvider);
 
-    return SelPageBody(
-      maxWidth: 640,
-      children: [
-        SelPageTitle(
-          title: _isEdit ? 'Edit entry' : 'Record a ',
-          highlight: _isEdit ? null : 'partnership',
-          subtitle: _isEdit
-              ? 'Changes are re-recorded in the activity log.'
-              : 'Who gave, how much, and toward what.',
-        ),
+    final tree = ref.watch(armTreeProvider);
+    final mainId = _arm == null ? null : tree.shownArmIdOf(_arm!.id);
+    final mains = [
+      for (final m in tree.mains)
+        if (arms.any((a) => a.id == m.id)) m,
+    ];
+    final subs = mainId == null
+        ? const <PartnershipArm>[]
+        : [
+            for (final c in tree.childrenOf(mainId))
+              if (arms.any((a) => a.id == c.id)) c,
+          ];
+    final mainName = mainId == null ? '' : tree.byId(mainId)?.name ?? '';
+    final today = DateTime.now();
+    final lastSunday = DateTime(today.year, today.month, today.day)
+        .subtract(Duration(days: today.weekday % 7 == 0 ? 7 : today.weekday % 7));
+    bool sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+    final isPastor = idx?.isPastor ?? false;
+    final amount =
+        _resolveConversion(ref)?.amountBase ?? parseAmountInput(_amount.text) ?? 0;
 
-        if (_error != null) ...[
-          SelCard(
-            lift: SelLift.flat,
-            padding: const EdgeInsets.symmetric(
-              horizontal: SelSpace.x4,
-              vertical: SelSpace.x3,
+    Widget label(String t, {String? note}) => Padding(
+      padding: const EdgeInsets.only(bottom: SelSpace.x2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(t, style: SelType.bodyMedium),
+          if (note != null) Text(note, style: SelType.small),
+        ],
+      ),
+    );
+    Widget pill(String text, bool on, VoidCallback onTap) => Padding(
+      padding: const EdgeInsets.only(right: SelSpace.x2, bottom: SelSpace.x2),
+      child: Material(
+        color: on ? Sel.ink : Sel.card,
+        shape: StadiumBorder(
+          side: BorderSide(color: on ? Sel.ink : Sel.borderMuted, width: 1.5),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+            child: Text(
+              text,
+              style: SelType.body.copyWith(
+                color: on ? Sel.card : Sel.text,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.alertCircle, size: 14, color: Sel.ink),
-                const SizedBox(width: SelSpace.x2),
-                Expanded(
-                  child: Text(
-                    _error!,
-                    style: SelType.bodySm.copyWith(color: Sel.ink),
+          ),
+        ),
+      ),
+    );
+
+    final form = SelCard(
+      padding: const EdgeInsets.fromLTRB(28, 26, 28, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: SelSpace.x4,
+                vertical: SelSpace.x3,
+              ),
+              decoration: BoxDecoration(
+                color: Sel.skyTint,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _error!,
+                style: SelType.bodySm.copyWith(color: Sel.ink),
+              ),
+            ),
+            const SizedBox(height: SelSpace.x4),
+          ],
+          label('Partner'),
+          _PartnerTile(
+            partner: _partner,
+            onTap: churchId == null || uid == null
+                ? null
+                : () => _pickPartner(context, churchId, uid),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Text(
+            'Search by name, member ID or fellowship.',
+            style: SelType.small,
+          ),
+          const SizedBox(height: SelSpace.x6),
+          Wrap(
+            spacing: SelSpace.x6,
+            runSpacing: SelSpace.x4,
+            children: [
+              SizedBox(
+                width: 420,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    label('Amount'),
+                    SelField(
+                      controller: _amount,
+                      hint: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  label('Currency'),
+                  Wrap(
+                    children: [
+                      for (final code in SelectableCurrency.all)
+                        pill(
+                          SelectableCurrency.label(code),
+                          _sourceCurrency == code,
+                          () => setState(() => _sourceCurrency = code),
+                        ),
+                    ],
                   ),
+                  if (_conversionPreview(money, ref) != null)
+                    Text(_conversionPreview(money, ref)!, style: SelType.small),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          label('Partnership arm'),
+          Wrap(
+            children: [
+              for (final m in mains)
+                pill(
+                  m.name,
+                  m.id == mainId,
+                  () => setState(() => _arm = arms.where((a) => a.id == m.id).firstOrNull ?? m),
+                ),
+            ],
+          ),
+          if (subs.isNotEmpty) ...[
+            const SizedBox(height: SelSpace.x2),
+            label('Which part of $mainName?'),
+            Wrap(
+              children: [
+                pill(
+                  '$mainName (general)',
+                  _arm?.id == mainId,
+                  () => setState(() => _arm = tree.byId(mainId!) ?? _arm),
+                ),
+                for (final c in subs)
+                  pill(c.name, _arm?.id == c.id, () => setState(() => _arm = c)),
+              ],
+            ),
+          ],
+          const SizedBox(height: SelSpace.x6),
+          Wrap(
+            spacing: SelSpace.x6,
+            runSpacing: SelSpace.x4,
+            children: [
+              SizedBox(
+                width: 340,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    label('Date given'),
+                    SelButton(
+                      label: formatFirestoreDate(_dateGiven, pattern: 'd MMM y'),
+                      icon: LucideIcons.calendar,
+                      expanded: true,
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _dateGiven,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now().add(const Duration(days: 1)),
+                        );
+                        if (d != null) setState(() => _dateGiven = d);
+                      },
+                    ),
+                    const SizedBox(height: SelSpace.x2),
+                    Wrap(
+                      children: [
+                        pill('Today', sameDay(_dateGiven, today),
+                            () => setState(() => _dateGiven = today)),
+                        pill(
+                          formatFirestoreDate(lastSunday, pattern: 'EEEE, d MMM'),
+                          sameDay(_dateGiven, lastSunday),
+                          () => setState(() => _dateGiven = lastSunday),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 340,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    label('Period'),
+                    if (_isEdit)
+                      SelSelect<String>(
+                        value: period?.id,
+                        onChanged: (v) => setState(() {
+                          _period =
+                              periodList.where((p) => p.id == v).firstOrNull;
+                        }),
+                        items: [
+                          for (final p in periodList)
+                            DropdownMenuItem(value: p.id, child: Text(p.name)),
+                        ],
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+                        decoration: BoxDecoration(
+                          color: Sel.track,
+                          borderRadius: BorderRadius.circular(SelRadius.pill),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                period?.name ?? 'No active period',
+                                style: SelType.body.copyWith(color: Sel.text),
+                              ),
+                            ),
+                            if (period != null)
+                              const SelStatusTag(
+                                status: SelStatus.active,
+                                label: 'Active',
+                              ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: SelSpace.x2),
+                    Text(
+                      'Giving goes to the active period. Change it in Configuration.',
+                      style: SelType.small,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: SelSpace.x6),
+          label('Notes', note: 'Optional'),
+          SelField(controller: _notes, hint: 'MoMo ref, cheque number…', maxLines: 3),
+          const SizedBox(height: SelSpace.x6),
+          const Divider(height: 1, color: Sel.border),
+          const SizedBox(height: SelSpace.x4),
+          Row(
+            children: [
+              SelButton.cyan(
+                label: _isEdit
+                    ? 'Save changes'
+                    : isPastor
+                    ? 'Record and approve'
+                    : 'Record giving',
+                loading: _loading,
+                onPressed: churchId == null || profile == null
+                    ? null
+                    : () => _submit(churchId, profile, entry),
+              ),
+              const Spacer(),
+              SelButton(
+                label: 'Cancel',
+                kind: SelButtonKind.quiet,
+                onPressed: widget.embedded
+                    ? () => Navigator.of(context).pop()
+                    : () => context.go('/records'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final armBefore = mainId == null
+        ? 0.0
+        : ref.watch(givingViewProvider).armTotal(mainId);
+    final when = SelCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('When you save', style: SelType.subtitle),
+          const SizedBox(height: SelSpace.x2),
+          Text.rich(
+            TextSpan(
+              style: SelType.body.copyWith(color: Sel.text),
+              children: [
+                TextSpan(
+                  text: money(amount),
+                  style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800),
+                ),
+                TextSpan(
+                  text: _partner == null ? '' : ' from ${_partner!.fullName}',
+                ),
+                TextSpan(
+                  text: isPastor
+                      ? ' counts toward ${mainName.isEmpty ? 'its arm' : mainName} straight away, because you\'re a pastor.'
+                      : ' waits in the queue until a pastor approves it.',
                 ),
               ],
             ),
           ),
-          const SizedBox(height: SelSpace.x4),
-        ],
-
-        SelPanel(
-          title: 'Partner',
-          subtitle: 'Who this partnership is from.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _PartnerTile(
-                partner: _partner,
-                onTap: churchId == null || uid == null
-                    ? null
-                    : () => _pickPartner(context, churchId, uid),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: SelSpace.x4),
-
-        SelPanel(
-          title: 'Partnership details',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SelSelect<String>(
-                value: _arm?.id,
-                label: 'Partnership arm',
-                hint: Text('Select an arm', style: SelType.bodyMuted),
-                onChanged: (v) => setState(() {
-                  _arm = arms.where((a) => a.id == v).firstOrNull;
-                }),
-                items: [
-                  for (final a in arms)
-                    DropdownMenuItem(value: a.id, child: Text(a.name)),
-                ],
-              ),
-              const SizedBox(height: SelSpace.x4),
-              if (_isEdit)
-                SelSelect<String>(
-                  value: period?.id,
-                  label: 'Period',
-                  onChanged: (v) => setState(() {
-                    _period = periodList.where((p) => p.id == v).firstOrNull;
-                  }),
-                  items: [
-                    for (final p in periodList)
-                      DropdownMenuItem(value: p.id, child: Text(p.name)),
-                  ],
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Period', style: SelType.bodyMedium),
-                    const SizedBox(height: SelSpace.x2),
-                    Text(
-                      period?.name ?? 'No active period',
-                      style: SelType.bodyMuted,
-                    ),
-                  ],
-                ),
-              const SizedBox(height: SelSpace.x4),
-              SelField(
-                controller: _amount,
-                label: 'Amount',
-                hint: '500',
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              ),
-              const SizedBox(height: SelSpace.x4),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          if (isPastor && mainId != null) ...[
+            const Divider(height: SelSpace.x6, color: Sel.border),
+            Text('$mainName this period', style: SelType.small),
+            Text.rich(
+              TextSpan(
+                text: '${money(armBefore)} → ',
+                style: SelType.body.copyWith(color: Sel.warm),
                 children: [
-                  Text('Date given', style: SelType.bodyMedium),
-                  const SizedBox(height: SelSpace.x2),
-                  SelButton(
-                    label: formatFirestoreDate(_dateGiven, pattern: 'd MMMM y'),
-                    icon: LucideIcons.calendar,
-                    onPressed: () async {
-                      final d = await showDatePicker(
-                        context: context,
-                        initialDate: _dateGiven,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now().add(const Duration(days: 1)),
-                      );
-                      if (d != null) setState(() => _dateGiven = d);
-                    },
+                  TextSpan(
+                    text: money(armBefore + amount),
+                    style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
-              const SizedBox(height: SelSpace.x4),
-              SelField(
-                controller: _notes,
-                label: 'Notes',
-                hint: 'Optional',
-                maxLines: 3,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: SelSpace.x6),
-
-        Row(
-          children: [
-            SelButton(
-              label: 'Cancel',
-              kind: SelButtonKind.quiet,
-              onPressed: () => context.go('/queue'),
-            ),
-            const Spacer(),
-            SelButton.cyan(
-              label: _isEdit ? 'Save changes' : 'Record entry',
-              loading: _loading,
-              onPressed: churchId == null || profile == null
-                  ? null
-                  : () => _submit(churchId, profile, entry),
             ),
           ],
-        ),
+          const SizedBox(height: SelSpace.x3),
+          Container(
+            padding: const EdgeInsets.all(SelSpace.x4),
+            decoration: BoxDecoration(
+              color: Sel.skyTint,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              'Staff entries wait in the queue until a pastor approves them.',
+              style: SelType.bodySm.copyWith(color: Sel.ink),
+            ),
+          ),
+        ],
+      ),
+    );
 
-        if (!_isEdit && idx?.isStaff == true) ...[
-          const SizedBox(height: SelSpace.x4),
-          Text(
-            'Your entry goes to a pastor for review before it counts toward '
-            'totals.',
-            style: SelType.small,
-          ),
-        ],
-        if (_partner != null && _amount.text.isNotEmpty) ...[
-          const SizedBox(height: SelSpace.x4),
-          Text(
-            'Recording ${money(double.tryParse(_amount.text.replaceAll(',', '')) ?? 0)} '
-            'for ${_partner!.fullName}.',
-            style: SelType.small,
-          ),
-        ],
+    final recent = _partner == null
+        ? null
+        : Consumer(
+            builder: (context, ref, _) {
+              final es = (ref.watch(partnerEntriesProvider(_partner!.id)).valueOrNull ?? const [])
+                  .take(3)
+                  .toList();
+              return SelCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      "${_partner!.fullName.split(' ').first}'s recent giving",
+                      style: SelType.subtitle,
+                    ),
+                    const SizedBox(height: SelSpace.x2),
+                    if (es.isEmpty) Text('Nothing yet.', style: SelType.bodySm),
+                    for (var i = 0; i < es.length; i++) ...[
+                      if (i > 0) const Divider(height: 1, color: Sel.rowLine),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${tree.shownNameOf(es[i].partnershipArmId) ?? ''} · ${formatFirestoreDate(es[i].dateGiven, pattern: 'd MMM')}',
+                                    style: SelType.body.copyWith(color: Sel.text),
+                                  ),
+                                  Text(
+                                    es[i].status == 'approved' ? 'Approved' : 'Waiting',
+                                    style: SelType.small,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(money(es[i].amountCedis), style: SelType.bodyMedium),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          );
+
+    if (widget.embedded) {
+      return SelPageBody(maxWidth: double.infinity, children: [form]);
+    }
+
+    return SelPageBody(
+      children: [
+        SelBreadcrumb([
+          ('Records', () => context.go('/records')),
+          (_isEdit ? 'Edit entry' : 'Record giving', null),
+        ]),
+        const SizedBox(height: SelSpace.x4),
+        SelPageTitle(
+          title: _isEdit ? 'Edit entry' : 'Record giving',
+          subtitle: _isEdit
+              ? 'Changes are kept in the entry\'s history.'
+              : 'Who gave, how much, and toward what.',
+        ),
+        LayoutBuilder(
+          builder: (context, c) => c.maxWidth < 980
+              ? form
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: form),
+                    const SizedBox(width: SelSpace.x4),
+                    SizedBox(
+                      width: 320,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          when,
+                          if (recent != null) ...[
+                            const SizedBox(height: SelSpace.x4),
+                            recent,
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ],
     );
   }
 
-  Future<void> _pickPartner(BuildContext context, String churchId, String uid) async {
+  CurrencyConversion? _resolveConversion(WidgetRef ref) {
+    final sourceAmount = parseAmountInput(_amount.text);
+    if (sourceAmount == null || sourceAmount <= 0) return null;
+    final rates = ref.read(churchExchangeRatesProvider);
+    return rates.convert(
+      sourceAmount: sourceAmount,
+      sourceCurrency: _sourceCurrency,
+    );
+  }
+
+  String? _conversionPreview(String Function(num) money, WidgetRef ref) {
+    final conversion = _resolveConversion(ref);
+    if (conversion == null || conversion.isBaseCurrency) return null;
+    return '≈ ${money(conversion.amountBase)} (rate ${conversion.exchangeRateToBase})';
+  }
+
+  Future<void> _pickPartner(
+    BuildContext context,
+    String churchId,
+    String uid,
+  ) async {
     if (!context.mounted) return;
-    final parentContext = context;
-    final chosen = await showModalBottomSheet<Partner>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Sel.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(SelRadius.card)),
-      ),
-      builder: (ctx) => _PartnerPickerSheet(
-        churchId: churchId,
-        uid: uid,
-        parentContext: parentContext,
-      ),
+    final chosen = await showPartnerPickerPanel(
+      context,
+      churchId: churchId,
+      uid: uid,
     );
     if (chosen != null) setState(() => _partner = chosen);
   }
 
-  Future<void> _submit(String churchId, ChurchUser staff, PartnershipEntry? entry) async {
+  Future<void> _submit(
+    String churchId,
+    ChurchUser staff,
+    PartnershipEntry? entry,
+  ) async {
     setState(() => _error = null);
-    final amount = double.tryParse(_amount.text.replaceAll(',', ''));
+    final conversion = _resolveConversion(ref);
     if (_partner == null) {
       setState(() => _error = 'Select a partner.');
       return;
@@ -440,10 +731,21 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       setState(() => _error = 'No active period.');
       return;
     }
-    if (amount == null || amount <= 0) {
+    if (conversion == null) {
       setState(() => _error = 'Enter a valid amount.');
       return;
     }
+    if (!conversion.rateAvailable) {
+      // Without a rate the conversion is 1:1, which would bank $100 of giving as
+      // ₵100. Better to stop here than to record a number nobody meant.
+      setState(
+        () => _error =
+            'No exchange rate is set for ${conversion.sourceCurrency}. '
+            'Add one in Settings before recording in this currency.',
+      );
+      return;
+    }
+    final amount = conversion.amountBase;
 
     setState(() => _loading = true);
     final repo = ref.read(entriesRepositoryProvider);
@@ -463,7 +765,8 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
 
     try {
       if (_isEdit) {
-        final existing = ref.read(entryDetailProvider(widget.entryId!)).valueOrNull ?? entry;
+        final existing =
+            ref.read(entryDetailProvider(widget.entryId!)).valueOrNull ?? entry;
         if (existing == null) {
           setState(() => _error = 'Entry not found.');
           return;
@@ -485,6 +788,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             partnershipPeriodId: period.id,
             periodSnapshot: perSnap,
             amountCedis: amount,
+            sourceCurrency: conversion.sourceCurrency,
+            sourceAmount: conversion.sourceAmount,
+            exchangeRateToBase: conversion.exchangeRateToBase,
             dateGiven: _dateGiven,
             notes: _notes.text,
           );
@@ -500,6 +806,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             partnershipPeriodId: period.id,
             periodSnapshot: perSnap,
             amountCedis: amount,
+            sourceCurrency: conversion.sourceCurrency,
+            sourceAmount: conversion.sourceAmount,
+            exchangeRateToBase: conversion.exchangeRateToBase,
             dateGiven: _dateGiven,
             notes: _notes.text,
           );
@@ -526,24 +835,48 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           entitySnapshot: after,
           metadata: {'before': _entryValuesForActivityLog(existing)},
         );
-        if (mounted) context.go('/entries/${widget.entryId}');
+        if (mounted) {
+          if (widget.embedded) {
+            selNotice(context, 'Entry updated.', kind: SelNoticeKind.success);
+            Navigator.of(context).pop();
+          } else {
+            context.go('/entries/${widget.entryId}');
+          }
+        }
       } else {
         final idx = ref.read(userChurchIndexProvider).valueOrNull;
         if (idx != null && (idx.isPastor || idx.isStaff)) {
-          final candidates = await repo.fetchEntriesForDuplicateCheck(
-            churchId,
-            partnerId: _partner!.id,
-            allChurchEntries: idx.isPastor,
-            createdByUid: idx.isStaff ? idx.uid : null,
-          );
-          if (hasSimilarPartnershipEntryWithSameDate(
-            candidates,
-            partnerId: _partner!.id,
-            armId: _arm!.id,
-            periodId: period.id,
-            amount: amount,
-            dateGiven: _dateGiven,
-          )) {
+          // Pastors compare here; staff, who read only their own entries,
+          // ask the server, which compares against everyone's.
+          final bool similar;
+          if (idx.isPastor) {
+            final candidates = await repo.fetchEntriesForDuplicateCheck(
+              churchId,
+              partnerId: _partner!.id,
+              allChurchEntries: true,
+            );
+            similar = hasSimilarPartnershipEntryWithSameDate(
+              candidates,
+              partnerId: _partner!.id,
+              armId: _arm!.id,
+              periodId: period.id,
+              amount: amount,
+              dateGiven: _dateGiven,
+            );
+          } else {
+            final hits = await ref.read(similarEntriesProvider).check([
+              (
+                key: 'new',
+                partnerId: _partner!.id,
+                armId: _arm!.id,
+                periodId: period.id,
+                amountCedis: amount,
+                dateGiven: _dateGiven,
+              ),
+            ]);
+            similar = hits.contains('new');
+          }
+          if (similar) {
             if (!mounted) return;
             final proceed = await showDialog<bool>(
               context: context,
@@ -555,8 +888,14 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   'Do you want to record another entry anyway?',
                 ),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                  FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Continue'),
+                  ),
                 ],
               ),
             );
@@ -576,6 +915,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
           partnershipPeriodId: period.id,
           periodSnapshot: perSnap,
           amountCedis: amount,
+          sourceCurrency: conversion.sourceCurrency,
+          sourceAmount: conversion.sourceAmount,
+          exchangeRateToBase: conversion.exchangeRateToBase,
           dateGiven: _dateGiven,
           notes: _notes.text,
         );
@@ -596,11 +938,25 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             status: idxCreate?.isPastor == true ? 'approved' : 'pending',
           ),
         );
-        ref.invalidate(entriesListProvider);
-        if (mounted) context.go('/entries/success/$entryId');
+        ref.invalidate(rankingEntriesProvider);
+        invalidateEntryDerivedData(ref);
+        if (mounted) {
+          if (widget.embedded) {
+            selNotice(
+              context,
+              idxCreate?.isPastor == true
+                  ? 'Entry recorded and approved.'
+                  : 'Entry submitted for review.',
+              kind: SelNoticeKind.success,
+            );
+            Navigator.of(context).pop();
+          } else {
+            context.go('/entries/success/$entryId');
+          }
+        }
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = plainError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -629,35 +985,41 @@ class _PartnerTile extends StatelessWidget {
             : SystemMouseCursors.click,
         child: Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: SelSpace.x3,
-            vertical: SelSpace.x3,
+            horizontal: 18,
+            vertical: 10,
           ),
           decoration: BoxDecoration(
-            color: Sel.canvas,
-            borderRadius: BorderRadius.circular(SelRadius.input),
-            border: Border.all(color: Sel.borderMuted),
+            color: Sel.card,
+            borderRadius: BorderRadius.circular(SelRadius.pill),
+            border: Border.all(
+              color: partner == null ? Sel.border : Sel.ink,
+              width: partner == null ? 1 : 1.5,
+            ),
           ),
           child: Row(
             children: [
               Icon(
                 p == null ? LucideIcons.search : LucideIcons.user,
                 size: 15,
-                color: Sel.ash,
+                color: Sel.warm,
               ),
               const SizedBox(width: SelSpace.x3),
               Expanded(
                 child: p == null
-                    ? Text('Search by name, member ID or fellowship',
-                        style: SelType.bodyMuted)
+                    ? Text(
+                        'Search by name, member ID or fellowship',
+                        style: SelType.bodyMuted,
+                      )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(p.fullName, style: SelType.bodyMedium),
                           Text(
-                            [p.memberId, p.fellowship]
-                                .where((e) => e.isNotEmpty)
-                                .join(' · '),
+                            [
+                              p.memberId,
+                              p.fellowship,
+                            ].where((e) => e.isNotEmpty).join(' · '),
                             style: SelType.small,
                           ),
                         ],
@@ -669,156 +1031,6 @@ class _PartnerTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PartnerPickerSheet extends ConsumerStatefulWidget {
-  const _PartnerPickerSheet({
-    required this.churchId,
-    required this.uid,
-    required this.parentContext,
-  });
-
-  final String churchId;
-  final String uid;
-  final BuildContext parentContext;
-
-  @override
-  ConsumerState<_PartnerPickerSheet> createState() => _PartnerPickerSheetState();
-}
-
-class _PartnerPickerSheetState extends ConsumerState<_PartnerPickerSheet> {
-  late final TextEditingController _controller;
-  Timer? _debounce;
-  List<Partner> _results = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController();
-    _load('');
-  }
-
-  Future<void> _load(String q) async {
-    if (!mounted) return;
-    setState(() => _loading = true);
-    final repo = ref.read(partnersRepositoryProvider);
-    final list = await repo.searchPartners(widget.churchId, q);
-    if (!mounted) return;
-    setState(() {
-      _results = list;
-      _loading = false;
-    });
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-        left: SelSpace.x6,
-        right: SelSpace.x6,
-        top: SelSpace.x2,
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 420,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: SelSpace.x4),
-                  decoration: BoxDecoration(
-                    color: Sel.border,
-                    borderRadius: BorderRadius.circular(SelRadius.pill),
-                  ),
-                ),
-              ),
-              Text('Select partner', style: SelType.subtitle),
-              const SizedBox(height: SelSpace.x4),
-              TextField(
-                controller: _controller,
-                decoration: InputDecoration(
-                  hintText: 'Search by name, member ID, fellowship…',
-                  filled: true,
-                  fillColor: Sel.canvas,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(SelRadius.input),
-                    borderSide: const BorderSide(color: Sel.soot, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: 14),
-                  prefixIcon: const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(LucideIcons.search, color: Sel.ash, size: 20),
-                  ),
-                ),
-              onChanged: (v) {
-                _debounce?.cancel();
-                _debounce = Timer(const Duration(milliseconds: 280), () {
-                  if (mounted) _load(v.trim());
-                });
-              },
-            ),
-            const SizedBox(height: SelSpace.x4),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      itemCount: _results.length + 1,
-                      itemBuilder: (context, i) {
-                        if (i == _results.length) {
-                          return ListTile(
-                            leading: const Icon(LucideIcons.plus),
-                            title: const Text('Create new partner'),
-                            onTap: () {
-                              Navigator.pop(context);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!widget.parentContext.mounted) return;
-                                showDialog<void>(
-                                  context: widget.parentContext,
-                                  builder: (dctx) => PartnerFormDialog(
-                                    churchId: widget.churchId,
-                                    uid: widget.uid,
-                                    existing: null,
-                                  ),
-                                );
-                              });
-                            },
-                          );
-                        }
-                        final p = _results[i];
-                        return ListTile(
-                          title: Text(p.fullName),
-                          subtitle: Text(p.displayLabel),
-                          onTap: () => Navigator.pop(context, p),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
         ),
       ),
     );

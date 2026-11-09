@@ -43,10 +43,10 @@ FutureOr<String?> appRouterRedirect(
     return '/';
   }
 
-  final isPlatform = await PlatformAdminCache.isPlatformAdmin(auth.uid);
-
+  final bool isPlatform;
   final UserChurchIndex? idx;
   try {
+    isPlatform = await PlatformAdminCache.isPlatformAdmin(auth.uid);
     idx = await UserChurchIndexCache.getOrFetch(auth.uid);
   } on MembershipUnknown {
     // We could not find out which church this is. Leave the route alone: the

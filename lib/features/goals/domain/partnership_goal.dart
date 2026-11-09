@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/money.dart';
 
 class PartnershipGoal {
   const PartnershipGoal({
@@ -36,7 +37,11 @@ class PartnershipGoal {
       partnershipPeriodId: m['partnershipPeriodId'] as String? ?? '',
       partnershipArmId: m['partnershipArmId'] as String? ?? '',
       targetAmountCedis: (m['targetAmountCedis'] as num?)?.toDouble() ?? 0,
-      currentAmountCedis: (m['currentAmountCedis'] as num?)?.toDouble() ?? 0,
+      currentAmountCedis: storedTotalCedis(
+        m,
+        pesewasKey: 'currentAmountPesewas',
+        cedisKey: 'currentAmountCedis',
+      ),
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),

@@ -31,14 +31,67 @@ service cloud.firestore {
     function isPastor() { return isRole('pastor'); }
     function isStaff() { return isRole('staff'); }
     function isPastorOrAdmin() { return isAdmin() || isPastor(); }
-    function isPastorOrStaff() { return isPastor() || isStaff(); } // used in UI guards
 
+    // Sub-arms are one level deep: an arm may name a main arm to count toward,
+    // never itself, and only one that is not a sub-arm already. Read after the
+    // write, because a rearrangement is one batch that can promote the main
+    // arm in the same commit. Whether an arm
+    // that has sub-arms is being made a sub-arm can't be seen from here (it
+    // needs a query); the app refuses that move before it writes.
+    function validArmParent(churchId, armId) {
+      let parent = request.resource.data.get('parentArmId', null);
+      return parent == null
+          || (parent is string && parent != armId
+              && existsAfter(/databases/$(database)/documents/churches/$(churchId)/partnership_arms/$(parent))
+              && getAfter(/databases/$(database)/documents/churches/$(churchId)/partnership_arms/$(parent))
+                   .data.get('parentArmId', null) == null);
+    }
+    function isPastorOrStaff() { return isPastor() || isStaff(); } // used in UI guards
+    function settingsOf(data) {
+      return data.keys().hasAny(['settings']) && data.settings is map
+             ? data.settings
+             : {};
+    }
+
+    // A partner field that this write changes only in capitals or spacing.
+    function sameIgnoringCase(field) {
+      return request.resource.data.get(field, '').lower().trim()
+             == resource.data.get(field, '').lower().trim();
+    }
+
+    // A partner's member ID changes only with the old one added to
+    // formerMemberIds, so receipts, sheets and searches by it still find them.
+    function keepsOldMemberId() {
+      let after = request.resource.data;
+      let keys = after.diff(resource.data).affectedKeys();
+      let oldId = resource.data.get('memberId', '');
+      return (!keys.hasAny(['memberId']) && !keys.hasAny(['formerMemberIds']))
+          || (keys.hasAny(['memberId']) && oldId == ''
+              && !keys.hasAny(['formerMemberIds']))
+          || (keys.hasAll(['memberId', 'formerMemberIds']) && oldId != ''
+              && after.formerMemberIds
+                   == resource.data.get('formerMemberIds', []).concat([oldId]));
+    }
     function belongsToChurch(churchId) {
       return isAuthenticated() && getUserChurchId() == churchId;
     }
 
+    // What anyone gave. Never on a record staff or admins can read.
+    function figureFields() {
+      return ['totalApprovedAmount', 'totalApprovedPesewas', 'entryCount',
+              'amountCedis', 'amount', 'totalCedis', 'originalAmount'];
+    }
+
     function isOwnEntry(entry) {
       return entry.createdBy == request.auth.uid;
+    }
+
+    // Voiding reverses money that was already counted, so it is not an
+    // ordinary edit. Pastor and admin may put an entry into or out of the
+    // voided state. Staff may void from Tools (duplicate entries) with a
+    // field-restricted write below.
+    function writesVoidState(before, after) {
+      return before.status == 'voided' || after.status == 'voided';
     }
 
     match /user_church_index/{uid} {
@@ -52,6 +105,12 @@ service cloud.firestore {
     }
 
     match /church_bootstrap_invites/{inviteId} {
+      allow read, write: if false;
+    }
+
+    // A note of every backup. The server writes and reads it (Backups page,
+    // Health); no one reads it directly.
+    match /backups/{backupId} {
       allow read, write: if false;
     }
 
@@ -77,6 +136,16 @@ service cloud.firestore {
                                    'logoStoragePath', 'currency',
                                    'currencySymbol', 'settings',
                                    'churchSetupCompletedAt', 'updatedAt']);
+      // Staff may rewrite the fellowship book and exchange rates — not
+      // branding or monthly email settings.
+      allow update: if belongsToChurch(churchId) && isStaff()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['settings', 'updatedAt'])
+                    && settingsOf(request.resource.data)
+                         .diff(settingsOf(resource.data))
+                         .affectedKeys()
+                         .hasOnly(['fellowshipNames', 'exchangeRates',
+                                   'exchangeRatesUpdatedAt', 'exchangeRatesUpdatedBy']);
 
       match /users/{uidField} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
@@ -87,14 +156,55 @@ service cloud.firestore {
       }
 
       match /partners/{partnerId} {
-        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff());
-        allow create: if belongsToChurch(churchId) && (isPastor() || isStaff());
-        allow update: if belongsToChurch(churchId) && isPastor();
-        allow delete: if belongsToChurch(churchId) && isPastor();
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+        // A partner record holds no figures: what they gave lives in
+        // partner_totals, which only pastors read.
+        allow create: if belongsToChurch(churchId) && (isPastor() || isStaff())
+                      && !request.resource.data.keys().hasAny(figureFields());
+        // Pastor edits any partner, but not the merge record: merges, fellowship
+        // merges and moves run through the fellowshipChange / partnerMerge
+        // callables, which record every change so it can be undone.
+        allow update: if belongsToChurch(churchId) && isPastor()
+                      && !request.resource.data.diff(resource.data).affectedKeys()
+                           .hasAny(['mergedInto', 'mergedBy', 'mergedAt',
+                                    'mergedAliases', 'splitFrom'])
+                      && keepsOldMemberId();
+        // Staff edit a partner's name, member ID, contacts, address and
+        // notes, and switch their monthly letter on or off. The fellowship
+        // may change only in casing — a real move goes
+        // through the recorded fellowship move — and staff never close a
+        // partner.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['fullName', 'fullNameLower', 'memberId',
+                                     'formerMemberIds', 'email', 'phone',
+                                     'phones', 'emails', 'address', 'notes',
+                                     'followUpReason', 'noMonthlyLetters',
+                                     'fellowship', 'fellowshipLower',
+                                     'updatedAt'])
+                      && sameIgnoringCase('fellowship')
+                      && keepsOldMemberId();
+        // A partner is never deleted: their giving points at them, and a record
+        // that vanishes cannot be explained or restored. Close them (isActive)
+        // or merge them; both keep the record and can be undone.
+        allow delete: if false;
+      }
+
+      // What a partner gave, kept by the server as entries are approved,
+      // edited and voided. Pastors only: staff see the giving they recorded,
+      // admins see none. A pastor may write it when repairing totals.
+      match /partner_totals/{partnerId} {
+        allow read, write: if belongsToChurch(churchId) && isPastor();
+      }
+
+      match /period_totals/{periodId} {
+        allow read, write: if belongsToChurch(churchId) && isPastor();
       }
 
       match /entries/{entryId} {
-        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
+        // Pastors read every entry; staff only the ones they recorded.
+        allow read: if belongsToChurch(churchId)
+                    && (isPastor() || (isStaff() && isOwnEntry(resource.data)));
 
         // Pastor: may create entries as approved (self-approve) or pending.
         // Field-level review checks are enforced in app code, not rules,
@@ -111,12 +221,28 @@ service cloud.firestore {
         // Pastor: approve, decline, edit any entry.
         allow update: if belongsToChurch(churchId) && isPastor();
 
+        // Admin: may void an entry and may restore one, but has no other say
+        // over an entry's content — that stays with the pastor.
+        allow update: if belongsToChurch(churchId) && isAdmin()
+                      && writesVoidState(resource.data, request.resource.data);
+
         // Staff: edit own pending or declined entries; must reset to pending (re-submit).
+        // A voided entry is settled and is not theirs to reopen from the form.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && isOwnEntry(resource.data)
                       && (resource.data.status == 'pending' || resource.data.status == 'declined')
                       && request.resource.data.status == 'pending'
+                      && !writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.createdBy == resource.data.createdBy;
+
+        // Staff Tools: void a duplicate entry they recorded. Amount and review
+        // stay untouched.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && isOwnEntry(resource.data)
+                      && writesVoidState(resource.data, request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['status', 'voidedBy', 'voidedAt', 'voidReason',
+                                     'updatedAt', 'editHistory']);
 
         allow delete: if belongsToChurch(churchId) && isPastor();
         allow delete: if belongsToChurch(churchId) && isStaff()
@@ -126,7 +252,9 @@ service cloud.firestore {
 
       match /partnership_arms/{armId} {
         allow read: if belongsToChurch(churchId);
-        allow write: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow create, update: if belongsToChurch(churchId) && isPastorOrAdmin()
+                              && validArmParent(churchId, armId);
+        allow delete: if belongsToChurch(churchId) && isPastorOrAdmin();
       }
 
       match /partnership_periods/{periodId} {
@@ -147,21 +275,103 @@ service cloud.firestore {
       }
 
       match /import_batches/{batchId} {
-        // The record of what an import did. Written once by whoever ran it,
-        // amended only to record an undo, and never deleted — an import you
-        // can erase the trace of is not provenance.
-        allow read: if belongsToChurch(churchId) && isPastorOrStaff();
+        // The record of what an import did. Written once by whoever ran it and
+        // never deleted — an import you can erase the trace of is not
+        // provenance. What it *did* is fixed: the file name, the counts, the
+        // total, and who ran it are not in either list below, so no client can
+        // rewrite them.
+        // Staff see the sheets they brought in, not anyone else's.
+        allow read: if belongsToChurch(churchId)
+                    && (isPastor() || (isStaff() && resource.data.createdBy == request.auth.uid));
         allow create: if belongsToChurch(churchId) && isPastorOrStaff();
+
+        // Whoever ran it may record that they undid it.
         allow update: if belongsToChurch(churchId) && isPastorOrStaff()
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['undoneAt', 'undoneBy', 'removedCount', 'keptCount']);
+
+        // Closing a run that was opened with begin() — counts stay frozen
+        // after inProgress flips to false.
+        allow update: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && resource.data.inProgress == true
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'inProgress', 'entryCount', 'partnersCreated',
+                             'totalCedis', 'skippedCount',
+                           ]);
+
+        // Pastor or admin: the things the Imports screen offers afterwards —
+        // naming it, recording who prepared the sheet, moving it to another
+        // period, clearing it, and reversing those same actions.
+        allow update: if belongsToChurch(churchId) && isPastorOrAdmin()
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'label', 'note', 'preparedBy', 'updatedAt',
+                             'previousLabel', 'previousNote',
+                             'voidedAt', 'voidedBy', 'voidedCount',
+                             'restoredAt', 'restoredBy', 'restoredCount',
+                             'reassignedAt', 'reassignedBy', 'reassignedCount',
+                             'periodName', 'previousPeriodName',
+                             'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
+                           ]);
+
         allow delete: if false;
+      }
+
+      match /monthly_email_reports/{reportId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if false;
+      }
+
+      // A month's letter run as counts only (sent, failed, no email, turned
+      // off), for the admin who looks after the letters' set-up.
+      match /monthly_email_summaries/{yearMonth} {
+        allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow write: if false;
+      }
+
+      match /monthly_email_deliveries/{deliveryId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
+        allow write: if false;
+      }
+
+      // Bulk changes and their before/after records. Written only by the
+      // record_ops callables; readable so Tools can list and undo them.
+      match /operations/{opId} {
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+        allow write: if false;
+        match /changes/{changeId} {
+          allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+          allow write: if false;
+        }
+      }
+
+      // Counts from the nightly duplicate check, for the Tools badge.
+      match /health/{docId} {
+        allow read: if belongsToChurch(churchId) && (isPastor() || isStaff() || isAdmin());
+        allow write: if false;
+      }
+
+      match /op_locks/{lockId} {
+        allow read, write: if false;
+      }
+
+      // Pairs someone checked and marked "not the same person", so the
+      // duplicate scan stops offering them.
+      match /duplicate_dismissals/{pairId} {
+        allow read, delete: if belongsToChurch(churchId) && isPastorOrStaff();
+        allow create: if belongsToChurch(churchId) && isPastorOrStaff()
+                      && request.resource.data.dismissedBy == request.auth.uid;
       }
 
       match /activity_logs/{logId} {
         // Admin: full audit UI. Pastor: dashboards + transparency (§15).
         allow read: if belongsToChurch(churchId) && (isAdmin() || isPastor());
-        allow create: if belongsToChurch(churchId);
+        // Admins read the log, so it never carries a figure. The app strips
+        // them at every depth; this holds the top level.
+        allow create: if belongsToChurch(churchId)
+                      && !(request.resource.data.get('entitySnapshot', {}) is map
+                           && request.resource.data.get('entitySnapshot', {}).keys().hasAny(figureFields()));
         allow update: if false;
         allow delete: if false;
       }

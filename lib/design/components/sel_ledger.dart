@@ -64,6 +64,17 @@ class SelRow {
   final Widget? leading;
 }
 
+/// Fixed row height for virtualized ledgers (padding + one line of body text).
+const double kSelLedgerRowExtent = 50;
+
+/// What the card adds around the rows: 6px above and below, and the 1px border.
+const double kSelLedgerFrame = 14;
+
+/// Row height for virtualized ledgers whose rows carry a [SelCell.stacked]
+/// two-line cell. At [kSelLedgerRowExtent] the second line has 22px of a ~39px
+/// need: it overflowed by 17px and was clipped away in release builds.
+const double kSelLedgerStackedRowExtent = 70;
+
 /// The ledger — Seline's answer to a data table.
 ///
 /// One white card holds the whole list. A quiet 10px caption row stands in for
@@ -81,21 +92,90 @@ class SelLedger extends StatelessWidget {
     this.minWidth = 640,
     this.showCaptions = true,
     this.emptyState,
-  });
+    this.virtualized = false,
+    this.maxVirtualHeight = 520,
+    this.rowExtent = kSelLedgerRowExtent,
+    this.scrollController,
+    this.bare = false,
+  })  : itemBuilder = null,
+        _itemCount = null,
+        _explicitHasLeading = null;
+
+  /// Rows built on demand rather than handed over as a finished list.
+  ///
+  /// [SelLedger.new] takes `List<SelRow>`, so every row's widgets are
+  /// constructed before the ledger sees them — `virtualized: true` then only
+  /// saves layout and paint, not construction. On a 450-partner directory that
+  /// is thousands of widgets per rebuild. This constructor defers row
+  /// construction to the viewport, which is what makes the saving real.
+  ///
+  /// Always virtualized, so the list scrolls inside the card at up to
+  /// [maxVirtualHeight]. [hasLeading] must be stated up front: with no row list
+  /// to scan, the ledger cannot discover a leading column on its own.
+  const SelLedger.builder({
+    super.key,
+    required this.columns,
+    required int itemCount,
+    required SelRow Function(BuildContext, int) this.itemBuilder,
+    bool hasLeading = false,
+    this.minWidth = 640,
+    this.showCaptions = true,
+    this.emptyState,
+    this.maxVirtualHeight = 520,
+    this.rowExtent = kSelLedgerRowExtent,
+    this.scrollController,
+    this.bare = false,
+  })  : rows = const [],
+        virtualized = true,
+        _itemCount = itemCount,
+        _explicitHasLeading = hasLeading;
 
   final List<SelColumn> columns;
+
+  /// The finished rows. Empty in [SelLedger.builder] — use [_rowAt] instead of
+  /// reading this directly.
   final List<SelRow> rows;
   final double minWidth;
 
   /// Hide the caption row for short embedded lists where it is noise.
   final bool showCaptions;
 
-  /// Shown in place of rows when [rows] is empty.
+  /// Shown in place of rows when there are no rows.
   final Widget? emptyState;
+
+  /// Build rows with [ListView.builder] instead of materializing every row.
+  /// Always true for [SelLedger.builder].
+  final bool virtualized;
+
+  /// Cap height when [virtualized] — the list scrolls inside the card.
+  final double maxVirtualHeight;
+
+  /// Height of each row when [virtualized]. Every row is laid out at exactly
+  /// this height, so a ledger with two-line cells must pass
+  /// [kSelLedgerStackedRowExtent] or its second lines are clipped.
+  final double rowExtent;
+
+  /// Optional scroll controller for the virtualized list body.
+  final ScrollController? scrollController;
+
+  /// Drawn without its own card, for a table that sits inside a larger card
+  /// (Records: status tabs, filters, the table and the pager in one).
+  final bool bare;
+
+  /// Set by [SelLedger.builder]; null when rows were passed as a list.
+  final SelRow Function(BuildContext, int)? itemBuilder;
+
+  final int? _itemCount;
+  final bool? _explicitHasLeading;
+
+  int get _rowCount => _itemCount ?? rows.length;
+
+  SelRow _rowAt(BuildContext context, int i) =>
+      itemBuilder?.call(context, i) ?? rows[i];
 
   @override
   Widget build(BuildContext context) {
-    if (rows.isEmpty && emptyState != null) {
+    if (_rowCount == 0 && emptyState != null) {
       return Container(
         decoration: BoxDecoration(
           color: Sel.card,
@@ -109,50 +189,100 @@ class SelLedger extends StatelessWidget {
     }
 
     return Container(
-      decoration: BoxDecoration(
-        color: Sel.card,
-        borderRadius: BorderRadius.circular(SelRadius.card),
-        border: Border.all(color: Sel.border),
-        boxShadow: SelShadow.card,
+      decoration: bare
+          ? null
+          : BoxDecoration(
+              color: Sel.card,
+              borderRadius: BorderRadius.circular(SelRadius.card),
+              border: Border.all(color: Sel.border),
+              boxShadow: SelShadow.card,
+            ),
+      clipBehavior: bare ? Clip.none : Clip.antiAlias,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: (kSelLedgerFrame - 2) / 2,
       ),
-      clipBehavior: Clip.antiAlias,
       child: LayoutBuilder(
         builder: (context, c) {
           final needsScroll = c.maxWidth < minWidth;
-          final content = SizedBox(
-            width: needsScroll ? minWidth : null,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (showCaptions) ...[
-                  _CaptionRow(columns: columns, hasLeading: _hasLeading),
-                  const Divider(height: 1, color: Sel.border),
-                ],
-                for (var i = 0; i < rows.length; i++) ...[
-                  _LedgerRow(
-                    row: rows[i],
-                    columns: columns,
-                    hasLeading: _hasLeading,
-                  ),
-                  if (i != rows.length - 1)
-                    const Divider(height: 1, color: Sel.border),
-                ],
-              ],
-            ),
-          );
+          final body = virtualized && _rowCount > 0
+              ? _virtualizedBody(context, needsScroll)
+              : _staticBody(context, needsScroll);
 
-          if (!needsScroll) return content;
+          if (!needsScroll) return body;
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: content,
+            child: body,
           );
         },
       ),
     );
   }
 
-  bool get _hasLeading => rows.any((r) => r.leading != null);
+  Widget _staticBody(BuildContext context, bool needsScroll) {
+    return SizedBox(
+      width: needsScroll ? minWidth : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCaptions) ...[
+            _CaptionRow(columns: columns, hasLeading: _hasLeading),
+            const Divider(height: 1, color: Sel.border),
+          ],
+          for (var i = 0; i < _rowCount; i++) ...[
+            _LedgerRow(
+              row: _rowAt(context, i),
+              columns: columns,
+              hasLeading: _hasLeading,
+            ),
+            if (i != _rowCount - 1)
+              const Divider(height: 1, color: Sel.rowLine),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _virtualizedBody(BuildContext context, bool needsScroll) {
+    const captionBlock = 40.0;
+    final listHeight = (_rowCount * rowExtent)
+        .clamp(rowExtent, maxVirtualHeight);
+    final totalHeight = (showCaptions ? captionBlock + 1 : 0) + listHeight;
+
+    return SizedBox(
+      width: needsScroll ? minWidth : null,
+      height: totalHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCaptions) ...[
+            _CaptionRow(columns: columns, hasLeading: _hasLeading),
+            const Divider(height: 1, color: Sel.border),
+          ],
+          Expanded(
+            child: ListView.separated(
+              controller: scrollController,
+              itemCount: _rowCount,
+              separatorBuilder: (_, _) =>
+                  const Divider(height: 1, color: Sel.rowLine),
+              itemBuilder: (context, i) => SizedBox(
+                height: rowExtent,
+                child: _LedgerRow(
+                  row: _rowAt(context, i),
+                  columns: columns,
+                  hasLeading: _hasLeading,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool get _hasLeading =>
+      _explicitHasLeading ?? rows.any((r) => r.leading != null);
 }
 
 const double _leadingWidth = 36;
@@ -166,7 +296,7 @@ class _CaptionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: SelSpace.x6),
+      padding: const EdgeInsets.only(top: 12, bottom: 10),
       child: Row(
         children: [
           if (hasLeading) const SizedBox(width: _leadingWidth),
@@ -174,7 +304,7 @@ class _CaptionRow extends StatelessWidget {
             _cell(
               c,
               Text(
-                c.label.toUpperCase(),
+                c.label,
                 style: SelType.caption,
                 textAlign: c.align,
                 maxLines: 1,
@@ -188,7 +318,7 @@ class _CaptionRow extends StatelessWidget {
 
   Widget _cell(SelColumn c, Widget child) {
     final padded = Padding(
-      padding: const EdgeInsets.only(right: SelSpace.x4),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Align(
         alignment: c.align == TextAlign.right
             ? Alignment.centerRight
@@ -223,27 +353,18 @@ class _LedgerRowState extends State<_LedgerRow> {
   @override
   Widget build(BuildContext context) {
     final r = widget.row;
-    // Hover and selection both wash to canvas — the row lifts off the white
-    // card by warming, not by tinting.
-    final bg = r.selected || _hover ? Sel.canvas : Sel.card;
+    // Hover is the canvas row hover; a selected or keyboard-current row is
+    // filled light sky. Never an edge stripe.
+    final bg = r.selected || r.cursor
+        ? Sel.skyTint
+        : _hover
+        ? Sel.rowHover
+        : Sel.card;
 
     final body = AnimatedContainer(
       duration: const Duration(milliseconds: 90),
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border(
-          left: BorderSide(
-            color: r.cursor ? Sel.cyanEdge : Colors.transparent,
-            width: 2,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.only(
-        left: SelSpace.x6 - 2,
-        right: SelSpace.x6,
-        top: SelSpace.x3,
-        bottom: SelSpace.x3,
-      ),
+      color: bg,
+      padding: const EdgeInsets.symmetric(vertical: 13),
       child: Row(
         children: [
           if (widget.hasLeading)
@@ -281,7 +402,7 @@ class _LedgerRowState extends State<_LedgerRow> {
 
   Widget _cell(SelColumn c, Widget child) {
     final padded = Padding(
-      padding: const EdgeInsets.only(right: SelSpace.x4),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Align(
         alignment: c.align == TextAlign.right
             ? Alignment.centerRight
@@ -318,7 +439,7 @@ abstract final class SelCell {
   /// The row's subject — a person, an arm, a period. Ink at weight 500.
   static Widget primary(String text) => Text(
     text,
-    style: SelType.bodyMedium,
+    style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w600),
     maxLines: 1,
     overflow: TextOverflow.ellipsis,
   );
@@ -326,7 +447,7 @@ abstract final class SelCell {
   /// Supporting fact. Warm gray at weight 400.
   static Widget secondary(String text) => Text(
     text,
-    style: SelType.bodyMuted,
+    style: SelType.body,
     maxLines: 1,
     overflow: TextOverflow.ellipsis,
   );
@@ -343,8 +464,8 @@ abstract final class SelCell {
   }) => Text(
     text,
     textAlign: TextAlign.right,
-    style: (strong ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
-      color: tone.color,
+    style: (strong ? SelType.bodyMedium : SelType.body).copyWith(
+      color: tone == SelTone.neutral && !strong ? Sel.text : tone.color,
       fontFeatures: const [FontFeature.tabularFigures()],
     ),
     maxLines: 1,
@@ -359,7 +480,7 @@ abstract final class SelCell {
     children: [
       Text(
         top,
-        style: SelType.bodyMedium,
+        style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w600),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

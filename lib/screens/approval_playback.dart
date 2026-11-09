@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../design/seline.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/presentation/entry_amount_cell.dart';
 
 /// Full-screen playback of a bulk approval.
 ///
@@ -135,102 +136,106 @@ class _ApprovalPlaybackState extends State<ApprovalPlayback> {
             constraints: const BoxConstraints(maxWidth: 560),
             child: Padding(
               padding: const EdgeInsets.all(SelSpace.x6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          done
-                              ? 'Approved $total ${total == 1 ? "entry" : "entries"}'
-                              : 'Approving $total ${total == 1 ? "entry" : "entries"}',
-                          style: SelType.title,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            done
+                                ? 'Approved $total ${total == 1 ? "entry" : "entries"}'
+                                : 'Approving $total ${total == 1 ? "entry" : "entries"}',
+                            style: SelType.title,
+                          ),
                         ),
-                      ),
-                      if (!done)
-                        SelButton(
-                          label: 'Skip',
-                          kind: SelButtonKind.quiet,
-                          dense: true,
-                          onPressed: () => Navigator.of(context).maybePop(),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: SelSpace.x6),
-
-                  SelCard(
-                    lift: SelLift.floating,
-                    padding: EdgeInsets.zero,
-                    clip: true,
-                    child: SizedBox(
-                      height: 320,
-                      child: ListView.builder(
-                        controller: _scroll,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: SelSpace.x2,
-                        ),
-                        itemCount: _index,
-                        itemBuilder: (context, i) => _Line(
-                          entry: widget.entries[i],
-                          formatMoney: widget.formatMoney,
-                          // Only the newest line animates in; re-animating the
-                          // whole list on every tick would be a strobe.
-                          isNewest: i == _index - 1,
-                        ),
-                      ),
+                        if (!done)
+                          SelButton(
+                            label: 'Skip',
+                            kind: SelButtonKind.quiet,
+                            dense: true,
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: SelSpace.x6),
 
-                  const SizedBox(height: SelSpace.x6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(SelRadius.pill),
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: progress),
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOut,
-                      builder: (context, v, _) => LinearProgressIndicator(
-                        value: v,
-                        minHeight: 4,
-                        backgroundColor: Sel.border,
-                        color: done ? Sel.success : Sel.ink,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: SelSpace.x3),
-                  Row(
-                    children: [
-                      Text('$_index of $total', style: SelType.bodyMuted),
-                      const Spacer(),
-                      Text('Running total', style: SelType.small),
-                      const SizedBox(width: SelSpace.x2),
-                      // The number counts up rather than jumping, which is
-                      // what makes the tally feel like it is accumulating.
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: _runningTotal),
-                        duration: const Duration(milliseconds: 320),
-                        curve: Curves.easeOut,
-                        builder: (context, v, _) => Text(
-                          widget.formatMoney(v),
-                          style: SelType.subtitle.copyWith(
-                            color: done ? Sel.success : Sel.ink,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                    SelCard(
+                      lift: SelLift.floating,
+                      padding: EdgeInsets.zero,
+                      clip: true,
+                      child: SizedBox(
+                        height: 320,
+                        child: ListView.builder(
+                          controller: _scroll,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: SelSpace.x2,
+                          ),
+                          itemCount: _index,
+                          itemBuilder: (context, i) => _Line(
+                            entry: widget.entries[i],
+                            formatMoney: widget.formatMoney,
+                            // Only the newest line animates in; re-animating the
+                            // whole list on every tick would be a strobe.
+                            isNewest: i == _index - 1,
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                  if (done) ...[
+                    ),
+
                     const SizedBox(height: SelSpace.x6),
-                    Center(
-                      child: SelButton.cyan(
-                        label: 'Done',
-                        onPressed: () => Navigator.of(context).maybePop(),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(SelRadius.pill),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: progress),
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOut,
+                        builder: (context, v, _) => LinearProgressIndicator(
+                          value: v,
+                          minHeight: 4,
+                          backgroundColor: Sel.border,
+                          color: done ? Sel.success : Sel.ink,
+                        ),
                       ),
                     ),
+                    const SizedBox(height: SelSpace.x3),
+                    Row(
+                      children: [
+                        Text('$_index of $total', style: SelType.bodyMuted),
+                        const Spacer(),
+                        Text('Running total', style: SelType.small),
+                        const SizedBox(width: SelSpace.x2),
+                        // The number counts up rather than jumping, which is
+                        // what makes the tally feel like it is accumulating.
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: _runningTotal),
+                          duration: const Duration(milliseconds: 320),
+                          curve: Curves.easeOut,
+                          builder: (context, v, _) => Text(
+                            widget.formatMoney(v),
+                            style: SelType.subtitle.copyWith(
+                              color: done ? Sel.success : Sel.ink,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (done) ...[
+                      const SizedBox(height: SelSpace.x6),
+                      Center(
+                        child: SelButton.cyan(
+                          label: 'Done',
+                          onPressed: () => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -271,11 +276,10 @@ class _Line extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(
-            formatMoney(entry.amountCedis),
-            style: (isNewest ? SelType.bodyMedium : SelType.bodyMuted).copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+          EntryAmountCell(
+            entry: entry,
+            formattedAmount: formatMoney(entry.amountCedis),
+            strong: isNewest,
           ),
         ],
       ),

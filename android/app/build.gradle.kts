@@ -38,15 +38,15 @@ android {
     productFlavors {
         create("development") {
             dimension = "environment"
-            resValue("string", "app_name", "Pillr (dev)")
+            resValue("string", "app_name", "The Pillr (dev)")
         }
         create("staging") {
             dimension = "environment"
-            resValue("string", "app_name", "Pillr (staging)")
+            resValue("string", "app_name", "The Pillr (staging)")
         }
         create("production") {
             dimension = "environment"
-            resValue("string", "app_name", "Pillr")
+            resValue("string", "app_name", "The Pillr")
         }
     }
 

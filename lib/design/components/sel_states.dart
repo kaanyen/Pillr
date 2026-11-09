@@ -1,3 +1,4 @@
+import '../../core/errors/plain_error.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -57,7 +58,7 @@ class SelEmpty extends StatelessWidget {
               const SizedBox(height: SelSpace.x4),
               Text(title, style: SelType.subtitle, textAlign: TextAlign.center),
               const SizedBox(height: SelSpace.x2),
-              Text(message, style: SelType.bodyMuted, textAlign: TextAlign.center),
+              Text(plainErrorText(message), style: SelType.bodyMuted, textAlign: TextAlign.center),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: SelSpace.x6),
                 Wrap(

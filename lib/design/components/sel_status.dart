@@ -22,7 +22,18 @@ import '../seline_type.dart';
 /// | active    | dot     | Moss    | live             |
 /// | inactive  | dash    | Ash     | dormant          |
 /// | info      | circle  | Cyan    | neutral notice   |
-enum SelStatus { approved, pending, declined, blocked, active, inactive, info }
+enum SelStatus {
+  approved,
+  pending,
+  declined,
+  blocked,
+  active,
+  inactive,
+  /// Reversed after the fact. A voided record is still on the books and still
+  /// readable — it simply stops counting toward any total.
+  voided,
+  info,
+}
 
 extension SelStatusStyle on SelStatus {
   IconData get icon => switch (this) {
@@ -32,6 +43,7 @@ extension SelStatusStyle on SelStatus {
         SelStatus.blocked => LucideIcons.alertTriangle,
         SelStatus.active => LucideIcons.circleDot,
         SelStatus.inactive => LucideIcons.minus,
+        SelStatus.voided => LucideIcons.ban,
         SelStatus.info => LucideIcons.info,
       };
 
@@ -40,6 +52,9 @@ extension SelStatusStyle on SelStatus {
         SelStatus.pending => Sel.warning,
         SelStatus.declined || SelStatus.blocked => Sel.danger,
         SelStatus.inactive => Sel.ash,
+        // Not danger: voiding is a correction someone made deliberately, not a
+        // rejection or a fault. Warm gray reads as "settled and set aside".
+        SelStatus.voided => Sel.warm,
         SelStatus.info => Sel.info,
       };
 
@@ -50,6 +65,7 @@ extension SelStatusStyle on SelStatus {
         SelStatus.pending => Sel.warningWash,
         SelStatus.declined || SelStatus.blocked => Sel.dangerWash,
         SelStatus.inactive => Sel.canvas,
+        SelStatus.voided => Sel.canvas,
         SelStatus.info => Sel.infoWash,
       };
 
@@ -69,6 +85,7 @@ extension SelStatusStyle on SelStatus {
         'blocked' || 'error' || 'invalid' => SelStatus.blocked,
         'info' || 'notice' => SelStatus.info,
         'active' => SelStatus.active,
+        'voided' || 'void' => SelStatus.voided,
         'inactive' || 'suspended' => SelStatus.inactive,
         _ => SelStatus.pending,
       };
@@ -101,27 +118,47 @@ class SelStatusMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mark = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(status.icon, size: 13, color: status.color),
-        if (!iconOnly) ...[
-          const SizedBox(width: SelSpace.x1 + 2),
-          Text(
-            label,
-            style: SelType.body.copyWith(
-              color: status.color,
-              fontWeight: status.weight,
-            ),
-          ),
-        ],
-      ],
+    final tag = SelStatusTag(status: status, label: label);
+    if (!iconOnly) return tag;
+    return Tooltip(
+      message: label,
+      child: Icon(status.icon, size: 14, color: status.color),
     );
-    return iconOnly ? Tooltip(message: label, child: mark) : mark;
   }
 }
 
-/// Bordered variant, for cases where the status must survive on a busy row.
+/// The canvas's status tag: a small pill. Settled states are a quiet grey,
+/// waiting is light sky, refused is outlined navy.
+class SelStatusTag extends StatelessWidget {
+  const SelStatusTag({super.key, required this.status, required this.label});
+
+  final SelStatus status;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color bg, Color fg, Color? edge) = switch (status) {
+      SelStatus.pending || SelStatus.info => (Sel.skyWash, Sel.ink, null),
+      SelStatus.declined || SelStatus.blocked => (Sel.card, Sel.ink, Sel.ink),
+      SelStatus.inactive || SelStatus.voided => (Sel.track, Sel.warm, null),
+      _ => (Sel.track, Sel.text, null),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(SelRadius.pill),
+        border: edge == null ? null : Border.all(color: edge),
+      ),
+      child: Text(
+        label,
+        style: SelType.tag.copyWith(color: fg),
+        maxLines: 1,
+      ),
+    );
+  }
+}
+
 class SelStatusChip extends StatelessWidget {
   const SelStatusChip({super.key, required this.status, required this.label});
 

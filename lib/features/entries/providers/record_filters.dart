@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/partnership_entry.dart';
+import '../fellowship_of.dart';
 
 /// Windows people actually ask for — "what came in this month", not a date
 /// picker they have to fill in twice.
@@ -165,8 +166,14 @@ List<PartnershipEntry> applyRecordFilters(
   List<PartnershipEntry> entries,
   RecordFilters filters, {
   required DateTime now,
+  Map<String, String> fellowshipByPartnerId = const {},
+  Set<String> Function(String armId)? armFamilyOf,
 }) {
   if (filters.isEmpty) return entries;
+  // A main arm's filter takes in its sub-arms' giving too.
+  final armIds = filters.armId == null
+      ? null
+      : (armFamilyOf?.call(filters.armId!) ?? {filters.armId!});
 
   final range = filters.dateRange;
   final from = range == null ? null : recordRangeStart(range, now);
@@ -175,7 +182,7 @@ List<PartnershipEntry> applyRecordFilters(
 
   return [
     for (final e in entries)
-      if (_matches(e, filters, from, to, fellowship)) e,
+      if (_matches(e, filters, from, to, fellowship, fellowshipByPartnerId, armIds)) e,
   ];
 }
 
@@ -185,15 +192,16 @@ bool _matches(
   DateTime? from,
   DateTime? to,
   String? fellowship,
+  Map<String, String> fellowshipByPartnerId,
+  Set<String>? armIds,
 ) {
   if (from != null && to != null) {
     if (e.dateGiven.isBefore(from) || !e.dateGiven.isBefore(to)) return false;
   }
   if (fellowship != null) {
-    final v = e.partnerSnapshot['fellowship']?.toString().toLowerCase() ?? '';
-    if (v != fellowship) return false;
+    if (fellowshipKeyOf(e, fellowshipByPartnerId) != fellowship) return false;
   }
-  if (f.armId != null && e.partnershipArmId != f.armId) return false;
+  if (armIds != null && !armIds.contains(e.partnershipArmId)) return false;
   if (f.amount != null && !f.amount!.contains(e.amountCedis)) return false;
   if (f.recordedBy != null && e.createdBy != f.recordedBy) return false;
   return true;

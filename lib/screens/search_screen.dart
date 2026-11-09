@@ -8,15 +8,19 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../core/extensions/async_value_ext.dart';
 import '../core/utils/date_utils.dart';
 import '../design/seline.dart';
+import '../features/arms/providers/arms_providers.dart';
 import '../l10n/app_localizations.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/partners/domain/partner.dart';
+import '../features/leaderboard/giving_view.dart';
 import '../features/partners/providers/partners_providers.dart';
+import '../features/shortcuts/shortcuts.dart';
+import '../core/errors/plain_error.dart';
 
-/// Global search across partners and entries. Pastor only.
+/// Global search across fellowships, partners, entries and pages.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -111,7 +115,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     } catch (e) {
       if (!mounted || seq != _seq) return;
       setState(() {
-        _error = '$e';
+        _error = plainError(e);
         _busy = false;
       });
     }
@@ -121,134 +125,298 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final money = ref.watch(churchMoneyFormatProvider);
+    final tree = ref.watch(armTreeProvider);
+    final q = _q.text.trim().toLowerCase();
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    final view = ref.watch(givingViewProvider);
+    final fellowships = q.length < 2
+        ? const []
+        : view.fellowships.where((f) => f.name.toLowerCase().contains(q)).toList();
+    final pages = q.length < 2
+        ? const <(String, String, String)>[]
+        : [
+            for (final s in shortcutsFor(isPastor: idx?.isPastor ?? false))
+              if (s.label.toLowerCase().contains(q)) (s.label, s.group, s.path),
+            for (final f in fellowships)
+              for (final (tab, label) in const [
+                ('people', 'People'),
+                ('arms', 'Arms'),
+                ('months', 'Month by month'),
+              ])
+                (
+                  '${f.name} · $label',
+                  'Fellowships › ${f.name}',
+                  '/fellowships/${Uri.encodeComponent(f.key)}?tab=$tab',
+                ),
+          ];
+
+    String initials(String n) => n
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+
+    final groups = <(String, List<_Hit>)>[
+      if (_ran)
+        ('Partners', [
+          for (final p in _partners)
+            _Hit(
+              lead: _Lead.text(initials(p.fullName)),
+              title: p.fullName,
+              sub: [p.memberId, p.fellowship].where((e) => e.isNotEmpty).join(' · '),
+              mono: true,
+              go: '/partners/${p.id}',
+            ),
+        ]),
+      if (_ran)
+        ('Entries', [
+          for (final e in _entries)
+            _Hit(
+              lead: _Lead.text('₵', muted: true),
+              title:
+                  '${money(e.amountCedis)} · ${tree.shownNameOf(e.partnershipArmId) ?? e.armSnapshot['name'] ?? ''}',
+              sub:
+                  '${e.partnerSnapshot['fullName'] ?? '—'} · ${formatFirestoreDate(e.dateGiven, pattern: 'd MMM')}',
+              trailing: SelStatusMark.fromString(
+                status: e.status,
+                label: switch (e.status) {
+                  'approved' => 'Approved',
+                  'pending' => 'Waiting',
+                  'declined' => 'Sent back',
+                  _ => e.status[0].toUpperCase() + e.status.substring(1),
+                },
+              ),
+              go: '/entries/${e.id}',
+            ),
+        ]),
+      ('Fellowships', [
+        for (final f in fellowships)
+          _Hit(
+            lead: _Lead.icon(LucideIcons.users),
+            title: f.name,
+            sub: '${f.partners} partners · ${money(f.total)} this period',
+            go: '/fellowships/${Uri.encodeComponent(f.key)}',
+          ),
+      ]),
+      ('Pages', [
+        for (final (label, where, path) in pages)
+          _Hit(
+            lead: _Lead.icon(LucideIcons.fileText),
+            title: label,
+            sub: where,
+            go: path,
+          ),
+      ]),
+      if (_ran && _partners.length == 1 && (idx?.isPastor == true || idx?.isStaff == true))
+        ('Do something', [
+          _Hit(
+            lead: _Lead.icon(LucideIcons.plus, strong: true),
+            title: 'Record giving for ${_partners.first.fullName}',
+            sub: 'Opens the form',
+            go: '/entries/new',
+          ),
+        ]),
+    ].where((g) => g.$2.isNotEmpty).toList();
+    final first = groups.isEmpty ? null : groups.first.$2.first;
 
     return SelPageBody(
-      maxWidth: 900,
+      maxWidth: 800,
       children: [
-        SelPageTitle(title: l10n.titleSearch, subtitle: l10n.searchSubtitle),
-        // No Search button: a button is a second thing to do after typing,
-        // and results that arrive as you type tell you whether to keep going.
-        Row(
-          children: [
-            Expanded(
-              child: SelField(
+        SelPageTitle(
+          title: l10n.titleSearch,
+          subtitle: 'Find a partner, an entry, a fellowship or a page.',
+        ),
+        SelCard(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // No Search button: results that arrive as you type tell you
+              // whether to keep going.
+              SelField(
                 controller: _q,
                 hint: l10n.searchFieldHint,
                 prefixIcon: LucideIcons.search,
                 autofocus: true,
                 onChanged: _onChanged,
-                onSubmitted: (_) => _run(),
-              ),
-            ),
-            // A quiet sign that the answer is still coming, where a button
-            // used to sit.
-            SizedBox(
-              width: SelSpace.x8,
-              child: Center(
-                child: _busy
-                    ? const SizedBox(
-                        height: 14,
-                        width: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Sel.ash,
-                        ),
+                onSubmitted: (_) =>
+                    first == null ? _run() : context.go(first.go),
+                suffixIcon: _busy
+                    ? const Padding(
+                        padding: EdgeInsets.only(right: SelSpace.x3),
+                        child: PillrLoader(size: 18),
                       )
-                    : const SizedBox.shrink(),
+                    : null,
               ),
-            ),
-          ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.all(SelSpace.x3),
+                  child: Text(_error!, style: SelType.bodySm.copyWith(color: Sel.ink)),
+                ),
+              if (!_ran && q.length < 2)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+                  child: Text(
+                    'Type a name, a member ID, a fellowship or a page. Results appear as you go.',
+                    style: SelType.bodySm,
+                  ),
+                )
+              else if (groups.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+                  child: Text(
+                    'Nothing matches “${_q.text.trim()}”. Try a different spelling or a member ID.',
+                    style: SelType.bodySm,
+                  ),
+                ),
+              for (final (label, hits) in groups) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 16, 14, 6),
+                  child: Text('$label · ${hits.length}', style: SelType.small),
+                ),
+                for (final h in hits)
+                  _HitRow(hit: h, query: q, first: identical(h, first)),
+              ],
+              const Divider(height: 24, color: Sel.border),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                child: Row(
+                  children: [
+                    Text('Enter opens the first result', style: SelType.small),
+                    const Spacer(),
+                    Text(
+                      'Also finds old member IDs and phone numbers',
+                      style: SelType.small,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        if (_error != null) ...[
-          const SizedBox(height: SelSpace.x3),
-          Text(_error!, style: SelType.bodySm.copyWith(color: Sel.ink)),
-        ],
-        const SizedBox(height: SelSpace.x8),
-
-        if (!_ran)
-          SelCard(
-            child: SelEmpty(
-              title: l10n.searchIdleTitle,
-              message:
-                  'Type a name, a member ID or a status. '
-                  'Results appear as you go.',
-              icon: LucideIcons.search,
-            ),
-          )
-        else ...[
-          SelSectionLabel(
-            label: 'Partners',
-            trailing: Text('${_partners.length}', style: SelType.bodyMuted),
-          ),
-          SelLedger(
-            minWidth: 520,
-            columns: const [
-              SelColumn('Member ID', fit: SelColFit.fixed, width: 120),
-              SelColumn('Name', flex: 2),
-              SelColumn.numeric('Total given', width: 140),
-            ],
-            emptyState: SelEmpty(
-              title: l10n.searchNoPartners,
-              message: 'Try a different spelling or a member ID.',
-            ),
-            rows: [
-              for (final p in _partners)
-                SelRow(
-                  onTap: () => context.go('/partners/${p.id}'),
-                  cells: [
-                    SelCell.secondary(p.memberId),
-                    SelCell.primary(p.fullName),
-                    SelCell.numeric(money(p.totalApprovedAmount)),
-                  ],
-                ),
-            ],
-          ),
-          const SelSectionGap(factor: 0.5),
-          SelSectionLabel(
-            label: 'Entries',
-            trailing: Text('${_entries.length}', style: SelType.bodyMuted),
-          ),
-          SelLedger(
-            minWidth: 620,
-            columns: const [
-              SelColumn('Partner', flex: 2),
-              SelColumn.numeric('Amount', width: 130),
-              SelColumn('Status', fit: SelColFit.fixed, width: 120),
-              SelColumn('Date', fit: SelColFit.fixed, width: 110),
-            ],
-            emptyState: SelEmpty(
-              title: l10n.searchNoEntries,
-              message: 'Search covers the most recent 80 entries.',
-            ),
-            rows: [
-              for (final e in _entries)
-                SelRow(
-                  onTap: () => context.go('/entries/${e.id}'),
-                  cells: [
-                    SelCell.primary(
-                      e.partnerSnapshot['fullName']?.toString() ?? '—',
-                    ),
-                    SelCell.numeric(
-                      money(e.amountCedis),
-                      tone: switch (e.status) {
-                        'approved' => SelTone.positive,
-                        'declined' => SelTone.negative,
-                        _ => SelTone.neutral,
-                      },
-                    ),
-                    SelStatusMark.fromString(
-                      status: e.status,
-                      label: e.status[0].toUpperCase() + e.status.substring(1),
-                    ),
-                    SelCell.secondary(
-                      formatFirestoreDate(e.createdAt, pattern: 'd MMM'),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ],
       ],
     );
   }
 }
+
+class _Lead {
+  const _Lead.text(this.text, {this.muted = false})
+    : icon = null,
+      strong = false;
+  const _Lead.icon(this.icon, {this.strong = false})
+    : text = null,
+      muted = false;
+
+  final String? text;
+  final IconData? icon;
+  final bool muted;
+  final bool strong;
+}
+
+class _Hit {
+  const _Hit({
+    required this.lead,
+    required this.title,
+    required this.sub,
+    required this.go,
+    this.trailing,
+    this.mono = false,
+  });
+
+  final _Lead lead;
+  final String title;
+  final String sub;
+  final String go;
+  final Widget? trailing;
+  final bool mono;
+}
+
+class _HitRow extends StatelessWidget {
+  const _HitRow({required this.hit, required this.query, required this.first});
+
+  final _Hit hit;
+  final String query;
+  final bool first;
+
+  /// The matched part of [text] on a light-sky ground.
+  InlineSpan _marked(String text, TextStyle style) {
+    final at = query.isEmpty ? -1 : text.toLowerCase().indexOf(query);
+    if (at < 0) return TextSpan(text: text, style: style);
+    return TextSpan(
+      style: style,
+      children: [
+        TextSpan(text: text.substring(0, at)),
+        TextSpan(
+          text: text.substring(at, at + query.length),
+          style: const TextStyle(backgroundColor: Sel.skyWash),
+        ),
+        TextSpan(text: text.substring(at + query.length)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = hit.lead;
+    return Material(
+      color: first ? Sel.skyTint : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => context.go(hit.go),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: l.strong
+                      ? Sel.ink
+                      : l.muted || l.icon != null
+                      ? Sel.track
+                      : Sel.skyWash,
+                  shape: BoxShape.circle,
+                ),
+                child: l.icon != null
+                    ? Icon(l.icon, size: 15, color: l.strong ? Sel.card : Sel.ink)
+                    : Text(
+                        l.text!,
+                        style: SelType.small.copyWith(
+                          color: Sel.ink,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: SelSpace.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text.rich(
+                      _marked(
+                        hit.title,
+                        SelType.body.copyWith(
+                          color: Sel.ink,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Text.rich(_marked(hit.sub, SelType.small)),
+                  ],
+                ),
+              ),
+              if (hit.trailing != null) hit.trailing!,
+              if (first && hit.trailing == null)
+                Text('Enter to open', style: SelType.small),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://thepillr.com",
+      "https://www.thepillr.com",
+      "https://thepillr2.web.app",
+      "https://thepillr2.firebaseapp.com"
+    ],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]

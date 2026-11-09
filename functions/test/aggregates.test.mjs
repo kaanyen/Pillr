@@ -48,9 +48,9 @@ async function stays(read, want, what) {
   assert.ok(Math.abs(now - want) < 0.005, `${what}: expected it to stay ${want}, became ${now}`);
 }
 
-const partnerTotal = async () => (await church.collection("partners").doc(PARTNER).get()).data().totalApprovedAmount;
-const partnerCount = async () => (await church.collection("partners").doc(PARTNER).get()).data().entryCount;
-const periodTotal = async () => (await church.collection("partnership_periods").doc(PERIOD).get()).data().totalApprovedAmount;
+const partnerTotal = async () => (await church.collection("partner_totals").doc(PARTNER).get()).data()?.totalApprovedAmount ?? 0;
+const partnerCount = async () => (await church.collection("partner_totals").doc(PARTNER).get()).data()?.entryCount ?? 0;
+const periodTotal = async () => (await church.collection("period_totals").doc(PERIOD).get()).data()?.totalApprovedAmount ?? 0;
 const goalTotal = async () => (await church.collection("goals").doc(GOAL).get()).data().currentAmountCedis;
 
 const baseEntry = (amount, status) => ({
@@ -86,7 +86,7 @@ async function wipe() {
   // Wait for the reversals rather than guess at them: the totals returning to
   // zero is the signal that every trigger has landed.
   if (entries.size > 0) {
-    const partnerRef = church.collection("partners").doc(PARTNER);
+    const partnerRef = church.collection("partner_totals").doc(PARTNER);
     const until = Date.now() + 30000;
     while (Date.now() < until) {
       const snap = await partnerRef.get();
@@ -95,7 +95,7 @@ async function wipe() {
     }
   }
 
-  for (const s of ["partners", "partnership_periods", "partnership_arms", "goals"]) {
+  for (const s of ["partners", "partnership_periods", "partnership_arms", "goals", "partner_totals", "period_totals"]) {
     const docs = await church.collection(s).get();
     await Promise.all(docs.docs.map((d) => d.ref.delete()));
   }

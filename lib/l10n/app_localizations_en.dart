@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Pillr';
+  String get appTitle => 'The Pillr';
 
   @override
   String get navSectionMain => 'Main';
@@ -46,6 +46,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navPartners => 'Partners';
+
+  @override
+  String get navFellowships => 'Fellowships';
 
   @override
   String get navLeaderboard => 'Leaderboard';
@@ -456,7 +459,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bulkImportNeedXlsx =>
-      'Please choose a spreadsheet saved as .xlsx or .csv.';
+      'Please choose a spreadsheet saved as .xlsx or .csv. Older .xls files need to be saved as .xlsx first.';
 
   @override
   String get bulkImportNoMacros =>
@@ -658,7 +661,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get entriesNoEntriesTitle => 'No entries yet';
 
   @override
-  String get entriesNoEntriesMessage => 'Record a new partnership entry.';
+  String get entriesNoEntriesMessage => 'Record giving.';
 
   @override
   String get entriesNoMatchesTitle => 'No matches';
@@ -774,6 +777,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pdfTableHeaderPartner => 'Partner';
 
   @override
+  String get pdfTableHeaderMemberId => 'Member ID';
+
+  @override
+  String get pdfTableHeaderFellowship => 'Fellowship';
+
+  @override
+  String get pdfTableHeaderSubmittedBy => 'Submitted by';
+
+  @override
+  String get pdfTableHeaderApprovedBy => 'Approved by';
+
+  @override
   String get pdfTableHeaderAmount => 'Amount';
 
   @override
@@ -814,6 +829,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navRecords => 'Records';
 
   @override
+  String get navRecordsAll => 'All records';
+
+  @override
+  String get navRecordsMonthly => 'By month';
+
+  @override
+  String get navRecordsImports => 'Imports';
+
+  @override
+  String get navRecordsByArm => 'By arm';
+
+  @override
+  String get navRecordsByFellowship => 'By fellowship';
+
+  @override
+  String get navRecordsByPartner => 'By partner';
+
+  @override
+  String get navPartnersAll => 'All partners';
+
+  @override
+  String get navPartnersByFellowship => 'By fellowship';
+
+  @override
+  String get navPartnersNew => 'New this year';
+
+  @override
+  String get navPartnersRhythm => 'Giving rhythm';
+
+  @override
+  String get navPartnersFollowUp => 'Follow up';
+
+  @override
+  String get navRanked => 'Ranked';
+
+  @override
   String get navPeople => 'People';
 
   @override
@@ -821,6 +872,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navActivity => 'Activity';
+
+  @override
+  String get navTools => 'Tools';
 
   @override
   String get navPlatformChurches => 'All churches';
@@ -865,6 +919,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Every partnership entry for your church, newest first.';
 
   @override
+  String get recordsMonthlyTitle => 'By month';
+
+  @override
+  String get recordsMonthlySubtitle => 'Browse approved giving month by month.';
+
+  @override
   String get recordsEmptyTitle => 'No entries yet';
 
   @override
@@ -872,7 +932,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Partnership entries will appear as your team records them.';
 
   @override
-  String get recordsEmptyAction => 'Record the first entry';
+  String get recordsEmptyAction => 'Record the first giving';
 
   @override
   String get statusPending => 'Pending';
@@ -882,6 +942,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusDeclined => 'Declined';
+
+  @override
+  String get statusVoided => 'Voided';
 
   @override
   String get actionNewEntry => 'New entry';

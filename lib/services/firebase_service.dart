@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,6 +7,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 import '../firebase_options.dart';
+import 'emulator_auth_reset.dart';
 
 /// Routes every Firebase SDK at the local emulator suite instead of the live
 /// project. Off unless the build explicitly opts in:
@@ -34,6 +36,10 @@ const int _storagePort = 9199;
 /// Ensures Firebase is initialized exactly once per process.
 Future<void> ensureFirebaseInitialized() async {
   if (Firebase.apps.isEmpty) {
+    // Before initializeApp, because that is when web Auth restores a saved
+    // user — against the live project, not the emulator. See
+    // emulator_auth_reset.dart.
+    if (kUseFirebaseEmulators) await forgetSavedAuthSession();
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
   await _connectToEmulatorsIfEnabled();
@@ -48,6 +54,11 @@ Future<void> _connectToEmulatorsIfEnabled() async {
   FirebaseStorage.instance.useStorageEmulator(kEmulatorHost, _storagePort);
   FirebaseFunctions.instanceFor(region: 'us-central1')
       .useFunctionsEmulator(kEmulatorHost, _functionsPort);
+
+  // There is no Analytics emulator. On web the SDK loads gtag as soon as
+  // Firebase starts, so every local session was reporting page views to the
+  // live property as if it were real traffic. Collection off; nothing sent.
+  await FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(false);
 
   debugPrint(
     'Firebase: using LOCAL EMULATORS at $kEmulatorHost '

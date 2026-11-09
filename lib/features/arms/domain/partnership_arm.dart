@@ -13,6 +13,7 @@ class PartnershipArm {
     this.colorHex,
     required this.sortOrder,
     this.aliases = const [],
+    this.parentArmId,
     required this.createdBy,
     required this.createdAt,
     required this.updatedAt,
@@ -33,6 +34,15 @@ class PartnershipArm {
   /// collapsed whitespace) because that is how they are compared.
   final List<String> aliases;
 
+  /// The main arm this one counts toward, or null for a main arm.
+  ///
+  /// One level only: a main arm can have sub-arms, a sub-arm cannot. Giving
+  /// recorded to a sub-arm stays on that sub-arm's entries; the main arm's
+  /// figures are its own giving plus its sub-arms', added up when shown.
+  final String? parentArmId;
+
+  bool get isSubArm => parentArmId != null;
+
   final String createdBy;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -51,6 +61,7 @@ class PartnershipArm {
           .map((e) => e.toString())
           .where((e) => e.trim().isNotEmpty)
           .toList(),
+      parentArmId: trimOrNull(m['parentArmId'] as String?),
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       updatedAt: timestampToDateTime(m['updatedAt']) ?? DateTime.now(),

@@ -17,7 +17,15 @@ void main() {
 
     expect(
       tester.getSemantics(find.byType(SelButton)),
-      matchesSemantics(label: 'Approve all', isButton: true, isEnabled: true, hasEnabledState: true, hasTapAction: true),
+      matchesSemantics(
+        label: 'Approve all',
+        isButton: true,
+        isEnabled: true,
+        hasEnabledState: true,
+        isFocusable: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+      ),
     );
     handle.dispose();
   });

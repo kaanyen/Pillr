@@ -3,6 +3,7 @@ import 'package:the_pillr/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/extensions/async_value_ext.dart';
+import 'core/notifications/sel_notice.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/router/app_router.dart';
 import 'core/session/session_idle_listener.dart';
@@ -28,9 +29,13 @@ class PillrApp extends ConsumerWidget {
       theme: SelTheme.light(seedColor: seed),
       routerConfig: appRouter,
       builder: (context, child) {
-        return SessionIdleListener(
-          child: BulkImportCommitProgressOverlay(
-            child: child ?? const SizedBox.shrink(),
+        return PillrBootSplash(
+          child: SelNoticeHost(
+            child: SessionIdleListener(
+              child: BulkImportCommitProgressOverlay(
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
           ),
         );
       },

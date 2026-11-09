@@ -11,6 +11,16 @@ bool isPathForbiddenForRole(String location, String role) {
 
   bool starts(String p) => path == p || path.startsWith('$p/');
 
+  // Monthly letters: pastors see who and how much, admins the counts and
+  // set-up. Staff have no part in the letters.
+  if (starts('/settings/letters')) return role != 'pastor' && role != 'admin';
+
+  // Health is how Pillr is running, in counts: the admin's page.
+  if (starts('/health')) return role != 'admin' && role != 'pastor';
+
+  // Backups copy the whole database: admins and pastors.
+  if (starts('/backups')) return role != 'admin' && role != 'pastor';
+
   // Overview, Settings and Help adapt to the viewer — always allowed.
   if (starts('/overview') || starts('/settings') || starts('/help')) {
     return false;
@@ -18,6 +28,8 @@ bool isPathForbiddenForRole(String location, String role) {
 
   switch (role) {
     // Admin runs the workspace but has no access to financial records.
+    // Fellowships is allowed for the manage tools (who belongs where);
+    // ranked giving stays off that screen for this role.
     case 'admin':
       if (starts('/queue')) return true;
       if (starts('/records')) return true;
@@ -27,10 +39,14 @@ bool isPathForbiddenForRole(String location, String role) {
       if (starts('/search')) return true;
       return false;
 
-    // Staff records entries and looks up partners. No review, no config,
-    // no people management, no audit trail.
+    // Staff records entries, looks up partners, and may manage fellowships
+    // and Tools. No review, no config, no people management. Fellowship and
+    // Tools writes go to the activity log; the Activity tab stays with admin.
     case 'staff':
       if (starts('/goals')) return true;
+      // Rankings are the pastor's: staff see what they recorded, not who
+      // gave the most.
+      if (starts('/ranked') || starts('/leaderboard')) return true;
       if (starts('/configuration')) return true;
       if (starts('/people')) return true;
       if (starts('/activity')) return true;

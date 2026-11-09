@@ -12,6 +12,9 @@ import '../../screens/entries/entry_form_screen.dart';
 import '../../screens/partner_profile_screen.dart';
 import '../../shell/sel_shell.dart';
 import '../../screens/activity_screen.dart';
+import '../../screens/letters_screen.dart';
+import '../../screens/health_screen.dart';
+import '../../screens/backups_screen.dart';
 import '../../screens/help_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../screens/search_screen.dart';
@@ -22,9 +25,18 @@ import '../../screens/auth/landing_screen.dart';
 import '../../screens/auth/sign_in_screen.dart';
 import '../../screens/auth/workspace_suspended_screen.dart';
 import '../../screens/configuration_screen.dart';
+import '../../screens/fellowships_screen.dart';
 import '../../screens/goals_screen.dart';
+import '../../screens/batch_edit_screen.dart';
+import '../../screens/imports_screen.dart';
+import '../../screens/tools_screen.dart';
+import '../../screens/monthly_records_screen.dart';
 import '../../screens/overview_screen.dart';
 import '../../screens/partners_screen.dart';
+import '../../screens/ranked_screen.dart';
+import '../../screens/views/fellowship_detail_screen.dart';
+import '../../screens/views/partner_views.dart';
+import '../../screens/views/records_views.dart';
 import '../../screens/people_screen.dart';
 import '../../screens/queue_screen.dart';
 import 'route_guards.dart';
@@ -110,6 +122,7 @@ GoRouter createRouter() {
             path: '/queue',
             pageBuilder: (context, state) => NoTransitionPage(
               child: QueueScreen(
+                key: const ValueKey('queue'),
                 initialFilter: state.uri.queryParameters['filter'],
               ),
             ),
@@ -118,16 +131,103 @@ GoRouter createRouter() {
             path: '/records',
             pageBuilder: (context, state) => NoTransitionPage(
               child: QueueScreen(
+                key: const ValueKey('records'),
                 mode: QueueMode.records,
                 initialFilter: state.uri.queryParameters['filter'],
+                importBatchId: state.uri.queryParameters['import'],
               ),
             ),
           ),
           GoRoute(
-            path: '/partners',
+            path: '/records/monthly',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: MonthlyRecordsScreen()),
+          ),
+          GoRoute(
+            path: '/tools',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ToolsScreen()),
+          ),
+          GoRoute(
+            path: '/records/imports',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ImportsScreen()),
+          ),
+          GoRoute(
+            path: '/records/imports/:batchId/edit',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: PartnersScreen(
+              child: BatchEditScreen(batchId: state.pathParameters['batchId']!),
+            ),
+          ),
+          GoRoute(
+            path: '/records/by-arm',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: RecordsByArmScreen()),
+          ),
+          GoRoute(
+            path: '/records/by-fellowship',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: RecordsByFellowshipScreen()),
+          ),
+          GoRoute(
+            path: '/records/by-partner',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: RecordsByPartnerScreen()),
+          ),
+          GoRoute(
+            path: '/partners',
+            // Ranked used to be a view here; old links go to its own page.
+            redirect: (context, state) =>
+                state.uri.queryParameters['view'] == 'ranked'
+                ? '/ranked'
+                : null,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PartnersScreen()),
+          ),
+          // The Partners views sit before `/partners/:id` so their names are
+          // never read as a partner ID.
+          GoRoute(
+            path: '/partners/by-fellowship',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PartnersByFellowshipScreen()),
+          ),
+          GoRoute(
+            path: '/partners/new',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: NewPartnersScreen()),
+          ),
+          GoRoute(
+            path: '/partners/rhythm',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: GivingRhythmScreen()),
+          ),
+          GoRoute(
+            path: '/partners/follow-up',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: FollowUpScreen()),
+          ),
+          GoRoute(
+            path: '/ranked',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: RankedScreen()),
+          ),
+          GoRoute(
+            path: '/fellowships',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: FellowshipsScreen(
                 initialView: state.uri.queryParameters['view'],
+                initialFellowship: state.uri.queryParameters['fellowship'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/fellowships/:key',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: FellowshipDetailScreen(
+                fellowshipKey: Uri.decodeComponent(
+                  state.pathParameters['key']!,
+                ).toLowerCase(),
+                initialTab: state.uri.queryParameters['tab'],
               ),
             ),
           ),
@@ -157,6 +257,16 @@ GoRouter createRouter() {
                 initialSection: state.uri.queryParameters['section'],
               ),
             ),
+          ),
+          GoRoute(
+            path: '/backups',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: BackupsScreen()),
+          ),
+          GoRoute(
+            path: '/health',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HealthScreen()),
           ),
           GoRoute(
             path: '/activity',
@@ -203,7 +313,12 @@ GoRouter createRouter() {
           GoRoute(
             path: '/settings',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: SettingsScreen()),
+                NoTransitionPage(child: SettingsScreen(initialTab: state.uri.queryParameters['tab'])),
+          ),
+          GoRoute(
+            path: '/settings/letters',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: LettersScreen()),
           ),
           GoRoute(
             path: '/search',
@@ -232,10 +347,7 @@ GoRouter createRouter() {
             path: '/approvals',
             redirect: (_, _) => '/queue?filter=pending',
           ),
-          GoRoute(
-            path: '/leaderboard',
-            redirect: (_, _) => '/partners?view=ranked',
-          ),
+          GoRoute(path: '/leaderboard', redirect: (_, _) => '/ranked'),
           GoRoute(path: '/arms', redirect: (_, _) => '/configuration'),
           GoRoute(path: '/periods', redirect: (_, _) => '/configuration'),
           GoRoute(path: '/users', redirect: (_, _) => '/people'),

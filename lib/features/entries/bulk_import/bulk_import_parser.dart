@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'bulk_import_columns.dart';
 import 'bulk_import_models.dart';
 import 'xlsx_sheet_reader.dart';
+import '../../church/domain/exchange_rates.dart';
 
 export 'xlsx_sheet_reader.dart' show readFirstXlsxSheet;
 
@@ -101,7 +102,13 @@ export 'xlsx_sheet_reader.dart' show readFirstXlsxSheet;
 }
 
 /// Validates a raw row and returns field-level issues (does not resolve partners).
-({double? amount, DateTime? date, bool pastorYes, List<BulkImportIssue> issues}) interpretRawValues(
+({
+  double? amount,
+  String? amountCurrency,
+  DateTime? date,
+  bool pastorYes,
+  List<BulkImportIssue> issues,
+}) interpretRawValues(
   BulkRawRow row,
 ) {
   final issues = <BulkImportIssue>[];
@@ -129,6 +136,7 @@ export 'xlsx_sheet_reader.dart' show readFirstXlsxSheet;
 
   final amountStr = v[BulkImportColumn.amount]?.trim() ?? '';
   double? amount;
+  String? amountCurrency;
   if (amountStr.isEmpty) {
     issues.add(
       const BulkImportIssue(
@@ -137,16 +145,16 @@ export 'xlsx_sheet_reader.dart' show readFirstXlsxSheet;
       ),
     );
   } else {
-    final cleaned = amountStr.replaceAll(',', '');
-    amount = double.tryParse(cleaned);
-    if (amount == null || amount <= 0) {
+    final parsed = parseAmountCell(amountStr);
+    amount = parsed.amount;
+    amountCurrency = parsed.currency;
+    if (amount == null) {
       issues.add(
         const BulkImportIssue(
           code: BulkImportIssueCode.invalidAmount,
           severity: BulkImportSeverity.error,
         ),
       );
-      amount = null;
     }
   }
 
@@ -183,7 +191,13 @@ export 'xlsx_sheet_reader.dart' show readFirstXlsxSheet;
 
   final pc = _parsePastorConfirmed(v[BulkImportColumn.pastorConfirmed]);
 
-  return (amount: amount, date: date, pastorYes: pc, issues: issues);
+  return (
+    amount: amount,
+    amountCurrency: amountCurrency,
+    date: date,
+    pastorYes: pc,
+    issues: issues,
+  );
 }
 
 bool _parsePastorConfirmed(String? raw) {

@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// No description provided for @appTitle.
   ///
   /// In en, this message translates to:
-  /// **'Pillr'**
+  /// **'The Pillr'**
   String get appTitle;
 
   /// No description provided for @navSectionMain.
@@ -175,6 +175,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Partners'**
   String get navPartners;
+
+  /// No description provided for @navFellowships.
+  ///
+  /// In en, this message translates to:
+  /// **'Fellowships'**
+  String get navFellowships;
 
   /// No description provided for @navLeaderboard.
   ///
@@ -863,7 +869,7 @@ abstract class AppLocalizations {
   /// No description provided for @bulkImportNeedXlsx.
   ///
   /// In en, this message translates to:
-  /// **'Please choose a spreadsheet saved as .xlsx or .csv.'**
+  /// **'Please choose a spreadsheet saved as .xlsx or .csv. Older .xls files need to be saved as .xlsx first.'**
   String get bulkImportNeedXlsx;
 
   /// No description provided for @bulkImportNoMacros.
@@ -1241,7 +1247,7 @@ abstract class AppLocalizations {
   /// No description provided for @entriesNoEntriesMessage.
   ///
   /// In en, this message translates to:
-  /// **'Record a new partnership entry.'**
+  /// **'Record giving.'**
   String get entriesNoEntriesMessage;
 
   /// No description provided for @entriesNoMatchesTitle.
@@ -1454,6 +1460,30 @@ abstract class AppLocalizations {
   /// **'Partner'**
   String get pdfTableHeaderPartner;
 
+  /// No description provided for @pdfTableHeaderMemberId.
+  ///
+  /// In en, this message translates to:
+  /// **'Member ID'**
+  String get pdfTableHeaderMemberId;
+
+  /// No description provided for @pdfTableHeaderFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'Fellowship'**
+  String get pdfTableHeaderFellowship;
+
+  /// No description provided for @pdfTableHeaderSubmittedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted by'**
+  String get pdfTableHeaderSubmittedBy;
+
+  /// No description provided for @pdfTableHeaderApprovedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Approved by'**
+  String get pdfTableHeaderApprovedBy;
+
   /// No description provided for @pdfTableHeaderAmount.
   ///
   /// In en, this message translates to:
@@ -1526,6 +1556,78 @@ abstract class AppLocalizations {
   /// **'Records'**
   String get navRecords;
 
+  /// No description provided for @navRecordsAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All records'**
+  String get navRecordsAll;
+
+  /// No description provided for @navRecordsMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'By month'**
+  String get navRecordsMonthly;
+
+  /// No description provided for @navRecordsImports.
+  ///
+  /// In en, this message translates to:
+  /// **'Imports'**
+  String get navRecordsImports;
+
+  /// No description provided for @navRecordsByArm.
+  ///
+  /// In en, this message translates to:
+  /// **'By arm'**
+  String get navRecordsByArm;
+
+  /// No description provided for @navRecordsByFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'By fellowship'**
+  String get navRecordsByFellowship;
+
+  /// No description provided for @navRecordsByPartner.
+  ///
+  /// In en, this message translates to:
+  /// **'By partner'**
+  String get navRecordsByPartner;
+
+  /// No description provided for @navPartnersAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All partners'**
+  String get navPartnersAll;
+
+  /// No description provided for @navPartnersByFellowship.
+  ///
+  /// In en, this message translates to:
+  /// **'By fellowship'**
+  String get navPartnersByFellowship;
+
+  /// No description provided for @navPartnersNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New this year'**
+  String get navPartnersNew;
+
+  /// No description provided for @navPartnersRhythm.
+  ///
+  /// In en, this message translates to:
+  /// **'Giving rhythm'**
+  String get navPartnersRhythm;
+
+  /// No description provided for @navPartnersFollowUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow up'**
+  String get navPartnersFollowUp;
+
+  /// No description provided for @navRanked.
+  ///
+  /// In en, this message translates to:
+  /// **'Ranked'**
+  String get navRanked;
+
   /// No description provided for @navPeople.
   ///
   /// In en, this message translates to:
@@ -1543,6 +1645,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Activity'**
   String get navActivity;
+
+  /// No description provided for @navTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get navTools;
 
   /// No description provided for @navPlatformChurches.
   ///
@@ -1622,6 +1730,18 @@ abstract class AppLocalizations {
   /// **'Every partnership entry for your church, newest first.'**
   String get recordsSubtitle;
 
+  /// No description provided for @recordsMonthlyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'By month'**
+  String get recordsMonthlyTitle;
+
+  /// No description provided for @recordsMonthlySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse approved giving month by month.'**
+  String get recordsMonthlySubtitle;
+
   /// No description provided for @recordsEmptyTitle.
   ///
   /// In en, this message translates to:
@@ -1637,7 +1757,7 @@ abstract class AppLocalizations {
   /// No description provided for @recordsEmptyAction.
   ///
   /// In en, this message translates to:
-  /// **'Record the first entry'**
+  /// **'Record the first giving'**
   String get recordsEmptyAction;
 
   /// No description provided for @statusPending.
@@ -1657,6 +1777,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Declined'**
   String get statusDeclined;
+
+  /// No description provided for @statusVoided.
+  ///
+  /// In en, this message translates to:
+  /// **'Voided'**
+  String get statusVoided;
 
   /// No description provided for @actionNewEntry.
   ///

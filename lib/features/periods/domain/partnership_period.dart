@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
+import '../../../core/utils/money.dart';
 import '../../../core/utils/text_case_utils.dart';
 
 class PartnershipPeriod {
@@ -46,7 +47,11 @@ class PartnershipPeriod {
       startDate: timestampToDateTime(m['startDate']) ?? DateTime.now(),
       endDate: timestampToDateTime(m['endDate']) ?? DateTime.now(),
       isActive: m['isActive'] as bool? ?? false,
-      totalApprovedAmount: (m['totalApprovedAmount'] as num?)?.toDouble() ?? 0,
+      totalApprovedAmount: storedTotalCedis(
+        m,
+        pesewasKey: 'totalApprovedPesewas',
+        cedisKey: 'totalApprovedAmount',
+      ),
       entryCount: (m['entryCount'] as num?)?.toInt() ?? 0,
       createdBy: m['createdBy'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),

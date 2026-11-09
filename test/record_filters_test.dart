@@ -120,6 +120,60 @@ void main() {
       expect(ids(out), ['b']);
     });
 
+    test('fellowship filter uses the partner name after a rename', () {
+      final renamed = PartnershipEntry(
+        id: 'renamed',
+        churchId: 'c',
+        partnerId: 'p-fire',
+        partnerSnapshot: const {'fullName': 'Ama Boateng', 'fellowship': 'FIRE'},
+        partnershipArmId: 'arm-1',
+        armSnapshot: const {},
+        partnershipPeriodId: 'period-1',
+        periodSnapshot: const {},
+        amountCedis: 80,
+        dateGiven: now,
+        status: 'approved',
+        createdBy: 'uid-1',
+        createdBySnapshot: const {},
+        createdAt: now,
+        updatedAt: now,
+      );
+      final out = applyRecordFilters(
+        [renamed, ...rows],
+        RecordFilters.empty.withFellowship('Fire'),
+        now: now,
+        fellowshipByPartnerId: const {'p-fire': 'Fire'},
+      );
+      expect(ids(out), ['renamed']);
+    });
+
+    test('fellowship falls back to the partner when the snapshot is blank', () {
+      final blank = PartnershipEntry(
+        id: 'snapless',
+        churchId: 'c',
+        partnerId: 'p-youth',
+        partnerSnapshot: const {'fullName': 'Ama Boateng'},
+        partnershipArmId: 'arm-1',
+        armSnapshot: const {},
+        partnershipPeriodId: 'period-1',
+        periodSnapshot: const {},
+        amountCedis: 80,
+        dateGiven: now,
+        status: 'approved',
+        createdBy: 'uid-1',
+        createdBySnapshot: const {},
+        createdAt: now,
+        updatedAt: now,
+      );
+      final out = applyRecordFilters(
+        [blank, ...rows],
+        RecordFilters.empty.withFellowship('Youth'),
+        now: now,
+        fellowshipByPartnerId: const {'p-youth': 'Youth'},
+      );
+      expect(ids(out), ['snapless']);
+    });
+
     test('arm', () {
       final out = applyRecordFilters(
         rows, RecordFilters.empty.withArm('arm-2'), now: now);
@@ -151,6 +205,45 @@ void main() {
         now: now,
       );
       expect(ids(out), ['a']);
+    });
+  });
+
+  group('main arms and sub-arms', () {
+    final entries = [
+      entry(id: 'venue', armId: 'venue'),
+      entry(id: 'logistics', armId: 'logistics'),
+      entry(id: 'w1909', armId: 'w1909'),
+    ];
+    Set<String> family(String id) =>
+        id == 'venue' ? {'venue', 'logistics'} : {id};
+
+    test('filtering a main arm takes in its sub-arms', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('venue'),
+        now: now,
+        armFamilyOf: family,
+      );
+      expect(out.map((e) => e.id), ['venue', 'logistics']);
+    });
+
+    test('filtering a sub-arm is just that sub-arm', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('logistics'),
+        now: now,
+        armFamilyOf: family,
+      );
+      expect(out.map((e) => e.id), ['logistics']);
+    });
+
+    test('without grouping, an arm filter is exact as before', () {
+      final out = applyRecordFilters(
+        entries,
+        RecordFilters.empty.withArm('venue'),
+        now: now,
+      );
+      expect(out.map((e) => e.id), ['venue']);
     });
   });
 }

@@ -4,8 +4,11 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../design/seline.dart';
 import '../features/arms/domain/partnership_arm.dart';
+import '../features/arms/providers/arms_providers.dart';
 import '../features/entries/domain/partnership_entry.dart';
+import '../features/entries/fellowship_of.dart';
 import '../features/entries/providers/record_filters.dart';
+import '../features/partners/providers/partners_providers.dart';
 
 /// The filter row above Records and the ranked partners view.
 ///
@@ -85,10 +88,10 @@ class RecordFilterBar extends ConsumerWidget {
   };
 
   /// Distinct fellowships present in the data, in alphabetical order.
-  List<String> _fellowships() {
+  List<String> _fellowships(Map<String, String> fellowshipByPartnerId) {
     final seen = <String>{};
     for (final e in entries) {
-      final v = e.partnerSnapshot['fellowship']?.toString().trim() ?? '';
+      final v = fellowshipRawOf(e, fellowshipByPartnerId);
       if (v.isNotEmpty) seen.add(v);
     }
     return seen.toList()..sort();
@@ -119,12 +122,15 @@ class RecordFilterBar extends ConsumerWidget {
         if (v != null) notifier.set(filters.withDateRange(v));
       case RecordFilterKind.fellowship:
         final v = await _menu<String>(context, [
-          for (final f in _fellowships()) (f, f),
+          for (final f in _fellowships(ref.read(partnerFellowshipByIdProvider)))
+            (f, f),
         ]);
         if (v != null) notifier.set(filters.withFellowship(v));
       case RecordFilterKind.arm:
+        final tree = ref.read(armTreeProvider);
         final v = await _menu<String>(context, [
-          for (final a in arms) (a.id, a.name),
+          for (final a in tree.mains)
+            if (arms.any((x) => x.id == a.id)) (a.id, a.name),
         ]);
         if (v != null) notifier.set(filters.withArm(v));
       case RecordFilterKind.amount:
@@ -163,7 +169,7 @@ Future<T?> _menu<T>(BuildContext context, List<(T, String)> options) {
       for (final (value, label) in options)
         PopupMenuItem<T>(
           value: value,
-          height: 36,
+          height: SelLayout.tapTarget,
           child: Text(label, style: SelType.small.copyWith(color: Sel.ink)),
         ),
     ],
@@ -197,7 +203,9 @@ class _FilterChip extends StatelessWidget {
           InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(SelRadius.pill),
-            child: Padding(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 SelSpace.x3,
                 SelSpace.x2,
@@ -210,9 +218,10 @@ class _FilterChip extends StatelessWidget {
                   Text('$label ', style: SelType.small),
                   Text(value, style: SelType.small.copyWith(color: Sel.ink)),
                   const SizedBox(width: SelSpace.x1),
-                  const Icon(LucideIcons.chevronDown, size: 11, color: Sel.ash),
+                  const Icon(LucideIcons.chevronDown, size: 13, color: Sel.warm),
                 ],
               ),
+            ),
             ),
           ),
           InkWell(
@@ -225,7 +234,7 @@ class _FilterChip extends StatelessWidget {
                 SelSpace.x3,
                 SelSpace.x2,
               ),
-              child: Icon(LucideIcons.x, size: 12, color: Sel.ash),
+              child: Icon(LucideIcons.x, size: 14, color: Sel.warm),
             ),
           ),
         ],
@@ -249,7 +258,7 @@ class _AddButton extends StatelessWidget {
         for (final k in kinds)
           PopupMenuItem<RecordFilterKind>(
             value: k,
-            height: 36,
+            height: SelLayout.tapTarget,
             child: Text(switch (k) {
               RecordFilterKind.dateRange => 'When',
               RecordFilterKind.fellowship => 'Fellowship',
@@ -260,6 +269,7 @@ class _AddButton extends StatelessWidget {
           ),
       ],
       child: Container(
+        constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
         padding: const EdgeInsets.symmetric(
           horizontal: SelSpace.x3,
           vertical: SelSpace.x2,
@@ -268,10 +278,11 @@ class _AddButton extends StatelessWidget {
           border: Border.all(color: Sel.border),
           borderRadius: BorderRadius.circular(SelRadius.pill),
         ),
+        alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(LucideIcons.plus, size: 12, color: Sel.ash),
+            const Icon(LucideIcons.plus, size: 14, color: Sel.warm),
             const SizedBox(width: SelSpace.x2),
             Text('Add filter', style: SelType.small.copyWith(color: Sel.ink)),
           ],

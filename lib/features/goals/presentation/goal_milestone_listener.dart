@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:the_pillr/l10n/app_localizations.dart';
 
+import '../../../core/notifications/sel_notice.dart';
 import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../../screens/settings_screen.dart';
@@ -35,8 +36,6 @@ class _GoalMilestoneListenerState extends ConsumerState<GoalMilestoneListener> {
         final prevMap = {for (final g in prevGoals) g.id: g.progressFraction};
         SharedPreferences.getInstance().then((prefs) {
           if (!context.mounted) return;
-          final messenger = ScaffoldMessenger.maybeOf(context);
-          if (messenger == null) return;
           final l10n = AppLocalizations.of(context);
 
           for (final g in goals) {
@@ -54,7 +53,7 @@ class _GoalMilestoneListenerState extends ConsumerState<GoalMilestoneListener> {
                     : m == 0.75
                         ? l10n.goalMilestone75
                         : l10n.goalMilestone50;
-                messenger.showSnackBar(SnackBar(content: Text(msg)));
+                selNotice(context, msg, kind: SelNoticeKind.success);
               }
             }
           }

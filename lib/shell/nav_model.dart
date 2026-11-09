@@ -7,15 +7,34 @@ import '../l10n/app_localizations.dart';
 /// One destination in the rail.
 @immutable
 class SelNavItem {
-  const SelNavItem(this.path, this.label, this.icon, {this.badgeKey});
+  const SelNavItem(
+    this.path,
+    this.label,
+    this.icon, {
+    this.badgeKey,
+    this.children = const [],
+  });
 
   final String path;
   final String label;
   final IconData icon;
 
-  /// Identifies a live count to render beside the label. Only `pending` is
-  /// wired today; the indirection keeps the rail free of provider imports.
+  /// Identifies a live count to render beside the label: `pending` (the
+  /// review queue) or `duplicates` (last night's duplicate check). The
+  /// indirection keeps this model free of provider imports.
   final String? badgeKey;
+
+  /// Indented sub-destinations shown under this item when its section is active.
+  final List<SelNavSubItem> children;
+}
+
+/// A sub-link under a parent nav item — e.g. By month under Records.
+@immutable
+class SelNavSubItem {
+  const SelNavSubItem(this.path, this.label);
+
+  final String path;
+  final String label;
 }
 
 /// A titled cluster of destinations. [title] is null for the trailing utility
@@ -38,6 +57,7 @@ class SelNavGroup {
 ///   filtered two ways; now it is one list with a status filter, and the
 ///   pastor's review actions appear inline on pending rows.
 /// * **Partners** absorbs Leaderboard as a ranked view of the same records.
+/// * **Fellowships** ranks groups and the partners within each fellowship.
 /// * **Configuration** merges Partnership arms and Periods — both are
 ///   setup-once structures, and they were never used independently.
 /// * **People** merges Users and Invitations, which are two states of the
@@ -67,9 +87,12 @@ List<SelNavGroup> navGroupsFor(
     groups.addAll([
       SelNavGroup(null, [
         SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
+        SelNavItem('/health', 'Health', LucideIcons.activity),
+        SelNavItem('/backups', 'Backups', LucideIcons.archive),
       ]),
       SelNavGroup(l10n.navSectionChurch, [
         SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+        SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
         SelNavItem(
           '/configuration',
           l10n.navConfiguration,
@@ -88,10 +111,12 @@ List<SelNavGroup> navGroupsFor(
           LucideIcons.inbox,
           badgeKey: 'pending',
         ),
-        SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
+        _records(l10n),
       ]),
       SelNavGroup(l10n.navSectionPartnership, [
-        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+        _partners(l10n),
+        _ranked(l10n),
+        SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
         SelNavItem('/goals', l10n.navGoals, LucideIcons.target),
       ]),
       SelNavGroup(l10n.navSectionChurch, [
@@ -108,8 +133,14 @@ List<SelNavGroup> navGroupsFor(
       SelNavGroup(null, [
         SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
         SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
-        SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
-        SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
+        _records(l10n),
+      ]),
+      // Staff look after partners as much as pastors do, so they get the same
+      // Partnership group, without Goals.
+      // No Ranked: staff see the giving they recorded, never a ranking.
+      SelNavGroup(l10n.navSectionPartnership, [
+        _partners(l10n),
+        SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
       ]),
     ]);
   }
@@ -117,6 +148,13 @@ List<SelNavGroup> navGroupsFor(
   // Utility group — no title, reads as a footer.
   groups.add(
     SelNavGroup(null, [
+      if (idx.canUseTools)
+        SelNavItem(
+          '/tools',
+          l10n.navTools,
+          LucideIcons.wrench,
+          badgeKey: 'duplicates',
+        ),
       SelNavItem('/help', l10n.navHelp, LucideIcons.helpCircle),
       SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ]),
@@ -125,6 +163,39 @@ List<SelNavGroup> navGroupsFor(
   return groups;
 }
 
+/// Records and its views. The parent opens All records and shows the rest.
+SelNavItem _records(AppLocalizations l10n) => SelNavItem(
+  '/records',
+  l10n.navRecords,
+  LucideIcons.fileText,
+  children: [
+    SelNavSubItem('/records', l10n.navRecordsAll),
+    SelNavSubItem('/records/monthly', l10n.navRecordsMonthly),
+    SelNavSubItem('/records/by-arm', l10n.navRecordsByArm),
+    SelNavSubItem('/records/by-fellowship', l10n.navRecordsByFellowship),
+    SelNavSubItem('/records/by-partner', l10n.navRecordsByPartner),
+    SelNavSubItem('/records/imports', l10n.navRecordsImports),
+  ],
+);
+
+/// Partners and its views, the same way.
+SelNavItem _partners(AppLocalizations l10n) => SelNavItem(
+  '/partners',
+  l10n.navPartners,
+  LucideIcons.users,
+  children: [
+    SelNavSubItem('/partners', l10n.navPartnersAll),
+    SelNavSubItem('/partners/by-fellowship', l10n.navPartnersByFellowship),
+    SelNavSubItem('/partners/new', l10n.navPartnersNew),
+    SelNavSubItem('/partners/rhythm', l10n.navPartnersRhythm),
+    SelNavSubItem('/partners/follow-up', l10n.navPartnersFollowUp),
+  ],
+);
+
+/// Ranked is its own destination, straight after Partners.
+SelNavItem _ranked(AppLocalizations l10n) =>
+    SelNavItem('/ranked', l10n.navRanked, LucideIcons.trophy);
+
 /// Compact-width destinations. Caps at five so the bar never wraps.
 List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
   if (idx == null) return const [];
@@ -132,6 +203,7 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     return [
       SelNavItem('/overview', l10n.navOverview, LucideIcons.layoutDashboard),
       SelNavItem('/people', l10n.navPeople, LucideIcons.users),
+      SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
       SelNavItem('/configuration', l10n.navConfigShort, LucideIcons.sliders),
       SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
     ];
@@ -147,7 +219,7 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
       ),
       SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
       SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
-      SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
+      _ranked(l10n),
     ];
   }
   return [
@@ -155,6 +227,6 @@ List<SelNavItem> mobileNavFor(UserChurchIndex? idx, AppLocalizations l10n) {
     SelNavItem('/queue', l10n.navQueue, LucideIcons.inbox),
     SelNavItem('/records', l10n.navRecords, LucideIcons.fileText),
     SelNavItem('/partners', l10n.navPartners, LucideIcons.users),
-    SelNavItem('/settings', l10n.navSettings, LucideIcons.settings),
+    SelNavItem('/fellowships', l10n.navFellowships, LucideIcons.users2),
   ];
 }

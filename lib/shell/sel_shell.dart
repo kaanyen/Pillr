@@ -34,6 +34,7 @@ class SelShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final path = GoRouterState.of(context).uri.path;
+    ref.watch(lastActiveRecorderProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final offline = ref
         .watch(connectivityProvider)
@@ -42,31 +43,34 @@ class SelShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final compact = c.maxWidth < 900;
+        // An import is a tool, not a page: the rail folds to icons and the
+        // top-right account cluster goes, so the rows can take the screen.
+        // The logo and the menu stay one click away.
+        final fillViewport = path.startsWith('/entries/bulk-import');
 
-        final body = Stack(
-          children: [
-            Positioned.fill(
-              child: compact
-                  ? child
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(left: SelSpace.x6),
-                          child: SelRail(currentPath: path),
-                        ),
-                        Expanded(child: child),
-                      ],
-                    ),
-            ),
-            // Utility cluster floats on the canvas — no bar, no fill.
-            Positioned(
-              top: SelSpace.x6,
-              right: compact ? SelSpace.x4 : SelSpace.x8,
-              child: _UtilityCluster(compact: compact, path: path),
-            ),
-          ],
-        );
+        final body = fillViewport
+            ? (compact ? child : _FoldedRailFrame(path: path, child: child))
+            : Stack(
+                children: [
+                  Positioned.fill(
+                    child: compact
+                        ? child
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SelRail(currentPath: path),
+                              Expanded(child: child),
+                            ],
+                          ),
+                  ),
+                  // Utility cluster floats on the canvas — no bar, no fill.
+                  Positioned(
+                    top: SelSpace.x6,
+                    right: compact ? SelSpace.x4 : SelSpace.x8,
+                    child: _UtilityCluster(compact: compact, path: path),
+                  ),
+                ],
+              );
 
         final canSearch = idx?.isPastor == true || idx?.isStaff == true;
 
@@ -76,6 +80,8 @@ class SelShell extends ConsumerWidget {
             child: RoutePersistenceListener(
               child: Scaffold(
                 backgroundColor: Sel.canvas,
+                // The pill floats over the page, so the page runs under it.
+                extendBody: true,
                 body: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -83,7 +89,7 @@ class SelShell extends ConsumerWidget {
                     Expanded(child: SafeArea(child: body)),
                   ],
                 ),
-                bottomNavigationBar: compact
+                bottomNavigationBar: compact && !fillViewport
                     ? _BottomBar(path: path, idx: idx)
                     : null,
               ),
@@ -194,17 +200,18 @@ class _AccountChip extends ConsumerWidget {
       itemBuilder: (context) => [
         PopupMenuItem(
           value: 'settings',
-          height: 38,
+          height: SelLayout.tapTarget,
           child: Text('Settings', style: SelType.body),
         ),
         PopupMenuItem(
           value: 'signout',
-          height: 38,
+          height: SelLayout.tapTarget,
           child: Text('Sign out', style: SelType.body),
         ),
       ],
       child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 4, SelSpace.x3, 4),
+        constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+        padding: const EdgeInsets.fromLTRB(6, 6, SelSpace.x3, 6),
         decoration: BoxDecoration(
           color: Sel.card,
           borderRadius: BorderRadius.circular(SelRadius.pill),
@@ -244,7 +251,7 @@ class _AccountChip extends ConsumerWidget {
               ),
             ],
             const SizedBox(width: SelSpace.x1),
-            const Icon(LucideIcons.chevronDown, size: 13, color: Sel.ash),
+            const Icon(LucideIcons.chevronDown, size: 13, color: Sel.warm),
           ],
         ),
       ),
@@ -252,40 +259,122 @@ class _AccountChip extends ConsumerWidget {
   }
 }
 
-class _BottomBar extends StatelessWidget {
+/// Phones get a floating pill instead of a full-width bar: five places, the
+/// current one filled, sitting over the page so the content runs underneath.
+class _BottomBar extends ConsumerWidget {
   const _BottomBar({required this.path, required this.idx});
 
   final String path;
   final dynamic idx;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = mobileNavFor(idx, AppLocalizations.of(context));
     if (items.isEmpty) return const SizedBox.shrink();
+    final pending = ref.watch(pendingApprovalCountProvider);
 
     final current = items.indexWhere(
       (e) => path == e.path || path.startsWith('${e.path}/'),
     );
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Sel.card,
-        border: Border(top: BorderSide(color: Sel.border)),
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(
+        SelSpace.x4,
+        0,
+        SelSpace.x4,
+        SelSpace.x4,
       ),
-      child: SafeArea(
-        top: false,
-        child: NavigationBar(
-          selectedIndex: current >= 0 ? current : 0,
-          backgroundColor: Sel.card,
-          onDestinationSelected: (i) => context.go(items[i].path),
-          destinations: [
-            for (final it in items)
-              NavigationDestination(
-                icon: Icon(it.icon, size: 18, color: Sel.ash),
-                selectedIcon: Icon(it.icon, size: 18, color: Sel.ink),
-                label: it.label,
-              ),
-          ],
+      child: Center(
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: Sel.card,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+              border: Border.all(color: Sel.border),
+              boxShadow: SelShadow.floating,
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _PillTab(
+                      item: items[i],
+                      selected: i == current,
+                      badge: items[i].badgeKey == 'pending' ? pending : null,
+                      onTap: () => context.go(items[i].path),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PillTab extends StatelessWidget {
+  const _PillTab({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+    this.badge,
+  });
+
+  final SelNavItem item;
+  final bool selected;
+  final int? badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Sel.card : Sel.warm;
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: item.label,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(SelRadius.pill),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            height: 52,
+            decoration: BoxDecoration(
+              color: selected ? Sel.ink : Colors.transparent,
+              borderRadius: BorderRadius.circular(SelRadius.pill),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Badge(
+                  isLabelVisible: (badge ?? 0) > 0,
+                  label: Text('${badge ?? 0}'),
+                  backgroundColor: Sel.cyan,
+                  child: Icon(item.icon, size: 18, color: fg),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: SelType.small.copyWith(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -322,3 +411,70 @@ class _OfflineStrip extends StatelessWidget {
     );
   }
 }
+
+/// A full-screen tool page with the rail folded to icons at its left. The
+/// menu button lays the whole menu over the page; a tap outside it, Escape
+/// or choosing a place closes it again.
+class _FoldedRailFrame extends StatefulWidget {
+  const _FoldedRailFrame({required this.path, required this.child});
+
+  final String path;
+  final Widget child;
+
+  @override
+  State<_FoldedRailFrame> createState() => _FoldedRailFrameState();
+}
+
+class _FoldedRailFrameState extends State<_FoldedRailFrame> {
+  bool _menu = false;
+
+  @override
+  void didUpdateWidget(_FoldedRailFrame old) {
+    super.didUpdateWidget(old);
+    if (old.path != widget.path) _menu = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SelCompactRail(
+                currentPath: widget.path,
+                onOpenMenu: () => setState(() => _menu = true),
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+        ),
+        if (_menu) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _menu = false),
+              child: const ColoredBox(color: Color(0x5913426F)),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: CallbackShortcuts(
+              bindings: {
+                const SingleActivator(LogicalKeyboardKey.escape): () =>
+                    setState(() => _menu = false),
+              },
+              child: Focus(
+                autofocus: true,
+                child: SelRail(currentPath: widget.path),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+

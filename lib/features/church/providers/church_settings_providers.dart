@@ -5,6 +5,8 @@ import '../../../core/extensions/async_value_ext.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../data/church_settings_repository.dart';
 import '../domain/church_settings.dart';
+import '../domain/exchange_rates.dart';
+import '../domain/monthly_email_report.dart';
 
 String _localeForCurrency(String code) {
   switch (code.toUpperCase()) {
@@ -35,7 +37,10 @@ String _fallbackSymbol(String code) {
 }
 
 final churchSettingsRepositoryProvider = Provider<ChurchSettingsRepository>((ref) {
-  return ChurchSettingsRepository(ref.watch(firestoreProvider));
+  return ChurchSettingsRepository(
+    ref.watch(firestoreProvider),
+    ref.watch(firebaseFunctionsProvider),
+  );
 });
 
 final churchSettingsProvider = StreamProvider<ChurchSettings?>((ref) {
@@ -44,9 +49,23 @@ final churchSettingsProvider = StreamProvider<ChurchSettings?>((ref) {
   return ref.watch(churchSettingsRepositoryProvider).watchChurch(idx.churchId);
 });
 
+final latestMonthlyEmailReportProvider = StreamProvider<MonthlyEmailReport?>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isPastor) return Stream.value(null);
+  return ref
+      .watch(churchSettingsRepositoryProvider)
+      .watchLatestMonthlyEmailReport(idx.churchId);
+});
+
 /// Church display name (convenience for UI).
 final churchNameProvider = Provider<String?>((ref) {
   return ref.watch(churchSettingsProvider).valueOrNull?.name;
+});
+
+/// Configured foreign exchange rates → GHS base.
+final churchExchangeRatesProvider = Provider<ChurchExchangeRates>((ref) {
+  return ref.watch(churchSettingsProvider).valueOrNull?.exchangeRates ??
+      const ChurchExchangeRates();
 });
 
 /// Money formatter from the church document (`currency` / `currencySymbol`).
@@ -63,6 +82,10 @@ final churchMoneyFormatProvider = Provider<String Function(num)>((ref) {
   );
   return (n) => fmt.format(n);
 });
+
+/// Trailing `.0` on a scaled figure — hoisted so the returned closure does not
+/// recompile it on every call.
+final RegExp _trailingZeroDecimal = RegExp(r'\.0$');
 
 /// Money shortened to fit a stat tile: ₵11.1B rather than ₵11,101,126,000.50.
 ///
@@ -91,7 +114,7 @@ final churchCompactMoneyProvider = Provider<String Function(num)>((ref) {
     // One decimal up to 100, none above — 11.1B, but 340B not 340.2B.
     final text = scaled >= 100
         ? scaled.round().toString()
-        : scaled.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '');
+        : scaled.toStringAsFixed(1).replaceAll(_trailingZeroDecimal, '');
     return '$sign$symbol$text$suffix';
   };
 });

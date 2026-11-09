@@ -7,7 +7,9 @@ import '../../../core/utils/text_case_utils.dart';
 import '../../activity/activity_log_helper.dart';
 import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
+import 'duplicate_warning.dart';
 import '../providers/partners_providers.dart';
+import '../../../core/errors/plain_error.dart';
 
 class PartnerFormDialog extends ConsumerStatefulWidget {
   const PartnerFormDialog({
@@ -59,6 +61,29 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
     if (_fullName.text.trim().isEmpty || _fellowship.text.trim().isEmpty) {
       setState(() => _error = 'Full name and fellowship are required.');
       return;
+    }
+    if (widget.existing == null) {
+      setState(() => _loading = true);
+      bool goAhead;
+      try {
+        goAhead = await confirmNotDuplicate(
+          context,
+          ref,
+          churchId: widget.churchId,
+          fullName: _fullName.text,
+          phone: _phone.text,
+          email: _email.text,
+          fellowship: _fellowship.text,
+        );
+      } catch (_) {
+        // The check is advice. If it cannot load, the save says what is wrong.
+        goAhead = true;
+      }
+      if (!goAhead) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      if (!mounted) return;
     }
     setState(() => _loading = true);
     final repo = ref.read(partnersRepositoryProvider);
@@ -123,7 +148,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = plainError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -149,7 +174,7 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: PillrLoader(size: 20),
                 )
               : Text(isEdit ? 'Save' : 'Create'),
         ),
@@ -159,7 +184,10 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (isEdit) ...[
-            Text('Member ID', style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              'Member ID',
+              style: SelType.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: SelSpace.x2),
             Text(
               widget.existing!.memberId,
@@ -197,11 +225,19 @@ class _PartnerFormDialogState extends ConsumerState<PartnerFormDialog> {
                 border: Border.all(color: Sel.border),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: SelSpace.x4,
+                  vertical: SelSpace.x2,
+                ),
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text('Active', style: SelType.body.copyWith(fontWeight: FontWeight.w500)),
+                      child: Text(
+                        'Active',
+                        style: SelType.body.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     Switch.adaptive(
                       value: _active,

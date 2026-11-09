@@ -127,12 +127,12 @@ abstract final class SelTheme {
         floatingLabelBehavior: FloatingLabelBehavior.never,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: SelSpace.x3,
-          vertical: 10,
+          horizontal: 18,
+          vertical: 14,
         ),
-        border: _inputBorder(Sel.borderMuted),
-        enabledBorder: _inputBorder(Sel.borderMuted),
-        focusedBorder: _inputBorder(Sel.cyan, width: 2),
+        border: _inputBorder(Sel.border),
+        enabledBorder: _inputBorder(Sel.border),
+        focusedBorder: _inputBorder(Sel.sky, width: 1.5),
         disabledBorder: _inputBorder(Sel.border),
         // Errors read through weight, not colour.
         errorBorder: _inputBorder(Sel.ink, width: 1.5),
@@ -144,8 +144,8 @@ abstract final class SelTheme {
           color: Sel.ink,
           fontWeight: FontWeight.w500,
         ),
-        prefixIconColor: Sel.ash,
-        suffixIconColor: Sel.ash,
+        prefixIconColor: Sel.warm,
+        suffixIconColor: Sel.warm,
       ),
 
       // The one filled colour in the system.
@@ -162,9 +162,9 @@ abstract final class SelTheme {
           backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           padding: const WidgetStatePropertyAll(
-            EdgeInsets.symmetric(horizontal: SelSpace.x3, vertical: SelSpace.x1),
+            EdgeInsets.symmetric(horizontal: SelSpace.x3, vertical: SelSpace.x2),
           ),
-          minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+          minimumSize: const WidgetStatePropertyAll(Size(0, SelLayout.tapTargetDense)),
           textStyle: const WidgetStatePropertyAll(SelType.button),
           shape: const WidgetStatePropertyAll(
             RoundedRectangleBorder(
@@ -182,6 +182,9 @@ abstract final class SelTheme {
               s.contains(WidgetState.hovered) ? Sel.canvas : Colors.transparent),
           overlayColor: const WidgetStatePropertyAll(Colors.transparent),
           iconSize: const WidgetStatePropertyAll(18),
+          minimumSize: const WidgetStatePropertyAll(
+            Size(SelLayout.tapTarget, SelLayout.tapTarget),
+          ),
           shape: const WidgetStatePropertyAll(
             RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(SelRadius.pill)),
@@ -201,7 +204,7 @@ abstract final class SelTheme {
         elevation: 0,
         pressElevation: 0,
         shadowColor: Colors.transparent,
-        padding: EdgeInsets.symmetric(horizontal: SelSpace.x3, vertical: SelSpace.x1),
+        padding: EdgeInsets.symmetric(horizontal: SelSpace.x3, vertical: SelSpace.x2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(SelRadius.pill)),
         ),
@@ -266,7 +269,7 @@ abstract final class SelTheme {
         ),
         iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
               size: 18,
-              color: s.contains(WidgetState.selected) ? Sel.ink : Sel.ash,
+              color: s.contains(WidgetState.selected) ? Sel.ink : Sel.warm,
             )),
         labelTextStyle: WidgetStateProperty.resolveWith((s) => SelType.small.copyWith(
               color: s.contains(WidgetState.selected) ? Sel.ink : Sel.warm,
@@ -368,7 +371,7 @@ abstract final class SelTheme {
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
         ),
-        minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
+        minimumSize: const WidgetStatePropertyAll(Size(0, SelLayout.tapTarget)),
         textStyle: const WidgetStatePropertyAll(SelType.button),
         shape: const WidgetStatePropertyAll(
           RoundedRectangleBorder(
@@ -390,7 +393,7 @@ abstract final class SelTheme {
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: SelSpace.x4, vertical: SelSpace.x2),
         ),
-        minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
+        minimumSize: const WidgetStatePropertyAll(Size(0, SelLayout.tapTarget)),
         textStyle: const WidgetStatePropertyAll(SelType.button),
         shape: const WidgetStatePropertyAll(
           RoundedRectangleBorder(

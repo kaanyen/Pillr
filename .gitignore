@@ -53,3 +53,9 @@ app.*.map.json
 
 # Local Firebase emulator snapshots — never committed.
 .emulator-data/
+
+# Emulator data dumps — these hold real congregation records
+firebase-export-*/
+
+# Production audit snapshots — real church data, never commit
+audit/

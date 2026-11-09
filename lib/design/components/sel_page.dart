@@ -138,10 +138,15 @@ class SelPageBody extends StatelessWidget {
     this.maxWidth = SelLayout.maxWidth,
     this.onRefresh,
     this.controller,
+    this.bottomBar,
   });
 
   final List<Widget> children;
   final double maxWidth;
+
+  /// Pinned over the foot of the page while it scrolls, such as the bar that
+  /// acts on chosen rows. Null shows nothing.
+  final Widget? bottomBar;
   final Future<void> Function()? onRefresh;
   final ScrollController? controller;
 
@@ -159,7 +164,12 @@ class SelPageBody extends StatelessWidget {
       physics: onRefresh != null
           ? const AlwaysScrollableScrollPhysics()
           : null,
-      padding: EdgeInsets.fromLTRB(gutter, clusterHeadroom, gutter, SelSpace.x20),
+      padding: EdgeInsets.fromLTRB(
+        gutter,
+        clusterHeadroom,
+        gutter,
+        bottomBar == null ? SelSpace.x20 : SelSpace.x20 + 80,
+      ),
       child: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
@@ -171,6 +181,24 @@ class SelPageBody extends StatelessWidget {
       ),
     );
 
+    if (bottomBar != null) {
+      return Stack(
+        children: [
+          Positioned.fill(child: scroll),
+          Positioned(
+            left: gutter,
+            right: gutter,
+            bottom: SelSpace.x4,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: bottomBar,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     if (onRefresh == null) return scroll;
     return RefreshIndicator(
       onRefresh: onRefresh!,

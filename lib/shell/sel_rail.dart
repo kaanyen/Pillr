@@ -1,11 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
+import '../features/maintenance/providers/duplicate_health_provider.dart';
 import '../core/extensions/async_value_ext.dart';
-import '../core/utils/color_utils.dart';
 import '../design/seline.dart';
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/providers/church_settings_providers.dart';
@@ -39,9 +37,14 @@ class SelRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final churchName = ref.watch(churchNameProvider) ?? 'Your church';
-    final branding = ref.watch(churchSettingsProvider).valueOrNull;
     final profile = ref.watch(churchUserProfileProvider).valueOrNull;
     final pending = ref.watch(pendingApprovalCountProvider);
+    final duplicates = ref.watch(duplicateBadgeCountProvider);
+    int? badgeFor(String? key) => switch (key) {
+      'pending' => pending,
+      'duplicates' => duplicates,
+      _ => null,
+    };
     final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
 
     final groups = navGroupsFor(
@@ -49,12 +52,14 @@ class SelRail extends ConsumerWidget {
       AppLocalizations.of(context),
       platformAdmin: isPlatform,
     );
-    final accent = SelTheme.tenantMark(
-      parseHexColor(branding?.primaryColorHex),
-    );
 
-    return SizedBox(
+    return Container(
       width: SelLayout.railWidth,
+      decoration: const BoxDecoration(
+        color: Sel.rail,
+        border: Border(right: BorderSide(color: Sel.railEdge)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: SelSpace.x4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -68,12 +73,16 @@ class SelRail extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                _IdentityMark(accent: accent, logoUrl: branding?.logoUrl),
-                const SizedBox(width: SelSpace.x2),
+                const PillrMark(size: 32),
+                const SizedBox(width: SelSpace.x3),
                 Expanded(
                   child: Text(
-                    'Pillr',
-                    style: SelType.bodyMedium.copyWith(color: Sel.ink),
+                    'pillr',
+                    style: SelType.hero.copyWith(
+                      fontSize: 24,
+                      height: 1,
+                      letterSpacing: -1,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -88,11 +97,30 @@ class SelRail extends ConsumerWidget {
               SelSpace.x3,
               SelSpace.x6,
             ),
-            child: Text(
-              churchName,
-              style: SelType.small,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(6, 6, SelSpace.x4, 6),
+              decoration: BoxDecoration(
+                color: Sel.card,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+                border: Border.all(color: Sel.border),
+              ),
+              child: Row(
+                children: [
+                  _ChurchMark(size: 38),
+                  const SizedBox(width: SelSpace.x3),
+                  Expanded(
+                    child: Text(
+                      churchName,
+                      style: SelType.bodySm.copyWith(
+                        color: Sel.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -109,20 +137,25 @@ class SelRail extends ConsumerWidget {
                         SelSpace.x3,
                         SelSpace.x2,
                       ),
-                      child: Text(
-                        g.title!.toUpperCase(),
-                        style: SelType.caption,
-                      ),
+                      child: Text(g.title!, style: SelType.caption),
                     )
                   else
                     const SizedBox(height: SelSpace.x2),
                   for (final item in g.items)
-                    _RailLink(
-                      item: item,
-                      active: _isActive(item.path),
-                      badge: item.badgeKey == 'pending' ? pending : null,
-                      onTap: () => context.go(item.path),
-                    ),
+                    if (item.children.isEmpty)
+                      _RailLink(
+                        item: item,
+                        active: _isActive(item.path),
+                        badge: badgeFor(item.badgeKey),
+                        onTap: () => context.go(item.path),
+                      )
+                    else
+                      _RailSection(
+                        item: item,
+                        currentPath: currentPath,
+                        badge: badgeFor(item.badgeKey),
+                        onNavigate: context.go,
+                      ),
                 ],
               ],
             ),
@@ -138,27 +171,8 @@ class SelRail extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    height: 24,
-                    width: 24,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Sel.card,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Sel.border),
-                    ),
-                    child: Text(
-                      profile.fullName.isNotEmpty
-                          ? profile.fullName[0].toUpperCase()
-                          : '?',
-                      style: SelType.small.copyWith(
-                        color: Sel.ink,
-                        fontWeight: FontWeight.w500,
-                        height: 1,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: SelSpace.x2),
+                  _Initials(profile.fullName, size: 38),
+                  const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,9 +180,9 @@ class SelRail extends ConsumerWidget {
                       children: [
                         Text(
                           profile.fullName,
-                          style: SelType.small.copyWith(
+                          style: SelType.bodySm.copyWith(
                             color: Sel.ink,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -176,7 +190,7 @@ class SelRail extends ConsumerWidget {
                         Text(
                           profile.role[0].toUpperCase() +
                               profile.role.substring(1),
-                          style: SelType.small.copyWith(fontSize: 11),
+                          style: SelType.small,
                           maxLines: 1,
                         ),
                       ],
@@ -191,32 +205,136 @@ class SelRail extends ConsumerWidget {
   }
 }
 
-/// The church's identity mark — the one place a tenant's own colour appears.
-class _IdentityMark extends StatelessWidget {
-  const _IdentityMark({required this.accent, this.logoUrl});
+/// A parent nav item with indented sub-links — one lifted card for the active
+/// child, not a stack of separate boxes.
+class _RailSection extends StatelessWidget {
+  const _RailSection({
+    required this.item,
+    required this.currentPath,
+    required this.onNavigate,
+    this.badge,
+  });
 
-  final Color accent;
-  final String? logoUrl;
+  final SelNavItem item;
+  final String currentPath;
+  final void Function(String location) onNavigate;
+  final int? badge;
+
+  bool get _expanded =>
+      currentPath == item.path || currentPath.startsWith('${item.path}/');
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 22,
-      width: 22,
-      decoration: BoxDecoration(
-        color: Sel.card,
-        borderRadius: BorderRadius.circular(SelRadius.icon),
-        border: Border.all(color: Sel.border),
+    if (!_expanded) {
+      return _RailLink(
+        item: item,
+        active: false,
+        badge: badge,
+        onTap: () => onNavigate(item.path),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: SelSpace.x1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _RailSectionHeader(
+            item: item,
+            badge: badge,
+            onTap: () => onNavigate(item.path),
+          ),
+          for (final child in item.children)
+            _RailSubLink(
+              label: child.label,
+              active: currentPath == child.path ||
+                  (child.path != item.path &&
+                      currentPath.startsWith('${child.path}/')),
+              onTap: () => onNavigate(child.path),
+            ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: logoUrl != null && logoUrl!.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: logoUrl!,
-              fit: BoxFit.cover,
-              errorWidget: (_, _, _) =>
-                  Icon(LucideIcons.church, size: 12, color: accent),
-            )
-          : Icon(LucideIcons.church, size: 12, color: accent),
+    );
+  }
+}
+
+class _RailSectionHeader extends StatefulWidget {
+  const _RailSectionHeader({
+    required this.item,
+    required this.onTap,
+    this.badge,
+  });
+
+  final SelNavItem item;
+  final VoidCallback onTap;
+  final int? badge;
+
+  @override
+  State<_RailSectionHeader> createState() => _RailSectionHeaderState();
+}
+
+class _RailSectionHeaderState extends State<_RailSectionHeader> {
+  bool _hover = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      link: true,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        onShowHoverHighlight: (v) => setState(() => _hover = v),
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: SelFocusRing(
+            focused: _focused,
+            radius: SelRadius.pill,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              decoration: BoxDecoration(
+                color: _hover ? Sel.railHover : Colors.transparent,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: SelSpace.x3,
+              vertical: SelSpace.x2,
+            ),
+            child: Row(
+              children: [
+                Icon(widget.item.icon, size: 18, color: Sel.ink),
+                const SizedBox(width: SelSpace.x3),
+                Expanded(
+                  child: Text(
+                    widget.item.label,
+                    style: SelType.body.copyWith(
+                      color: Sel.ink,
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (widget.badge != null && widget.badge! > 0)
+                  SelCountTag(label: '${widget.badge}', emphasised: true),
+              ],
+            ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -242,51 +360,60 @@ class _RailLink extends StatefulWidget {
 
 class _RailLinkState extends State<_RailLink> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final active = widget.active;
-    final fg = active ? Sel.ink : (_hover ? Sel.ink : Sel.warm);
+    final fg = active || _hover ? Sel.ink : Sel.warm;
 
     return Semantics(
       link: true,
       selected: active,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 1),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowHoverHighlight: (v) => setState(() => _hover = v),
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
           child: GestureDetector(
             onTap: widget.onTap,
-            child: AnimatedContainer(
+            child: SelFocusRing(
+              focused: _focused,
+              radius: SelRadius.pill,
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
               padding: const EdgeInsets.symmetric(
                 horizontal: SelSpace.x3,
                 vertical: SelSpace.x2,
               ),
               decoration: BoxDecoration(
                 color: active
-                    ? Sel.card
+                    ? Sel.railSelected
                     : _hover
-                    ? Sel.card.withValues(alpha: 0.6)
+                    ? Sel.railHover
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(SelRadius.input),
-                border: Border.all(
-                  color: active ? Sel.border : Colors.transparent,
-                ),
-                boxShadow: active ? SelShadow.hairline : null,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
               ),
               child: Row(
                 children: [
-                  Icon(widget.item.icon, size: 15, color: fg),
-                  const SizedBox(width: SelSpace.x2 + 2),
+                  Icon(widget.item.icon, size: 18, color: fg),
+                  const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Text(
                       widget.item.label,
                       style: SelType.body.copyWith(
                         color: fg,
-                        fontWeight: active ? FontWeight.w500 : FontWeight.w400,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -298,9 +425,319 @@ class _RailLinkState extends State<_RailLink> {
                 ],
               ),
             ),
+            ),
           ),
         ),
       ),
     );
   }
 }
+
+class _RailSubLink extends StatefulWidget {
+  const _RailSubLink({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  State<_RailSubLink> createState() => _RailSubLinkState();
+}
+
+class _RailSubLinkState extends State<_RailSubLink> {
+  bool _hover = false;
+  bool _focused = false;
+
+  static const _iconColumn = 18.0 + SelSpace.x3;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.active;
+    final fg = active || _hover ? Sel.ink : Sel.warm;
+
+    return Semantics(
+      link: true,
+      selected: active,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          left: SelSpace.x3,
+          right: SelSpace.x3,
+          bottom: 1,
+        ),
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowHoverHighlight: (v) => setState(() => _hover = v),
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: SelFocusRing(
+              focused: _focused,
+              radius: SelRadius.pill,
+              child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              padding: EdgeInsets.fromLTRB(
+                _iconColumn + SelSpace.x2,
+                SelSpace.x2,
+                SelSpace.x3,
+                SelSpace.x2,
+              ),
+              decoration: BoxDecoration(
+                color: active
+                    ? Sel.railSelected
+                    : _hover
+                    ? Sel.railHover
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(SelRadius.pill),
+              ),
+              child: Text(
+                widget.label,
+                style: SelType.bodySm.copyWith(
+                  color: fg,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                  height: 1.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A round light-sky disc with up to two initials.
+class _Initials extends StatelessWidget {
+  const _Initials(this.name, {required this.size});
+
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final initials = words.take(2).map((w) => w[0].toUpperCase()).join();
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Sel.skyWash,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initials.isEmpty ? '?' : initials,
+        style: SelType.tag.copyWith(fontWeight: FontWeight.w800, height: 1),
+      ),
+    );
+  }
+}
+
+/// The rail folded to icons, for pages that fill the screen such as an
+/// import: the logo at the top left, a button that opens the whole menu,
+/// then each place as an icon with its name on hover.
+class SelCompactRail extends ConsumerWidget {
+  const SelCompactRail({super.key, required this.currentPath, required this.onOpenMenu});
+
+  final String currentPath;
+  final VoidCallback onOpenMenu;
+
+  static const width = 72.0;
+
+  bool _isActive(String path) {
+    if (currentPath == path) return true;
+    return path != '/overview' && currentPath.startsWith('$path/');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+    final churchName = ref.watch(churchNameProvider) ?? 'Your church';
+    final profile = ref.watch(churchUserProfileProvider).valueOrNull;
+    final pending = ref.watch(pendingApprovalCountProvider);
+    final isPlatform = ref.watch(isPlatformAdminProvider).valueOrNull == true;
+    final groups = navGroupsFor(idx, AppLocalizations.of(context), platformAdmin: isPlatform);
+
+    Widget icon(SelNavItem item) {
+      final active = _isActive(item.path) ||
+          item.children.any((c) => _isActive(c.path));
+      final badge = item.badgeKey == 'pending' ? pending : null;
+      return Tooltip(
+        message: badge != null && badge > 0 ? '${item.label} · $badge' : item.label,
+        waitDuration: const Duration(milliseconds: 300),
+        child: Semantics(
+          link: true,
+          selected: active,
+          label: item.label,
+          child: Material(
+            color: active ? Sel.railSelected : Colors.transparent,
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: () => context.go(item.path),
+              child: SizedBox(
+                width: 48,
+                height: 40,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(item.icon, size: 18, color: active ? Sel.ink : Sel.warm),
+                    if (badge != null && badge > 0)
+                      Positioned(
+                        top: 6,
+                        right: 9,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: Sel.sky, shape: BoxShape.circle),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: width,
+      decoration: const BoxDecoration(
+        color: Sel.rail,
+        border: Border(right: BorderSide(color: Sel.railEdge)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: SelSpace.x3),
+          Tooltip(
+            message: 'Pillr',
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => context.go('/overview'),
+              child: const PillrMark(size: 34),
+            ),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Tooltip(
+            message: 'Show the menu',
+            child: Semantics(
+              button: true,
+              label: 'Show the menu',
+              child: Material(
+                color: Sel.card,
+                shape: const StadiumBorder(side: BorderSide(color: Sel.border)),
+                child: InkWell(
+                  customBorder: const StadiumBorder(),
+                  onTap: onOpenMenu,
+                  child: const SizedBox(
+                    width: 48,
+                    height: 36,
+                    child: Icon(Icons.menu_rounded, size: 18, color: Sel.ink),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: SelSpace.x2),
+          Tooltip(message: churchName, child: const _ChurchMark(size: 34)),
+          const SizedBox(height: SelSpace.x2),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final (n, g) in groups.indexed) ...[
+                  if (n > 0)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: Divider(height: 1, color: Sel.railEdge),
+                    ),
+                  for (final item in g.items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+                      child: Center(child: icon(item)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          if (profile != null)
+            Padding(
+              padding: const EdgeInsets.only(top: SelSpace.x2, bottom: SelSpace.x3),
+              child: Tooltip(
+                message: profile.fullName,
+                child: _Initials(profile.fullName, size: 34),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The church in the sidebar: its logo when the logo is square enough to
+/// read this small, otherwise its initials in the church colour.
+class _ChurchMark extends ConsumerWidget {
+  const _ChurchMark({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(churchSettingsProvider).valueOrNull;
+    final name = s?.name ?? ref.watch(churchNameProvider) ?? 'Your church';
+    final hex = (s?.primaryColorHex ?? '').replaceAll('#', '');
+    final colour = hex.length == 6 ? Color(0xFF000000 | (int.tryParse(hex, radix: 16) ?? 0x13426F)) : Sel.ink;
+    final initials = name
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    final fallback = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: colour, borderRadius: BorderRadius.circular(size * 0.3)),
+      child: Text(
+        initials.isEmpty ? '?' : initials,
+        style: SelType.tag.copyWith(color: Sel.card, fontWeight: FontWeight.w800, height: 1),
+      ),
+    );
+    if (s == null || !s.logoFitsSidebar) return fallback;
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Sel.card,
+        borderRadius: BorderRadius.circular(size * 0.3),
+        border: Border.all(color: Sel.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        s.logoUrl!,
+        fit: BoxFit.contain,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        semanticLabel: name,
+        errorBuilder: (_, _, _) => fallback,
+      ),
+    );
+  }
+}
+

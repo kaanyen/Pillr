@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../partners/domain/partner.dart';
+import '../../church/domain/exchange_rates.dart';
 import 'bulk_import_columns.dart';
 
 enum BulkImportSeverity { error, warning }
@@ -16,15 +17,31 @@ enum BulkImportIssueCode {
   armNotFound,
   periodNotFound,
   ambiguousPhone,
+  /// Two partners share this name and fellowship — creating a third is worse.
+  ambiguousName,
   memberIdNotFound,
   memberIdConflict,
+
+  /// The member ID belongs to a record that was merged into another. The row
+  /// goes to the partner it was merged into.
+  memberIdMerged,
+
+  /// No partner matched, so one would be created — but an existing partner
+  /// looks like the same person.
+  possibleDuplicatePartner,
   fellowshipMismatch,
+  /// Sheet spelling is not in the church's fellowship book.
+  unknownFellowship,
   nameMismatch,
   duplicateInFile,
   duplicateInDatabase,
   staffPastorYesPending,
 
-  /// A line that is part of the sheet's furniture rather than a gift — the
+  /// The row is in a currency the church has set no rate for. Converting it
+  /// would fall back to 1:1 and bank $100 of giving as ₵100.
+  missingExchangeRate,
+
+  /// A line that is part of the sheet's furniture rather than giving — the
   /// TOTAL at the bottom, or a note typed under the table.
   ignoredNonDataRow,
 }
@@ -76,6 +93,9 @@ class BulkResolvedRow extends Equatable {
     required this.email,
     required this.memberIdFromSheet,
     required this.amountCedis,
+    this.sourceCurrency = BaseCurrency.code,
+    this.sourceAmount,
+    this.exchangeRateToBase = 1.0,
     required this.dateGiven,
     required this.armId,
     required this.armName,
@@ -97,6 +117,9 @@ class BulkResolvedRow extends Equatable {
   final String email;
   final String? memberIdFromSheet;
   final double amountCedis;
+  final String sourceCurrency;
+  final double? sourceAmount;
+  final double exchangeRateToBase;
   final DateTime dateGiven;
   final String? armId;
   final String armName;
@@ -112,6 +135,8 @@ class BulkResolvedRow extends Equatable {
   final List<BulkImportIssue> issues;
   final bool isBlocking;
 
+  bool get hasForeignSource => sourceCurrency.toUpperCase() != BaseCurrency.code;
+
   BulkResolvedRow copyWith({
     String? fullName,
     String? fellowship,
@@ -119,6 +144,9 @@ class BulkResolvedRow extends Equatable {
     String? email,
     String? memberIdFromSheet,
     double? amountCedis,
+    String? sourceCurrency,
+    double? sourceAmount,
+    double? exchangeRateToBase,
     DateTime? dateGiven,
     String? armId,
     String? armName,
@@ -140,6 +168,9 @@ class BulkResolvedRow extends Equatable {
       email: email ?? this.email,
       memberIdFromSheet: memberIdFromSheet ?? this.memberIdFromSheet,
       amountCedis: amountCedis ?? this.amountCedis,
+      sourceCurrency: sourceCurrency ?? this.sourceCurrency,
+      sourceAmount: sourceAmount ?? this.sourceAmount,
+      exchangeRateToBase: exchangeRateToBase ?? this.exchangeRateToBase,
       dateGiven: dateGiven ?? this.dateGiven,
       armId: armId ?? this.armId,
       armName: armName ?? this.armName,
@@ -164,6 +195,9 @@ class BulkResolvedRow extends Equatable {
         email,
         memberIdFromSheet,
         amountCedis,
+        sourceCurrency,
+        sourceAmount,
+        exchangeRateToBase,
         dateGiven,
         armId,
         armName,

@@ -78,6 +78,7 @@ dependencies:
   xml: ^6.6.1
   lucide_icons: ^0.257.0
   animations: ^2.1.1
+  flutter_svg: ^2.2.3
 
 dev_dependencies:
   flutter_test:
@@ -111,12 +112,33 @@ flutter:
 
   assets:
     - assets/branding/app_icon.png
+    - assets/branding/pillr_app_logo.png
+    - assets/branding/pillr_app_logo.svg
+    - assets/branding/pillr_logo_main.png
+    - assets/branding/pillr_logo_main.svg
+    - assets/branding/pillr_logo_main_white.svg
+    - assets/branding/pillr_logo_main_white.png
+    - assets/branding/pillr_logo_main_ink.svg
+    - assets/branding/pillr_logo_main_muted.svg
 
   # All type is bundled locally — no runtime CDN fetch, no first-paint reflow.
   # Inter Tight stands in for Roobert (Seline's display face): geometric sans
   # with tight negative tracking, used at weight 400 for display sizes.
   # Inter is the body/UI workhorse. Both subset to Latin + currency (incl. ₵).
   fonts:
+    # Manrope: the canvas typeface. SIL Open Font License, assets/fonts/Manrope-OFL.txt.
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-ExtraBold.ttf
+          weight: 800
     - family: InterTight
       fonts:
         - asset: assets/fonts/InterTight-Regular.ttf
@@ -173,15 +195,21 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
+  # The Pillr mark on full-bleed navy; the platform rounds the corners.
+  image_path: assets/branding/pillr_app_logo.png
+  remove_alpha_ios: true
+  # web/ icons are drawn from the same mark by hand, with a maskable set.
   web:
-    generate: true
-  image_path: assets/branding/app_icon.png
+    generate: false
   min_sdk_android: 21
 
 flutter_native_splash:
-  color: "#1A56DB"
-  image: assets/branding/app_icon.png
+  # The app's page colour, so the hand-off to the Flutter splash has no flash.
+  color: "#FEFEFD"
+  image: assets/branding/pillr_mark_splash.png
   android_12:
-    color: "#1A56DB"
-    image: assets/branding/app_icon.png
-  web: true
+    color: "#FEFEFD"
+    image: assets/branding/pillr_mark_splash.png
+  # web/index.html carries its own animated splash; don't overwrite it.
+  web: false
+  web_image_mode: center

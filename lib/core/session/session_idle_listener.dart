@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../notifications/sel_notice.dart';
 import '../extensions/async_value_ext.dart';
 import '../../features/auth/providers/auth_providers.dart';
 
@@ -68,9 +69,10 @@ class _SessionIdleListenerState extends ConsumerState<SessionIdleListener> {
     final user = ref.read(authStateProvider).valueOrNull;
     if (user == null) return;
 
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.showSnackBar(
-      const SnackBar(content: Text('Signed out after a period of inactivity.')),
+    selNotice(
+      context,
+      'Signed out after a period of inactivity.',
+      kind: SelNoticeKind.info,
     );
 
     await ref.read(authRepositoryProvider).signOut();

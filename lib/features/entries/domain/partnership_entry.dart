@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/text_case_utils.dart';
+import '../../church/domain/exchange_rates.dart';
 
 class PartnershipEntry {
   const PartnershipEntry({
@@ -14,6 +15,9 @@ class PartnershipEntry {
     required this.partnershipPeriodId,
     required this.periodSnapshot,
     required this.amountCedis,
+    this.sourceCurrency,
+    this.sourceAmount,
+    this.exchangeRateToBase,
     required this.dateGiven,
     this.notes,
     required this.status,
@@ -25,8 +29,17 @@ class PartnershipEntry {
     this.reviewedBySnapshot,
     this.reviewedAt,
     this.declineReason,
+    this.voidedAt,
+    this.voidedBy,
+    this.voidReason,
+    this.importBatchId,
     this.editHistory = const [],
+    this.mergedFromPartnerId,
   });
+
+  /// The partner record this entry first belonged to, when a merge moved it.
+  /// Taking that record back out of the merge sends the entry back.
+  final String? mergedFromPartnerId;
 
   final String id;
   final String churchId;
@@ -37,6 +50,9 @@ class PartnershipEntry {
   final String partnershipPeriodId;
   final Map<String, dynamic> periodSnapshot;
   final double amountCedis;
+  final String? sourceCurrency;
+  final double? sourceAmount;
+  final double? exchangeRateToBase;
   final DateTime dateGiven;
   final String? notes;
   final String status;
@@ -48,6 +64,22 @@ class PartnershipEntry {
   final Map<String, dynamic>? reviewedBySnapshot;
   final DateTime? reviewedAt;
   final String? declineReason;
+
+  /// When this entry was reversed, and by whom. A voided entry keeps every
+  /// other field it had — the point of voiding rather than deleting is that
+  /// the record, and the reason it stopped counting, both survive.
+  final DateTime? voidedAt;
+  final String? voidedBy;
+  final String? voidReason;
+
+  /// The import run that created this entry, if it came from one.
+  final String? importBatchId;
+
+  /// Voided entries are still readable but count toward nothing.
+  bool get isVoided => status == 'voided';
+
+  /// The only status that moves money.
+  bool get countsTowardTotals => status == 'approved';
   final List<Map<String, dynamic>> editHistory;
 
   factory PartnershipEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> d) {
@@ -68,6 +100,9 @@ class PartnershipEntry {
         Map<String, dynamic>.from(m['periodSnapshot'] as Map? ?? {}),
       ),
       amountCedis: (m['amountCedis'] as num?)?.toDouble() ?? 0,
+      sourceCurrency: m['sourceCurrency'] as String?,
+      sourceAmount: (m['sourceAmount'] as num?)?.toDouble(),
+      exchangeRateToBase: (m['exchangeRateToBase'] as num?)?.toDouble(),
       dateGiven: timestampToDateTime(m['dateGiven']) ?? DateTime.now(),
       notes: m['notes'] as String?,
       status: m['status'] as String? ?? 'pending',
@@ -85,10 +120,25 @@ class PartnershipEntry {
           : null,
       reviewedAt: timestampToDateTime(m['reviewedAt']),
       declineReason: m['declineReason'] as String?,
+      voidedAt: timestampToDateTime(m['voidedAt']),
+      voidedBy: m['voidedBy'] as String?,
+      voidReason: m['voidReason'] as String?,
+      importBatchId: m['importBatchId'] as String?,
       editHistory: (m['editHistory'] as List?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           const [],
+      mergedFromPartnerId: m['mergedFromPartnerId'] as String?,
     );
   }
+
+  String get displaySourceCurrency =>
+      (sourceCurrency ?? BaseCurrency.code).toUpperCase();
+
+  double get displaySourceAmount => sourceAmount ?? amountCedis;
+
+  double get displayExchangeRate => exchangeRateToBase ?? 1.0;
+
+  bool get hasForeignSource =>
+      displaySourceCurrency != BaseCurrency.code;
 }
