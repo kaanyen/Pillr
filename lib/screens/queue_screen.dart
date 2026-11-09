@@ -333,7 +333,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
                         ? l10n.queueSubtitle
                         : '${all.length} ${all.length == 1 ? 'entry' : 'entries'} waiting · '
                               '${money(all.fold<double>(0, (s, e) => s + e.amountCedis))} · '
-                              'totals change only when you approve')
+                              '${isPastor ? 'totals change only when you approve' : 'they count once a pastor approves them'}')
                   : 'Every giving entry, newest first',
               actions: [
                 if (widget.mode == QueueMode.records)

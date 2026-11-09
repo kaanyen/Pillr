@@ -123,7 +123,11 @@ Future<List<PartnershipEntry>> loadEntriesForExport(WidgetRef ref) async {
 
 final pendingEntriesProvider = StreamProvider.autoDispose<List<PartnershipEntry>>((ref) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-  if (idx == null || !idx.isPastor) return Stream.value([]);
+  if (idx == null || idx.isAdmin) return Stream.value([]);
+  // Staff see their own entries waiting for a pastor; pastors see everyone's.
+  if (idx.isStaff) {
+    return ref.watch(entriesRepositoryProvider).watchMyPending(idx.churchId, idx.uid);
+  }
   return ref.watch(entriesRepositoryProvider).watchPendingEntries(idx.churchId);
 });
 
@@ -134,10 +138,12 @@ final pendingEntriesProvider = StreamProvider.autoDispose<List<PartnershipEntry>
 final recentlyDecidedProvider = StreamProvider.autoDispose
     .family<List<PartnershipEntry>, DateTime>((ref, since) {
   final idx = ref.watch(userChurchIndexProvider).valueOrNull;
-  if (idx == null) return Stream.value([]);
-  return ref
-      .watch(entriesRepositoryProvider)
-      .watchRecentlyDecided(idx.churchId, since);
+  if (idx == null || idx.isAdmin) return Stream.value([]);
+  final repo = ref.watch(entriesRepositoryProvider);
+  // Staff may only search what they recorded, so their list is their own.
+  return idx.isStaff
+      ? repo.watchMyRecentlyDecided(idx.churchId, idx.uid, since)
+      : repo.watchRecentlyDecided(idx.churchId, since);
 });
 
 final pendingApprovalCountProvider = Provider<int>((ref) {

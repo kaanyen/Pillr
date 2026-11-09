@@ -2235,7 +2235,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen>
           const SizedBox(height: SelSpace.x2),
           Text(
             waiting > 0
-                ? 'Undo takes the entries still waiting back out. Nothing has been approved yet, so no totals change. You can also clear the whole import.'
+                ? 'Undo takes the entries still waiting back out. Nothing has been approved yet, so no totals change. You can also archive the whole import.'
                 : 'Clear the import to take every entry it created back out of the totals. Nothing is deleted.',
             style: SelType.bodySm,
           ),

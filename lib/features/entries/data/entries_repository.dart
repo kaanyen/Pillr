@@ -48,6 +48,33 @@ class EntriesRepository {
         .map((snap) => snap.docs.map(PartnershipEntry.fromDoc).toList());
   }
 
+  /// One staff member's entries still waiting for a pastor. Two equality
+  /// filters and no ordering, so no composite index is needed; the Queue
+  /// sorts them itself.
+  Stream<List<PartnershipEntry>> watchMyPending(String churchId, String uid) {
+    return _entries(churchId)
+        .where('createdBy', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs.map(PartnershipEntry.fromDoc).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+  }
+
+  /// One staff member's entries a pastor decided since [since], newest
+  /// first, from their own most recent entries.
+  Stream<List<PartnershipEntry>> watchMyRecentlyDecided(String churchId, String uid, DateTime since) {
+    return _entries(churchId)
+        .where('createdBy', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map(PartnershipEntry.fromDoc)
+            .where((e) => e.reviewedAt != null && !e.reviewedAt!.isBefore(since))
+            .toList()
+          ..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!)));
+  }
+
   Stream<List<PartnershipEntry>> watchPendingEntries(String churchId) {
     return _entries(churchId)
         .where('status', isEqualTo: 'pending')
