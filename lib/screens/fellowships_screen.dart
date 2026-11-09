@@ -134,9 +134,9 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           subtitle: view == _View.manage
               ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
               : view == _View.rhythm && countsOnly
-              ? 'How many partners in each fellowship give each month. Counts only, no names or amounts.'
+              ? 'How many partners in each fellowship gave each month. Counts only, no names or amounts.'
               : view == _View.rhythm
-              ? '${_summary(ref).split(' · ').take(2).join(' · ')} · how many give each month'
+              ? 'How many partners in each fellowship gave each month.'
               : _summary(ref),
           actions: [
             if (canManage && view != _View.manage)

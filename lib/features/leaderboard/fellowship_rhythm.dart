@@ -40,6 +40,10 @@ class FellowshipRhythmRow {
   bool isRecorded(int month) => counted.contains(month);
 
   double shareIn(int month) => partners == 0 ? 0 : (gave[month] ?? 0) / partners;
+
+  /// A closed month when fewer gave than usual: under 70% of the
+  /// fellowship's own average. Marked in the table so a dip is what you see.
+  bool isDip(int month) => average != null && isRecorded(month) && shareIn(month) < average! * .7;
 }
 
 /// Four wide bands, not a smooth scale, so a one-person change does not

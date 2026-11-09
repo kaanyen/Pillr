@@ -27,4 +27,15 @@ void main() {
     expect(r.partners, 3);
     expect(r.shareIn(100), 1);
   });
+
+  test('a month is a dip only when it is closed and under 70% of usual', () {
+    final r = fellowshipRhythmFromCounts(
+      fellowships: const [RhythmCounts(key: 's', name: 'Shiloh', partners: 8, gave: {100: 6, 101: 6, 102: 3, 103: 5, 104: 1})],
+      months: const [100, 101, 102, 103, 104],
+      openMonth: 104,
+    ).first;
+    expect(r.isDip(102), isTrue, reason: '3 of 8 against a usual 5');
+    expect(r.isDip(103), isFalse);
+    expect(r.isDip(104), isFalse, reason: 'the open month is never a dip');
+  });
 }
