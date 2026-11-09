@@ -54,6 +54,8 @@ describe("thanking on approval", {skip: !emulator && "needs the emulators"}, () 
     await church.set({name: "Msg Test Church", settings: {approvalEmailOn: true, approvalSmsOn: true, smsSenderId: "TestChurch", partnerEmailFrom: "giving@test.org", primaryPastorUid: "p1"}});
     await church.collection("partners").doc("pa").set({fullName: "Ama Boateng", email: "ama@example.com", phone: "0244123456"});
     await church.collection("partners").doc("pb").set({fullName: "Kofi Mensah", noMonthlyLetters: true, phone: "0244000000"});
+    for (const id of ["e1", "e2", "e3"]) await church.collection("entries").doc(id).delete();
+    await new Promise((r) => setTimeout(r, 1500));
     for (const id of ["e1", "e2", "e3"]) await church.collection("giving_messages").doc(id).delete();
   });
   it("records one message per approved entry, and none while pending", async () => {

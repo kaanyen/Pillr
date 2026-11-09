@@ -137,6 +137,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Thank-you on approval
   bool _apEmailOn = false;
   bool _apSmsOn = false;
+  bool _pageOn = false;
   final _apSubject = TextEditingController();
   final _apEmail = TextEditingController();
   final _apSms = TextEditingController();
@@ -203,6 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _signOff.text = s.letterSignOff ?? _defaultWording.signOff;
     _apEmailOn = s.approvalEmailOn;
     _apSmsOn = s.approvalSmsOn;
+    _pageOn = s.partnerPageOn;
     _apSubject.text = s.approvalEmailSubject ?? _defaultApproval.emailSubject;
     _apEmail.text = s.approvalEmailMessage ?? _defaultApproval.emailMessage;
     _apSms.text = s.approvalSmsMessage ?? _defaultApproval.smsMessage;
@@ -229,6 +231,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _signOff.text.trim() != (s.letterSignOff ?? _defaultWording.signOff) ||
       _apEmailOn != s.approvalEmailOn ||
       _apSmsOn != s.approvalSmsOn ||
+      _pageOn != s.partnerPageOn ||
       _apSubject.text.trim() != (s.approvalEmailSubject ?? _defaultApproval.emailSubject) ||
       _apEmail.text.trim() != (s.approvalEmailMessage ?? _defaultApproval.emailMessage) ||
       _apSms.text.trim() != (s.approvalSmsMessage ?? _defaultApproval.smsMessage) ||
@@ -300,6 +303,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             emailMessage: _apEmail.text,
             smsMessage: _apSms.text,
             smsSenderId: _smsSender.text,
+            partnerPageOn: _pageOn,
           );
         case SettingsTab.money:
           final rates = ChurchExchangeRates(
@@ -931,6 +935,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ),
                 ),
+                if (_pageOn) ...[
+                  const SizedBox(height: SelSpace.x3),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      decoration: BoxDecoration(color: Sel.ink, borderRadius: BorderRadius.circular(999)),
+                      child: Text('See all your giving this year',
+                          style: SelType.bodySm.copyWith(color: Sel.card, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: SelSpace.x3),
                 Text(fill(orDefault(_signOff, _defaultWording.signOff)), style: SelType.body.copyWith(color: Sel.text)),
                 Text(pastorName, style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w700)),
@@ -1035,6 +1051,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _Row('Message', 'A few lines before the giving figures.', field('message', _message, 600, lines: 5)),
               const Divider(height: 1, color: Sel.rowLine),
               _Row('Sign-off', 'Above the pastor\'s name.', field('signOff', _signOff, 60)),
+              const Divider(height: 1, color: Sel.rowLine),
+              _Row(
+                'Their own page',
+                _pageOn
+                    ? 'On. The letter has a button to a private page with all their giving this year, '
+                          'kept up to date. Only someone with the letter can open it.'
+                    : 'Off. Switching it off later makes every link stop working at once.',
+                Align(alignment: Alignment.centerLeft, child: Switch(value: _pageOn, onChanged: (v) => setState(() => _pageOn = v))),
+              ),
               const Divider(height: 1, color: Sel.rowLine),
               _Row('Preview', 'How a partner called Ama would see an October letter with your words.', letterPreview),
               const Divider(height: 1, color: Sel.rowLine),

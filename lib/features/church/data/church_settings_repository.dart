@@ -140,10 +140,12 @@ class ChurchSettingsRepository {
     required String emailMessage,
     required String smsMessage,
     required String smsSenderId,
+    required bool partnerPageOn,
   }) async {
     String? clean(String v) => v.trim().isEmpty ? null : v.trim();
     await _church(churchId).set({
       'settings': {
+        'partnerPageOn': partnerPageOn,
         'approvalEmailOn': emailOn,
         'approvalSmsOn': smsOn,
         'approvalEmailSubject': clean(emailSubject),

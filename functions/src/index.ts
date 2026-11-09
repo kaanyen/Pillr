@@ -1314,3 +1314,4 @@ export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./r
 export {nightlyDuplicateCheck} from "./duplicate_scan";
 export {findSimilarEntries, churchHealth, remindPastors, fellowshipRhythmCounts} from "./privacy";
 export {testApprovalMessage} from "./giving_messages";
+export {partnerPage} from "./partner_page";

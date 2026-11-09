@@ -34,6 +34,7 @@ class ChurchSettings {
     this.approvalEmailMessage,
     this.approvalSmsMessage,
     this.smsSenderId,
+    this.partnerPageOn = false,
   });
 
   final String churchId;
@@ -73,6 +74,10 @@ class ChurchSettings {
 
   /// The sender name registered with mNotify, up to 11 letters.
   final String? smsSenderId;
+
+  /// The letter has a button to the partner's own page, all their giving
+  /// this year. Off makes every such link stop working.
+  final bool partnerPageOn;
 
   final DateTime? exchangeRatesUpdatedAt;
   final String? exchangeRatesUpdatedBy;
@@ -134,6 +139,7 @@ class ChurchSettings {
       approvalEmailMessage: _text(settings['approvalEmailMessage']),
       approvalSmsMessage: _text(settings['approvalSmsMessage']),
       smsSenderId: _text(settings['smsSenderId']),
+      partnerPageOn: settings['partnerPageOn'] == true,
       primaryPastorUid: pastorUid == null || pastorUid.isEmpty ? null : pastorUid,
       partnerEmailFrom: from == null || from.isEmpty ? null : from,
       fellowshipNames: fellowshipNames,

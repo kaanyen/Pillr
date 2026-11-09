@@ -1,4 +1,5 @@
 import * as admin from "firebase-admin";
+import {partnerPageUrl} from "./partner_page";
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
@@ -340,6 +341,7 @@ export async function runChurchMonthlyEmails(opts: {
       markColor,
       pastorName: pastor.fullName,
       currencySymbol,
+      pageUrl: settings.partnerPageOn === true ? await partnerPageUrl(opts.churchId, partnerId) : null,
     });
     try {
       let resendId: string | undefined;
