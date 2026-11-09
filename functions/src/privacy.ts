@@ -268,3 +268,89 @@ export const remindPastors = onCall({region: REGION}, async (request) => {
   });
   return {pastors: pastors.size, delivered, message: body};
 });
+
+/** Month key as the app counts it: year × 12 + month − 1, in the church's time zone. */
+export function monthKeyIn(d: Date, timeZone: string): number {
+  const [y, m] = dayIn(d, timeZone).split("-").map(Number);
+  return y * 12 + m - 1;
+}
+
+/** "  youth  FELLOWSHIP " → "Youth Fellowship"; empty → "No fellowship". */
+function fellowshipLabel(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "No fellowship";
+  return t.toLowerCase().replace(/(^|[\s\-'(])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
+}
+
+/**
+ * Fellowships · Giving rhythm, for staff: for each fellowship, how many of
+ * its partners gave in each month of the active period. Counts only, never
+ * a name or an amount, so staff can see how the church is doing without
+ * seeing anyone's giving.
+ */
+export const fellowshipRhythmCounts = onCall({region: REGION, timeoutSeconds: 120, memory: "512MiB"}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "You must be signed in.");
+  const idx = await membership(uid);
+  if (idx.role !== "staff" && idx.role !== "pastor") {
+    throw new HttpsError("permission-denied", "The giving rhythm is for pastors and staff.");
+  }
+  const church = db().doc(`churches/${idx.churchId}`);
+  const tz = String((await church.get()).get("timezone") || "Africa/Accra");
+
+  const periods = await church.collection("partnership_periods").where("isActive", "==", true).limit(1).get();
+  const period = periods.docs[0];
+  if (!period) return {months: [], fellowships: []};
+  const start = (period.get("startDate") as Timestamp | undefined)?.toDate();
+  const end = (period.get("endDate") as Timestamp | undefined)?.toDate();
+  const months: number[] = [];
+  if (start && end) {
+    for (let m = monthKeyIn(start, tz); m <= monthKeyIn(end, tz); m++) months.push(m);
+  }
+
+  // The book: who is in which fellowship now.
+  const fellowshipOf = new Map<string, string>();
+  const rows = new Map<string, {name: string; partners: number; gave: Map<number, Set<string>>}>();
+  const row = (raw: string) => {
+    const key = raw.trim().toLowerCase();
+    let r = rows.get(key);
+    if (!r) rows.set(key, r = {name: fellowshipLabel(raw), partners: 0, gave: new Map()});
+    return {key, r};
+  };
+  for (const p of (await church.collection("partners").get()).docs) {
+    const raw = String(p.get("fellowship") ?? "");
+    fellowshipOf.set(p.id, raw);
+    if (p.get("isActive") === false) continue;
+    row(raw).r.partners++;
+  }
+
+  // Who gave when: a partner counts once a month, however many entries.
+  const entries = await church.collection("entries")
+    .where("partnershipPeriodId", "==", period.id)
+    .where("status", "==", "approved")
+    .get();
+  for (const e of entries.docs) {
+    const pid = String(e.get("partnerId") ?? "");
+    const at = (e.get("dateGiven") as Timestamp | undefined)?.toDate();
+    if (!pid || !at) continue;
+    const live = (fellowshipOf.get(pid) ?? "").trim();
+    const raw = live || String(e.get("partnerSnapshot.fellowship") ?? "");
+    const m = monthKeyIn(at, tz);
+    const {r} = row(raw);
+    let set = r.gave.get(m);
+    if (!set) r.gave.set(m, set = new Set());
+    set.add(pid);
+  }
+
+  return {
+    months,
+    fellowships: [...rows.entries()]
+      .map(([key, r]) => ({
+        key,
+        name: r.name,
+        partners: r.partners,
+        gave: Object.fromEntries([...r.gave.entries()].map(([m, s]) => [String(m), s.size])),
+      }))
+      .sort((a, b) => b.partners - a.partners || a.name.localeCompare(b.name)),
+  };
+});

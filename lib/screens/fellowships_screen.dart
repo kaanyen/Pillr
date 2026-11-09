@@ -112,9 +112,10 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final canManage = idx?.canManageFellowships ?? false;
     final adminOnly = idx?.isAdmin ?? false;
-    // The rhythm counts every partner in a fellowship, so it is for pastors,
-    // who see all the church's giving; staff see only their own entries.
-    final canRhythm = idx?.isPastor ?? false;
+    // Pastors draw the rhythm from the giving they read; staff get counts
+    // from the server, with no names or amounts. Admins see no giving.
+    final canRhythm = (idx?.isPastor ?? false) || (idx?.isStaff ?? false);
+    final countsOnly = !(idx?.isPastor ?? false);
     final view = adminOnly
         ? _View.manage
         : (_view == _View.rhythm && !canRhythm) ||
@@ -132,6 +133,8 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           title: 'Fellowships',
           subtitle: view == _View.manage
               ? 'Create a group, move a partner, rename, merge, or dissolve one into another.'
+              : view == _View.rhythm && countsOnly
+              ? 'How many partners in each fellowship give each month. Counts only, no names or amounts.'
               : view == _View.rhythm
               ? '${_summary(ref).split(' · ').take(2).join(' · ')} · how many give each month'
               : _summary(ref),
@@ -173,7 +176,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
         ],
         const SizedBox(height: SelSpace.x4),
         if (view == _View.rhythm)
-          const FellowshipRhythmView()
+          FellowshipRhythmView(countsOnly: countsOnly)
         else if (view == _View.directory)
           _FellowshipDirectory(
             query: _query,

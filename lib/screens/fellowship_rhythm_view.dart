@@ -6,13 +6,21 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../design/seline.dart';
 import '../features/leaderboard/fellowship_rhythm.dart';
 import '../features/leaderboard/giving_view.dart';
+import '../core/errors/plain_error.dart';
+import '../features/leaderboard/rhythm_counts_provider.dart';
 import 'views/view_common.dart';
 
 /// Fellowships · Giving rhythm, as on the canvas (board 5c): each square is
 /// how many of that fellowship's partners gave in the month, written in, on
 /// four wide colour bands so only real dips stand out.
+///
+/// Pastors' rows come from the giving they can read; staff's ([countsOnly])
+/// from counts the server sends, with no names or amounts, and the rows do
+/// not open a fellowship's members.
 class FellowshipRhythmView extends ConsumerWidget {
-  const FellowshipRhythmView({super.key});
+  const FellowshipRhythmView({super.key, this.countsOnly = false});
+
+  final bool countsOnly;
 
   /// Fill and text for each band. The top band is the filled-button blue,
   /// which holds white text at 4.9:1.
@@ -31,12 +39,30 @@ class FellowshipRhythmView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final view = ref.watch(givingViewProvider);
-    if (ref.watch(givingViewLoadingProvider)) return const ViewLoading();
     final now = GivingView.monthKey(DateTime.now());
-    final all = [for (final m in view.months) if (m <= now) m];
-    final months = all.length > 12 ? all.sublist(all.length - 12) : all;
-    if (months.isEmpty || view.fellowships.isEmpty) {
+    List<int> recent(List<int> ms) {
+      final all = [for (final m in ms) if (m <= now) m];
+      return all.length > 12 ? all.sublist(all.length - 12) : all;
+    }
+
+    final List<int> months;
+    final List<FellowshipRhythmRow> rows;
+    if (countsOnly) {
+      final async = ref.watch(rhythmCountsProvider);
+      if (async.isLoading && !async.hasValue) return const ViewLoading();
+      if (async.hasError && !async.hasValue) return SelError(message: plainError(async.error));
+      final d = async.value!;
+      months = recent(d.months);
+      rows = d.fellowships.isEmpty
+          ? const []
+          : fellowshipRhythmFromCounts(fellowships: d.fellowships, months: months, openMonth: now);
+    } else {
+      final view = ref.watch(givingViewProvider);
+      if (ref.watch(givingViewLoadingProvider)) return const ViewLoading();
+      months = recent(view.months);
+      rows = view.fellowships.isEmpty ? const [] : fellowshipRhythm(view: view, months: months, openMonth: now);
+    }
+    if (months.isEmpty || rows.isEmpty) {
       return const SelCard(
         child: SelEmpty(
           title: 'Nothing to show yet',
@@ -44,7 +70,6 @@ class FellowshipRhythmView extends ConsumerWidget {
         ),
       );
     }
-    final rows = fellowshipRhythm(view: view, months: months, openMonth: now);
     final church = rows.last;
     final dip = biggestDip(rows);
 
@@ -167,7 +192,7 @@ class FellowshipRhythmView extends ConsumerWidget {
                       : null,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: isAll
+                    onTap: isAll || countsOnly
                         ? null
                         : () => context.go('/fellowships/${Uri.encodeComponent(r.key)}?tab=months'),
                     child: Row(

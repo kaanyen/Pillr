@@ -1312,5 +1312,5 @@ export {
 } from "./monthly_partner_email";
 export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";
 export {nightlyDuplicateCheck} from "./duplicate_scan";
-export {findSimilarEntries, churchHealth, remindPastors} from "./privacy";
+export {findSimilarEntries, churchHealth, remindPastors, fellowshipRhythmCounts} from "./privacy";
 export {testApprovalMessage} from "./giving_messages";

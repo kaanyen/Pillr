@@ -52,6 +52,17 @@ int rhythmBand(double share) {
   return 0;
 }
 
+/// One fellowship as counts only: partners on the book, and how many of
+/// them gave in each month. All the rhythm needs, and all staff are sent.
+class RhythmCounts {
+  const RhythmCounts({required this.key, required this.name, required this.partners, required this.gave});
+
+  final String key;
+  final String name;
+  final int partners;
+  final Map<int, int> gave;
+}
+
 /// Fellowships (in [view]'s order) with how many of their partners gave in
 /// each of [months]. Months on or after [openMonth] are still open: they show
 /// but do not count toward the average or trend. A last "All" row adds up
@@ -62,14 +73,34 @@ List<FellowshipRhythmRow> fellowshipRhythm({
   required int openMonth,
 }) {
   final gaveBy = <String, Map<int, int>>{};
-  final all = <int, int>{};
   for (final p in view.partners) {
     final row = gaveBy.putIfAbsent(p.fellowshipKey, () => {});
     for (final m in months) {
-      if ((p.byMonth[m] ?? 0) > 0) {
-        row[m] = (row[m] ?? 0) + 1;
-        all[m] = (all[m] ?? 0) + 1;
-      }
+      if ((p.byMonth[m] ?? 0) > 0) row[m] = (row[m] ?? 0) + 1;
+    }
+  }
+  return fellowshipRhythmFromCounts(
+    fellowships: [
+      for (final f in view.fellowships)
+        RhythmCounts(key: f.key, name: f.name, partners: f.partners, gave: gaveBy[f.key] ?? const {}),
+    ],
+    months: months,
+    openMonth: openMonth,
+  );
+}
+
+/// The same rows from counts alone, as the server sends them to staff. A
+/// partner is in one fellowship, so the church's row is the sum.
+List<FellowshipRhythmRow> fellowshipRhythmFromCounts({
+  required List<RhythmCounts> fellowships,
+  required List<int> months,
+  required int openMonth,
+}) {
+  final all = <int, int>{};
+  for (final f in fellowships) {
+    for (final m in months) {
+      final n = f.gave[m] ?? 0;
+      if (n > 0) all[m] = (all[m] ?? 0) + n;
     }
   }
   final closed = [for (final m in months) if (m < openMonth && (all[m] ?? 0) > 0) m];
@@ -101,10 +132,8 @@ List<FellowshipRhythmRow> fellowshipRhythm({
     );
   }
 
-  final rows = [
-    for (final f in view.fellowships) make(f.key, f.name, f.partners, gaveBy[f.key] ?? const {}),
-  ];
-  final onBook = view.fellowships.fold<int>(0, (s, f) => s + f.partners);
+  final rows = [for (final f in fellowships) make(f.key, f.name, f.partners, f.gave)];
+  final onBook = fellowships.fold<int>(0, (s, f) => s + f.partners);
   return [...rows, make('', 'All', onBook, all)];
 }
 
