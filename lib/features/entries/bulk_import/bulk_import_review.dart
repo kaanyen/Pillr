@@ -425,8 +425,10 @@ class _BulkImportReviewState extends State<BulkImportReview> {
             Expanded(child: sheet(shrinkWrap: false)),
           ],
         );
-        // A tablet: the card comes up from the bottom, or folds to a bar.
+        // A tablet: the card comes up from the bottom; folded, it waits at
+        // the side edge as the same flap as on a laptop (canvas 27e, 27g).
         if (c.maxWidth < 900) {
+          final folded = _aside || open == null;
           return CallbackShortcuts(
             bindings: bindings,
             child: Focus(
@@ -435,28 +437,30 @@ class _BulkImportReviewState extends State<BulkImportReview> {
                 children: [
                   Positioned.fill(
                     child: Padding(
-                      padding: EdgeInsets.only(bottom: _aside ? 56 : 0),
+                      padding: EdgeInsets.only(right: folded ? 96 : 0),
                       child: rows,
                     ),
                   ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _aside || open == null
-                        ? _PeekBar(
-                            needYou: settle.length,
-                            next: open == null
-                                ? null
-                                : 'Next: row ${widget.resolved[open].sheetRowNumber}',
-                            onTap: () => setState(() => _aside = false),
-                          )
-                        : _BottomCard(
-                            maxHeight: c.maxHeight * .55,
-                            onClose: () => setState(() => _aside = true),
-                            child: _decision(open, settle, floating: true),
-                          ),
-                  ),
+                  if (folded)
+                    Positioned(
+                      right: 0,
+                      top: (c.maxHeight - 170) / 2,
+                      child: _Flap(
+                        needYou: settle.length,
+                        onTap: () => setState(() => _aside = false),
+                      ),
+                    )
+                  else
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: _BottomCard(
+                        maxHeight: c.maxHeight * .55,
+                        onClose: () => setState(() => _aside = true),
+                        child: _decision(open, settle, floating: true),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -1520,72 +1524,6 @@ class _KeysButton extends StatelessWidget {
         style: SelType.small.copyWith(
           color: Sel.ink,
           fontWeight: FontWeight.w700,
-        ),
-      ),
-    ),
-  );
-}
-
-/// On a tablet, the folded card: how many rows need you, and Open.
-class _PeekBar extends StatelessWidget {
-  const _PeekBar({
-    required this.needYou,
-    required this.next,
-    required this.onTap,
-  });
-
-  final int needYou;
-  final String? next;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Sel.ink,
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-    child: InkWell(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-      onTap: onTap,
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            const SizedBox(width: 18),
-            Text(
-              needYou == 0
-                  ? 'Row card'
-                  : '$needYou ${needYou == 1 ? 'row needs' : 'rows need'} you',
-              style: SelType.body.copyWith(
-                color: Sel.card,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 12),
-            if (next != null)
-              Expanded(
-                child: Text(
-                  next!,
-                  overflow: TextOverflow.ellipsis,
-                  style: SelType.small.copyWith(color: SelNavyCard.soft),
-                ),
-              )
-            else
-              const Spacer(),
-            Container(
-              margin: const EdgeInsets.only(right: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Sel.card,
-                borderRadius: BorderRadius.circular(SelRadius.pill),
-              ),
-              child: Text(
-                'Open',
-                style: SelType.small.copyWith(
-                  color: Sel.ink,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     ),

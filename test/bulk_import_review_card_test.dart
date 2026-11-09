@@ -336,7 +336,7 @@ void main() {
     expect(find.text('Row 8 · 2 of 2'), findsOneWidget);
   });
 
-  testWidgets('on a tablet the card comes up from the bottom and closes to a bar', (tester) async {
+  testWidgets('on a tablet the card comes up from the bottom and folds to the side flap', (tester) async {
     final dup = [_w(BulkImportIssueCode.duplicateInDatabase)];
     await _pump(
       tester,
@@ -347,6 +347,9 @@ void main() {
     expect(find.text('Is this already in Pillr?'), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
-    expect(find.text('1 row needs you'), findsOneWidget);
+    expect(find.text('needs you'), findsOneWidget, reason: 'the flap at the side edge');
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Is this already in Pillr?'), findsOneWidget);
   });
 }
