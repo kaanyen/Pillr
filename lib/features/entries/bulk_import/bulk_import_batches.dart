@@ -473,9 +473,13 @@ class BulkImportBatchRepository {
     required String batchId,
     required String byUid,
   }) async {
-    final all = await _entries(
+    // Staff may only search entries they recorded, so the search says so;
+    // an import's entries are all its own staff member's anyway.
+    Query<Map<String, dynamic>> q = _entries(
       churchId,
-    ).where('importBatchId', isEqualTo: batchId).get();
+    ).where('importBatchId', isEqualTo: batchId);
+    if (onlyCreatedBy != null) q = q.where('createdBy', isEqualTo: onlyCreatedBy);
+    final all = await q.get();
 
     final removable = all.docs
         .where((d) => (d.data()['status'] ?? '') == 'pending')

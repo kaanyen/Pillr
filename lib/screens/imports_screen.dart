@@ -345,12 +345,12 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
   Future<void> _undo(BulkImportBatch b) async {
     final ok = await selConfirm(
       context,
-      title: 'Undo this import?',
+      title: 'Take back the ones still waiting?',
       message:
-          'Removes the entries from ${b.displayName} that are still waiting '
-          'on a decision. Anything already approved stays — use Clear to take '
-          'approved money out of the totals without deleting it.',
-      confirmLabel: 'Undo import',
+          'Removes the entries from ${b.displayName} that no pastor has approved '
+          'yet. Approved ones stay. To take approved giving out of the totals as '
+          'well, archive the import instead; nothing is deleted that way.',
+      confirmLabel: 'Take them back',
       destructive: true,
     );
     if (!ok) return;
