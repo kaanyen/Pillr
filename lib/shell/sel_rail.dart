@@ -97,23 +97,26 @@ class SelRail extends ConsumerWidget {
               SelSpace.x3,
               SelSpace.x6,
             ),
+            // A bar, not a pill: a church name often runs to two lines,
+            // and a capsule around two lines reads as a broken button.
             child: Container(
-              padding: const EdgeInsets.fromLTRB(6, 6, SelSpace.x4, 6),
+              padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
               decoration: BoxDecoration(
                 color: Sel.card,
-                borderRadius: BorderRadius.circular(SelRadius.pill),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Sel.border),
               ),
               child: Row(
                 children: [
-                  _ChurchMark(size: 38),
+                  _ChurchMark(size: 34),
                   const SizedBox(width: SelSpace.x3),
                   Expanded(
                     child: Text(
                       churchName,
                       style: SelType.bodySm.copyWith(
-                        color: Sel.text,
-                        fontWeight: FontWeight.w600,
+                        color: Sel.ink,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
