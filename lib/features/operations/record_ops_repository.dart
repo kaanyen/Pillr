@@ -22,7 +22,11 @@ class RecordOperation {
     required this.actorName,
     required this.createdAt,
     this.undoConflictCount = 0,
+    this.actorRole = '',
   });
+
+  /// pastor, staff or admin: who made the change.
+  final String actorRole;
 
   final String id;
   final String kind;
@@ -48,9 +52,12 @@ class RecordOperation {
       case 'fellowship.rename':
         return 'Renamed ${v('from')} to ${v('to')}';
       case 'fellowship.dissolve':
-        return 'Dissolved ${v('from')} into ${v('to')}';
+        return 'Merged ${v('from')} into ${v('to')}';
       case 'fellowship.move':
-        return 'Moved partners from ${v('from')} to ${v('to')}';
+        final names = (s['partners'] as List?) ?? const [];
+        final n = (s['activeMoved'] as num?)?.toInt() ?? names.length;
+        final who = names.length == 1 ? '${names.first}' : '$n partners';
+        return 'Moved $who from ${v('from')} to ${v('to')}';
       case 'partner.merge':
         final ids = v('newMemberId');
         return 'Merged ${v('absorbedName')} into ${v('keptName')}'
@@ -74,6 +81,7 @@ class RecordOperation {
       planned: (m['planned'] as num?)?.toInt() ?? 0,
       applied: (m['applied'] as num?)?.toInt() ?? 0,
       actorName: actor['fullName'] as String? ?? '',
+      actorRole: actor['role'] as String? ?? '',
       createdAt: timestampToDateTime(m['createdAt']) ?? DateTime.now(),
       undoConflictCount: (m['undoConflictCount'] as num?)?.toInt() ?? 0,
     );
@@ -239,3 +247,16 @@ final recentOperationsProvider =
       if (idx == null) return Stream.value(const []);
       return ref.watch(recordOpsRepositoryProvider).watchRecent(idx.churchId);
     });
+
+/// For a pastor's bell: fellowship changes staff made in the last 14 days
+/// that still stand. Staff act straight away; the pastor is told.
+final staffFellowshipChangesProvider = Provider.autoDispose<List<RecordOperation>>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isPastor) return const [];
+  final since = DateTime.now().subtract(const Duration(days: 14));
+  return [
+    for (final op in ref.watch(recentOperationsProvider).valueOrNull ?? const <RecordOperation>[])
+      if (op.actorRole == 'staff' && op.kind.startsWith('fellowship.') && op.status == 'applied' && op.createdAt.isAfter(since))
+        op,
+  ];
+});

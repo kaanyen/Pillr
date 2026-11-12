@@ -41,6 +41,13 @@
     ],
     "rewrites": [
       {
+        "source": "/p/**",
+        "function": {
+          "functionId": "partnerPage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

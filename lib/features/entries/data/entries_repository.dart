@@ -48,6 +48,33 @@ class EntriesRepository {
         .map((snap) => snap.docs.map(PartnershipEntry.fromDoc).toList());
   }
 
+  /// One staff member's entries still waiting for a pastor. Two equality
+  /// filters and no ordering, so no composite index is needed; the Queue
+  /// sorts them itself.
+  Stream<List<PartnershipEntry>> watchMyPending(String churchId, String uid) {
+    return _entries(churchId)
+        .where('createdBy', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) => snap.docs.map(PartnershipEntry.fromDoc).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+  }
+
+  /// One staff member's entries a pastor decided since [since], newest
+  /// first, from their own most recent entries.
+  Stream<List<PartnershipEntry>> watchMyRecentlyDecided(String churchId, String uid, DateTime since) {
+    return _entries(churchId)
+        .where('createdBy', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map(PartnershipEntry.fromDoc)
+            .where((e) => e.reviewedAt != null && !e.reviewedAt!.isBefore(since))
+            .toList()
+          ..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!)));
+  }
+
   Stream<List<PartnershipEntry>> watchPendingEntries(String churchId) {
     return _entries(churchId)
         .where('status', isEqualTo: 'pending')
@@ -366,13 +393,16 @@ class EntriesRepository {
       'partnershipArmId': existing.partnershipArmId,
       'partnershipPeriodId': existing.partnershipPeriodId,
       'notes': existing.notes,
+      'status': existing.status,
     };
     final history = List<Map<String, dynamic>>.from(existing.editHistory);
     history.add({
       'editedBy': staff.uid,
       'editedAt': Timestamp.now(),
       'previousValues': prev,
-      'changeDescription': 'Staff updated entry (resubmitted as pending)',
+      'changeDescription': existing.status == 'approved'
+          ? 'Staff changed an approved entry; back to the pastor to approve again'
+          : 'Staff updated entry (resubmitted as pending)',
     });
     await _entries(churchId).doc(existing.id).update({
       'partnerId': partnerId,
@@ -412,6 +442,8 @@ class EntriesRepository {
     required String churchId,
     required List<PartnershipEntry> entries,
     required ChurchUser pastor,
+      /// Called as each entry is reached, for the progress window.
+    void Function(PartnershipEntry e)? onEach,
   }) async {
     final pending = entries.where((e) => e.status == 'pending').toList();
     if (pending.isEmpty) return 0;
@@ -424,6 +456,7 @@ class EntriesRepository {
       final end = (i + chunkSize < pending.length) ? i + chunkSize : pending.length;
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
+        onEach?.call(pending[j]);
         batch.update(_entries(churchId).doc(pending[j].id), patch);
         approved++;
       }
@@ -569,6 +602,8 @@ class EntriesRepository {
     required List<PartnershipEntry> entries,
     required ChurchUser actor,
     required String reason,
+      /// Called as each entry is reached, for the progress window.
+    void Function(PartnershipEntry e)? onEach,
   }) async {
     final targets = entries.where((e) => !e.isVoided).toList();
     if (targets.isEmpty) return 0;
@@ -581,6 +616,7 @@ class EntriesRepository {
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
         final e = targets[j];
+        onEach?.call(e);
         final history = List<Map<String, dynamic>>.from(e.editHistory)
           ..add({
             'editedBy': actor.uid,
@@ -616,6 +652,8 @@ class EntriesRepository {
     required String churchId,
     required List<PartnershipEntry> entries,
     required ChurchUser actor,
+      /// Called as each entry is reached, for the progress window.
+    void Function(PartnershipEntry e)? onEach,
   }) async {
     final targets = entries.where((e) => e.isVoided).toList();
     if (targets.isEmpty) return 0;
@@ -628,6 +666,7 @@ class EntriesRepository {
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
         final e = targets[j];
+        onEach?.call(e);
         final history = List<Map<String, dynamic>>.from(e.editHistory)
           ..add({
             'editedBy': actor.uid,
@@ -679,6 +718,8 @@ class EntriesRepository {
     Map<String, dynamic>? periodSnapshot,
     String? partnershipArmId,
     Map<String, dynamic>? armSnapshot,
+      /// Called as each entry is reached, for the progress window.
+    void Function(PartnershipEntry e)? onEach,
   }) async {
     if (partnershipPeriodId == null && partnershipArmId == null) return 0;
     // A voided row is settled; moving it would revive money nobody counted.
@@ -708,6 +749,7 @@ class EntriesRepository {
       final batch = _firestore.batch();
       for (var j = i; j < end; j++) {
         final e = targets[j];
+        onEach?.call(e);
         final history = List<Map<String, dynamic>>.from(e.editHistory)
           ..add({
             'editedBy': actor.uid,
@@ -736,6 +778,7 @@ class EntriesRepository {
     required String churchId,
     required List<PartnershipEntry> entries,
     required ChurchUser actor,
+      void Function(PartnershipEntry e)? onEach,
   }) async {
     var moved = 0;
     const chunkSize = 450;
@@ -746,6 +789,7 @@ class EntriesRepository {
       var ops = 0;
       for (var j = i; j < end; j++) {
         final e = entries[j];
+        onEach?.call(e);
         Map<String, dynamic>? prev;
         for (final h in e.editHistory.reversed) {
           if (h['changeDescription'] == 'Moved with import') {
@@ -792,6 +836,8 @@ class EntriesRepository {
     required String churchId,
     required List<PartnershipEntry> entries,
     required ChurchUser actor,
+      /// Called as each entry is reached, for the progress window.
+    void Function(PartnershipEntry e)? onEach,
   }) async {
     var reverted = 0;
     const chunkSize = 450;
@@ -802,6 +848,7 @@ class EntriesRepository {
       var ops = 0;
       for (var j = i; j < end; j++) {
         final e = entries[j];
+        onEach?.call(e);
         if (e.editHistory.isEmpty) continue;
         final last = e.editHistory.last;
         if (last['changeDescription'] != 'Pastor edited entry') continue;
@@ -874,6 +921,9 @@ class EntriesRepository {
   Future<RecalculateForeignEntriesResult> recalculateForeignEntries({
     required String churchId,
     required ChurchExchangeRates rates,
+      /// Called for each entry as it is recalculated: who, the cedi amount
+    /// before, and after.
+    void Function(String partner, double? before, double after)? onEach,
   }) async {
     final snap = await _query(churchId)
         .where(
@@ -911,6 +961,11 @@ class EntriesRepository {
           continue;
         }
 
+        onEach?.call(
+          (data['partnerSnapshot'] as Map?)?['fullName']?.toString() ?? 'Partner',
+          prevCedis,
+          conversion.amountBase,
+        );
         batch.update(doc.reference, {
           ..._currencyFields(
             amountCedis: conversion.amountBase,

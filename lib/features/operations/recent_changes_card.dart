@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/extensions/async_value_ext.dart';
-import '../../core/notifications/sel_notice.dart';
 import '../../design/seline.dart';
 import '../auth/providers/auth_providers.dart';
 import '../entries/providers/entries_providers.dart';
 import '../partners/providers/partners_providers.dart';
 import 'record_ops_repository.dart';
-import '../../core/errors/plain_error.dart';
 
 /// The last bulk changes — fellowship merges, moves, dissolves and partner
 /// merges — each with Undo while it can still be undone.
@@ -45,23 +43,37 @@ class _RecentChangesCardState extends ConsumerState<RecentChangesCard> {
     if (!ok || !mounted) return;
     setState(() => busy = true);
     try {
-      final r = await ref
-          .read(recordOpsRepositoryProvider)
-          .undo(churchId: idx.churchId, opId: op.id);
+      await runWithProgress(
+        context,
+        title: 'Undoing: ${op.label}',
+        subtitle: 'Pillr does this on the server; keep this page open.',
+        steps: const ['Finding what the change touched', 'Putting each record back', 'Updating the totals'],
+        run: (p) async {
+          final r = await runServerSteps(
+            p,
+            () => ref.read(recordOpsRepositoryProvider).undo(churchId: idx.churchId, opId: op.id),
+          );
+          return SelSummary(
+            title: 'Undone',
+            subtitle: op.label,
+            numbers: [
+              ('${r.reverted}', '${r.reverted == 1 ? 'record' : 'records'} put back'),
+              if (r.conflicts > 0) ('${r.conflicts}', 'left as they are'),
+            ],
+            lines: [
+              if (r.conflicts > 0)
+                SelSummaryLine(
+                  '${r.conflicts} had been edited since',
+                  detail: 'They were left as they are, so nobody\'s later work was lost.',
+                  ok: false,
+                ),
+            ],
+          );
+        },
+      );
       ref.invalidate(partnersStreamProvider(false));
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      if (!mounted) return;
-      selNotice(
-        context,
-        r.conflicts == 0
-            ? 'Undone. ${r.reverted} ${r.reverted == 1 ? "record" : "records"} put back.'
-            : 'Undone. ${r.reverted} put back; ${r.conflicts} had been edited '
-                  'since and were left as they are.',
-        kind: SelNoticeKind.success,
-      );
-    } catch (e) {
-      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
     } finally {
       if (mounted) setState(() => busy = false);
     }

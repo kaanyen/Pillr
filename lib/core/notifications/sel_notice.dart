@@ -15,7 +15,13 @@ class SelNoticeItem {
     required this.message,
     required this.kind,
     required this.createdAt,
+    this.actionLabel,
+    this.onAction,
   });
+
+  /// A button on the notice, such as Undo. Pressing it closes the notice.
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   final String id;
   final String message;
@@ -44,6 +50,8 @@ class SelNoticeController extends Notifier<List<SelNoticeItem>> {
     String message, {
     SelNoticeKind kind = SelNoticeKind.info,
     Duration duration = _defaultDuration,
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     final id = '${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
     final item = SelNoticeItem(
@@ -51,6 +59,8 @@ class SelNoticeController extends Notifier<List<SelNoticeItem>> {
       message: message,
       kind: kind,
       createdAt: DateTime.now(),
+      actionLabel: actionLabel,
+      onAction: onAction,
     );
     state = [item, ...state].take(_maxVisible).toList();
     _timers[id]?.cancel();
@@ -73,16 +83,27 @@ void selNotice(
   String message, {
   SelNoticeKind kind = SelNoticeKind.info,
   Duration duration = SelNoticeDuration.standard,
+  String? actionLabel,
+  VoidCallback? onAction,
 }) {
   // A problem is always said in plain words, never as a code or class name.
   final text = kind == SelNoticeKind.error ? plainErrorText(message) : message;
   ProviderScope.containerOf(context, listen: false)
       .read(selNoticeControllerProvider.notifier)
-      .show(text, kind: kind, duration: duration);
+      .show(
+        text,
+        kind: kind,
+        duration: duration,
+        actionLabel: actionLabel,
+        onAction: onAction,
+      );
 }
 
 abstract final class SelNoticeDuration {
   static const standard = Duration(seconds: 5);
+
+  /// Long enough to read the change and press Undo.
+  static const undo = Duration(seconds: 30);
 }
 
 /// Top-right notification stack — replaces transient SnackBars app-wide.
@@ -189,7 +210,17 @@ class _NoticeCardState extends State<_NoticeCard> {
                     ),
                   ),
                 ),
-                if (_hover) ...[
+                if (widget.item.actionLabel != null) ...[
+                  const SizedBox(width: SelSpace.x2),
+                  SelButton(
+                    label: widget.item.actionLabel!,
+                    dense: true,
+                    onPressed: () {
+                      widget.onDismiss();
+                      widget.item.onAction?.call();
+                    },
+                  ),
+                ] else if (_hover) ...[
                   const SizedBox(width: SelSpace.x2),
                   Icon(LucideIcons.x, size: 14, color: Sel.ash),
                 ],

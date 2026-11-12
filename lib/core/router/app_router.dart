@@ -1,3 +1,4 @@
+import '../../features/fellowships/move_people.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -145,8 +146,14 @@ GoRouter createRouter() {
           ),
           GoRoute(
             path: '/tools',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: ToolsScreen(initialTool: state.uri.queryParameters['tool']),
+            ),
+          ),
+          GoRoute(
+            path: '/tools/move',
             pageBuilder: (context, state) =>
-                const NoTransitionPage(child: ToolsScreen()),
+                const NoTransitionPage(child: MovePeopleScreen()),
           ),
           GoRoute(
             path: '/records/imports',
@@ -217,6 +224,15 @@ GoRouter createRouter() {
               child: FellowshipsScreen(
                 initialView: state.uri.queryParameters['view'],
                 initialFellowship: state.uri.queryParameters['fellowship'],
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/fellowships/move',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: MovePeopleScreen(
+                fellowship: state.uri.queryParameters['from'],
+                tickAll: state.uri.queryParameters['all'] == '1',
               ),
             ),
           ),

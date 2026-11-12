@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../core/extensions/async_value_ext.dart';
 import '../core/notifications/sel_notice.dart';
 import '../design/seline.dart';
+import '../features/church/data/church_settings_repository.dart' show MonthlyEmailRunResult;
 import '../features/auth/providers/auth_providers.dart';
 import '../features/church/domain/monthly_email_report.dart';
 import '../features/church/providers/church_settings_providers.dart';
@@ -77,23 +78,52 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
     if (!ok) return;
     setState(() => _busy = true);
     try {
-      final r = await ref
-          .read(churchSettingsRepositoryProvider)
-          .runMonthlyPartnerEmails(yearMonth: ym, partnerIds: [for (final l in chosen) l.partnerId]);
-      if (mounted) {
-        setState(_chosen.clear);
-        selNotice(
-          context,
-          r.failed == 0
-              ? 'Sent to ${r.sentNow} ${r.sentNow == 1 ? 'partner' : 'partners'}.'
-              : 'Sent to ${r.sentNow}, but ${r.failed} could not be sent. They are listed as Failed.',
-        );
-      }
-    } catch (e) {
-      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
+      await _sendWithProgress(
+        title: 'Sending $month\'s letter to ${chosen.length}',
+        month: month,
+        call: () => ref
+            .read(churchSettingsRepositoryProvider)
+            .runMonthlyPartnerEmails(yearMonth: ym, partnerIds: [for (final l in chosen) l.partnerId]),
+        sentOf: (r) => r.sentNow,
+      );
+      if (mounted) setState(_chosen.clear);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Letters go out from the server in one run: named steps while it works,
+  /// then who it reached and who it did not.
+  Future<void> _sendWithProgress({
+    required String title,
+    required String month,
+    required Future<MonthlyEmailRunResult> Function() call,
+    required int Function(MonthlyEmailRunResult r) sentOf,
+  }) async {
+    await runWithProgress(
+      context,
+      title: title,
+      subtitle: 'Pillr sends them from the server; keep this page open.',
+      steps: const ['Preparing each letter with its giving', 'Sending them', 'Recording who got one'],
+      run: (p) async {
+        final r = await runServerSteps(p, call);
+        final sent = sentOf(r);
+        return SelSummary(
+          title: r.failed == 0
+              ? '${sent == 1 ? '1 letter' : '$sent letters'} sent'
+              : '$sent sent, ${r.failed} could not be sent',
+          numbers: [
+            ('$sent', 'sent'),
+            ('${r.failed}', 'could not be sent'),
+            ('${r.skipped}', 'have no email'),
+          ],
+          lines: [
+            if (r.failed > 0)
+              SelSummaryLine('${r.failed} could not be sent', detail: 'They are listed as Failed, with the reason. Tick them and send again.', ok: false),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _preview() async {
@@ -119,17 +149,12 @@ class _LettersScreenState extends ConsumerState<LettersScreen> {
     if (!ok) return;
     setState(() => _busy = true);
     try {
-      final r = await ref.read(churchSettingsRepositoryProvider).runMonthlyPartnerEmails(yearMonth: ym);
-      if (mounted) {
-        selNotice(
-          context,
-          r.failed == 0
-              ? 'Done. ${r.sent} letters have gone out for $label.'
-              : 'Done, but ${r.failed} could not be sent. They are listed as Failed.',
-        );
-      }
-    } catch (e) {
-      if (mounted) selNotice(context, plainError(e), kind: SelNoticeKind.error);
+      await _sendWithProgress(
+        title: 'Sending $label\'s letters',
+        month: label,
+        call: () => ref.read(churchSettingsRepositoryProvider).runMonthlyPartnerEmails(yearMonth: ym),
+        sentOf: (r) => r.sent,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

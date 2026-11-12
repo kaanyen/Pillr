@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
@@ -29,7 +30,10 @@ import '../core/errors/plain_error.dart';
 /// sight would be worse than no tool — the point is to make a problem
 /// visible and let someone decide.
 class ToolsScreen extends ConsumerStatefulWidget {
-  const ToolsScreen({super.key});
+  const ToolsScreen({super.key, this.initialTool});
+
+  /// Opens on this tool, e.g. `changes` from a summary's See it in Changes.
+  final String? initialTool;
 
   @override
   ConsumerState<ToolsScreen> createState() => _ToolsScreenState();
@@ -39,7 +43,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   String? _running;
 
   /// The tool open on the right.
-  String _tool = 'dupPartners';
+  late String _tool = widget.initialTool ?? 'dupPartners';
 
   TotalsAuditReport? _totals;
   List<DuplicatePartnerPair>? _dupPartners;
@@ -104,25 +108,36 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
                       ..._totals!.partnerDrift,
                       ..._totals!.periodDrift,
                     ];
-                    final n = await ref
-                        .read(maintenanceRepositoryProvider)
-                        .repairTotals(churchId: idx!.churchId, drift: all);
+                    final fixable = all.where((d) => d.name != '(missing record)').length;
+                    var n = 0;
+                    await runWithProgress(
+                      context,
+                      title: 'Putting $fixable ${fixable == 1 ? 'total' : 'totals'} right',
+                      run: (p) async {
+                        p.start(fixable);
+                        n = await ref.read(maintenanceRepositoryProvider).repairTotals(
+                              churchId: idx!.churchId,
+                              drift: all,
+                              onEach: (name) => p.tick('$name · recounted from its entries'),
+                            );
+                        return SelSummary(
+                          title: '$n ${n == 1 ? 'total' : 'totals'} put right',
+                          numbers: [('$n', 'corrected'), ('${all.length - fixable}', 'records missing')],
+                          lines: const [SelSummaryLine('Each total now matches its entries', detail: 'Nothing about the entries themselves changed.')],
+                        );
+                      },
+                    );
                     if (!context.mounted) return;
                     setState(() => _totals = null);
                     ref.invalidate(partnersStreamProvider(false));
                     invalidateEntryDerivedData(ref);
                     await logPillrActivity(
                       ref,
-                      churchId: idx.churchId,
+                      churchId: idx!.churchId,
                       action: 'totals.repair',
                       entityType: 'church',
                       entityId: idx.churchId,
                       entitySnapshot: {'corrected': n},
-                    );
-                    if (!context.mounted) return;
-                    selNotice(
-                      context,
-                      'Corrected $n ${n == 1 ? "total" : "totals"}.',
                     );
                   }),
                   repairing: _running == 'repair',
@@ -260,6 +275,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       ('partnerData', 'Names and fellowships', 'Capitals and missing details', _partnerIssues?.length ?? 0),
       if (pastor) ('totals', 'Totals', 'Add the entries up again', 0),
       ('separate', 'Take someone out of a merge', 'By their old member ID', 0),
+      ('move', 'Move people', 'Between fellowships, one or many', 0),
+      ('changes', 'Changes', 'Undo a move, merge or rename', 0),
     ];
     final list = SelCard(
       padding: const EdgeInsets.all(10),
@@ -272,7 +289,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
               borderRadius: BorderRadius.circular(18),
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () => setState(() => _tool = id),
+                onTap: () => id == 'move' ? context.go('/tools/move') : setState(() => _tool = id),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
                   child: Row(
@@ -298,9 +315,13 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     final detail = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        cards[_tool]!,
-        const SizedBox(height: SelSpace.x4),
-        const RecentChangesCard(),
+        if (_tool == 'changes')
+          const RecentChangesCard()
+        else ...[
+          cards[_tool] ?? cards['dupPartners']!,
+          const SizedBox(height: SelSpace.x4),
+          const RecentChangesCard(),
+        ],
       ],
     );
 
@@ -414,27 +435,45 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       // The count the person just confirmed: if an entry lands on any of these
       // records before the server runs, it refuses rather than move a
       // different set.
-      final r = await ref
-          .read(recordOpsRepositoryProvider)
-          .partnerMerge(
-            churchId: churchId,
-            keepId: keep.id,
-            absorbIds: [for (final o in others) o.id],
-            expectEntries: pastor ? moving : null,
+      if (!mounted) return;
+      await runWithProgress(
+        context,
+        title: 'Making ${keep.fullName} one person',
+        subtitle: 'Pillr does this on the server; keep this page open.',
+        steps: [
+          'Checking the ${others.length + 1} records',
+          'Moving their giving and contact details to ${keep.fullName}',
+          'Giving ${keep.fullName} one member ID',
+        ],
+        run: (p) async {
+          final r = await runServerSteps(
+            p,
+            () => ref.read(recordOpsRepositoryProvider).partnerMerge(
+                  churchId: churchId,
+                  keepId: keep.id,
+                  absorbIds: [for (final o in others) o.id],
+                  expectEntries: pastor ? moving : null,
+                ),
           );
+          return SelSummary(
+            title: '${keep.fullName} is one person now',
+            numbers: [
+              (r.newMemberId, 'new member ID'),
+              ('${r.moved}', '${r.moved == 1 ? 'entry' : 'entries'} moved'),
+              ('${others.length}', '${others.length == 1 ? 'record' : 'records'} closed'),
+            ],
+            lines: [
+              if (r.filled.isNotEmpty) SelSummaryLine('${r.filled.join(' and ')} copied over'),
+              SelSummaryLine('The old IDs still find ${keep.fullName}', detail: oldIds.join(', ')),
+            ],
+          );
+        },
+      );
       if (!mounted) return;
       setState(() => _dupPartners = null);
       ref.invalidate(partnersStreamProvider(false));
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      if (!context.mounted) return;
-      selNotice(
-        context,
-        'Done. ${keep.fullName} is now ${r.newMemberId}. '
-        '${r.moved} ${r.moved == 1 ? "entry" : "entries"} moved'
-        '${r.filled.isEmpty ? "" : ", ${r.filled.join(" and ")} copied over"}.',
-        kind: SelNoticeKind.success,
-      );
     });
   }
 
@@ -451,18 +490,24 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     );
     if (!ok) return;
     await _run('separate', () async {
-      final r = await ref
-          .read(recordOpsRepositoryProvider)
-          .partnerUnmerge(churchId: churchId, memberId: id);
+      await runWithProgress(
+        context,
+        title: 'Taking $id out of its merge',
+        steps: ['Finding $id', 'Moving its giving back to it', 'Opening its record again'],
+        run: (p) async {
+          final r = await runServerSteps(
+            p,
+            () => ref.read(recordOpsRepositoryProvider).partnerUnmerge(churchId: churchId, memberId: id),
+          );
+          return SelSummary(
+            title: '$id is its own record again',
+            numbers: [('${r.moved}', '${r.moved == 1 ? 'entry' : 'entries'} went back to it')],
+          );
+        },
+      );
       ref.invalidate(partnersStreamProvider(false));
       ref.invalidate(rankingEntriesProvider);
       invalidateEntryDerivedData(ref);
-      if (!mounted) return;
-      selNotice(
-        context,
-        '$id is its own record again. ${r.moved} ${r.moved == 1 ? "entry" : "entries"} went back to it.',
-        kind: SelNoticeKind.success,
-      );
     });
   }
 

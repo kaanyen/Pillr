@@ -16,7 +16,11 @@ import '../../features/periods/providers/periods_providers.dart';
 import '../../core/navigation/panel_flows.dart';
 import '../../core/notifications/sel_notice.dart';
 import '../../features/users/providers/users_providers.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'view_common.dart';
+import '../../core/utils/export_naming.dart';
+import '../../core/utils/follow_up_export.dart';
 import '../../core/errors/plain_error.dart';
 
 /// The last four digits of a partner's first phone, so a list can show which
@@ -752,6 +756,57 @@ class FollowUpScreen extends ConsumerStatefulWidget {
 
 class _FollowUpState extends ConsumerState<FollowUpScreen> {
   int _days = 60;
+  bool _exporting = false;
+
+  /// PDF or CSV of the list on screen. On a phone it opens the share sheet
+  /// (Save to Files, Drive, WhatsApp, email); on a computer it downloads.
+  Future<void> _export(List<Partner> quiet, Map<String, DateTime> lastOf, {required bool pdf}) async {
+    if (_exporting) return;
+    if (quiet.isEmpty) {
+      selNotice(context, 'Nobody on the list to export.');
+      return;
+    }
+    setState(() => _exporting = true);
+    try {
+      final settings = ref.read(churchSettingsProvider).valueOrNull;
+      final window = _days == 180 ? '6 months' : '$_days days';
+      final now = DateTime.now();
+      final h = FollowUpHeader(
+        church: ref.read(churchNameProvider) ?? 'Church',
+        window: window,
+        madeBy: ref.read(churchUserProfileProvider).valueOrNull?.fullName ?? '-',
+        madeAt: now,
+        logoUrl: settings?.logoUrl,
+        markColorHex: settings?.primaryColorHex,
+      );
+      final rows = [
+        for (final p in quiet)
+          FollowUpRow(
+            name: p.fullName,
+            memberId: p.memberId,
+            fellowship: p.fellowship,
+            phones: p.allPhones,
+            lastGave: lastOf[p.id],
+            reason: p.followUpReason ?? '',
+          ),
+      ];
+      final name = pillrExportFileName(
+        report: 'follow-up',
+        scope: 'not-given-$window',
+        on: now,
+        extension: pdf ? 'pdf' : 'csv',
+      );
+      if (pdf) {
+        await shareFollowUpPdf(rows, h, name);
+      } else {
+        await shareFollowUpCsv(rows, h, name);
+      }
+    } catch (e) {
+      if (mounted) selNotice(context, 'Export failed. ${plainError(e)}', kind: SelNoticeKind.error);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   Future<void> _editReason(Partner p) async {
     final ctrl = TextEditingController(text: p.followUpReason ?? '');
@@ -798,98 +853,375 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
     // The whole church's giving, for every role: a partner is quiet when
     // nobody has recorded giving for them, not just this person.
     final lastOf = ref.watch(churchLastGaveProvider).valueOrNull ?? const {};
-    final cutoff = DateTime.now().subtract(Duration(days: _days));
-    final quiet =
-        (roster.valueOrNull ?? const <Partner>[]).where((p) {
-          if (!p.isActive) return false;
-          final last = lastOf[p.id];
-          return last == null || last.isBefore(cutoff);
-        }).toList()..sort((a, b) {
-          final la = lastOf[a.id], lb = lastOf[b.id];
-          if (la == null) return lb == null ? 0 : 1;
-          if (lb == null) return -1;
-          return la.compareTo(lb);
-        });
+    final now = DateTime.now();
+    final active = [
+      for (final p in roster.valueOrNull ?? const <Partner>[])
+        if (p.isActive) p,
+    ];
+    List<Partner> quietFor(int days) {
+      final cutoff = now.subtract(Duration(days: days));
+      return [
+        for (final p in active)
+          if (lastOf[p.id] == null || lastOf[p.id]!.isBefore(cutoff)) p,
+      ];
+    }
+
+    final quiet = quietFor(_days)
+      ..sort((a, b) {
+        final la = lastOf[a.id], lb = lastOf[b.id];
+        if (la == null) {
+          return lb == null ? a.fullName.compareTo(b.fullName) : 1;
+        }
+        if (lb == null) return -1;
+        return la.compareTo(lb);
+      });
+    final stopped = [
+      for (final p in quiet)
+        if (lastOf[p.id] != null) p,
+    ];
+    final never = [
+      for (final p in quiet)
+        if (lastOf[p.id] == null) p,
+    ];
     final phones = [
       for (final p in quiet)
         if (p.allPhones.isNotEmpty) '${p.fullName}: ${p.allPhones.first}',
     ];
+    final window = _days == 180 ? '6 months' : '$_days days';
+    final loaded = roster.hasValue;
 
     return SelPageBody(
       children: [
         SelPageTitle(
           title: 'Follow up',
-          subtitle: "Partners who haven't given in ${_days == 180 ? '6 months' : '$_days days'}",
+          subtitle: !loaded
+              ? "Partners who haven't given in $window"
+              : quiet.isEmpty
+              ? "Everyone has given in the last $window"
+              : "${quiet.length} ${quiet.length == 1 ? "partner hasn't" : "partners haven't"} "
+                    'given in $window. Longest first.',
           actions: [
             SelButton(
-              label: 'Copy phone numbers',
-              onPressed: phones.isEmpty
+              label: 'PDF',
+              icon: LucideIcons.fileDown,
+              onPressed: _exporting || quiet.isEmpty
                   ? null
-                  : () async {
-                      await Clipboard.setData(ClipboardData(text: phones.join('\n')));
-                      if (context.mounted) {
-                        selNotice(
-                          context,
-                          'Copied ${phones.length} ${phones.length == 1 ? 'number' : 'numbers'}.',
-                        );
-                      }
-                    },
+                  : () => _export(quiet, lastOf, pdf: true),
             ),
+            SelButton(
+              label: 'CSV',
+              icon: LucideIcons.table,
+              onPressed: _exporting || quiet.isEmpty
+                  ? null
+                  : () => _export(quiet, lastOf, pdf: false),
+            ),
+            if (phones.isNotEmpty)
+              SelButton(
+                label:
+                    'Copy ${phones.length} ${phones.length == 1 ? 'number' : 'numbers'}',
+                icon: LucideIcons.copy,
+                onPressed: () async {
+                  await Clipboard.setData(
+                    ClipboardData(text: phones.join('\n')),
+                  );
+                  if (context.mounted) {
+                    selNotice(
+                      context,
+                      'Copied ${phones.length} ${phones.length == 1 ? 'number' : 'numbers'}.',
+                    );
+                  }
+                },
+              ),
           ],
         ),
         SelPillGroup<int>(
           selected: _days,
           onChanged: (v) => setState(() => _days = v),
-          options: const [(60, '60 days'), (90, '90 days'), (180, '6 months')],
+          options: [
+            for (final (d, label) in const [
+              (60, '60 days'),
+              (90, '90 days'),
+              (180, '6 months'),
+            ])
+              (d, loaded ? '$label · ${quietFor(d).length}' : label),
+          ],
         ),
         const SizedBox(height: SelSpace.x4),
         roster.when(
           loading: () => const ViewLoading(),
           error: (e, _) => SelError(message: plainError(e)),
-          data: (_) => SelLedger(
-            minWidth: 760,
-            columns: const [
-              SelColumn('Partner', flex: 3),
-              SelColumn('Fellowship', flex: 2),
-              SelColumn('Last gave', fit: SelColFit.fixed, width: 140),
-              SelColumn.numeric('Phone', width: 110),
-              SelColumn('Reason', flex: 3),
-            ],
-            emptyState: const SelEmpty(
-              title: 'Everyone has given recently',
-              message: 'Nobody needs a call right now.',
-              icon: LucideIcons.phoneCall,
-            ),
-            rows: [
-              for (final p in quiet)
-                SelRow(
-                  onTap: () => context.go('/partners/${p.id}'),
-                  cells: [
-                    SelCell.primary(p.fullName),
-                    SelCell.secondary(p.fellowship),
-                    SelCell.secondary(
-                      lastOf[p.id] == null ? 'Not yet' : gaveOnMonth(lastOf[p.id]!),
-                    ),
-                    SelCell.numeric(_phoneEnd(p), strong: false),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: p.followUpReason?.trim().isNotEmpty == true
-                          ? InkWell(
-                              borderRadius: BorderRadius.circular(SelRadius.pill),
-                              onTap: () => _editReason(p),
-                              child: SelTag(p.followUpReason!.trim()),
-                            )
-                          : SelLink(
-                              label: 'Add a reason',
-                              onTap: () => _editReason(p),
-                            ),
-                    ),
-                  ],
+          data: (_) => quiet.isEmpty
+              ? const SelCard(
+                  child: SelEmpty(
+                    title: 'Everyone has given recently',
+                    message: 'Nobody needs a call right now.',
+                    icon: LucideIcons.phoneCall,
+                  ),
+                )
+              : SelCard(
+                  padding: EdgeInsets.zero,
+                  clip: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (stopped.isNotEmpty) ...[
+                        _FollowUpBand('Stopped giving', stopped.length),
+                        for (final p in stopped)
+                          _FollowUpRow(
+                            partner: p,
+                            last: lastOf[p.id],
+                            now: now,
+                            onReason: () => _editReason(p),
+                          ),
+                      ],
+                      if (never.isNotEmpty) ...[
+                        _FollowUpBand('Never given yet', never.length),
+                        for (final p in never)
+                          _FollowUpRow(
+                            partner: p,
+                            last: null,
+                            now: now,
+                            onReason: () => _editReason(p),
+                          ),
+                      ],
+                    ],
+                  ),
                 ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A group heading inside the list, as on the Queue.
+class _FollowUpBand extends StatelessWidget {
+  const _FollowUpBand(this.title, this.count);
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    color: Sel.rowHover,
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+    child: Text(
+      '$title · $count',
+      style: SelType.small.copyWith(
+        color: Sel.ink,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+}
+
+/// One partner to call: who, how long since they gave, a Call button, and
+/// the reason. On a laptop it is one line; on a phone it stacks so nothing
+/// is cut off.
+class _FollowUpRow extends StatelessWidget {
+  const _FollowUpRow({
+    required this.partner,
+    required this.last,
+    required this.now,
+    required this.onReason,
+  });
+
+  final Partner partner;
+  final DateTime? last;
+  final DateTime now;
+  final VoidCallback onReason;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = partner;
+    final phone = p.allPhones.isEmpty ? null : p.allPhones.first;
+    final reason = p.followUpReason?.trim() ?? '';
+    final days = last == null ? null : now.difference(last!).inDays;
+
+    final who = Row(
+      children: [
+        CircleAvatar(
+          radius: 18,
+          backgroundColor: Sel.skyWash,
+          child: Text(
+            _initials(p.fullName),
+            style: SelType.small.copyWith(
+              color: Sel.ink,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: SelSpace.x3),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                p.fullName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SelType.body.copyWith(
+                  color: Sel.ink,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                [
+                  if (p.fellowship.isNotEmpty) p.fellowship,
+                  if (p.memberId.isNotEmpty) p.memberId,
+                ].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: SelType.small,
+              ),
             ],
           ),
         ),
       ],
     );
+
+    final since = Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          days == null ? 'Never' : '$days days',
+          style: SelType.bodyMedium.copyWith(
+            color: Sel.ink,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          last == null
+              ? 'no giving yet'
+              : 'last ${DateFormat(last!.year == now.year ? 'd MMM' : 'd MMM y').format(last!)}',
+          style: SelType.small,
+        ),
+      ],
+    );
+
+    final call = phone == null
+        ? Text('No phone', style: SelType.small.copyWith(color: Sel.ash))
+        : _CallPill(phone: phone);
+
+    final why = reason.isNotEmpty
+        ? InkWell(
+            borderRadius: BorderRadius.circular(SelRadius.pill),
+            onTap: onReason,
+            child: SelTag(reason, tone: SelTagTone.soft),
+          )
+        : SelLink(label: 'Add a reason', onTap: onReason);
+
+    return Material(
+      color: Sel.card,
+      child: InkWell(
+        onTap: () => context.go('/partners/${p.id}'),
+        hoverColor: Sel.rowHover,
+        child: Container(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Sel.rowLine)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: LayoutBuilder(
+            builder: (context, c) {
+              if (c.maxWidth < 640) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: who),
+                        const SizedBox(width: SelSpace.x3),
+                        since,
+                      ],
+                    ),
+                    const SizedBox(height: SelSpace.x3),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 48),
+                      child: Wrap(
+                        spacing: SelSpace.x3,
+                        runSpacing: SelSpace.x2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [call, why],
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(flex: 5, child: who),
+                  SizedBox(
+                    width: 130,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: since,
+                    ),
+                  ),
+                  const SizedBox(width: SelSpace.x6),
+                  SizedBox(
+                    width: 190,
+                    child: Align(alignment: Alignment.centerLeft, child: call),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Align(alignment: Alignment.centerLeft, child: why),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
+}
+
+String _initials(String name) {
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) return parts.first[0].toUpperCase();
+  return (parts.first[0] + parts.last[0]).toUpperCase();
+}
+
+/// The partner's number as a button: on a phone it starts the call.
+class _CallPill extends StatelessWidget {
+  const _CallPill({required this.phone});
+
+  final String phone;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Sel.skyTint,
+    borderRadius: BorderRadius.circular(SelRadius.pill),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(SelRadius.pill),
+      onTap: () => launchUrl(
+        Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), '')),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: SelLayout.tapTargetDense),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(LucideIcons.phone, size: 14, color: Sel.cyanEdge),
+              const SizedBox(width: 6),
+              Text(
+                phone,
+                style: SelType.small.copyWith(
+                  color: Sel.cyanEdge,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

@@ -75,7 +75,11 @@ class ActivityLogRepository {
 /// no amount or total is ever written into it, at any depth. The figure
 /// stays on the entry, which admins cannot read.
 Map<String, dynamic> withoutFigures(Map<String, dynamic> m) {
-  bool isFigure(String k) => RegExp('amount|total|cedis|pesewa', caseSensitive: false).hasMatch(k);
+  // Anything named like money, and the counts the database also refuses
+  // (firestore.rules figureFields): an import line with entryCount was
+  // refused, after the import itself had finished.
+  bool isFigure(String k) =>
+      RegExp('amount|total|cedis|pesewa', caseSensitive: false).hasMatch(k) || k == 'entryCount';
   Object? clean(Object? v) => switch (v) {
     final Map<dynamic, dynamic> mm => withoutFigures(Map<String, dynamic>.from(mm)),
     final List<dynamic> l => [for (final x in l) clean(x)],

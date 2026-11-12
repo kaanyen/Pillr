@@ -250,6 +250,8 @@ export function buildPartnerEmailHtml(opts: {
   wording?: LetterWording;
   /** The church's logo, shown in place of its initials. */
   logoUrl?: string | null;
+  /** The partner's own page, all their giving this year; omitted hides the button. */
+  pageUrl?: string | null;
   preview?: boolean;
 }): string {
   const sym = opts.currencySymbol || "₵";
@@ -373,6 +375,11 @@ export function buildPartnerEmailHtml(opts: {
             </table>
           </td>
         </tr>
+        ${opts.pageUrl && /^https:\/\//.test(opts.pageUrl) ? `<tr>
+          <td style="padding: 22px 36px 0;">
+            <a href="${esc(opts.pageUrl)}" style="display: inline-block; padding: 12px 22px; border-radius: 999px; background: ${navy}; color: #ffffff; font-weight: 700; font-size: 15px; text-decoration: none;">See all your giving this year</a>
+          </td>
+        </tr>` : ""}
         <tr>
           <td style="padding: 22px 36px 0; font-size: 15px;">
             <p style="margin: 0;">${para(words("signOff"))}</p>

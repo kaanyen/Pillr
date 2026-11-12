@@ -25,4 +25,6 @@ class FirebaseConstants {
   static const remindPastors = 'remindPastors';
   static const startBackup = 'startBackup';
   static const listBackups = 'listBackups';
+  static const testApprovalMessage = 'testApprovalMessage';
+  static const fellowshipRhythmCounts = 'fellowshipRhythmCounts';
 }

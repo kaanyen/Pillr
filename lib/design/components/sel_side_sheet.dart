@@ -22,11 +22,16 @@ Future<T?> showSelSideSheet<T>(
   if (compact) {
     return showModalBottomSheet<T>(
       context: context,
+      // Above the app's top bar and bottom tabs, not underneath them.
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Sel.card,
       barrierColor: Sel.soot.withValues(alpha: 0.28),
       isDismissible: barrierDismissible,
       enableDrag: barrierDismissible,
+      // Stops short of the top so a long sheet never slides under the
+      // app's top bar, and the page behind still shows it is a sheet.
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.88),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(SelRadius.feature)),
       ),

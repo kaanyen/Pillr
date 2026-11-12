@@ -6,22 +6,21 @@ import 'package:intl/intl.dart' show DateFormat;
 import '../design/seline.dart';
 import '../features/leaderboard/fellowship_rhythm.dart';
 import '../features/leaderboard/giving_view.dart';
+import '../core/errors/plain_error.dart';
+import '../features/leaderboard/rhythm_counts_provider.dart';
 import 'views/view_common.dart';
 
-/// Fellowships · Giving rhythm, as on the canvas (board 5c): each square is
-/// how many of that fellowship's partners gave in the month, written in, on
-/// four wide colour bands so only real dips stand out.
+/// Fellowships · Giving rhythm, as on the canvas (board 5c): a quiet table of
+/// how many of each fellowship's partners gave each month. Only the months
+/// below the fellowship's usual level are marked, so a dip is what you see.
+///
+/// Pastors' rows come from the giving they can read; staff's ([countsOnly])
+/// from counts the server sends, with no names or amounts, and the rows do
+/// not open a fellowship's members.
 class FellowshipRhythmView extends ConsumerWidget {
-  const FellowshipRhythmView({super.key});
+  const FellowshipRhythmView({super.key, this.countsOnly = false});
 
-  /// Fill and text for each band. The top band is the filled-button blue,
-  /// which holds white text at 4.9:1.
-  static const bands = <(Color, Color)>[
-    (Color(0xFFF1F6FB), Sel.ink),
-    (Color(0xFFD3EAFC), Sel.ink),
-    (Color(0xFF8CCAFB), Sel.ink),
-    (Sel.cyan, Sel.card),
-  ];
+  final bool countsOnly;
 
   static String _months(List<int> ms) {
     final names = [for (final m in ms) DateFormat('MMMM').format(GivingView.monthOf(m))];
@@ -31,12 +30,30 @@ class FellowshipRhythmView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final view = ref.watch(givingViewProvider);
-    if (ref.watch(givingViewLoadingProvider)) return const ViewLoading();
     final now = GivingView.monthKey(DateTime.now());
-    final all = [for (final m in view.months) if (m <= now) m];
-    final months = all.length > 12 ? all.sublist(all.length - 12) : all;
-    if (months.isEmpty || view.fellowships.isEmpty) {
+    List<int> recent(List<int> ms) {
+      final all = [for (final m in ms) if (m <= now) m];
+      return all.length > 12 ? all.sublist(all.length - 12) : all;
+    }
+
+    final List<int> months;
+    final List<FellowshipRhythmRow> rows;
+    if (countsOnly) {
+      final async = ref.watch(rhythmCountsProvider);
+      if (async.isLoading && !async.hasValue) return const ViewLoading();
+      if (async.hasError && !async.hasValue) return SelError(message: plainError(async.error));
+      final d = async.value!;
+      months = recent(d.months);
+      rows = d.fellowships.isEmpty
+          ? const []
+          : fellowshipRhythmFromCounts(fellowships: d.fellowships, months: months, openMonth: now);
+    } else {
+      final view = ref.watch(givingViewProvider);
+      if (ref.watch(givingViewLoadingProvider)) return const ViewLoading();
+      months = recent(view.months);
+      rows = view.fellowships.isEmpty ? const [] : fellowshipRhythm(view: view, months: months, openMonth: now);
+    }
+    if (months.isEmpty || rows.isEmpty) {
       return const SelCard(
         child: SelEmpty(
           title: 'Nothing to show yet',
@@ -44,236 +61,186 @@ class FellowshipRhythmView extends ConsumerWidget {
         ),
       );
     }
-    final rows = fellowshipRhythm(view: view, months: months, openMonth: now);
     final church = rows.last;
     final dip = biggestDip(rows);
 
-    String? dipLine() {
+    // One plain sentence about the biggest dip, as on the canvas (5c).
+    TextSpan? lead() {
       if (dip == null) return null;
       final r = dip.row;
       final fewest = dip.months.map((m) => r.gave[m] ?? 0).reduce((a, b) => a < b ? a : b);
       final last = church.counted.last;
       final back = dip.months.contains(last)
           ? ''
-          : ' It has come back to ${r.gave[last] ?? 0} in ${DateFormat('MMMM').format(GivingView.monthOf(last))}.';
-      return '${r.name} dipped in ${_months(dip.months)}:|only $fewest of its ${r.partners} partners gave.$back';
+          : ' It is back to ${r.gave[last] ?? 0} in ${DateFormat('MMMM').format(GivingView.monthOf(last))}.';
+      return TextSpan(
+        style: SelType.lead.copyWith(color: Sel.text),
+        children: [
+          TextSpan(
+            text: '${r.name} dipped in ${_months(dip.months)},',
+            style: const TextStyle(color: Sel.ink, fontWeight: FontWeight.w700),
+          ),
+          TextSpan(text: ' when only $fewest of its ${r.partners} partners gave.$back'),
+        ],
+      );
     }
 
-    String trend(RhythmTrend? t) => switch (t) {
-      RhythmTrend.steady => 'Steady',
-      RhythmTrend.pickingUp => 'Picking up',
-      RhythmTrend.slipping => 'Slipping',
-      null => '',
+    // Slipping fellowships first; the church's own row stays last.
+    int order(RhythmTrend? t) => switch (t) {
+      RhythmTrend.slipping => 0,
+      RhythmTrend.pickingUp => 1,
+      RhythmTrend.steady => 2,
+      null => 3,
     };
+    final shown = [
+      ...([for (final r in rows) if (r.key.isNotEmpty) r]..sort((a, b) => order(a.trend).compareTo(order(b.trend)))),
+      church,
+    ];
 
-    final line = dipLine();
+    final line = lead();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (line != null) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(18)),
-            child: Text.rich(
-              TextSpan(
-                style: SelType.body.copyWith(color: Sel.ink),
-                children: [
-                  TextSpan(text: line.split('|').first, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  TextSpan(text: ' ${line.split('|').last}'),
-                ],
-              ),
-            ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Text.rich(line),
           ),
           const SizedBox(height: SelSpace.x4),
         ],
         SelCard(
-          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+          padding: EdgeInsets.zero,
+          clip: true,
           child: LayoutBuilder(
             builder: (context, c) {
-              const nameW = 150.0, avgW = 150.0, gap = 4.0;
-              final cellW = ((c.maxWidth - nameW - avgW - gap * (months.length + 1)) / months.length)
-                  .clamp(56.0, 96.0);
-              final width = nameW + avgW + (cellW + gap) * months.length + gap;
+              const nameW = 200.0, trendW = 140.0, pad = 24.0;
+              final cellW = ((c.maxWidth - nameW - trendW - pad * 2) / months.length).clamp(48.0, 96.0);
+              final width = nameW + trendW + pad * 2 + cellW * months.length;
 
               Widget cell(FellowshipRhythmRow r, int m) {
                 final open = m >= now;
-                final none = !open && !church.isRecorded(m);
                 final n = r.gave[m] ?? 0;
-                final (bg, fg) = bands[rhythmBand(r.shareIn(m))];
                 final month = DateFormat('MMMM').format(GivingView.monthOf(m));
-                return Padding(
-                  padding: const EdgeInsets.only(left: gap),
-                  child: Tooltip(
-                    message: open
-                        ? '$month is still open: $n of ${r.partners} so far'
-                        : none
-                        ? 'No giving is recorded for $month yet, so it is not counted'
-                        : '$month: $n of ${r.partners} partners gave',
-                    child: Container(
-                      width: cellW,
-                      height: 52,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: open || none ? Sel.card : bg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: open || none ? Border.all(color: Sel.border) : null,
-                      ),
-                      child: open || none
-                          ? Text(open ? 'open' : 'none yet', style: SelType.small)
-                          : Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '$n',
-                                  style: SelType.body.copyWith(
-                                    color: fg,
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.1,
-                                    fontFeatures: const [FontFeature.tabularFigures()],
-                                  ),
-                                ),
-                                Text(
-                                  'of ${r.partners}',
-                                  style: SelType.small.copyWith(color: fg, fontSize: 11, height: 1.1),
-                                ),
-                              ],
-                            ),
+                final isAll = r.key.isEmpty;
+                final style = SelType.body.copyWith(
+                  color: isAll ? Sel.text : Sel.warm,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                );
+                final Widget child;
+                if (open) {
+                  child = Text('so far', style: SelType.small.copyWith(color: Sel.warm));
+                } else if (!church.isRecorded(m)) {
+                  child = Text('–', style: style);
+                } else if (!isAll && r.isDip(m)) {
+                  child = Container(
+                    constraints: const BoxConstraints(minWidth: 34),
+                    height: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(color: const Color(0xFFE7F1FB), borderRadius: BorderRadius.circular(40)),
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text('$n', style: style.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
                     ),
-                  ),
+                  );
+                } else {
+                  child = Text('$n', style: style);
+                }
+                return Tooltip(
+                  message: open
+                      ? '$month is still open: $n of ${r.partners} so far'
+                      : !church.isRecorded(m)
+                      ? 'No giving is recorded for $month yet'
+                      : '$month: $n of ${r.partners} partners gave${!isAll && r.isDip(m) ? ', fewer than usual' : ''}',
+                  child: SizedBox(width: cellW, child: Center(child: child)),
                 );
               }
+
+              Widget trendText(RhythmTrend? t) => switch (t) {
+                RhythmTrend.slipping => Text(
+                  '↓ Slipping',
+                  style: SelType.body.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
+                ),
+                RhythmTrend.pickingUp => Text('↑ Picking up', style: SelType.body.copyWith(color: Sel.text)),
+                RhythmTrend.steady => Text('Steady', style: SelType.body.copyWith(color: Sel.text)),
+                null => Text('–', style: SelType.body.copyWith(color: Sel.warm)),
+              };
 
               Widget row(FellowshipRhythmRow r) {
                 final isAll = r.key.isEmpty;
-                final name = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      r.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: SelType.bodyMedium.copyWith(
-                        color: isAll ? Sel.ink : Sel.cyanEdge,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text('${r.partners} partners', style: SelType.small),
-                  ],
+                final canOpen = !isAll && !countsOnly;
+                final title = Text(
+                  isAll ? 'Whole church' : r.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
                 );
                 return Container(
-                  padding: EdgeInsets.only(top: isAll ? 8 : 0, bottom: gap),
-                  decoration: isAll
-                      ? const BoxDecoration(border: Border(top: BorderSide(color: Sel.rowLine, width: 1.5)))
-                      : null,
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: isAll ? Sel.border : Sel.rowLine, width: isAll ? 1.5 : 1)),
+                  ),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: isAll
-                        ? null
-                        : () => context.go('/fellowships/${Uri.encodeComponent(r.key)}?tab=months'),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: nameW,
-                          child: Padding(padding: const EdgeInsets.only(left: 8), child: name),
-                        ),
-                        for (final m in months) cell(r, m),
-                        SizedBox(
-                          width: avgW,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
+                    onTap: canOpen ? () => context.go('/fellowships/${Uri.encodeComponent(r.key)}?tab=months') : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: pad, vertical: 14),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: nameW,
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  r.average == null ? '–' : '${(r.average! * 100).round()}% a month',
-                                  style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
-                                ),
-                                if (r.trend != null) Text(trend(r.trend), style: SelType.small),
-                              ],
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [title, Text('${r.partners} partners', style: SelType.small)],
                             ),
                           ),
-                        ),
-                      ],
+                          for (final m in months) cell(r, m),
+                          SizedBox(width: trendW, child: Padding(padding: const EdgeInsets.only(left: 12), child: trendText(r.trend))),
+                        ],
+                      ),
                     ),
                   ),
                 );
               }
 
-              final head = Row(
-                children: [
-                  SizedBox(
-                    width: nameW,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text('Fellowship', style: SelType.small),
-                    ),
-                  ),
-                  for (final m in months)
-                    Padding(
-                      padding: const EdgeInsets.only(left: gap),
-                      child: SizedBox(
+              final head = Padding(
+                padding: const EdgeInsets.fromLTRB(pad, 16, pad, 12),
+                child: Row(
+                  children: [
+                    SizedBox(width: nameW, child: Text('Fellowship', style: SelType.small.copyWith(color: Sel.warm, fontWeight: FontWeight.w600))),
+                    for (final m in months)
+                      SizedBox(
                         width: cellW,
                         child: Text(
                           DateFormat('MMM').format(GivingView.monthOf(m)),
                           textAlign: TextAlign.center,
-                          style: SelType.small,
+                          style: SelType.small.copyWith(color: Sel.warm, fontWeight: FontWeight.w600),
                         ),
                       ),
+                    SizedBox(
+                      width: trendW,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text('Lately', style: SelType.small.copyWith(color: Sel.warm, fontWeight: FontWeight.w600)),
+                      ),
                     ),
-                  SizedBox(
-                    width: avgW,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Text('On average', textAlign: TextAlign.right, style: SelType.small),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               );
 
-              Widget swatch(int band, String label) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 28,
-                    height: 16,
-                    decoration: BoxDecoration(color: bands[band].$1, borderRadius: BorderRadius.circular(5)),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(label, style: SelType.small),
-                ],
-              );
-
-              final grid = SizedBox(
+              final table = SizedBox(
                 width: width < c.maxWidth ? c.maxWidth : width,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [head, const SizedBox(height: 8), for (final r in rows) row(r)],
+                  children: [head, for (final r in shown) row(r)],
                 ),
               );
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SingleChildScrollView(scrollDirection: Axis.horizontal, child: grid),
-                  const SizedBox(height: SelSpace.x3),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Wrap(
-                      spacing: 14,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text("How many of the fellowship's partners gave that month:", style: SelType.small),
-                        swatch(0, 'fewer than 1 in 4'),
-                        swatch(1, '1 in 4 to half'),
-                        swatch(2, 'half to 3 in 4'),
-                        swatch(3, '3 in 4 or more'),
-                      ],
-                    ),
-                  ),
-                ],
-              );
+              return SingleChildScrollView(scrollDirection: Axis.horizontal, child: table);
             },
           ),
+        ),
+        const SizedBox(height: SelSpace.x3),
+        Text(
+          'Highlighted months are when fewer partners gave than the fellowship usually has. '
+          'Slipping fellowships are listed first.',
+          style: SelType.small.copyWith(color: Sel.warm),
         ),
       ],
     );

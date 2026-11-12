@@ -1,3 +1,4 @@
+import {sendApprovalMessages} from "./giving_messages";
 import * as admin from "firebase-admin";
 import * as functionsV1 from "firebase-functions/v1";
 import {FieldValue} from "firebase-admin/firestore";
@@ -947,6 +948,7 @@ export const onEntryCreated = functionsV1
     const churchId = context.params.churchId as string;
     if (data.status === "approved") {
       await syncEntryAggregates(churchId, snap.id);
+      await sendApprovalMessages(churchId, snap.id, data);
       return;
     }
     if (data.status === "pending") {
@@ -969,6 +971,11 @@ export const onEntryUpdated = functionsV1
     }
     if (before.status === "pending" && (after.status === "approved" || after.status === "declined")) {
       await notifyStaffEntryReviewed(churchId, after);
+    }
+    // Thank the partner once a pastor has approved it. Once per entry: an
+    // approval undone and done again does not message twice.
+    if (before.status !== "approved" && after.status === "approved") {
+      await sendApprovalMessages(churchId, change.after.id, after);
     }
   });
 
@@ -1305,4 +1312,82 @@ export {
 } from "./monthly_partner_email";
 export {fellowshipChange, partnerMerge, partnerUnmerge, undoOperation} from "./record_ops";
 export {nightlyDuplicateCheck} from "./duplicate_scan";
-export {findSimilarEntries, churchHealth, remindPastors} from "./privacy";
+export {findSimilarEntries, churchHealth, remindPastors, fellowshipRhythmCounts} from "./privacy";
+export {testApprovalMessage} from "./giving_messages";
+export {partnerPage} from "./partner_page";
+
+/**
+ * A staff member archived an import they brought in: it happens straight
+ * away, and the pastors are told on their phones. The bell page shows it too,
+ * from the import record itself.
+ */
+export const onImportBatchArchived = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/import_batches/{batchId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!before || !after || before.voidedAt || !after.voidedAt) return;
+    const churchId = context.params.churchId as string;
+    const by = String(after.voidedBy ?? "");
+    if (!by) return;
+    const actor = (await db.doc(`churches/${churchId}/users/${by}`).get()).data();
+    if (actor?.role !== "staff") return;
+    const users = await db.collection(`churches/${churchId}/users`).where("role", "==", "pastor").get();
+    const tokens = users.docs.map((d) => d.get("fcmToken") as string | undefined).filter((t): t is string => !!t);
+    if (tokens.length === 0) return;
+    const name = String(after.label || after.fileName || "an import");
+    const count = Number(after.voidedCount ?? 0);
+    try {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "An import was archived",
+          body: `${String(actor.fullName || "A staff member")} archived ${name}: ${count} ${count === 1 ? "entry" : "entries"} taken out. Bring it back from Imports if that was a mistake.`,
+        },
+      });
+    } catch (e) {
+      console.warn("FCM onImportBatchArchived:", e);
+    }
+  });
+
+/**
+ * A staff member moved people, or renamed, merged or closed a fellowship:
+ * it happens straight away, and the pastors are told on their phones. The
+ * bell page lists it from the operation itself, with Undo in Tools · Changes.
+ */
+export const onFellowshipChangeByStaff = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/operations/{opId}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : undefined;
+    const before = change.before.exists ? change.before.data() : undefined;
+    if (!after || after.status !== "applied" || before?.status === "applied") return;
+    const kind = String(after.kind ?? "");
+    if (!kind.startsWith("fellowship.")) return;
+    const actor = (after.actorSnapshot ?? {}) as {fullName?: string; role?: string};
+    if (actor.role !== "staff") return;
+    const churchId = context.params.churchId as string;
+    const users = await db.collection(`churches/${churchId}/users`).where("role", "==", "pastor").get();
+    const tokens = users.docs.map((d) => d.get("fcmToken") as string | undefined).filter((t): t is string => !!t);
+    if (tokens.length === 0) return;
+    const s = (after.summary ?? {}) as Record<string, unknown>;
+    const who = String(actor.fullName || "A staff member");
+    const n = Number(s.activeMoved ?? 0);
+    const what = kind === "fellowship.move"
+      ? `moved ${n} ${n === 1 ? "partner" : "partners"} to ${String(s.to ?? "")}`
+      : kind === "fellowship.rename"
+        ? `renamed ${String(s.from ?? "")} to ${String(s.to ?? "")}`
+        : `merged ${String(s.from ?? "")} into ${String(s.to ?? "")}`;
+    try {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "A fellowship change",
+          body: `${who} ${what}. Undo it from Tools · Changes if that was a mistake.`,
+        },
+      });
+    } catch (e) {
+      console.warn("FCM onFellowshipChangeByStaff:", e);
+    }
+  });

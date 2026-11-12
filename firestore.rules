@@ -226,11 +226,13 @@ service cloud.firestore {
         allow update: if belongsToChurch(churchId) && isAdmin()
                       && writesVoidState(resource.data, request.resource.data);
 
-        // Staff: edit own pending or declined entries; must reset to pending (re-submit).
-        // A voided entry is settled and is not theirs to reopen from the form.
+        // Staff: edit entries they recorded, waiting, declined or approved;
+        // every edit goes back to pending, so a pastor checks the change
+        // before it counts again. A voided entry is settled and is not theirs
+        // to reopen from the form.
         allow update: if belongsToChurch(churchId) && isStaff()
                       && isOwnEntry(resource.data)
-                      && (resource.data.status == 'pending' || resource.data.status == 'declined')
+                      && resource.data.status in ['pending', 'declined', 'approved']
                       && request.resource.data.status == 'pending'
                       && !writesVoidState(resource.data, request.resource.data)
                       && request.resource.data.createdBy == resource.data.createdBy;
@@ -308,10 +310,24 @@ service cloud.firestore {
                            .hasOnly([
                              'label', 'note', 'preparedBy', 'updatedAt',
                              'previousLabel', 'previousNote',
-                             'voidedAt', 'voidedBy', 'voidedCount',
+                             'voidedAt', 'voidedBy', 'voidedByName', 'voidedCount',
                              'restoredAt', 'restoredBy', 'restoredCount',
                              'reassignedAt', 'reassignedBy', 'reassignedCount',
                              'periodName', 'previousPeriodName',
+                             'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
+                           ]);
+
+        // Staff: the same for an import they brought in, except moving it to
+        // another period, which stays with the pastor. Archiving happens
+        // straight away; the server tells the pastors.
+        allow update: if belongsToChurch(churchId) && isStaff()
+                      && resource.data.createdBy == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly([
+                             'label', 'note', 'preparedBy', 'updatedAt',
+                             'previousLabel', 'previousNote',
+                             'voidedAt', 'voidedBy', 'voidedByName', 'voidedCount',
+                             'restoredAt', 'restoredBy', 'restoredCount',
                              'lastEditedAt', 'lastEditedBy', 'lastEditedCount',
                            ]);
 
@@ -327,6 +343,12 @@ service cloud.firestore {
       // off), for the admin who looks after the letters' set-up.
       match /monthly_email_summaries/{yearMonth} {
         allow read: if belongsToChurch(churchId) && isPastorOrAdmin();
+        allow write: if false;
+      }
+
+      // What the thank-you on approval did for each entry (email, text).
+      match /giving_messages/{entryId} {
+        allow read: if belongsToChurch(churchId) && isPastor();
         allow write: if false;
       }
 

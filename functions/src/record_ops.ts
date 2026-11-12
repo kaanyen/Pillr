@@ -198,7 +198,7 @@ async function withLock<T>(churchId: string, holder: string, body: () => Promise
  * amount or total goes into it, at any depth.
  */
 export function withoutFigures(v: Record<string, unknown>): Record<string, unknown> {
-  const isFigure = (k: string) => /amount|total|cedis|pesewa/i.test(k);
+  const isFigure = (k: string) => /amount|total|cedis|pesewa/i.test(k) || k === "entryCount";
   const clean = (x: unknown): unknown =>
     Array.isArray(x) ? x.map(clean) :
       x && typeof x === "object" && !(x instanceof Date) && x.constructor === Object ?

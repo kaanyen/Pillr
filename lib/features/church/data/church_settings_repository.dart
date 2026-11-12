@@ -130,6 +130,57 @@ class ChurchSettingsRepository {
     }, SetOptions(merge: true));
   }
 
+  /// The thank-you sent when a pastor approves giving: on or off by email
+  /// and by text, and the church's words for each.
+  Future<void> updateApprovalMessages({
+    required String churchId,
+    required bool emailOn,
+    required bool smsOn,
+    required String emailSubject,
+    required String emailMessage,
+    required String smsMessage,
+    required String smsSenderId,
+    required bool partnerPageOn,
+  }) async {
+    String? clean(String v) => v.trim().isEmpty ? null : v.trim();
+    await _church(churchId).set({
+      'settings': {
+        'partnerPageOn': partnerPageOn,
+        'approvalEmailOn': emailOn,
+        'approvalSmsOn': smsOn,
+        'approvalEmailSubject': clean(emailSubject),
+        'approvalEmailMessage': clean(emailMessage),
+        'approvalSmsMessage': clean(smsMessage),
+        'smsSenderId': clean(smsSenderId),
+      },
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Sends the caller a test: the email to their own address, or the text to
+  /// [phone]. Returns where it went, and whether it was only a dry run.
+  Future<({String to, bool dryRun})> testApprovalMessage({
+    required String channel,
+    String? subject,
+    required String message,
+    String? phone,
+    String? senderId,
+  }) async {
+    try {
+      final r = await _functions.httpsCallable(FirebaseConstants.testApprovalMessage).call(<String, dynamic>{
+        'channel': channel,
+        'subject': ?subject,
+        'message': message,
+        'phone': ?phone,
+        'senderId': ?senderId,
+      });
+      final d = Map<String, dynamic>.from(r.data as Map? ?? {});
+      return (to: d['to'] as String? ?? '', dryRun: d['dryRun'] == true);
+    } on FirebaseFunctionsException catch (e) {
+      throw AppException(e.message ?? 'The test did not send.', code: e.code);
+    }
+  }
+
   Stream<MonthlyEmailReport?> watchLatestMonthlyEmailReport(String churchId) {
     return _church(churchId)
         .collection('monthly_email_reports')
@@ -185,8 +236,7 @@ class ChurchSettingsRepository {
     }
   }
 
-  Future<({int sent, int sentNow, int skipped, int failed, bool dryRun, String yearMonth})>
-      runMonthlyPartnerEmails({String? yearMonth, List<String>? partnerIds}) async {
+  Future<MonthlyEmailRunResult> runMonthlyPartnerEmails({String? yearMonth, List<String>? partnerIds}) async {
     try {
       final callable = _functions.httpsCallable(
         FirebaseConstants.runMonthlyPartnerGivingSummary,
@@ -214,4 +264,7 @@ class ChurchSettingsRepository {
 
 /// The church's words for the monthly letter, as typed on Settings.
 typedef LetterWordingDraft = ({String subject, String heading, String message, String signOff});
+
+/// What one run of the monthly letters did.
+typedef MonthlyEmailRunResult = ({int sent, int sentNow, int skipped, int failed, bool dryRun, String yearMonth});
 

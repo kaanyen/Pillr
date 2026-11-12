@@ -11,6 +11,8 @@ import '../../church/providers/church_settings_providers.dart';
 import '../domain/partner.dart';
 import 'duplicate_warning.dart';
 import '../providers/partners_providers.dart';
+import '../../fellowships/fellowship_match.dart';
+import '../../fellowships/move_people.dart';
 import '../../../core/errors/plain_error.dart';
 
 /// Add or edit a partner — body for [showPartnerFormPanel].
@@ -85,6 +87,22 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
     _address.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  /// The fellowship picked differs from the one they are in.
+  bool get _moving {
+    final ex = widget.existing;
+    return ex != null && !fellowshipNamesMatch(ex.fellowship, _fellowship.text.trim());
+  }
+
+  Future<void> _pickFellowship() async {
+    final ex = widget.existing;
+    final picked = await pickFellowship(
+      context,
+      title: ex == null ? 'Fellowship' : '${ex.fullName}’s fellowship',
+      here: ex == null || ex.fellowship.isEmpty ? const {} : {ex.fellowship},
+    );
+    if (picked != null && mounted) setState(() => _fellowship.text = picked);
   }
 
   Future<void> _save() async {
@@ -175,7 +193,8 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           partner: ex,
           memberId: _memberId.text,
           fullName: _fullName.text,
-          fellowship: _fellowship.text,
+          // A new fellowship is a recorded move (below), so it can be undone.
+          fellowship: ex.fellowship,
           email: _email.text,
           phone: _phone.text,
           isActive: _active,
@@ -187,7 +206,7 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
         final after = {
           'memberId': _memberId.text.trim().toUpperCase(),
           'fullName': TextCaseUtils.toTitleCase(_fullName.text),
-          'fellowship': TextCaseUtils.toTitleCase(_fellowship.text),
+          'fellowship': ex.fellowship,
           'email': _email.text.trim().isEmpty ? null : _email.text.trim(),
           'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
           'phones': _lines(_phone.text, _otherPhones.text),
@@ -204,6 +223,10 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
           entityId: ex.id,
           metadata: {'before': before, 'after': after},
         );
+        if (_moving && mounted) {
+          final moved = await applyMove(context, ref, moving: [ex], to: _fellowship.text.trim());
+          if (!moved) return;
+        }
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -241,11 +264,13 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    // Staff edit names, IDs and contacts. Moving fellowship and closing a
-    // partner stay with the pastor, or go through the recorded move.
+    // Staff edit names, IDs, contacts and the fellowship (a recorded move).
+    // Closing a partner stays with the pastor.
     final staff =
         isEdit &&
         ref.watch(userChurchIndexProvider).valueOrNull?.role == 'staff';
+    final ex = widget.existing;
+    final picked = _fellowship.text.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -268,15 +293,61 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
         ],
         SelField(controller: _fullName, label: 'Full name'),
         const SizedBox(height: SelSpace.x4),
-        SelField(
-          controller: _fellowship,
-          label: 'Fellowship',
-          enabled: !staff,
-          helper: staff
-              ? 'To move them, use Move partners on the Fellowships page, '
-                    'so it can be undone.'
-              : null,
+        Text('Fellowship', style: SelType.small.copyWith(fontWeight: FontWeight.w700, color: Sel.warm)),
+        const SizedBox(height: SelSpace.x1),
+        Material(
+          color: Sel.card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SelRadius.input),
+            side: const BorderSide(color: Sel.border),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(SelRadius.input),
+            onTap: _loading ? null : _pickFellowship,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: picked.isEmpty ? 'Choose a fellowship' : picked,
+                              style: SelType.body.copyWith(
+                                color: picked.isEmpty ? Sel.ash : Sel.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (_moving) TextSpan(text: '  was ${ex!.fellowship}', style: SelType.small),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Text('Change', style: SelType.small.copyWith(color: Sel.cyan, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.expand_more, size: 18, color: Sel.cyan),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ),
+        if (_moving) ...[
+          const SizedBox(height: SelSpace.x3),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Sel.skyTint, borderRadius: BorderRadius.circular(14)),
+            child: Text(
+              'Saving moves ${ex!.fullName} from ${ex.fellowship.isEmpty ? 'no fellowship' : ex.fellowship} to $picked. '
+              'Their giving moves with them. '
+              '${staff ? 'Your pastor is told. ' : ''}You can undo it straight after.',
+              style: SelType.bodySm.copyWith(color: Sel.ink),
+            ),
+          ),
+        ],
         const SizedBox(height: SelSpace.x4),
         SelField(
           controller: _email,
@@ -363,7 +434,7 @@ class _PartnerFormPanelState extends ConsumerState<PartnerFormPanel> {
             ),
             const Spacer(),
             SelButton.cyan(
-              label: isEdit ? 'Save' : 'Create',
+              label: !isEdit ? 'Create' : _moving ? 'Save and move' : 'Save',
               loading: _loading,
               onPressed: _loading ? null : _save,
             ),

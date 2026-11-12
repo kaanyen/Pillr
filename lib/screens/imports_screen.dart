@@ -15,6 +15,8 @@ import '../features/activity/activity_log_helper.dart';
 import '../features/entries/bulk_import/bulk_import_batch_actions.dart';
 import '../features/entries/bulk_import/bulk_import_batches.dart';
 import '../features/entries/bulk_import/bulk_import_history_provider.dart';
+import '../features/entries/data/entries_repository.dart' show statusBeforeVoid;
+import '../features/entries/domain/partnership_entry.dart';
 import '../features/entries/providers/entries_providers.dart';
 import '../features/periods/domain/partnership_period.dart';
 import '../features/periods/providers/periods_providers.dart';
@@ -67,6 +69,9 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final money = ref.watch(churchMoneyFormatProvider);
     final idx = ref.watch(userChurchIndexProvider).valueOrNull;
     final canManage = (idx?.isPastor ?? false) || (idx?.isAdmin ?? false);
+    // Staff manage the imports they brought in (the list only shows theirs),
+    // except moving one to another period, which stays with the pastor.
+    final staff = idx?.isStaff ?? false;
 
     return SelPageBody(
       controller: _scrollController,
@@ -79,8 +84,9 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
         const SizedBox(height: SelSpace.x3),
         SelPageTitle(
           title: 'Imports',
-          subtitle:
-              'Every sheet brought into Pillr, and what it created. Clear or move a whole import in one step.',
+          subtitle: staff
+              ? 'The sheets you brought into Pillr, and what they created. Correct or archive one in a step.'
+              : 'Every sheet brought into Pillr, and what it created. Correct, move or archive a whole import in one step.',
           actions: [
             SelButton.cyan(
               label: 'Bring in a sheet',
@@ -131,11 +137,12 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
                               .watch(importWaitingCountProvider('${idx.churchId}/${b.id}'))
                               .valueOrNull,
                     money: money,
-                    canManage: canManage,
+                    canManage: canManage || staff,
+                    canMove: canManage,
                     busy: _busyBatchId == b.id,
                     onOpenRows: () => context.go('/records?import=${b.id}'),
                     onEdit: () => context.go('/records/imports/${b.id}/edit'),
-                    canEdit: idx?.isPastor ?? false,
+                    canEdit: (idx?.isPastor ?? false) || staff,
                     onRename: () => _rename(b),
                     onReassign: () => _reassign(b),
                     onClear: () => _clear(b),
@@ -160,6 +167,35 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
           ),
       ],
     );
+  }
+
+  /// One of the actions below, behind the progress window (canvas 69, 70):
+  /// the bar, the entry it is on, and a summary of what happened.
+  Future<void> _job(
+    BulkImportBatch b, {
+    required String title,
+    String? subtitle,
+    required Future<SelSummary> Function(SelWork p, String Function(PartnershipEntry) label) run,
+  }) async {
+    if (_busyBatchId != null) return;
+    final money = ref.read(churchMoneyFormatProvider);
+    String label(PartnershipEntry e) => [
+      e.partnerSnapshot['fullName']?.toString() ?? 'Partner',
+      money(e.amountCedis),
+      e.armSnapshot['name']?.toString() ?? '',
+    ].where((x) => x.isNotEmpty).join(' · ');
+    setState(() => _busyBatchId = b.id);
+    try {
+      await runWithProgress(context, title: title, subtitle: subtitle, run: (p) => run(p, label));
+    } finally {
+      if (mounted) {
+        ref.invalidate(importWaitingCountProvider);
+        invalidateEntryDerivedData(ref);
+        ref.invalidate(rankingEntriesProvider);
+        ref.invalidate(importHistoryProvider);
+        setState(() => _busyBatchId = null);
+      }
+    }
   }
 
   // ------------------------------------------------------------------ actions
@@ -236,98 +272,131 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
     if (idx == null || actor == null) return;
 
-    await _withBusy(b.id, () async {
-      final moved = await ref.read(bulkImportBatchActionsProvider).reassignBatch(
-            churchId: idx.churchId,
-            batchId: b.id,
-            actor: actor,
-            period: choice.period,
-            arm: choice.arm,
-            previousPeriodName: b.periodName,
-          );
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.reassign',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'periodName': choice.period?.name ?? b.periodName,
-          'armName': choice.arm?.name,
-          'moved': moved,
-        },
-        metadata: {'previousPeriodName': b.periodName},
-      );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          moved == 0
-              ? 'Nothing to move — every row in this import is already voided.'
-              : 'Moved $moved ${moved == 1 ? "entry" : "entries"}.',
+    await _job(
+      b,
+      title: 'Moving ${b.displayName}',
+      subtitle: 'To ${choice.period?.name ?? b.periodName}${choice.arm == null ? '' : ', ${choice.arm!.name}'}. Keep this page open.',
+      run: (p, label) async {
+        p.start(b.entryCount);
+        final moved = await ref.read(bulkImportBatchActionsProvider).reassignBatch(
+              churchId: idx.churchId,
+              batchId: b.id,
+              actor: actor,
+              period: choice.period,
+              arm: choice.arm,
+              previousPeriodName: b.periodName,
+              onEach: (e) => p.tick('${label(e)} · to ${choice.period?.name ?? b.periodName}'),
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'import.reassign',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'periodName': choice.period?.name ?? b.periodName, 'armName': choice.arm?.name, 'moved': moved},
+          metadata: {'previousPeriodName': b.periodName},
         );
-      }
-    });
+        return SelSummary(
+          title: moved == 0 ? 'Nothing to move' : '${b.displayName} has moved',
+          subtitle: moved == 0 ? 'Every row in this import is archived.' : null,
+          numbers: [('$moved', 'entries moved'), (choice.period?.name ?? b.periodName, 'now in')],
+          lines: [SelSummaryLine('From ${b.periodName}', detail: 'Move it back from this card if that was a mistake.')],
+        );
+      },
+    );
   }
 
   Future<void> _clear(BulkImportBatch b) async {
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (_) => _ClearDialog(batch: b),
+    final idx0 = ref.read(userChurchIndexProvider).valueOrNull;
+    if (idx0 == null) return;
+    final rows = await ref.read(entriesRepositoryProvider).fetchEntriesForBatch(idx0.churchId, b.id);
+    if (!mounted) return;
+    final approved = rows.where((e) => e.status == 'approved').toList();
+    final waiting = rows.where((e) => e.status == 'pending').length;
+    final total = approved.fold<double>(0, (s, e) => s + e.amountCedis);
+    final money = ref.read(churchMoneyFormatProvider);
+    final ok = await selConfirm(
+      context,
+      title: 'Archive ${b.displayName}?',
+      message: [
+        'All ${approved.length + waiting} entries it created come out:',
+        if (approved.isNotEmpty) '• ${approved.length} approved, ${money(total)}, leave the totals',
+        if (waiting > 0) '• $waiting waiting leave the queue',
+        '',
+        'Nothing is deleted. The import stays here marked Archived, and Bring it back puts every entry back as it was.'
+            '${idx0.isStaff ? ' Your pastor is told.' : ''}',
+      ].join('\n'),
+      confirmLabel: 'Archive it',
+      cancelLabel: 'Keep it',
     );
-    if (reason == null || reason.trim().isEmpty) return;
+    if (!ok) return;
+    const reason = 'Import archived';
 
-    final idx = ref.read(userChurchIndexProvider).valueOrNull;
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
-    if (idx == null || actor == null) return;
-
-    await _withBusy(b.id, () async {
-      final result = await ref.read(bulkImportBatchActionsProvider).clearBatch(
-            churchId: idx.churchId,
-            batchId: b.id,
-            actor: actor,
-            reason: reason,
-          );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          result.voided == 0
-              ? 'This import was already cleared.'
-              : 'Voided ${result.voided} '
-                  '${result.voided == 1 ? "entry" : "entries"}. '
-                  'They stay on the books but count toward nothing. '
-                  'Restore them from this card if that was a mistake.',
+    if (actor == null) return;
+    await _job(
+      b,
+      title: 'Archiving ${b.displayName}',
+      subtitle: 'Taking its ${rows.length} entries out. Keep this page open; it takes a few seconds.',
+      run: (p, label) async {
+        var left = 0.0;
+        p.start(rows.where((e) => !e.isVoided).length);
+        final result = await ref.read(bulkImportBatchActionsProvider).clearBatch(
+              churchId: idx0.churchId,
+              batchId: b.id,
+              actor: actor,
+              reason: reason,
+              onEach: (e) {
+                if (e.status == 'approved') left += e.amountCedis;
+                p.tick(
+                  '${label(e)} · ${e.status == 'approved' ? 'approved, leaving the totals' : 'waiting, leaving the queue'}',
+                  running: left > 0 ? '${money(left)} out of the totals so far' : null,
+                );
+              },
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx0.churchId,
+          action: 'import.void',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'fileName': b.fileName, 'voided': result.voided, 'reason': reason},
         );
-      }
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.void',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'fileName': b.fileName,
-          'voided': result.voided,
-          'reason': reason,
-        },
-      );
-    });
+        return SelSummary(
+          title: result.voided == 0 ? '${b.displayName} was already archived' : '${b.displayName} is archived',
+          subtitle: 'Nothing was deleted.',
+          numbers: [
+            ('${result.voided}', 'entries taken out'),
+            (money(total), 'left the totals'),
+            ('$waiting', 'left the queue'),
+          ],
+          lines: [
+            if (approved.isNotEmpty) SelSummaryLine('${approved.length} approved entries archived', detail: _byArm(approved, money)),
+            if (waiting > 0)
+              SelSummaryLine(
+                '$waiting waiting ${waiting == 1 ? 'entry' : 'entries'} taken out of the queue',
+                detail: rows.where((e) => e.status == 'pending').map((e) => e.partnerSnapshot['fullName']).take(6).join(', '),
+              ),
+            if (idx0.isStaff) const SelSummaryLine('Your pastor was told', detail: 'On their phone and on their bell page', ok: false),
+          ],
+          actions: [
+            SelSummaryAction('Bring it back', () => _restore(b)),
+            SelSummaryAction('See them in Records', () => context.go('/records?import=${b.id}'), link: true),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _undo(BulkImportBatch b) async {
     final ok = await selConfirm(
       context,
-      title: 'Undo this import?',
+      title: 'Take back the ones still waiting?',
       message:
-          'Removes the entries from ${b.displayName} that are still waiting '
-          'on a decision. Anything already approved stays — use Clear to take '
-          'approved money out of the totals without deleting it.',
-      confirmLabel: 'Undo import',
+          'Removes the entries from ${b.displayName} that no pastor has approved '
+          'yet. Approved ones stay. To take approved giving out of the totals as '
+          'well, archive the import instead; nothing is deleted that way.',
+      confirmLabel: 'Take them back',
       destructive: true,
     );
     if (!ok) return;
@@ -335,49 +404,47 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final idx = ref.read(userChurchIndexProvider).valueOrNull;
     if (idx == null) return;
 
-    await _withBusy(b.id, () async {
-      final result = await ref.read(bulkImportBatchRepositoryProvider).undo(
-            churchId: idx.churchId,
-            batchId: b.id,
-            byUid: idx.uid,
-          );
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.undo',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'fileName': b.fileName,
-          'removed': result.removed,
-          'kept': result.kept,
-        },
-      );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          result.kept == 0
-              ? 'Removed ${result.removed} '
-                  '${result.removed == 1 ? "entry" : "entries"}.'
-              : 'Removed ${result.removed}; kept ${result.kept} already '
-                  'approved.',
-          kind: SelNoticeKind.success,
+    await _job(
+      b,
+      title: 'Taking back the ones still waiting',
+      run: (p, label) async {
+        p.start(0);
+        final result = await ref.read(bulkImportBatchRepositoryProvider).undo(
+              churchId: idx.churchId,
+              batchId: b.id,
+              byUid: idx.uid,
+              onStart: p.start,
+              onEach: (name) => p.tick('$name · removed from the queue'),
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'import.undo',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'fileName': b.fileName, 'removed': result.removed, 'kept': result.kept},
         );
-      }
-    });
+        return SelSummary(
+          title: result.removed == 0 ? 'Nothing was waiting' : 'The waiting entries are taken back',
+          numbers: [('${result.removed}', 'removed'), ('${result.kept}', 'approved, kept')],
+          lines: [
+            if (result.kept > 0)
+              SelSummaryLine('${result.kept} approved ${result.kept == 1 ? 'entry stays' : 'entries stay'}',
+                  detail: 'To take approved giving out too, archive the import.'),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _restore(BulkImportBatch b) async {
     final ok = await selConfirm(
       context,
-      title: 'Restore this import?',
+      title: 'Bring ${b.displayName} back?',
       message:
-          'Puts the voided entries back to the status they had before they '
-          'were cleared. Approved giving returns to the totals.',
-      confirmLabel: 'Restore import',
+          'Puts every entry back as it was before it was archived: approved '
+          'ones count again, waiting ones go back to the queue.',
+      confirmLabel: 'Bring it back',
     );
     if (!ok) return;
 
@@ -385,36 +452,40 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
     if (idx == null || actor == null) return;
 
-    await _withBusy(b.id, () async {
-      final restored = await ref.read(bulkImportBatchActionsProvider).restoreBatch(
-            churchId: idx.churchId,
-            batchId: b.id,
-            actor: actor,
-          );
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.restore',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'fileName': b.fileName,
-          'restored': restored,
-        },
-      );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          restored == 0
-              ? 'Nothing to restore.'
-              : 'Restored $restored ${restored == 1 ? "entry" : "entries"}.',
-          kind: SelNoticeKind.success,
+    await _job(
+      b,
+      title: 'Bringing ${b.displayName} back',
+      run: (p, label) async {
+        final rows = await ref.read(entriesRepositoryProvider).fetchEntriesForBatch(idx.churchId, b.id);
+        p.start(rows.where((e) => e.isVoided).length);
+        final restored = await ref.read(bulkImportBatchActionsProvider).restoreBatch(
+              churchId: idx.churchId,
+              batchId: b.id,
+              actor: actor,
+              onEach: (e) => p.tick('${label(e)} · ${statusBeforeVoid(e) == 'approved' ? 'counting again' : 'back in the queue'}'),
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'import.restore',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'fileName': b.fileName, 'restored': restored},
         );
-      }
-    });
+        final back = rows.where((e) => e.isVoided).toList();
+        final approved = back.where((e) => statusBeforeVoid(e) == 'approved').toList();
+        final money = ref.read(churchMoneyFormatProvider);
+        return SelSummary(
+          title: '${b.displayName} is back',
+          numbers: [
+            ('$restored', 'entries back'),
+            (money(approved.fold<double>(0, (s, e) => s + e.amountCedis)), 'back in the totals'),
+            ('${back.length - approved.length}', 'back in the queue'),
+          ],
+          actions: [SelSummaryAction('See them in Records', () => context.go('/records?import=${b.id}'), link: true)],
+        );
+      },
+    );
   }
 
   Future<void> _undoMove(BulkImportBatch b) async {
@@ -432,35 +503,32 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
     if (idx == null || actor == null) return;
 
-    await _withBusy(b.id, () async {
-      final moved = await ref.read(bulkImportBatchActionsProvider).undoReassignBatch(
-            churchId: idx.churchId,
-            batchId: b.id,
-            actor: actor,
-            previousPeriodName: previous,
-          );
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.reassign_undo',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'periodName': previous,
-          'moved': moved,
-        },
-      );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          'Moved $moved ${moved == 1 ? "entry" : "entries"} back to $previous.',
-          kind: SelNoticeKind.success,
+    await _job(
+      b,
+      title: 'Moving ${b.displayName} back',
+      run: (p, label) async {
+        p.start(b.entryCount);
+        final moved = await ref.read(bulkImportBatchActionsProvider).undoReassignBatch(
+              churchId: idx.churchId,
+              batchId: b.id,
+              actor: actor,
+              previousPeriodName: previous,
+              onEach: (e) => p.tick('${label(e)} · back to $previous'),
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'import.reassign_undo',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'periodName': previous, 'moved': moved},
         );
-      }
-    });
+        return SelSummary(
+          title: '${b.displayName} is back in $previous',
+          numbers: [('$moved', 'entries moved back')],
+        );
+      },
+    );
   }
 
   Future<void> _undoRename(BulkImportBatch b) async {
@@ -509,36 +577,32 @@ class _ImportsScreenState extends ConsumerState<ImportsScreen> {
     final actor = ref.read(churchUserProfileProvider).valueOrNull;
     if (idx == null || actor == null) return;
 
-    await _withBusy(b.id, () async {
-      final reverted = await ref.read(bulkImportBatchActionsProvider).revertLastEdits(
-            churchId: idx.churchId,
-            batchId: b.id,
-            actor: actor,
-          );
-      await logPillrActivity(
-        ref,
-        churchId: idx.churchId,
-        action: 'import.batch_edit_undo',
-        entityType: 'import_batch',
-        entityId: b.id,
-        entitySnapshot: {
-          'fileName': b.fileName,
-          'reverted': reverted,
-        },
-      );
-      invalidateEntryDerivedData(ref);
-      ref.invalidate(rankingEntriesProvider);
-      await ref.read(importHistoryProvider.notifier).refresh();
-      if (mounted) {
-        selNotice(
-          context,
-          reverted == 0
-              ? 'Nothing to revert — no row still has a last correction.'
-              : 'Reverted $reverted ${reverted == 1 ? "row" : "rows"}.',
-          kind: SelNoticeKind.success,
+    await _job(
+      b,
+      title: 'Reverting the last corrections',
+      run: (p, label) async {
+        p.start(b.lastEditedCount > 0 ? b.lastEditedCount : b.entryCount);
+        final reverted = await ref.read(bulkImportBatchActionsProvider).revertLastEdits(
+              churchId: idx.churchId,
+              batchId: b.id,
+              actor: actor,
+              onEach: (e) => p.tick('${label(e)} · put back as it was'),
+            );
+        await logPillrActivity(
+          ref,
+          churchId: idx.churchId,
+          action: 'import.batch_edit_undo',
+          entityType: 'import_batch',
+          entityId: b.id,
+          entitySnapshot: {'fileName': b.fileName, 'reverted': reverted},
         );
-      }
-    });
+        return SelSummary(
+          title: reverted == 0 ? 'Nothing to revert' : 'The last corrections are reverted',
+          subtitle: reverted == 0 ? 'No row still has a last correction.' : null,
+          numbers: [('$reverted', '${reverted == 1 ? 'row' : 'rows'} put back')],
+        );
+      },
+    );
   }
 }
 
@@ -550,6 +614,7 @@ class _BatchCard extends StatelessWidget {
     required this.waiting,
     required this.money,
     required this.canManage,
+    this.canMove = true,
     required this.busy,
     required this.onOpenRows,
     required this.onRename,
@@ -582,6 +647,9 @@ class _BatchCard extends StatelessWidget {
   /// Editing a row rewrites an entry, which only a pastor may do.
   final bool canEdit;
 
+  /// Moving an import to another period stays with pastors and admins.
+  final bool canMove;
+
   /// Entries of this import still waiting for a pastor; null while counting.
   final int? waiting;
 
@@ -592,10 +660,10 @@ class _BatchCard extends StatelessWidget {
       // (title, help, button, action, primary-looking)
       ('See its rows', 'Every entry this import created, in Records.', 'Open', onOpenRows, false),
       if (canEdit && !settled)
-        ('Correct its rows', 'Fix amounts, arms or partners across the import.', 'Edit', onEdit, false),
-      if (canManage && !settled)
+        ('Correct its rows', 'Fix partners, amounts, arms or dates, approved or waiting.', 'Correct', onEdit, true),
+      if (canMove && !settled)
         ('Move to another period', 'For a sheet brought into the wrong year. Every entry it created moves with it.', 'Move', onReassign, true),
-      if (canManage && !settled && batch.canUndoMove)
+      if (canMove && !settled && batch.canUndoMove)
         ('Move it back', 'Puts its entries back where they were before the last move.', 'Undo move', onUndoMove, false),
       if (!settled && (waiting ?? 0) > 0)
         (
@@ -608,9 +676,16 @@ class _BatchCard extends StatelessWidget {
       if (canEdit && !settled && batch.canRevertEdits)
         ('Revert the last corrections', 'Puts the rows back as they were before the last edit.', 'Revert', onRevertEdits, false),
       if (canManage && !batch.isVoided)
-        ('Clear this import', 'Voids all ${batch.entryCount} entries. Approved ones leave the totals; nothing is deleted.', 'Clear', onClear, true),
+        (
+          'Archive this import',
+          'Takes all ${batch.entryCount} entries out, approved and waiting. Approved ones leave the totals. '
+              'Nothing is deleted, and you can bring it back.',
+          'Archive…',
+          onClear,
+          true,
+        ),
       if (canManage && batch.isVoided)
-        ('Restore this import', 'Brings its entries back, as they were before it was cleared.', 'Restore', onRestore, true),
+        ('Bring it back', 'Puts every entry back as it was before it was archived.', 'Bring it back', onRestore, true),
       if (canManage)
         ('Rename', 'A file name says little six months later.', 'Rename', onRename, false),
       if (canManage && batch.canUndoRename)
@@ -726,7 +801,7 @@ class _ImportsTable extends ConsumerWidget {
               SelCell.numeric(b.entryCount == 0 ? '—' : money(b.totalCedis)),
               SelCell.secondary(
                 b.isVoided
-                    ? 'Every row left out'
+                    ? 'Archived${(b.voidedByName ?? '').isEmpty ? '' : ' by ${b.voidedByName}'}'
                     : b.partnersCreated > 0
                     ? '${b.partnersCreated} new ${b.partnersCreated == 1 ? 'partner' : 'partners'}'
                     : b.skippedCount > 0
@@ -738,7 +813,7 @@ class _ImportsTable extends ConsumerWidget {
                 child: b.isIncomplete
                     ? const SelStatusMark(status: SelStatus.pending, label: 'Not finished')
                     : b.isVoided
-                    ? const SelStatusMark(status: SelStatus.voided, label: 'Cleared')
+                    ? const SelStatusMark(status: SelStatus.voided, label: 'Archived')
                     : b.isUndone
                     ? const SelStatusMark(status: SelStatus.voided, label: 'Undone')
                     : waiting(b) > 0
@@ -963,3 +1038,15 @@ class _ClearDialogState extends State<_ClearDialog> {
     );
   }
 }
+
+/// "Tithe ₵8,250.00 · Missions ₵7,002.15", largest first.
+String _byArm(List<PartnershipEntry> rows, String Function(double) money) {
+  final by = <String, double>{};
+  for (final e in rows) {
+    final arm = e.armSnapshot['name']?.toString() ?? 'Other';
+    by[arm] = (by[arm] ?? 0) + e.amountCedis;
+  }
+  final sorted = by.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  return sorted.map((e) => '${e.key} ${money(e.value)}').join(' · ');
+}
+

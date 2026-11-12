@@ -27,6 +27,9 @@ class BulkImportBatch {
     this.label,
     this.note,
     this.voidedAt,
+    this.voidedByName,
+    this.lastEditedCount = 0,
+    this.createdBy,
     this.voidedCount = 0,
     this.inProgress = false,
     this.skippedCount = 0,
@@ -62,6 +65,9 @@ class BulkImportBatch {
           ? null
           : (m['note'] as String).trim(),
       voidedAt: (m['voidedAt'] as Timestamp?)?.toDate(),
+      voidedByName: m['voidedByName'] as String?,
+      lastEditedCount: (m['lastEditedCount'] as num?)?.toInt() ?? 0,
+      createdBy: m['createdBy'] as String?,
       voidedCount: (m['voidedCount'] ?? 0) as int,
       inProgress: m['inProgress'] == true,
       skippedCount: (m['skippedCount'] ?? 0) as int,
@@ -110,6 +116,15 @@ class BulkImportBatch {
 
   /// When the whole batch was reversed, and how many entries that touched.
   final DateTime? voidedAt;
+
+  /// Who archived it, for the line pastors see when staff archive one.
+  final String? voidedByName;
+
+  /// Rows changed by the last correction, for the revert's progress.
+  final int lastEditedCount;
+
+  /// Who brought it in; staff manage only their own.
+  final String? createdBy;
   final int voidedCount;
   final bool inProgress;
   final int skippedCount;
@@ -327,10 +342,12 @@ class BulkImportBatchRepository {
     required String batchId,
     required String byUid,
     required int voidedCount,
+    String? byName,
   }) async {
     await _batches(churchId).doc(batchId).set({
       'voidedAt': FieldValue.serverTimestamp(),
       'voidedBy': byUid,
+      'voidedByName': ?byName,
       'voidedCount': voidedCount,
     }, SetOptions(merge: true));
   }
@@ -379,6 +396,7 @@ class BulkImportBatchRepository {
     await _batches(churchId).doc(batchId).set({
       'voidedAt': null,
       'voidedBy': null,
+      'voidedByName': null,
       'voidedCount': 0,
       'restoredAt': FieldValue.serverTimestamp(),
       'restoredBy': byUid,
@@ -459,20 +477,31 @@ class BulkImportBatchRepository {
     required String churchId,
     required String batchId,
     required String byUid,
+    /// How many will be removed, then each one by name, for the progress window.
+    void Function(int count)? onStart,
+    void Function(String name)? onEach,
   }) async {
-    final all = await _entries(
+    // Staff may only search entries they recorded, so the search says so;
+    // an import's entries are all its own staff member's anyway.
+    Query<Map<String, dynamic>> q = _entries(
       churchId,
-    ).where('importBatchId', isEqualTo: batchId).get();
+    ).where('importBatchId', isEqualTo: batchId);
+    if (onlyCreatedBy != null) q = q.where('createdBy', isEqualTo: onlyCreatedBy);
+    final all = await q.get();
 
     final removable = all.docs
         .where((d) => (d.data()['status'] ?? '') == 'pending')
         .toList();
     final kept = all.docs.length - removable.length;
+    onStart?.call(removable.length);
 
     // Firestore caps a batch at 500 writes.
     for (var i = 0; i < removable.length; i += 400) {
       final batch = _firestore.batch();
       for (final d in removable.skip(i).take(400)) {
+        onEach?.call(
+          (d.data()['partnerSnapshot'] as Map?)?['fullName']?.toString() ?? 'Partner',
+        );
         batch.delete(d.reference);
       }
       await batch.commit();
@@ -523,3 +552,23 @@ final importWaitingCountProvider = FutureProvider.autoDispose
             batchId: key.substring(at + 1),
           );
     });
+
+/// Imports someone else archived in the last two weeks, for the pastor's bell:
+/// staff may archive one straight away, and the pastor hears of it here.
+final recentArchivedByOthersProvider = StreamProvider.autoDispose<List<BulkImportBatch>>((ref) {
+  final idx = ref.watch(userChurchIndexProvider).valueOrNull;
+  if (idx == null || !idx.isPastor) return Stream.value(const []);
+  final since = Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 14)));
+  return ref
+      .watch(firestoreProvider)
+      .collection('churches')
+      .doc(idx.churchId)
+      .collection('import_batches')
+      .where('voidedAt', isGreaterThan: since)
+      .snapshots()
+      .map((q) => [
+            for (final d in q.docs)
+              if (d.data()['voidedBy'] != idx.uid) BulkImportBatch.fromDoc(d),
+          ]);
+});
+
