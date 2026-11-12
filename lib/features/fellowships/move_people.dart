@@ -83,10 +83,29 @@ Future<String?> pickFellowship(
   );
 }
 
+/// The value [pickFellowshipFilter] returns for "All fellowships".
+const allFellowships = '\u0000all';
+
+/// Which fellowship to show: the same searchable list, with "All
+/// fellowships" first and no New fellowship. Returns [allFellowships], a
+/// name, or null when closed.
+Future<String?> pickFellowshipFilter(BuildContext context, {String? current}) {
+  return showSelSideSheet<String>(
+    context,
+    title: 'Show one fellowship',
+    width: 420,
+    child: _FellowshipPicker(here: const {}, filter: true, current: current),
+  );
+}
+
 class _FellowshipPicker extends ConsumerStatefulWidget {
-  const _FellowshipPicker({required this.here});
+  const _FellowshipPicker({required this.here, this.filter = false, this.current});
 
   final Set<String> here;
+
+  /// Choosing what to show, not where to move: All first, no New.
+  final bool filter;
+  final String? current;
 
   @override
   ConsumerState<_FellowshipPicker> createState() => _FellowshipPickerState();
@@ -116,15 +135,17 @@ class _FellowshipPickerState extends ConsumerState<_FellowshipPicker> {
     final exact = known.where((k) => fellowshipNamesMatch(k, typed)).firstOrNull;
     final similar = typed.length < 3 || exact != null ? null : suggestSimilarFellowship(typed, known);
 
-    Widget option(String f) {
+    Widget option(String f, {String? label, String? count}) {
       final isHere = widget.here.any((h) => fellowshipNamesMatch(h, f));
+      final isCurrent = widget.filter &&
+          (f == allFellowships ? widget.current == null : widget.current != null && fellowshipNamesMatch(widget.current!, f));
       return Padding(
         padding: const EdgeInsets.only(bottom: SelSpace.x2),
         child: Material(
-          color: Sel.card,
+          color: isCurrent ? Sel.skyTint : Sel.card,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: Sel.border),
+            side: BorderSide(color: isCurrent ? Sel.sky : Sel.border),
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
@@ -137,16 +158,23 @@ class _FellowshipPickerState extends ConsumerState<_FellowshipPicker> {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   child: Row(
                     children: [
-                      _Initials(f),
+                      f == allFellowships
+                          ? const CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Sel.skyWash,
+                              child: Icon(LucideIcons.users, size: 15, color: Sel.ink),
+                            )
+                          : _Initials(label ?? f),
                       const SizedBox(width: SelSpace.x3),
                       Expanded(
                         child: Text(
-                          f,
+                          label ?? f,
                           style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w700),
                         ),
                       ),
+                      const SizedBox(width: SelSpace.x2),
                       Text(
-                        isHere ? 'where they are now' : _people(_activeIn(partners, f)),
+                        count ?? (isHere ? 'where they are now' : _people(_activeIn(partners, f))),
                         style: SelType.small,
                       ),
                     ],
@@ -171,13 +199,17 @@ class _FellowshipPickerState extends ConsumerState<_FellowshipPicker> {
           ),
           const SizedBox(height: SelSpace.x3),
         ],
+        if (widget.filter && q.isEmpty)
+          option(allFellowships, label: 'All fellowships', count: _people(partners.where((p) => p.isActive).length)),
         for (final f in shown) option(f),
         if (shown.isEmpty) Padding(
           padding: const EdgeInsets.symmetric(vertical: SelSpace.x3),
           child: Text('No fellowship matches “$_query”.', style: SelType.bodyMuted),
         ),
         const SizedBox(height: SelSpace.x2),
-        if (!_adding)
+        if (widget.filter)
+          const SizedBox.shrink()
+        else if (!_adding)
           SelButton(
             label: 'New fellowship',
             icon: LucideIcons.plus,
@@ -671,6 +703,8 @@ class _MovePeopleScreenState extends ConsumerState<MovePeopleScreen> {
   String? _filter;
   bool _seeded = false;
   bool _busy = false;
+  static const _page = 150;
+  int _shown = _page;
 
   @override
   Widget build(BuildContext context) {
@@ -679,7 +713,6 @@ class _MovePeopleScreenState extends ConsumerState<MovePeopleScreen> {
       for (final p in async.valueOrNull ?? const <Partner>[])
         if (p.isActive) p,
     ]..sort((a, b) => a.fullName.compareTo(b.fullName));
-    final known = ref.watch(knownFellowshipsProvider);
     final locked = widget.fellowship;
     final scope = locked ?? _filter;
     if (!_seeded && widget.tickAll && locked != null && partners.isNotEmpty) {
@@ -724,22 +757,48 @@ class _MovePeopleScreenState extends ConsumerState<MovePeopleScreen> {
             ),
           ],
         ),
-        SelField(
-          hint: locked == null ? 'Find a partner by name or member ID' : 'Find someone in $locked',
-          prefixIcon: LucideIcons.search,
-          onChanged: (v) => setState(() => _query = v),
+        // Search, and one control for which fellowship: a church can have
+        // thirty, and a wall of pills buries the list (Hick).
+        LayoutBuilder(
+          builder: (context, c) {
+            final search = SelField(
+              hint: locked == null ? 'Find a partner by name or member ID' : 'Find someone in $locked',
+              prefixIcon: LucideIcons.search,
+              onChanged: (v) => setState(() {
+                _query = v;
+                _shown = _page;
+              }),
+            );
+            if (locked != null) return search;
+            final filter = _FilterButton(
+              label: _filter == null ? 'All fellowships' : _filter!,
+              count: _filter == null ? partners.length : _activeIn(partners, _filter!),
+              active: _filter != null,
+              onTap: () async {
+                final v = await pickFellowshipFilter(context, current: _filter);
+                if (v == null || !mounted) return;
+                setState(() {
+                  _filter = v == allFellowships ? null : v;
+                  _shown = _page;
+                });
+              },
+              onClear: () => setState(() => _filter = null),
+            );
+            if (c.maxWidth < 600) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [search, const SizedBox(height: SelSpace.x3), filter],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: search),
+                const SizedBox(width: SelSpace.x3),
+                ConstrainedBox(constraints: const BoxConstraints(maxWidth: 340), child: filter),
+              ],
+            );
+          },
         ),
-        if (locked == null) ...[
-          const SizedBox(height: SelSpace.x3),
-          SelPillGroup<String?>(
-            selected: _filter,
-            onChanged: (v) => setState(() => _filter = v),
-            options: [
-              (null, 'All · ${partners.length}'),
-              for (final f in known) (f, '$f · ${_activeIn(partners, f)}'),
-            ],
-          ),
-        ],
         const SizedBox(height: SelSpace.x4),
         if (async.isLoading && partners.isEmpty)
           const SelCard(child: SelSkeletonRows())
@@ -784,11 +843,24 @@ class _MovePeopleScreenState extends ConsumerState<MovePeopleScreen> {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                for (final p in list)
+                // A church of 500 builds 150 rows at a time, so a phone
+                // stays quick; Tick all still ticks the whole list.
+                for (final p in list.take(_shown))
                   _TickRow(
+                    key: ValueKey(p.id),
                     partner: p,
                     on: _picked.contains(p.id),
                     onTap: () => setState(() => _picked.contains(p.id) ? _picked.remove(p.id) : _picked.add(p.id)),
+                  ),
+                if (list.length > _shown)
+                  Padding(
+                    padding: const EdgeInsets.all(SelSpace.x4),
+                    child: Center(
+                      child: SelButton(
+                        label: 'Show ${(list.length - _shown).clamp(0, _page)} more of ${list.length - _shown}',
+                        onPressed: () => setState(() => _shown += _page),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -815,8 +887,75 @@ class _MovePeopleScreenState extends ConsumerState<MovePeopleScreen> {
   }
 }
 
+/// "Fellowship: All fellowships · 531 ▾", or the one chosen with a clear.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.label,
+    required this.count,
+    required this.active,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final String label;
+  final int count;
+  final bool active;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? Sel.skyTint : Sel.card,
+      shape: StadiumBorder(side: BorderSide(color: active ? Sel.sky : Sel.border)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: SelLayout.tapTarget),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(LucideIcons.users, size: 16, color: Sel.warm),
+                const SizedBox(width: SelSpace.x2),
+                Flexible(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: label, style: SelType.bodyMedium.copyWith(color: Sel.ink, fontWeight: FontWeight.w700)),
+                        TextSpan(text: '  $count', style: SelType.small),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: SelSpace.x1),
+                if (active)
+                  IconButton(
+                    tooltip: 'Show all fellowships',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(LucideIcons.x, size: 16, color: Sel.ink),
+                    onPressed: onClear,
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(LucideIcons.chevronDown, size: 16, color: Sel.ink),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TickRow extends StatelessWidget {
-  const _TickRow({required this.partner, required this.on, required this.onTap});
+  const _TickRow({super.key, required this.partner, required this.on, required this.onTap});
 
   final Partner partner;
   final bool on;
