@@ -20,6 +20,8 @@ import '../features/partners/providers/partners_providers.dart';
 import 'views/view_common.dart';
 import '../features/periods/providers/periods_providers.dart';
 import 'fellowship_manage_view.dart';
+import '../features/fellowships/fellowship_match.dart';
+import '../features/fellowships/move_people.dart';
 import 'fellowship_rhythm_view.dart';
 import 'ranked_views.dart';
 import 'record_filter_bar.dart';
@@ -143,7 +145,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
               SelButton.cyan(
                 label: 'New fellowship',
                 icon: LucideIcons.plus,
-                onPressed: () => setState(() => _view = _View.manage),
+                onPressed: () => createFellowship(context, ref),
               ),
             if (view == _View.manage && !adminOnly)
               SelButton(
@@ -153,6 +155,11 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
               ),
           ],
         ),
+        // What the fellowships look like at a glance, before anything else.
+        if (view == _View.directory || view == _View.rhythm) ...[
+          const _FellowshipSummary(),
+          const SizedBox(height: SelSpace.x6),
+        ],
         if (canRhythm && (view == _View.directory || view == _View.rhythm)) ...[
           Align(
             alignment: Alignment.centerLeft,
@@ -181,6 +188,7 @@ class _FellowshipsScreenState extends ConsumerState<FellowshipsScreen> {
           _FellowshipDirectory(
             query: _query,
             onOpenFellowship: _openFellowshipMembers,
+            canManage: canManage,
           )
         else if (view == _View.manage)
           const FellowshipManageView()
@@ -201,9 +209,13 @@ class _FellowshipDirectory extends ConsumerWidget {
   const _FellowshipDirectory({
     required this.query,
     required this.onOpenFellowship,
+    this.canManage = false,
   });
 
   final String query;
+
+  /// Shows the ⋯ on each row: Move people, Rename, Merge into, Close.
+  final bool canManage;
   final ValueChanged<String> onOpenFellowship;
 
   @override
@@ -212,16 +224,23 @@ class _FellowshipDirectory extends ConsumerWidget {
     return partnersAsync.when(
       loading: () => const SelCard(child: SelSkeletonRows()),
       error: (e, _) => SelError(message: plainError(e)),
-      data: (partners) => _directoryTable(ref, partners),
+      data: (partners) => _directoryTable(context, ref, partners),
     );
   }
 
-  Widget _directoryTable(WidgetRef ref, List<Partner> partners) {
+  Widget _directoryTable(BuildContext context, WidgetRef ref, List<Partner> partners) {
     final money = ref.watch(churchMoneyFormatProvider);
     final view = ref.watch(givingViewProvider);
     final ranks = ref.watch(canSeeRanksProvider);
+    // A fellowship nobody is in yet still gets a row, so it can be
+    // renamed, filled or closed from here.
+    final empty = [
+      for (final n in ref.watch(knownFellowshipsProvider))
+        if (!view.fellowships.any((f) => fellowshipNamesMatch(f.name, n)))
+          FellowshipGiving(key: n.trim().toLowerCase(), name: n),
+    ];
     final rows = [
-      for (final f in view.fellowships)
+      for (final f in [...view.fellowships, ...empty])
         if (query.isEmpty || f.name.toLowerCase().contains(query)) f,
     ];
     // Staff see no places: what they recorded, not how fellowships compare.
@@ -247,7 +266,7 @@ class _FellowshipDirectory extends ConsumerWidget {
     );
 
     return SelLedger(
-      minWidth: 200.0 + view.arms.length * 170 + 150,
+      minWidth: 200.0 + view.arms.length * 170 + 150 + (canManage ? 48 : 0),
       columns: [
         const SelColumn('Fellowship', flex: 2),
         const SelColumn.numeric('Partners', width: 90),
@@ -266,7 +285,17 @@ class _FellowshipDirectory extends ConsumerWidget {
           SelRow(
             onTap: () => onOpenFellowship(f.key),
             cells: [
-              SelCell.primary(f.name),
+              // The ⋯ sits beside the name so it is on screen on a phone,
+              // where the table scrolls sideways.
+              canManage
+                  ? Row(
+                      children: [
+                        Flexible(child: SelCell.primary(f.name)),
+                        const SizedBox(width: SelSpace.x1),
+                        _FellowshipMenu(name: f.name, partners: f.partners),
+                      ],
+                    )
+                  : SelCell.primary(f.name),
               SelCell.numeric('${f.partners}', strong: false),
               for (final a in view.arms)
                 Align(
@@ -448,6 +477,153 @@ class _FellowshipMembersDetail extends ConsumerWidget {
           ),
       ],
       requireAnyRows: section != null && section.rows.isNotEmpty,
+    );
+  }
+}
+
+
+/// Everything you can do to a fellowship, in one place (Hick: nothing else
+/// on the row competes with opening it).
+class _FellowshipMenu extends ConsumerWidget {
+  const _FellowshipMenu({required this.name, required this.partners});
+
+  final String name;
+  final int partners;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    PopupMenuItem<String> item(String v, IconData icon, String label, String hint) => PopupMenuItem(
+      value: v,
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Sel.ink),
+          const SizedBox(width: SelSpace.x3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: SelType.bodyMedium.copyWith(color: Sel.ink)),
+                Text(hint, style: SelType.small),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: PopupMenuButton<String>(
+        padding: EdgeInsets.zero,
+        tooltip: 'More for $name',
+        icon: const Icon(LucideIcons.moreHorizontal, size: 18, color: Sel.ink),
+        color: Sel.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Sel.border),
+        ),
+        elevation: 0,
+        onSelected: (v) {
+          switch (v) {
+            case 'move':
+              context.go('/fellowships/move?from=${Uri.encodeQueryComponent(name)}');
+            case 'rename':
+              renameFellowship(context, ref, name);
+            case 'merge':
+              mergeFellowship(context, ref, name);
+            case 'close':
+              closeFellowship(context, ref, name);
+          }
+        },
+        itemBuilder: (_) => [
+          if (partners > 0) item('move', LucideIcons.arrowLeftRight, 'Move people…', 'Tick who goes, then pick where'),
+          item('rename', LucideIcons.pencil, 'Rename…', 'Everyone stays; the name changes'),
+          if (partners > 0) item('merge', LucideIcons.gitMerge, 'Merge into…', partners == 1 ? 'Its 1 partner joins another fellowship' : 'All $partners join another fellowship'),
+          const PopupMenuDivider(),
+          item('close', LucideIcons.ban, 'Close fellowship…', partners > 0 ? 'Move its people first' : 'It is empty'),
+        ],
+      ),
+    );
+  }
+}
+
+/// What the fellowships look like at a glance, before the list.
+class _FellowshipSummary extends ConsumerWidget {
+  const _FellowshipSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final partners = [
+      for (final p in ref.watch(partnersStreamProvider(false)).valueOrNull ?? const <Partner>[])
+        if (p.isActive) p,
+    ];
+    final known = ref.watch(knownFellowshipsProvider);
+    final pastor = ref.watch(userChurchIndexProvider).valueOrNull?.isPastor ?? false;
+    final view = ref.watch(givingViewProvider);
+    final money = ref.watch(churchMoneyFormatProvider);
+    final period = ref.watch(activePeriodProvider)?.name;
+
+    final sizes = [
+      for (final f in known) (f, partners.where((p) => fellowshipNamesMatch(p.fellowship, f)).length),
+    ]..sort((a, b) => b.$2.compareTo(a.$2));
+    final empty = sizes.where((s) => s.$2 == 0).length;
+    final none = partners.where((p) => p.fellowship.trim().isEmpty).length;
+    final largest = sizes.isEmpty ? null : sizes.first;
+    final smallest = sizes.where((s) => s.$2 > 0).lastOrNull;
+    final top = [...view.fellowships]..sort((a, b) => b.total.compareTo(a.total));
+    final topGiving = top.where((f) => f.total > 0).firstOrNull;
+
+    final tiles = <(String, String, String?, VoidCallback?)>[
+      ('Fellowships', '${known.length}', empty == 0 ? 'Every one has people' : '$empty empty · you can close ${empty == 1 ? 'it' : 'them'}', null),
+      ('Partners', '${partners.length}', none == 0 ? 'Everyone is in a fellowship' : '$none with no fellowship', none == 0 ? null : () => context.go('/tools/move')),
+      ('Largest', largest == null ? '—' : largest.$1, largest == null ? null : '${largest.$2} partners${smallest != null && smallest.$1 != largest.$1 ? ' · smallest ${smallest.$1}, ${smallest.$2}' : ''}', null),
+      if (pastor)
+        ('Most giving${period == null ? '' : ' · $period'}', topGiving?.name ?? '—', topGiving == null ? 'No approved giving yet' : money(topGiving.total), null)
+      else
+        ('Average size', known.isEmpty ? '—' : (partners.length / known.length).toStringAsFixed(0), 'partners per fellowship', null),
+    ];
+    // A phone gets the four as a tight two-by-two, so the list is not pushed
+    // a screen down; wider screens get the usual stat cards.
+    return LayoutBuilder(
+      builder: (context, c) {
+        if (c.maxWidth >= 600) {
+          return SelStatRow(
+            stats: [
+              for (final (label, value, note, tap) in tiles)
+                SelStat(label: label, value: value, footnote: note, onTap: tap),
+            ],
+          );
+        }
+        final w = (c.maxWidth - SelSpace.x3) / 2;
+        return Wrap(
+          spacing: SelSpace.x3,
+          runSpacing: SelSpace.x3,
+          children: [
+            for (final (label, value, note, tap) in tiles)
+              SizedBox(
+                width: w,
+                child: SelCard(
+                  onTap: tap,
+                  padding: const EdgeInsets.all(SelSpace.x4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: SelType.caption, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: SelSpace.x1),
+                      Text(value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: SelType.subtitle.copyWith(color: Sel.ink, fontWeight: FontWeight.w800)),
+                      if (note != null)
+                        Text(note, maxLines: 2, overflow: TextOverflow.ellipsis, style: SelType.small),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

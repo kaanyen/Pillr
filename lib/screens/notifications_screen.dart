@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/entries/bulk_import/bulk_import_batches.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/operations/record_ops_repository.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -44,7 +45,18 @@ class NotificationsScreen extends ConsumerWidget {
     final total = pending.fold<double>(0, (s, e) => s + e.amountCedis);
 
     final archived = ref.watch(recentArchivedByOthersProvider).valueOrNull ?? const [];
+    final staffChanges = ref.watch(staffFellowshipChangesProvider);
     final items = <Widget>[
+      for (final op in staffChanges)
+        _Item(
+          badge: '${op.summary['activeMoved'] ?? ''}',
+          title: '${op.actorName.isEmpty ? 'Staff' : op.actorName}: ${op.label}',
+          body: 'It happened straight away. Undo it from Tools · Changes if that was a mistake.',
+          action: SelButton(
+            label: 'Open Changes',
+            onPressed: () => context.go('/tools?tool=changes'),
+          ),
+        ),
       for (final b in archived)
         _Item(
           badge: '${b.voidedCount}',

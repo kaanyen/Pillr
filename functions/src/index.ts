@@ -1350,3 +1350,44 @@ export const onImportBatchArchived = functionsV1
       console.warn("FCM onImportBatchArchived:", e);
     }
   });
+
+/**
+ * A staff member moved people, or renamed, merged or closed a fellowship:
+ * it happens straight away, and the pastors are told on their phones. The
+ * bell page lists it from the operation itself, with Undo in Tools · Changes.
+ */
+export const onFellowshipChangeByStaff = functionsV1
+  .region(REGION)
+  .firestore.document("churches/{churchId}/operations/{opId}")
+  .onWrite(async (change, context) => {
+    const after = change.after.exists ? change.after.data() : undefined;
+    const before = change.before.exists ? change.before.data() : undefined;
+    if (!after || after.status !== "applied" || before?.status === "applied") return;
+    const kind = String(after.kind ?? "");
+    if (!kind.startsWith("fellowship.")) return;
+    const actor = (after.actorSnapshot ?? {}) as {fullName?: string; role?: string};
+    if (actor.role !== "staff") return;
+    const churchId = context.params.churchId as string;
+    const users = await db.collection(`churches/${churchId}/users`).where("role", "==", "pastor").get();
+    const tokens = users.docs.map((d) => d.get("fcmToken") as string | undefined).filter((t): t is string => !!t);
+    if (tokens.length === 0) return;
+    const s = (after.summary ?? {}) as Record<string, unknown>;
+    const who = String(actor.fullName || "A staff member");
+    const n = Number(s.activeMoved ?? 0);
+    const what = kind === "fellowship.move"
+      ? `moved ${n} ${n === 1 ? "partner" : "partners"} to ${String(s.to ?? "")}`
+      : kind === "fellowship.rename"
+        ? `renamed ${String(s.from ?? "")} to ${String(s.to ?? "")}`
+        : `merged ${String(s.from ?? "")} into ${String(s.to ?? "")}`;
+    try {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "A fellowship change",
+          body: `${who} ${what}. Undo it from Tools · Changes if that was a mistake.`,
+        },
+      });
+    } catch (e) {
+      console.warn("FCM onFellowshipChangeByStaff:", e);
+    }
+  });

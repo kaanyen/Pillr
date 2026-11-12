@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../core/extensions/async_value_ext.dart';
@@ -29,7 +30,10 @@ import '../core/errors/plain_error.dart';
 /// sight would be worse than no tool — the point is to make a problem
 /// visible and let someone decide.
 class ToolsScreen extends ConsumerStatefulWidget {
-  const ToolsScreen({super.key});
+  const ToolsScreen({super.key, this.initialTool});
+
+  /// Opens on this tool, e.g. `changes` from a summary's See it in Changes.
+  final String? initialTool;
 
   @override
   ConsumerState<ToolsScreen> createState() => _ToolsScreenState();
@@ -39,7 +43,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
   String? _running;
 
   /// The tool open on the right.
-  String _tool = 'dupPartners';
+  late String _tool = widget.initialTool ?? 'dupPartners';
 
   TotalsAuditReport? _totals;
   List<DuplicatePartnerPair>? _dupPartners;
@@ -271,6 +275,8 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
       ('partnerData', 'Names and fellowships', 'Capitals and missing details', _partnerIssues?.length ?? 0),
       if (pastor) ('totals', 'Totals', 'Add the entries up again', 0),
       ('separate', 'Take someone out of a merge', 'By their old member ID', 0),
+      ('move', 'Move people', 'Between fellowships, one or many', 0),
+      ('changes', 'Changes', 'Undo a move, merge or rename', 0),
     ];
     final list = SelCard(
       padding: const EdgeInsets.all(10),
@@ -283,7 +289,7 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
               borderRadius: BorderRadius.circular(18),
               child: InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () => setState(() => _tool = id),
+                onTap: () => id == 'move' ? context.go('/tools/move') : setState(() => _tool = id),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
                   child: Row(
@@ -309,9 +315,13 @@ class _ToolsScreenState extends ConsumerState<ToolsScreen> {
     final detail = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        cards[_tool]!,
-        const SizedBox(height: SelSpace.x4),
-        const RecentChangesCard(),
+        if (_tool == 'changes')
+          const RecentChangesCard()
+        else ...[
+          cards[_tool] ?? cards['dupPartners']!,
+          const SizedBox(height: SelSpace.x4),
+          const RecentChangesCard(),
+        ],
       ],
     );
 
