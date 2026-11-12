@@ -46,51 +46,67 @@ class SelPageTitle extends StatelessWidget {
     final w = MediaQuery.sizeOf(context).width;
     final style = hero ? SelType.heroFor(w) : SelType.titleFor(w);
 
-    return Padding(
-      padding: EdgeInsets.only(bottom: hero ? SelSpace.x8 : SelSpace.x6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (highlight != null)
-                  SelHighlight(
-                    before: title,
-                    highlight: highlight!,
-                    after: titleSuffix ?? '',
-                    style: style,
-                  )
-                else
-                  Text(title, style: style),
-                if (subtitle != null) ...[
-                  SizedBox(height: hero ? SelSpace.x4 : SelSpace.x2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: SelLayout.prose),
-                    child: Text(
-                      subtitle!,
-                      style: hero ? SelType.lead : SelType.bodyMuted,
-                    ),
-                  ),
-                ],
-              ],
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (highlight != null)
+          SelHighlight(
+            before: title,
+            highlight: highlight!,
+            after: titleSuffix ?? '',
+            style: style,
+          )
+        else
+          Text(title, style: style),
+        if (subtitle != null) ...[
+          SizedBox(height: hero ? SelSpace.x4 : SelSpace.x2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: SelLayout.prose),
+            child: Text(
+              subtitle!,
+              style: hero ? SelType.lead : SelType.bodyMuted,
             ),
           ),
-          if (actions.isNotEmpty) ...[
-            const SizedBox(width: SelSpace.x4),
-            Padding(
-              padding: const EdgeInsets.only(top: SelSpace.x1),
-              child: Wrap(
-                spacing: SelSpace.x2,
-                runSpacing: SelSpace.x2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: actions,
-              ),
-            ),
-          ],
         ],
+      ],
+    );
+    final buttons = Wrap(
+      spacing: SelSpace.x2,
+      runSpacing: SelSpace.x2,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: actions,
+    );
+    return Padding(
+      padding: EdgeInsets.only(bottom: hero ? SelSpace.x8 : SelSpace.x6),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          // On a phone the buttons go under the title, so the title keeps
+          // the whole width instead of being squeezed to a letter a line.
+          if (actions.isNotEmpty && c.maxWidth < 600) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                heading,
+                const SizedBox(height: SelSpace.x3),
+                buttons,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: heading),
+              if (actions.isNotEmpty) ...[
+                const SizedBox(width: SelSpace.x4),
+                Padding(
+                  padding: const EdgeInsets.only(top: SelSpace.x1),
+                  child: buttons,
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -125,8 +141,8 @@ class SelSectionGap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: SelLayout.sectionGap(MediaQuery.sizeOf(context).width) * factor,
-      );
+    height: SelLayout.sectionGap(MediaQuery.sizeOf(context).width) * factor,
+  );
 }
 
 /// Scrolling body for a screen: centres content at 1200px on the canvas and
@@ -161,9 +177,7 @@ class SelPageBody extends StatelessWidget {
 
     final scroll = SingleChildScrollView(
       controller: controller,
-      physics: onRefresh != null
-          ? const AlwaysScrollableScrollPhysics()
-          : null,
+      physics: onRefresh != null ? const AlwaysScrollableScrollPhysics() : null,
       padding: EdgeInsets.fromLTRB(
         gutter,
         clusterHeadroom,

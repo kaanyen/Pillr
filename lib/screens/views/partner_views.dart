@@ -17,6 +17,8 @@ import '../../core/navigation/panel_flows.dart';
 import '../../core/notifications/sel_notice.dart';
 import '../../features/users/providers/users_providers.dart';
 import 'view_common.dart';
+import '../../core/utils/export_naming.dart';
+import '../../core/utils/follow_up_export.dart';
 import '../../core/errors/plain_error.dart';
 
 /// The last four digits of a partner's first phone, so a list can show which
@@ -752,6 +754,57 @@ class FollowUpScreen extends ConsumerStatefulWidget {
 
 class _FollowUpState extends ConsumerState<FollowUpScreen> {
   int _days = 60;
+  bool _exporting = false;
+
+  /// PDF or CSV of the list on screen. On a phone it opens the share sheet
+  /// (Save to Files, Drive, WhatsApp, email); on a computer it downloads.
+  Future<void> _export(List<Partner> quiet, Map<String, DateTime> lastOf, {required bool pdf}) async {
+    if (_exporting) return;
+    if (quiet.isEmpty) {
+      selNotice(context, 'Nobody on the list to export.');
+      return;
+    }
+    setState(() => _exporting = true);
+    try {
+      final settings = ref.read(churchSettingsProvider).valueOrNull;
+      final window = _days == 180 ? '6 months' : '$_days days';
+      final now = DateTime.now();
+      final h = FollowUpHeader(
+        church: ref.read(churchNameProvider) ?? 'Church',
+        window: window,
+        madeBy: ref.read(churchUserProfileProvider).valueOrNull?.fullName ?? '-',
+        madeAt: now,
+        logoUrl: settings?.logoUrl,
+        markColorHex: settings?.primaryColorHex,
+      );
+      final rows = [
+        for (final p in quiet)
+          FollowUpRow(
+            name: p.fullName,
+            memberId: p.memberId,
+            fellowship: p.fellowship,
+            phones: p.allPhones,
+            lastGave: lastOf[p.id],
+            reason: p.followUpReason ?? '',
+          ),
+      ];
+      final name = pillrExportFileName(
+        report: 'follow-up',
+        scope: 'not-given-$window',
+        on: now,
+        extension: pdf ? 'pdf' : 'csv',
+      );
+      if (pdf) {
+        await shareFollowUpPdf(rows, h, name);
+      } else {
+        await shareFollowUpCsv(rows, h, name);
+      }
+    } catch (e) {
+      if (mounted) selNotice(context, 'Export failed. ${plainError(e)}', kind: SelNoticeKind.error);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   Future<void> _editReason(Partner p) async {
     final ctrl = TextEditingController(text: p.followUpReason ?? '');
@@ -821,6 +874,16 @@ class _FollowUpState extends ConsumerState<FollowUpScreen> {
           title: 'Follow up',
           subtitle: "Partners who haven't given in ${_days == 180 ? '6 months' : '$_days days'}",
           actions: [
+            SelButton(
+              label: 'PDF',
+              icon: LucideIcons.fileDown,
+              onPressed: _exporting || quiet.isEmpty ? null : () => _export(quiet, lastOf, pdf: true),
+            ),
+            SelButton(
+              label: 'CSV',
+              icon: LucideIcons.table,
+              onPressed: _exporting || quiet.isEmpty ? null : () => _export(quiet, lastOf, pdf: false),
+            ),
             SelButton(
               label: 'Copy phone numbers',
               onPressed: phones.isEmpty
